@@ -1,0 +1,70 @@
+rules_version = '2';
+
+// Helfenberger's Library — Firestore Security Rules
+//
+// Data model (Storage-free: uploaded exercise pages live directly in Firestore,
+// so the whole project can run on the free "Spark" plan with no credit card):
+//   students/{uid}                        -> {username, displayName, role}   (written only by the admin script, read-only for clients)
+//   resources/{resourceId}                          -> {subject, title, fileName, uploadedAt, uploadedBy}  (lightweight metadata, listed per subject)
+//   resourceContent/{resourceId}                    -> {chunkCount}                                        (fetched only when a resource is opened)
+//   resourceContent/{resourceId}/chunks/{chunkId}    -> {html}   (<=~900KB each; a large upload is split into several of these and
+//                                                                 rejoined on read — see chunkStringByBytes() in index.html)
+//   progress/{uid}/resources/{resourceId}           -> {stats, total, updatedAt}                           (each student's own practice progress)
+//
+// Only the teacher account (helfenberger) carries the custom claim `teacher: true`,
+// set by admin/create-accounts.js. Everyone else is a student.
+
+function isSignedIn() {
+  return request.auth != null;
+}
+
+function isTeacher() {
+  return isSignedIn() && request.auth.token.teacher == true;
+}
+
+function isOwner(uid) {
+  return isSignedIn() && request.auth.uid == uid;
+}
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Roster info. Only the admin script (Admin SDK, bypasses rules) writes this.
+    match /students/{uid} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+
+    // The catalogue of uploaded exercise pages, one per subject.
+    match /resources/{resourceId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isTeacher();
+    }
+
+    // The actual content of each exercise page (kept separate from
+    // resources/{resourceId} so browsing a subject's list doesn't have to
+    // download every exercise's full content — only opening one does).
+    // Split into chunk sub-documents so a page can exceed Firestore's ~1MiB
+    // per-document limit (e.g. once exercises start including images).
+    match /resourceContent/{resourceId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isTeacher()
+        && request.resource.data.chunkCount is int
+        && request.resource.data.chunkCount > 0
+        && request.resource.data.chunkCount <= 20;
+
+      match /chunks/{chunkId} {
+        allow read: if isSignedIn();
+        allow create, update, delete: if isTeacher()
+          && request.resource.data.html is string
+          && request.resource.data.html.size() < 950000; // ~950KB, under Firestore's 1MiB document cap
+      }
+    }
+
+    // Each student's own progress, one doc per resource. Teacher can read (not write) for an overview.
+    match /progress/{uid}/resources/{resourceId} {
+      allow read: if isOwner(uid) || isTeacher();
+      allow write: if isOwner(uid);
+    }
+  }
+}
