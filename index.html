@@ -47,8 +47,20 @@
   }
 
   *{box-sizing:border-box;}
-  html,body{margin:0;padding:0;background:var(--bg);color:var(--text);}
-  body{font:15px/1.5 Karla,-apple-system,BlinkMacSystemFont,sans-serif;}
+  html{margin:0;padding:0;background:var(--bg);}
+  html,body{min-height:100%;}
+  body{
+    margin:0;padding:0;color:var(--text);
+    font:15px/1.5 Karla,-apple-system,BlinkMacSystemFont,sans-serif;
+    background-color:var(--bg);
+    background-image:
+      linear-gradient(color-mix(in srgb, var(--bg) 88%, transparent), color-mix(in srgb, var(--bg) 88%, transparent)),
+      url('assets/background.jpg');
+    background-size:cover;
+    background-position:center;
+    background-repeat:no-repeat;
+    background-attachment:fixed;
+  }
   h1,h2,h3{font-family:'Baloo 2',Karla,sans-serif;margin:0 0 6px;}
   button{font:inherit;cursor:pointer;}
   input{font:inherit;}
@@ -59,8 +71,8 @@
   /* ---------- Login ---------- */
   .login-wrap{flex:1;display:flex;align-items:center;justify-content:center;padding:24px;}
   .login-card{width:100%;max-width:400px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:36px 32px;text-align:center;}
-  .login-logo{width:64px;height:64px;margin:0 auto 14px;border-radius:16px;overflow:hidden;box-shadow:var(--shadow);}
-  .login-logo img{width:100%;height:100%;object-fit:cover;display:block;}
+  .login-logo{width:100%;max-width:210px;margin:0 auto 14px;}
+  .login-logo img{width:100%;height:auto;object-fit:contain;display:block;}
   .login-card h1{font-size:26px;color:var(--brand-ink);}
   .login-card p.sub{color:var(--text-muted);margin:0 0 22px;font-size:14px;}
   .login-card input{width:100%;padding:13px 14px;border:2px solid var(--border);border-radius:var(--radius-sm);background:var(--surface-2);color:var(--text);margin-bottom:12px;text-align:center;font-size:16px;}
@@ -82,8 +94,8 @@
 
   /* ---------- Chrome / header ---------- */
   .topbar{display:flex;align-items:center;gap:14px;padding:14px 22px;background:var(--surface);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:20;}
-  .topbar-logo{width:38px;height:38px;border-radius:11px;overflow:hidden;flex-shrink:0;box-shadow:var(--shadow);cursor:pointer;}
-  .topbar-logo img{width:100%;height:100%;object-fit:cover;display:block;}
+  .topbar-logo{height:36px;width:auto;flex-shrink:0;cursor:pointer;display:flex;align-items:center;}
+  .topbar-logo img{height:100%;width:auto;object-fit:contain;display:block;}
   .topbar-title{font-family:'Baloo 2';font-weight:800;font-size:17px;color:var(--brand-ink);cursor:pointer;}
   .topbar-spacer{flex:1;}
   .topbar-user{display:flex;align-items:center;gap:10px;font-size:14px;color:var(--text-muted);}
@@ -148,6 +160,11 @@
   .viewer-progress{font-size:13px;color:var(--text-muted);}
   .viewer-frame-wrap{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden;height:calc(100vh - 210px);min-height:420px;}
   .viewer-frame-wrap iframe{width:100%;height:100%;border:0;display:block;background:#fff;}
+  .viewer-frame-wrap:fullscreen,
+  .viewer-frame-wrap:-webkit-full-screen{border-radius:0;border:0;height:100vh;}
+  .viewer-frame-wrap:fullscreen iframe,
+  .viewer-frame-wrap:-webkit-full-screen iframe{height:100%;}
+  .btn-fs svg{width:15px;height:15px;}
 
   .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--brand-ink);color:#fff;padding:11px 20px;border-radius:999px;font-size:13.5px;box-shadow:var(--shadow);z-index:99;opacity:0;pointer-events:none;transition:opacity .25s ease, transform .25s ease;}
   .toast.show{opacity:1;transform:translateX(-50%) translateY(-6px);}
@@ -413,8 +430,11 @@ function renderChrome(innerHtml){
 function renderHome(){
   var isTeacher = state.profile.role === 'teacher';
   var html = '';
-  html += '<div class="hero"><h2>'+(isTeacher ? 'Willkommen zurück, '+esc(state.profile.displayName)+'!' : 'Hallo '+esc(state.profile.displayName)+'! Bereit zum Üben?')+'</h2>';
-  html += '<p>'+(isTeacher ? 'Wähle ein Fach, um Übungsseiten hochzuladen oder zu verwalten. Änderungen sind sofort für alle Schüler:innen sichtbar.' : 'Wähle ein Fach aus und übe drauflos. Dein Fortschritt wird automatisch gespeichert.')+'</p></div>';
+  html += '<div class="hero"><h2>'+(isTeacher ? 'Willkommen zurück, '+esc(state.profile.displayName)+'!' : 'Hallo '+esc(state.profile.displayName)+'!')+'</h2>';
+  html += '<p>'+(isTeacher
+    ? 'Lade hier Übungsseiten hoch, verwalte sie und markiere pro Fach das aktuelle Thema. So ist die Library für deine Klasse gleichzeitig Trainings- und Informationsplattform für deinen Unterricht.'
+    : 'Diese Seite ist Übungsplattform und Infoseite für den Unterricht bei Herrn Helfenberger in einem: Trainiere die Themen deiner Fächer, und schau im jeweiligen Fach nach, welches Thema rot markiert ist – so siehst du, woran wir gerade arbeiten.')
+    +'</p></div>';
   html += '<div class="subject-grid" id="subjectGrid">';
   SUBJECTS.forEach(function(s){
     html += '<button class="subject-card" data-subject="'+s.id+'">';
@@ -747,12 +767,15 @@ function renderResource(r){
 
   var html = '<div class="viewer-wrap">';
   html += '<div class="back-row"><button class="btn btn-ghost btn-sm" id="backBtn">&larr; '+esc(s ? s.name : 'Fach')+'</button></div>';
-  html += '<div class="viewer-head"><h2>'+esc(r.title || r.fileName)+'</h2><span class="viewer-progress" id="viewerProgress"></span></div>';
-  html += '<div class="viewer-frame-wrap"><iframe id="resourceFrame" title="'+esc(r.title||r.fileName)+'"></iframe></div>';
+  html += '<div class="viewer-head"><h2>'+esc(r.title || r.fileName)+'</h2><span class="viewer-progress" id="viewerProgress"></span>';
+  html += '<button class="btn btn-ghost btn-sm btn-fs" id="fsBtn" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3"/></svg> Vollbild</button>';
+  html += '</div>';
+  html += '<div class="viewer-frame-wrap" id="frameWrap"><iframe id="resourceFrame" title="'+esc(r.title||r.fileName)+'"></iframe></div>';
   html += '</div>';
 
   renderChrome(html);
   document.getElementById('backBtn').addEventListener('click', function(){ goSubject(r.subject); });
+  wireFullscreen();
 
   watchProgress(r.id, function(p){ updateViewerProgress(p); });
 
@@ -772,6 +795,51 @@ function renderResource(r){
     var wrap = document.querySelector('.viewer-frame-wrap');
     if(wrap) wrap.innerHTML = '<div class="empty-state">Diese Übung konnte nicht geladen werden.</div>';
   });
+}
+
+var FS_ICON_ENTER = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3"/></svg> Vollbild';
+var FS_ICON_EXIT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3v3a2 2 0 0 1-2 2H4M15 3v3a2 2 0 0 0 2 2h3M9 21v-3a2 2 0 0 0-2-2H4M15 21v-3a2 2 0 0 1 2-2h3"/></svg> Vollbild verlassen';
+var fullscreenListenerAttached = false;
+
+// Fullscreens the viewer's frame wrapper (not the iframe itself) so it works
+// consistently across browsers. Looks elements up by id on every call/event
+// rather than closing over them, so this is safe to call again on every
+// resource-viewer render without leaking stale references or duplicate
+// document-level listeners.
+function updateFsButtonLabel(){
+  var wrap = document.getElementById('frameWrap');
+  var btn = document.getElementById('fsBtn');
+  if(!wrap || !btn) return;
+  var isFs = (document.fullscreenElement || document.webkitFullscreenElement) === wrap;
+  btn.innerHTML = isFs ? FS_ICON_EXIT : FS_ICON_ENTER;
+}
+
+function wireFullscreen(){
+  var wrap = document.getElementById('frameWrap');
+  var btn = document.getElementById('fsBtn');
+  if(!wrap || !btn) return;
+  if(!(wrap.requestFullscreen || wrap.webkitRequestFullscreen)){
+    // Fullscreen API unavailable (older browser) — hide the button rather than offer a broken one.
+    btn.style.display = 'none';
+    return;
+  }
+  btn.addEventListener('click', function(){
+    var w = document.getElementById('frameWrap');
+    if(!w) return;
+    var isFs = (document.fullscreenElement || document.webkitFullscreenElement) === w;
+    var action = isFs
+      ? (document.exitFullscreen || document.webkitExitFullscreen).call(document)
+      : (w.requestFullscreen || w.webkitRequestFullscreen).call(w);
+    if(action && action.catch){
+      action.catch(function(){ toast('Vollbild wird von diesem Browser gerade nicht zugelassen.'); });
+    }
+  });
+  updateFsButtonLabel();
+  if(!fullscreenListenerAttached){
+    document.addEventListener('fullscreenchange', updateFsButtonLabel);
+    document.addEventListener('webkitfullscreenchange', updateFsButtonLabel);
+    fullscreenListenerAttached = true;
+  }
 }
 
 function updateViewerProgress(p){
