@@ -54,13 +54,15 @@
     font:15px/1.5 Karla,-apple-system,BlinkMacSystemFont,sans-serif;
     background-color:var(--bg);
     background-image:
-      linear-gradient(color-mix(in srgb, var(--bg) 88%, transparent), color-mix(in srgb, var(--bg) 88%, transparent)),
-      url('assets/background.jpg');
-    background-size:cover;
-    background-position:center;
-    background-repeat:no-repeat;
+      radial-gradient(ellipse at 12% 0%, color-mix(in srgb, var(--brand) 5%, transparent), transparent 45%),
+      radial-gradient(ellipse at 100% 100%, color-mix(in srgb, #C98B1F 6%, transparent), transparent 50%);
     background-attachment:fixed;
   }
+  .desk-prop{position:fixed;bottom:0;font-size:64px;line-height:1;opacity:.5;pointer-events:none;z-index:0;filter:saturate(.9);}
+  .desk-prop-left{left:14px;}
+  .desk-prop-right{right:14px;}
+  @media (max-width:900px){ .desk-prop{display:none;} }
+  #app{position:relative;z-index:1;}
   h1,h2,h3{font-family:'Baloo 2',Karla,sans-serif;margin:0 0 6px;}
   button{font:inherit;cursor:pointer;}
   input{font:inherit;}
@@ -105,16 +107,31 @@
   .content{flex:1;max-width:1100px;margin:0 auto;padding:28px 22px 60px;width:100%;}
 
   /* ---------- Home / subject grid ---------- */
-  .hero{background:linear-gradient(135deg, var(--brand), color-mix(in srgb, var(--brand) 60%, #7C4DFF));
-    border-radius:var(--radius);padding:34px 30px;color:#fff;margin-bottom:26px;box-shadow:var(--shadow);position:relative;overflow:hidden;}
-  .hero h2{font-size:24px;}
-  .hero p{margin:0;opacity:.92;max-width:520px;}
+  /* Wandtafel-Hero: Holzrahmen (aussen) + dunkle Tafel (innen) mit Kreide-Deko */
+  .hero-frame{position:relative;background:linear-gradient(160deg,#C89865,#7A4F27);border-radius:20px;padding:9px;margin-bottom:32px;box-shadow:0 18px 40px -18px rgba(20,20,10,.4);}
+  .hero{position:relative;overflow:hidden;
+    background:radial-gradient(ellipse at 25% 10%, rgba(255,255,255,.07), transparent 55%), linear-gradient(135deg,#20402F 0%,#152A1E 100%);
+    border-radius:13px;padding:34px 30px;color:#F4F1E6;}
+  .hero h2{font-size:24px;color:#fff;position:relative;z-index:2;}
+  .hero p{margin:0;opacity:.9;max-width:480px;color:#E5E2D4;position:relative;z-index:2;}
+  .hero-chalk{position:absolute;color:rgba(255,255,255,.4);font-family:'Baloo 2',Karla,sans-serif;font-weight:700;pointer-events:none;user-select:none;z-index:1;}
+  .hero-chalk-1{top:22px;right:132px;font-size:19px;transform:rotate(-4deg);}
+  .hero-chalk-2{bottom:24px;right:76px;font-size:15px;transform:rotate(3deg);opacity:.85;}
+  .hero-chalk-3{top:56px;right:48px;font-size:34px;opacity:.5;}
+  .hero-chalk-4{bottom:18px;right:172px;font-size:28px;opacity:.4;}
+  @media (max-width:700px){ .hero-chalk{display:none;} .hero p{max-width:100%;} }
 
-  .subject-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:16px;}
-  .subject-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;text-align:left;box-shadow:var(--shadow);transition:transform .15s ease, box-shadow .15s ease;display:flex;flex-direction:column;gap:10px;}
+  .subject-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;}
+  @media (max-width:840px){ .subject-grid{grid-template-columns:repeat(2,1fr);} }
+  @media (max-width:560px){ .subject-grid{grid-template-columns:1fr;} }
+  .subject-card{background:var(--surface);border:1px solid var(--border);border-radius:22px;padding:22px 20px;text-align:left;box-shadow:var(--shadow);transition:transform .15s ease, box-shadow .15s ease;display:flex;align-items:center;gap:18px;min-height:150px;}
   .subject-card:hover{transform:translateY(-3px);box-shadow:0 18px 34px -16px rgba(20,20,40,.32);}
-  .subject-icon{width:46px;height:46px;border-radius:13px;display:flex;align-items:center;justify-content:center;}
-  .subject-card h3{font-size:17px;}
+  .subject-card-body{flex:1;min-width:0;display:flex;flex-direction:column;gap:9px;}
+  .subject-visual{border-radius:18px;display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden;}
+  .subject-visual img{width:100%;height:100%;object-fit:contain;padding:11px;box-sizing:border-box;display:block;}
+  .subject-card .subject-visual{width:84px;height:84px;}
+  .subject-head .subject-visual{width:56px;height:56px;border-radius:16px;}
+  .subject-card h3{font-size:18px;}
   .subject-meta{font-size:12.5px;color:var(--text-muted);}
   .subject-bar{height:7px;border-radius:99px;background:var(--surface-2);overflow:hidden;}
   .subject-bar span{display:block;height:100%;border-radius:99px;transition:width .4s ease;}
@@ -122,7 +139,6 @@
   /* ---------- Subject page ---------- */
   .back-row{display:flex;align-items:center;gap:10px;margin-bottom:18px;}
   .subject-head{display:flex;align-items:center;gap:14px;margin-bottom:22px;}
-  .subject-head .subject-icon{width:52px;height:52px;}
   .subject-head h2{font-size:24px;}
 
   .resource-list{display:flex;flex-direction:column;gap:12px;}
@@ -173,11 +189,12 @@
 
   @media (max-width:560px){
     .content{padding:20px 14px 50px;}
-    .subject-grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr));}
   }
 </style>
 </head>
 <body>
+<div class="desk-prop desk-prop-left" aria-hidden="true">📚</div>
+<div class="desk-prop desk-prop-right" aria-hidden="true">☕✏️</div>
 <div id="app"><div class="spinner-wrap">Lädt …</div></div>
 <div class="toast" id="toast"></div>
 
@@ -262,30 +279,29 @@ const db = getFirestore(fbApp);
 
 /* ===================== SUBJECTS ===================== */
 
-function icon(path, viewBox){
-  return '<svg viewBox="'+(viewBox||'0 0 24 24')+'" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'+path+'</svg>';
+// Each subject shows exactly ONE picture — a real watercolour-style
+// illustration (white background already removed) instead of an
+// emoji or hand-drawn icon. subjectVisual() renders that single image,
+// reused both on the subject cards and on a subject's own page header.
+function subjectVisual(s){
+  return '<img src="'+s.img+'" alt="" loading="lazy" onerror="this.style.display=\'none\'">';
 }
 
 const SUBJECTS = [
-  {id:'mathe', name:'Mathe', color:'#4361EE', soft:'#E4E8FD',
-    icon:icon('<circle cx="12" cy="12" r="8.5"/><path d="M9 15l6-6M9 9h.01M15 15h.01"/>')},
-  {id:'deutsch', name:'Deutsch', color:'#E63950', soft:'#FBDEE2',
-    icon:icon('<path d="M5 4h9a4 4 0 0 1 4 4v12H9a4 4 0 0 1-4-4V4Z"/><path d="M8 9h7M8 13h5"/>')},
-  {id:'geschichte', name:'Geschichte', color:'#C98B1F', soft:'#F6E8CC',
-    icon:icon('<path d="M4 21h16M6 21V9l6-5 6 5v12M9 21v-6h6v6"/>')},
-  {id:'geografie', name:'Geografie', color:'#2E9E5B', soft:'#DDF1E4',
-    icon:icon('<circle cx="12" cy="12" r="8.5"/><path d="M3.7 9h16.6M3.7 15h16.6M12 3.5c2.3 2.4 3.5 5.4 3.5 8.5s-1.2 6.1-3.5 8.5c-2.3-2.4-3.5-5.4-3.5-8.5S9.7 5.9 12 3.5Z"/>')},
-  {id:'biologie', name:'Biologie', color:'#17A398', soft:'#D9F1EE',
-    icon:icon('<path d="M20 5c0 8-5.5 14-14 14-.6-8 5-14 14-14Z"/><path d="M9 17c2-4 5-7 9-9"/>')},
-  {id:'physik', name:'Physik', color:'#1E96C8', soft:'#DDEFF8',
-    icon:icon('<circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/><ellipse cx="12" cy="12" rx="9" ry="3.6"/><ellipse cx="12" cy="12" rx="9" ry="3.6" transform="rotate(60 12 12)"/><ellipse cx="12" cy="12" rx="9" ry="3.6" transform="rotate(120 12 12)"/>')},
-  {id:'chemie', name:'Chemie', color:'#8B5CF6', soft:'#EAE1FC',
-    icon:icon('<path d="M9 3h6M10 3v6.2L4.8 18a2 2 0 0 0 1.7 3h11a2 2 0 0 0 1.7-3L14 9.2V3"/><path d="M7.5 15h9"/>')},
-  {id:'informatik', name:'Informatik', color:'#D6449B', soft:'#FBDFEE',
-    icon:icon('<rect x="3" y="4.5" width="18" height="12" rx="2"/><path d="M8 21h8M12 16.5V21M9 9l-2.5 2 2.5 2M15 9l2.5 2-2.5 2"/>')},
-  {id:'berufswahl', name:'Berufswahl', color:'#E8752C', soft:'#FBE4D4',
-    icon:icon('<rect x="3" y="8" width="18" height="12" rx="2"/><path d="M8 8V6a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M3 13h18"/>')}
+  {id:'mathe', name:'Mathe', color:'#4361EE', soft:'#E4E8FD', img:'assets/subject-mathe.png'},
+  {id:'deutsch', name:'Deutsch', color:'#E63950', soft:'#FBDEE2', img:'assets/subject-deutsch.png'},
+  {id:'geschichte', name:'Geschichte', color:'#C98B1F', soft:'#F6E8CC', img:'assets/subject-geschichte.png'},
+  {id:'geografie', name:'Geografie', color:'#2E9E5B', soft:'#DDF1E4', img:'assets/subject-geografie.png'},
+  {id:'biologie', name:'Biologie', color:'#17A398', soft:'#D9F1EE', img:'assets/subject-biologie.png'},
+  {id:'physik', name:'Physik', color:'#1E96C8', soft:'#DDEFF8', img:'assets/subject-physik.png'},
+  {id:'chemie', name:'Chemie', color:'#8B5CF6', soft:'#EAE1FC', img:'assets/subject-chemie.png'},
+  {id:'informatik', name:'Informatik', color:'#D6449B', soft:'#FBDFEE', img:'assets/subject-informatik.png'},
+  {id:'berufswahl', name:'Berufswahl', color:'#E8752C', soft:'#FBE4D4', img:'assets/subject-berufswahl.png'},
+  {id:'gtz', name:'GTZ', color:'#3D6A8A', soft:'#DCE8EF', img:'assets/subject-gtz.png'},
+  {id:'sport', name:'Sport', color:'#5FA829', soft:'#E4F3D9', img:'assets/subject-sport.png'},
+  {id:'werken', name:'Werken', color:'#A9642E', soft:'#F1E1D2', img:'assets/subject-werken.png'}
 ];
+SUBJECTS.forEach(function(s){ s.icon = subjectVisual(s); });
 function subjectById(id){ return SUBJECTS.find(function(s){return s.id===id;}); }
 
 /* ===================== STATE ===================== */
@@ -430,18 +446,27 @@ function renderChrome(innerHtml){
 function renderHome(){
   var isTeacher = state.profile.role === 'teacher';
   var html = '';
-  html += '<div class="hero"><h2>'+(isTeacher ? 'Willkommen zurück, '+esc(state.profile.displayName)+'!' : 'Hallo '+esc(state.profile.displayName)+'!')+'</h2>';
+  html += '<div class="hero-frame">';
+  html += '<div class="hero">';
+  html += '<div class="hero-chalk hero-chalk-1" aria-hidden="true">E = mc²</div>';
+  html += '<div class="hero-chalk hero-chalk-2" aria-hidden="true">a² + b² = c²</div>';
+  html += '<div class="hero-chalk hero-chalk-3" aria-hidden="true">🧬</div>';
+  html += '<div class="hero-chalk hero-chalk-4" aria-hidden="true">🌍</div>';
+  html += '<h2>'+(isTeacher ? 'Willkommen zurück, '+esc(state.profile.displayName)+'!' : 'Hallo '+esc(state.profile.displayName)+'!')+'</h2>';
   html += '<p>'+(isTeacher
     ? 'Lade hier Übungsseiten hoch, verwalte sie und markiere pro Fach das aktuelle Thema. So ist die Library für deine Klasse gleichzeitig Trainings- und Informationsplattform für deinen Unterricht.'
     : 'Diese Seite ist Übungsplattform und Infoseite für den Unterricht bei Herrn Helfenberger in einem: Trainiere die Themen deiner Fächer, und schau im jeweiligen Fach nach, welches Thema rot markiert ist – so siehst du, woran wir gerade arbeiten.')
-    +'</p></div>';
+    +'</p>';
+  html += '</div></div>';
   html += '<div class="subject-grid" id="subjectGrid">';
   SUBJECTS.forEach(function(s){
     html += '<button class="subject-card" data-subject="'+s.id+'">';
-    html += '<div class="subject-icon" style="background:'+s.soft+';color:'+s.color+';">'+s.icon+'</div>';
+    html += '<div class="subject-visual" style="background:'+s.soft+';">'+s.icon+'</div>';
+    html += '<div class="subject-card-body">';
     html += '<h3>'+s.name+'</h3>';
     html += '<div class="subject-meta" id="meta-'+s.id+'">wird geladen …</div>';
     html += '<div class="subject-bar"><span id="bar-'+s.id+'" style="width:0%;background:'+s.color+'"></span></div>';
+    html += '</div>';
     html += '</button>';
   });
   html += '</div>';
@@ -510,7 +535,7 @@ function renderSubject(subjectId){
 
   var html = '';
   html += '<div class="back-row"><button class="btn btn-ghost btn-sm" id="backBtn">&larr; Alle Fächer</button></div>';
-  html += '<div class="subject-head"><div class="subject-icon" style="background:'+s.soft+';color:'+s.color+';">'+s.icon+'</div><h2>'+s.name+'</h2></div>';
+  html += '<div class="subject-head"><div class="subject-visual" style="background:'+s.soft+';">'+s.icon+'</div><h2>'+s.name+'</h2></div>';
 
   if(isTeacher){
     html += '<div class="dropzone" id="dropzone">';
@@ -605,18 +630,39 @@ function moveResource(resources, index, direction){
 // Marks one resource as "current" (highlighted in red for everyone) and
 // un-marks any other resource in the same subject, so at most one is
 // highlighted at a time. Clicking the already-current one turns it off again.
+//
+// Marking something current also pulls it straight to the top of the list
+// (order 0); un-marking it sends it back to exactly the spot it came from.
+// `resources` is the already-sorted list as currently displayed, so its
+// index of r is r's position before the move — that gets stored on the
+// resource itself (prevOrder) so it can be restored later, then every
+// resource in the subject gets a fresh 0..n-1 `order` to keep things
+// consistent (same approach as the manual move-up/down arrows).
 function toggleCurrent(resources, r){
   var makeCurrent = !r.current;
   var batch = writeBatch(db);
-  var any = false;
-  resources.forEach(function(other){
-    var shouldBeCurrent = (other.id === r.id) ? makeCurrent : false;
-    if(!!other.current !== shouldBeCurrent){
-      batch.update(doc(db,'resources', other.id), {current: shouldBeCurrent});
-      any = true;
-    }
-  });
-  if(!any) return;
+  var reordered;
+
+  if(makeCurrent){
+    var prevIndex = resources.findIndex(function(x){ return x.id === r.id; });
+    reordered = [r].concat(resources.filter(function(x){ return x.id !== r.id; }));
+    reordered.forEach(function(item, i){
+      var patch = { order: i };
+      if(item.id === r.id){ patch.current = true; patch.prevOrder = prevIndex; }
+      else if(item.current){ patch.current = false; }
+      batch.update(doc(db,'resources', item.id), patch);
+    });
+  } else {
+    var others = resources.filter(function(x){ return x.id !== r.id; });
+    var restoreAt = typeof r.prevOrder === 'number' ? Math.max(0, Math.min(r.prevOrder, others.length)) : others.length;
+    reordered = others.slice(0, restoreAt).concat([r]).concat(others.slice(restoreAt));
+    reordered.forEach(function(item, i){
+      var patch = { order: i };
+      if(item.id === r.id){ patch.current = false; patch.prevOrder = null; }
+      batch.update(doc(db,'resources', item.id), patch);
+    });
+  }
+
   batch.commit().catch(function(err){
     console.error(err);
     toast('Aktualisieren fehlgeschlagen.');
