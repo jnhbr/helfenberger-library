@@ -202,16 +202,27 @@
   .viewer-frame-wrap:-webkit-full-screen{border-radius:0;border:0;height:100vh;}
   .viewer-frame-wrap:fullscreen iframe,
   .viewer-frame-wrap:-webkit-full-screen iframe{height:100%;}
+  /* Safari on iOS (incl. installed "Zum Home-Bildschirm"-Apps) has no Fullscreen
+     API at all for arbitrary elements — requestFullscreen is simply undefined
+     there, so the native path above never applies. For that case we fake it with
+     plain CSS: cover the whole viewport with position:fixed instead. Same visual
+     result, works everywhere, and uses the same enter/exit button pair. */
+  .viewer-frame-wrap.pseudo-fullscreen{position:fixed;inset:0;z-index:1000;width:100vw;height:100vh;height:100dvh;border-radius:0;border:0;box-shadow:none;}
+  .viewer-frame-wrap.pseudo-fullscreen iframe{height:100%;}
+  body.pseudo-fs-active{overflow:hidden;}
   /* #fsBtn (in .viewer-head) sits OUTSIDE #frameWrap, so once #frameWrap is the
-     Fullscreen-API element, #fsBtn is no longer part of what's on screen and can't
-     be clicked — Esc was the only way out. This overlay button lives INSIDE
-     #frameWrap instead, so it stays visible/clickable while fullscreen, and is
-     hidden the rest of the time via the :fullscreen selector below. */
+     Fullscreen-API element (or, in the CSS fallback above, position:fixed over
+     everything), #fsBtn is no longer part of what's on screen and can't be
+     clicked — Esc was the only way out for native fullscreen, and there was no
+     way out at all for the CSS fallback. This overlay button lives INSIDE
+     #frameWrap instead, so it stays visible/clickable in both fullscreen modes,
+     and is hidden the rest of the time via the selectors below. */
   .btn-fs-overlay-exit{position:absolute;top:14px;right:14px;z-index:5;display:none;align-items:center;justify-content:center;width:40px;height:40px;border-radius:999px;border:none;background:rgba(20,20,32,.55);color:#fff;cursor:pointer;backdrop-filter:blur(2px);transition:background .15s ease;}
   .btn-fs-overlay-exit:hover{background:rgba(20,20,32,.78);}
   .btn-fs-overlay-exit svg{width:18px;height:18px;}
   .viewer-frame-wrap:fullscreen .btn-fs-overlay-exit,
-  .viewer-frame-wrap:-webkit-full-screen .btn-fs-overlay-exit{display:flex;}
+  .viewer-frame-wrap:-webkit-full-screen .btn-fs-overlay-exit,
+  .viewer-frame-wrap.pseudo-fullscreen .btn-fs-overlay-exit{display:flex;}
   .btn-fs svg{width:15px;height:15px;}
 
   .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--brand-ink);color:#fff;padding:11px 20px;border-radius:999px;font-size:13.5px;box-shadow:var(--shadow);z-index:99;opacity:0;pointer-events:none;transition:opacity .25s ease, transform .25s ease;}
@@ -887,17 +898,41 @@ var fullscreenListenerAttached = false;
 // rather than closing over them, so this is safe to call again on every
 // resource-viewer render without leaking stale references or duplicate
 // document-level listeners.
+function isPseudoFsActive(){
+  var wrap = document.getElementById('frameWrap');
+  return !!(wrap && wrap.classList.contains('pseudo-fullscreen'));
+}
+
+function enterPseudoFullscreen(){
+  var wrap = document.getElementById('frameWrap');
+  if(!wrap) return;
+  wrap.classList.add('pseudo-fullscreen');
+  document.body.classList.add('pseudo-fs-active');
+  updateFsButtonLabel();
+}
+
+function exitPseudoFullscreen(){
+  var wrap = document.getElementById('frameWrap');
+  if(!wrap) return;
+  wrap.classList.remove('pseudo-fullscreen');
+  document.body.classList.remove('pseudo-fs-active');
+  updateFsButtonLabel();
+}
+
 function updateFsButtonLabel(){
   var wrap = document.getElementById('frameWrap');
   var btn = document.getElementById('fsBtn');
   if(!wrap || !btn) return;
-  var isFs = (document.fullscreenElement || document.webkitFullscreenElement) === wrap;
+  var isFs = (document.fullscreenElement || document.webkitFullscreenElement) === wrap || isPseudoFsActive();
   btn.innerHTML = isFs ? FS_ICON_EXIT : FS_ICON_ENTER;
 }
 
 function exitFullscreenNow(){
-  var action = (document.exitFullscreen || document.webkitExitFullscreen).call(document);
-  if(action && action.catch){ action.catch(function(){}); }
+  if(isPseudoFsActive()){ exitPseudoFullscreen(); return; }
+  if(document.fullscreenElement || document.webkitFullscreenElement){
+    var action = (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+    if(action && action.catch){ action.catch(function(){}); }
+  }
 }
 
 function wireFullscreen(){
@@ -905,33 +940,45 @@ function wireFullscreen(){
   var btn = document.getElementById('fsBtn');
   var exitBtn = document.getElementById('fsExitBtn');
   if(!wrap || !btn) return;
-  if(!(wrap.requestFullscreen || wrap.webkitRequestFullscreen)){
-    // Fullscreen API unavailable (older browser) — hide both buttons rather than offer a broken one.
-    btn.style.display = 'none';
-    if(exitBtn) exitBtn.style.display = 'none';
-    return;
-  }
+  // Safari on iOS (incl. installed Home-Screen apps) has no Fullscreen API for
+  // arbitrary elements at all — requestFullscreen/webkitRequestFullscreen are
+  // simply undefined there. Rather than hiding the buttons (old behaviour),
+  // fall back to the CSS-only pseudo-fullscreen so the app version gets the
+  // same enter/exit button pair as desktop.
+  var nativeSupported = !!(wrap.requestFullscreen || wrap.webkitRequestFullscreen);
   btn.addEventListener('click', function(){
     var w = document.getElementById('frameWrap');
     if(!w) return;
+    if(!nativeSupported){
+      if(isPseudoFsActive()){ exitPseudoFullscreen(); } else { enterPseudoFullscreen(); }
+      return;
+    }
     var isFs = (document.fullscreenElement || document.webkitFullscreenElement) === w;
     if(isFs){ exitFullscreenNow(); return; }
     var action = (w.requestFullscreen || w.webkitRequestFullscreen).call(w);
     if(action && action.catch){
-      action.catch(function(){ toast('Vollbild wird von diesem Browser gerade nicht zugelassen.'); });
+      action.catch(function(){
+        // Native request refused at runtime (rare) — fall back to the CSS
+        // version instead of leaving the user with a dead button.
+        enterPseudoFullscreen();
+      });
     }
   });
   // #fsBtn sits in .viewer-head, OUTSIDE #frameWrap — once #frameWrap is the
-  // fullscreen element, #fsBtn is no longer on screen at all (only the
-  // fullscreen element and its descendants render), so it can't be clicked to
-  // get back out. #fsExitBtn lives inside #frameWrap instead (see CSS: shown
-  // only while :fullscreen) so there's always a visible, clickable way out
-  // besides Esc.
+  // fullscreen element (native or pseudo), #fsBtn is no longer on screen at all
+  // (only the fullscreen element and its descendants render), so it can't be
+  // clicked to get back out. #fsExitBtn lives inside #frameWrap instead (see
+  // CSS: shown while :fullscreen or .pseudo-fullscreen) so there's always a
+  // visible, clickable way out besides Esc (and Esc doesn't even apply to the
+  // CSS fallback, since that isn't the real Fullscreen API).
   if(exitBtn){ exitBtn.addEventListener('click', exitFullscreenNow); }
   updateFsButtonLabel();
   if(!fullscreenListenerAttached){
     document.addEventListener('fullscreenchange', updateFsButtonLabel);
     document.addEventListener('webkitfullscreenchange', updateFsButtonLabel);
+    document.addEventListener('keydown', function(e){
+      if(e.key === 'Escape' && isPseudoFsActive()){ exitPseudoFullscreen(); }
+    });
     fullscreenListenerAttached = true;
   }
 }
