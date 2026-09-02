@@ -1,0 +1,936 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Helfenberger's Library</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%93%9A%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Karla:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap">
+<style>
+  :root{
+    --bg:#F4F5FA;
+    --surface:#FFFFFF;
+    --surface-2:#EEF0F8;
+    --border:#DDE1EE;
+    --text:#1C2033;
+    --text-muted:#666C87;
+    --brand:#3A3F73;
+    --brand-ink:#22254A;
+    --brand-contrast:#FFFFFF;
+    --good:#2E9E5B; --good-soft:#DEF3E6;
+    --bad:#E63950; --bad-soft:#FBDDE1;
+    --radius:20px;
+    --radius-sm:13px;
+    --shadow:0 1px 2px rgba(20,20,40,.06), 0 14px 32px -16px rgba(20,20,40,.25);
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#14162200; --bg:#14161F; --surface:#1C1F2E; --surface-2:#242840; --border:#323752;
+      --text:#EDEEF7; --text-muted:#A0A5C2;
+      --brand:#8890E8; --brand-ink:#C4C9FA; --brand-contrast:#14161F;
+      --good:#4FCB84; --good-soft:#173428;
+      --bad:#F0748A; --bad-soft:#3A1B22;
+      --shadow:0 1px 2px rgba(0,0,0,.5), 0 14px 32px -16px rgba(0,0,0,.6);
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#14161F; --surface:#1C1F2E; --surface-2:#242840; --border:#323752;
+    --text:#EDEEF7; --text-muted:#A0A5C2;
+    --brand:#8890E8; --brand-ink:#C4C9FA; --brand-contrast:#14161F;
+    --good:#4FCB84; --good-soft:#173428;
+    --bad:#F0748A; --bad-soft:#3A1B22;
+    color-scheme: dark;
+  }
+
+  *{box-sizing:border-box;}
+  html{margin:0;padding:0;background:var(--bg);}
+  html,body{min-height:100%;}
+  body{
+    margin:0;padding:0;color:var(--text);
+    font:15px/1.5 Karla,-apple-system,BlinkMacSystemFont,sans-serif;
+    background-color:var(--bg);
+    background-image:
+      radial-gradient(ellipse at 12% 0%, color-mix(in srgb, var(--brand) 5%, transparent), transparent 45%),
+      radial-gradient(ellipse at 100% 100%, color-mix(in srgb, #C98B1F 6%, transparent), transparent 50%),
+      linear-gradient(color-mix(in srgb, var(--bg) 88%, transparent), color-mix(in srgb, var(--bg) 88%, transparent)),
+      url('assets/background.jpg');
+    background-size:auto,auto,cover,cover;
+    background-position:center,center,center,center;
+    background-repeat:no-repeat;
+    background-attachment:fixed;
+  }
+  .desk-prop{position:fixed;bottom:0;font-size:64px;line-height:1;opacity:.5;pointer-events:none;z-index:0;filter:saturate(.9);}
+  .desk-prop-left{left:14px;}
+  .desk-prop-right{right:14px;}
+  @media (max-width:900px){ .desk-prop{display:none;} }
+  #app{position:relative;z-index:1;}
+  h1,h2,h3{font-family:'Baloo 2',Karla,sans-serif;margin:0 0 6px;}
+  button{font:inherit;cursor:pointer;}
+  input{font:inherit;}
+  a{color:inherit;}
+
+  #app{min-height:100vh;display:flex;flex-direction:column;}
+
+  /* ---------- Login ---------- */
+  .login-wrap{flex:1;display:flex;align-items:center;justify-content:center;padding:24px;}
+  .login-card{width:100%;max-width:400px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:36px 32px;text-align:center;}
+  .login-logo{width:100%;max-width:210px;margin:0 auto 14px;}
+  .login-logo img{width:100%;height:auto;object-fit:contain;display:block;}
+  .login-card h1{font-size:26px;color:var(--brand-ink);}
+  .login-card p.sub{color:var(--text-muted);margin:0 0 22px;font-size:14px;}
+  .login-card input{width:100%;padding:13px 14px;border:2px solid var(--border);border-radius:var(--radius-sm);background:var(--surface-2);color:var(--text);margin-bottom:12px;text-align:center;font-size:16px;}
+  .login-card input:focus{outline:none;border-color:var(--brand);}
+  .login-card .btn{width:100%;}
+  .login-err{background:var(--bad-soft);color:var(--bad);border-radius:var(--radius-sm);padding:10px 12px;font-size:13px;margin-bottom:12px;display:none;}
+  .login-err.show{display:block;}
+  .login-hint{margin-top:18px;font-size:12px;color:var(--text-muted);}
+
+  /* ---------- Buttons ---------- */
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:12px 20px;border-radius:999px;border:none;font-weight:700;font-size:14px;transition:transform .12s ease, box-shadow .12s ease;}
+  .btn:active{transform:scale(.97);}
+  .btn-primary{background:var(--brand);color:var(--brand-contrast);box-shadow:0 8px 20px -8px color-mix(in srgb, var(--brand) 60%, transparent);}
+  .btn-primary:hover{box-shadow:0 10px 24px -8px color-mix(in srgb, var(--brand) 70%, transparent);}
+  .btn-ghost{background:var(--surface-2);color:var(--text);}
+  .btn-ghost:hover{background:var(--border);}
+  .btn-sm{padding:8px 14px;font-size:13px;}
+  .btn-danger{background:var(--bad-soft);color:var(--bad);}
+
+  /* ---------- Chrome / header ---------- */
+  .topbar{display:flex;align-items:center;gap:14px;padding:14px 22px;background:var(--surface);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:20;}
+  .topbar-logo{height:36px;width:auto;flex-shrink:0;cursor:pointer;display:flex;align-items:center;}
+  .topbar-logo img{height:100%;width:auto;object-fit:contain;display:block;}
+  .topbar-title{font-family:'Baloo 2';font-weight:800;font-size:17px;color:var(--brand-ink);cursor:pointer;}
+  .topbar-spacer{flex:1;}
+  .topbar-user{display:flex;align-items:center;gap:10px;font-size:14px;color:var(--text-muted);}
+  .topbar-user b{color:var(--text);}
+  .badge-teacher{background:var(--brand);color:var(--brand-contrast);border-radius:999px;padding:2px 10px;font-size:11px;font-weight:700;letter-spacing:.02em;}
+
+  .content{flex:1;max-width:1100px;margin:0 auto;padding:28px 22px 60px;width:100%;}
+
+  /* ---------- Home / subject grid ---------- */
+  /* Wandtafel-Hero: Holzrahmen (aussen) + dunkle Tafel (innen) mit Kreide-Deko */
+  .hero-frame{position:relative;background:linear-gradient(160deg,#C89865,#7A4F27);border-radius:20px;padding:9px;margin-bottom:32px;box-shadow:0 18px 40px -18px rgba(20,20,10,.4);}
+  .hero{position:relative;overflow:hidden;
+    background:radial-gradient(ellipse at 25% 10%, rgba(255,255,255,.07), transparent 55%), linear-gradient(135deg,#20402F 0%,#152A1E 100%);
+    border-radius:13px;padding:34px 30px;color:#F4F1E6;}
+  .hero h2{font-size:24px;color:#fff;position:relative;z-index:2;}
+  .hero p{margin:0;opacity:.9;max-width:480px;color:#E5E2D4;position:relative;z-index:2;}
+  .hero-chalk{position:absolute;color:rgba(255,255,255,.4);font-family:'Baloo 2',Karla,sans-serif;font-weight:700;pointer-events:none;user-select:none;z-index:1;}
+  .hero-chalk-1{top:22px;right:132px;font-size:19px;transform:rotate(-4deg);}
+  .hero-chalk-2{bottom:24px;right:76px;font-size:15px;transform:rotate(3deg);opacity:.85;}
+  .hero-chalk-3{top:56px;right:48px;font-size:34px;opacity:.5;}
+  .hero-chalk-4{bottom:18px;right:172px;font-size:28px;opacity:.4;}
+  @media (max-width:700px){ .hero-chalk{display:none;} .hero p{max-width:100%;} }
+
+  .subject-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;}
+  @media (max-width:840px){ .subject-grid{grid-template-columns:repeat(2,1fr);} }
+  @media (max-width:560px){ .subject-grid{grid-template-columns:1fr;} }
+  .subject-card{background:var(--surface);border:1px solid var(--border);border-radius:22px;padding:22px 20px;text-align:left;box-shadow:var(--shadow);transition:transform .15s ease, box-shadow .15s ease;display:flex;align-items:center;gap:18px;min-height:150px;}
+  .subject-card:hover{transform:translateY(-3px);box-shadow:0 18px 34px -16px rgba(20,20,40,.32);}
+  .subject-card-body{flex:1;min-width:0;display:flex;flex-direction:column;gap:9px;}
+  .subject-visual{border-radius:18px;display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden;}
+  .subject-visual img{width:100%;height:100%;object-fit:contain;padding:11px;box-sizing:border-box;display:block;}
+  .subject-card .subject-visual{width:84px;height:84px;}
+  .subject-head .subject-visual{width:56px;height:56px;border-radius:16px;}
+  .subject-card h3{font-size:18px;}
+  .subject-meta{font-size:12.5px;color:var(--text-muted);}
+  .subject-bar{height:7px;border-radius:99px;background:var(--surface-2);overflow:hidden;}
+  .subject-bar span{display:block;height:100%;border-radius:99px;transition:width .4s ease;}
+
+  /* ---------- Subject page ---------- */
+  .back-row{display:flex;align-items:center;gap:10px;margin-bottom:18px;}
+  .subject-head{display:flex;align-items:center;gap:14px;margin-bottom:22px;}
+  .subject-head h2{font-size:24px;}
+
+  .resource-list{display:flex;flex-direction:column;gap:12px;}
+  .resource-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:16px 18px;box-shadow:var(--shadow);display:flex;align-items:center;gap:16px;flex-wrap:wrap;transition:border-color .15s ease, box-shadow .15s ease;}
+  .resource-card.current{border-color:var(--bad);box-shadow:var(--shadow), inset 4px 0 0 var(--bad);}
+  .resource-info{flex:1;min-width:200px;}
+  .resource-info h4{margin:0 0 4px;font-size:15.5px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+  .chip-current{background:var(--bad-soft);color:var(--bad);border-radius:999px;padding:2px 10px;font-size:11px;font-weight:700;letter-spacing:.02em;}
+  .resource-bar{height:6px;border-radius:99px;background:var(--surface-2);overflow:hidden;width:100%;max-width:260px;margin-top:6px;}
+  .resource-bar span{display:block;height:100%;border-radius:99px;}
+  .resource-meta{font-size:12px;color:var(--text-muted);margin-top:4px;}
+  .resource-actions{display:flex;align-items:center;gap:8px;flex-shrink:0;}
+  .move-btns{display:flex;flex-direction:column;gap:2px;flex-shrink:0;}
+  .move-btn{width:26px;height:22px;border-radius:7px;border:1px solid var(--border);background:var(--surface-2);color:var(--text-muted);display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0;}
+  .move-btn:hover:not(:disabled){background:var(--border);color:var(--text);}
+  .move-btn:disabled{opacity:.35;cursor:default;}
+  .move-btn svg{width:13px;height:13px;}
+  .btn-current{background:var(--bad-soft);color:var(--bad);}
+  .btn-current.active{background:var(--bad);color:#fff;}
+
+  .empty-state{background:var(--surface);border:1px dashed var(--border);border-radius:var(--radius);padding:36px 20px;text-align:center;color:var(--text-muted);}
+
+  /* ---------- Teacher upload zone ---------- */
+  .dropzone{border:2.5px dashed var(--border);border-radius:var(--radius);padding:28px 20px;text-align:center;color:var(--text-muted);margin-bottom:22px;background:var(--surface);transition:border-color .15s ease, background .15s ease;}
+  .dropzone.drag{border-color:var(--brand);background:var(--surface-2);color:var(--text);}
+  .dropzone input[type=file]{display:none;}
+  .dropzone .dz-title{font-weight:700;color:var(--text);margin-bottom:4px;}
+  .upload-progress{margin-top:14px;font-size:13px;color:var(--brand-ink);display:none;}
+  .upload-progress.show{display:block;}
+
+  /* ---------- Resource viewer ---------- */
+  .viewer-wrap{display:flex;flex-direction:column;gap:14px;}
+  .viewer-head{display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
+  .viewer-head h2{font-size:19px;flex:1;}
+  .viewer-progress{font-size:13px;color:var(--text-muted);}
+  .viewer-frame-wrap{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden;height:calc(100vh - 210px);min-height:420px;}
+  .viewer-frame-wrap iframe{width:100%;height:100%;border:0;display:block;background:#fff;}
+  .viewer-frame-wrap:fullscreen,
+  .viewer-frame-wrap:-webkit-full-screen{border-radius:0;border:0;height:100vh;}
+  .viewer-frame-wrap:fullscreen iframe,
+  .viewer-frame-wrap:-webkit-full-screen iframe{height:100%;}
+  .btn-fs svg{width:15px;height:15px;}
+
+  .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--brand-ink);color:#fff;padding:11px 20px;border-radius:999px;font-size:13.5px;box-shadow:var(--shadow);z-index:99;opacity:0;pointer-events:none;transition:opacity .25s ease, transform .25s ease;}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(-6px);}
+
+  .spinner-wrap{flex:1;display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:14px;}
+
+  @media (max-width:560px){
+    .content{padding:20px 14px 50px;}
+  }
+</style>
+</head>
+<body>
+<div class="desk-prop desk-prop-left" aria-hidden="true">📚</div>
+<div class="desk-prop desk-prop-right" aria-hidden="true">☕✏️</div>
+<div id="app"><div class="spinner-wrap">Lädt …</div></div>
+<div class="toast" id="toast"></div>
+
+<script type="module">
+import {
+  initializeApp
+} from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
+import {
+  getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut, setPersistence, browserLocalPersistence
+} from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
+import {
+  getFirestore, doc, getDoc, setDoc, deleteDoc, collection, query, where, onSnapshot, serverTimestamp, orderBy, writeBatch
+} from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+
+/* =====================================================================
+   FIREBASE CONFIG — replace with your own project's web config.
+   Firebase Console -> Project settings -> "Your apps" -> Web app -> SDK setup.
+   This object is NOT a secret; access is controlled by the security rules
+   (firestore.rules) and by Firebase Authentication, not by hiding this
+   config. See README.md.
+
+   NOTE: this build deliberately does NOT use Firebase Storage (Cloud
+   Storage now requires the paid "Blaze" plan / a credit card on file even
+   though usage itself stays free for a class this size). Instead, uploaded
+   exercise pages are stored as text inside Firestore documents — Firestore's
+   free "Spark" plan needs no billing account at all. Since a single Firestore
+   document is capped at ~1 MiB, a larger file is automatically split into
+   several ~900 KB chunk documents on upload (see chunkStringByBytes below)
+   and reassembled on read; MAX_RESOURCE_BYTES below is the overall cap per
+   uploaded resource, spread across as many chunks as needed.
+   ===================================================================== */
+const firebaseConfig = {
+  apiKey: "AIzaSyBOWbHJY14UXUy3sTQa2bfh8PW9CgvVADA",
+  authDomain: "helfenberger-s-library.firebaseapp.com",
+  projectId: "helfenberger-s-library",
+  messagingSenderId: "622245734842",
+  appId: "1:622245734842:web:793d29f2c229aa01d2d583"
+};
+
+const EMAIL_DOMAIN = "helfenberger-library.app"; // fake domain, only used internally for Firebase Auth accounts
+const PASSWORD_SUFFIX = "2024"; // login convention: password = name + this suffix (see README security note)
+const MAX_CHUNK_BYTES = 900 * 1024; // safety margin under Firestore's 1 MiB per-document limit
+const MAX_RESOURCE_BYTES = 8 * 1024 * 1024; // overall cap per uploaded resource (spread across chunks if needed)
+
+// Splits a string into pieces that each stay under maxBytes when UTF-8 encoded,
+// without ever cutting a multi-byte character (or a surrogate pair) in half —
+// so plain string concatenation on read always reproduces the original text exactly.
+// Uses a binary search per chunk boundary (not a linear character-by-character
+// shrink) so it stays fast even on heavily multi-byte text (umlauts, emoji).
+function chunkStringByBytes(str, maxBytes){
+  var encoder = new TextEncoder();
+  var chunks = [];
+  var start = 0;
+  var n = str.length;
+  while(start < n){
+    if(encoder.encode(str.slice(start)).length <= maxBytes){
+      chunks.push(str.slice(start));
+      break;
+    }
+    var lo = start + 1, hi = n;
+    while(lo < hi){
+      var mid = Math.ceil((lo + hi) / 2);
+      var len = encoder.encode(str.slice(start, mid)).length;
+      if(len <= maxBytes){ lo = mid; } else { hi = mid - 1; }
+    }
+    var end = lo;
+    // never split a surrogate pair (emoji etc.)
+    if(end < n){
+      var code = str.charCodeAt(end - 1);
+      if(code >= 0xD800 && code <= 0xDBFF){ end--; }
+    }
+    if(end <= start){ end = start + 1; } // pathological fallback, avoids an infinite loop
+    chunks.push(str.slice(start, end));
+    start = end;
+  }
+  return chunks.length ? chunks : [''];
+}
+
+const fbApp = initializeApp(firebaseConfig);
+const auth = getAuth(fbApp);
+const db = getFirestore(fbApp);
+
+/* ===================== SUBJECTS ===================== */
+
+// Each subject shows exactly ONE picture — a real watercolour-style
+// illustration (white background already removed) instead of an
+// emoji or hand-drawn icon. subjectVisual() renders that single image,
+// reused both on the subject cards and on a subject's own page header.
+function subjectVisual(s){
+  return '<img src="'+s.img+'" alt="" loading="lazy" onerror="this.style.display=\'none\'">';
+}
+
+const SUBJECTS = [
+  {id:'mathe', name:'Mathe', color:'#4361EE', soft:'#E4E8FD', img:'assets/subject-mathe.png'},
+  {id:'deutsch', name:'Deutsch', color:'#E63950', soft:'#FBDEE2', img:'assets/subject-deutsch.png'},
+  {id:'geschichte', name:'Geschichte', color:'#C98B1F', soft:'#F6E8CC', img:'assets/subject-geschichte.png'},
+  {id:'geografie', name:'Geografie', color:'#2E9E5B', soft:'#DDF1E4', img:'assets/subject-geografie.png'},
+  {id:'biologie', name:'Biologie', color:'#17A398', soft:'#D9F1EE', img:'assets/subject-biologie.png'},
+  {id:'physik', name:'Physik', color:'#1E96C8', soft:'#DDEFF8', img:'assets/subject-physik.png'},
+  {id:'chemie', name:'Chemie', color:'#8B5CF6', soft:'#EAE1FC', img:'assets/subject-chemie.png'},
+  {id:'informatik', name:'Informatik', color:'#D6449B', soft:'#FBDFEE', img:'assets/subject-informatik.png'},
+  {id:'berufswahl', name:'Berufswahl', color:'#E8752C', soft:'#FBE4D4', img:'assets/subject-berufswahl.png'},
+  {id:'gtz', name:'GTZ', color:'#3D6A8A', soft:'#DCE8EF', img:'assets/subject-gtz.png'},
+  {id:'sport', name:'Sport', color:'#5FA829', soft:'#E4F3D9', img:'assets/subject-sport.png'},
+  {id:'werken', name:'Werken', color:'#A9642E', soft:'#F1E1D2', img:'assets/subject-werken.png'}
+];
+SUBJECTS.forEach(function(s){ s.icon = subjectVisual(s); });
+function subjectById(id){ return SUBJECTS.find(function(s){return s.id===id;}); }
+
+/* ===================== STATE ===================== */
+
+var state = {
+  user:null,          // firebase auth user
+  profile:null,       // {username, displayName, role}
+  route:{name:'loading'},
+  resourcesBySubject:{}, // subject -> [resource,...] (live)
+  resourceUnsub:null,
+  progressCache:{},   // resourceId -> {stats,total}
+  progressUnsubs:{}
+};
+
+var app = document.getElementById('app');
+var toastEl = document.getElementById('toast');
+var toastTimer = null;
+function toast(msg){
+  toastEl.textContent = msg;
+  toastEl.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(function(){ toastEl.classList.remove('show'); }, 2600);
+}
+
+function esc(s){ return (s||'').toString().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+/* ===================== AUTH ===================== */
+
+function slugName(name){
+  return name.trim().toLowerCase()
+    .replace(/ä/g,'ae').replace(/ö/g,'oe').replace(/ü/g,'ue').replace(/ß/g,'ss')
+    .replace(/[^a-z0-9-]/g,'');
+}
+
+async function doLogin(rawName){
+  var slug = slugName(rawName);
+  if(!slug){ throw new Error('leer'); }
+  var email = slug + '@' + EMAIL_DOMAIN;
+  var password = slug + PASSWORD_SUFFIX;
+  await setPersistence(auth, browserLocalPersistence);
+  await signInWithEmailAndPassword(auth, email, password);
+}
+
+function doLogout(){
+  Object.values(state.progressUnsubs).forEach(function(fn){ try{fn();}catch(e){} });
+  state.progressUnsubs = {};
+  if(state.resourceUnsub){ state.resourceUnsub(); state.resourceUnsub = null; }
+  signOut(auth);
+}
+
+onAuthStateChanged(auth, async function(user){
+  state.user = user;
+  if(!user){
+    state.profile = null;
+    state.route = {name:'login'};
+    render();
+    return;
+  }
+  try{
+    var snap = await getDoc(doc(db, 'students', user.uid));
+    if(!snap.exists()){
+      toast('Kein Profil gefunden – bitte Lehrperson kontaktieren.');
+      await signOut(auth);
+      return;
+    }
+    state.profile = snap.data();
+    state.route = {name:'home'};
+    render();
+  }catch(err){
+    console.error(err);
+    toast('Fehler beim Laden des Profils.');
+  }
+});
+
+/* ===================== ROUTER ===================== */
+
+function goHome(){ state.route = {name:'home'}; render(); }
+function goSubject(id){ state.route = {name:'subject', subject:id}; render(); }
+function goResource(res){ state.route = {name:'resource', resource:res}; render(); }
+
+/* ===================== RENDER: LOGIN ===================== */
+
+function renderLogin(){
+  app.innerHTML =
+    '<div class="login-wrap"><div class="login-card">'+
+    '<div class="login-logo"><img src="assets/logo.png" alt="" onerror="this.style.display=\'none\'"></div>'+
+    '<h1>Helfenberger\'s Library</h1>'+
+    '<p class="sub">Gib deinen Namen ein, um loszulegen.</p>'+
+    '<div class="login-err" id="loginErr"></div>'+
+    '<form id="loginForm">'+
+    '<input type="text" id="loginName" placeholder="Dein Name" autocomplete="username" autofocus>'+
+    '<button type="submit" class="btn btn-primary">Anmelden</button>'+
+    '</form>'+
+    '<p class="login-hint">Frag deine Lehrperson, falls dein Login nicht funktioniert.</p>'+
+    '</div></div>';
+
+  var form = document.getElementById('loginForm');
+  var errEl = document.getElementById('loginErr');
+  form.addEventListener('submit', async function(e){
+    e.preventDefault();
+    errEl.classList.remove('show');
+    var name = document.getElementById('loginName').value;
+    var btn = form.querySelector('button');
+    btn.disabled = true;
+    try{
+      await doLogin(name);
+    }catch(err){
+      var msg = 'Login fehlgeschlagen. Prüfe die Schreibweise deines Namens.';
+      if(err && err.code === 'auth/too-many-requests'){ msg = 'Zu viele Versuche. Bitte warte kurz und versuch es erneut.'; }
+      errEl.textContent = msg;
+      errEl.classList.add('show');
+    }finally{
+      btn.disabled = false;
+    }
+  });
+}
+
+/* ===================== RENDER: CHROME ===================== */
+
+function renderChrome(innerHtml){
+  var isTeacher = state.profile && state.profile.role === 'teacher';
+  var html = '';
+  html += '<div class="topbar">';
+  html += '<div class="topbar-logo" id="logoBtn"><img src="assets/logo.png" alt="" onerror="this.style.display=\'none\'"></div>';
+  html += '<div class="topbar-title" id="titleBtn">Helfenberger\'s Library</div>';
+  html += '<div class="topbar-spacer"></div>';
+  html += '<div class="topbar-user">';
+  if(isTeacher){ html += '<span class="badge-teacher">Lehrperson</span>'; }
+  html += '<span>Hallo, <b>'+esc(state.profile.displayName)+'</b></span>';
+  html += '<button class="btn btn-ghost btn-sm" id="logoutBtn">Abmelden</button>';
+  html += '</div></div>';
+  html += '<div class="content">'+innerHtml+'</div>';
+  app.innerHTML = html;
+
+  document.getElementById('logoBtn').addEventListener('click', goHome);
+  document.getElementById('titleBtn').addEventListener('click', goHome);
+  document.getElementById('logoutBtn').addEventListener('click', doLogout);
+}
+
+/* ===================== RENDER: HOME ===================== */
+
+function renderHome(){
+  var isTeacher = state.profile.role === 'teacher';
+  var html = '';
+  html += '<div class="hero-frame">';
+  html += '<div class="hero">';
+  html += '<div class="hero-chalk hero-chalk-1" aria-hidden="true">E = mc²</div>';
+  html += '<div class="hero-chalk hero-chalk-2" aria-hidden="true">a² + b² = c²</div>';
+  html += '<div class="hero-chalk hero-chalk-3" aria-hidden="true">🧬</div>';
+  html += '<div class="hero-chalk hero-chalk-4" aria-hidden="true">🌍</div>';
+  html += '<h2>'+(isTeacher ? 'Willkommen zurück, '+esc(state.profile.displayName)+'!' : 'Hallo '+esc(state.profile.displayName)+'!')+'</h2>';
+  html += '<p>'+(isTeacher
+    ? 'Lade hier Übungsseiten hoch, verwalte sie und markiere pro Fach das aktuelle Thema. So ist die Library für deine Klasse gleichzeitig Trainings- und Informationsplattform für deinen Unterricht.'
+    : 'Diese Seite ist Übungsplattform und Infoseite für den Unterricht bei Herrn Helfenberger in einem: Trainiere die Themen deiner Fächer, und schau im jeweiligen Fach nach, welches Thema rot markiert ist – so siehst du, woran wir gerade arbeiten.')
+    +'</p>';
+  html += '</div></div>';
+  html += '<div class="subject-grid" id="subjectGrid">';
+  SUBJECTS.forEach(function(s){
+    html += '<button class="subject-card" data-subject="'+s.id+'">';
+    html += '<div class="subject-visual" style="background:'+s.soft+';">'+s.icon+'</div>';
+    html += '<div class="subject-card-body">';
+    html += '<h3>'+s.name+'</h3>';
+    html += '<div class="subject-meta" id="meta-'+s.id+'">wird geladen …</div>';
+    html += '<div class="subject-bar"><span id="bar-'+s.id+'" style="width:0%;background:'+s.color+'"></span></div>';
+    html += '</div>';
+    html += '</button>';
+  });
+  html += '</div>';
+  renderChrome(html);
+
+  Array.prototype.forEach.call(document.querySelectorAll('.subject-card'), function(btn){
+    btn.addEventListener('click', function(){ goSubject(btn.getAttribute('data-subject')); });
+  });
+
+  // subscribe to all subjects' resource counts (light overview)
+  SUBJECTS.forEach(function(s){ watchSubjectOverview(s.id); });
+}
+
+var overviewUnsubs = {};
+function watchSubjectOverview(subjectId){
+  if(overviewUnsubs[subjectId]) return;
+  var q = query(collection(db,'resources'), where('subject','==',subjectId));
+  overviewUnsubs[subjectId] = onSnapshot(q, function(snap){
+    var metaEl = document.getElementById('meta-'+subjectId);
+    var barEl = document.getElementById('bar-'+subjectId);
+    if(!metaEl || !barEl) return; // navigated away
+    var count = snap.size;
+    metaEl.textContent = count===0 ? 'Noch keine Übung' : (count+' Übung'+(count===1?'':'en'));
+    barEl.style.width = '0%';
+  }, function(err){ console.error(err); });
+}
+function clearOverviewWatchers(){
+  Object.values(overviewUnsubs).forEach(function(fn){ try{fn();}catch(e){} });
+  overviewUnsubs = {};
+}
+
+/* ===================== RENDER: SUBJECT ===================== */
+
+function progressFor(resourceId){ return state.progressCache[resourceId] || null; }
+
+function watchProgress(resourceId, onChange){
+  if(state.progressUnsubs[resourceId]) return;
+  var ref_ = doc(db, 'progress', state.user.uid, 'resources', resourceId);
+  state.progressUnsubs[resourceId] = onSnapshot(ref_, function(snap){
+    var data = snap.exists() ? snap.data() : null;
+    var stats = (data && data.stats) || {};
+    var total = data && typeof data.total === 'number' ? data.total : null;
+    var attempted = 0, correct = 0;
+    Object.keys(stats).forEach(function(k){
+      if(stats[k] && stats[k].status){ attempted++; if(stats[k].status==='correct') correct++; }
+    });
+    state.progressCache[resourceId] = {
+      attempted:attempted, correct:correct, total:total,
+      coveragePct: total ? Math.round(attempted/total*100) : null,
+      correctPct: attempted ? Math.round(correct/attempted*100) : null
+    };
+    if(onChange) onChange(state.progressCache[resourceId]);
+  }, function(err){ console.error(err); });
+}
+
+function unwatchAllProgress(){
+  Object.values(state.progressUnsubs).forEach(function(fn){ try{fn();}catch(e){} });
+  state.progressUnsubs = {};
+}
+
+function renderSubject(subjectId){
+  clearOverviewWatchers();
+  unwatchAllProgress();
+  var s = subjectById(subjectId);
+  var isTeacher = state.profile.role === 'teacher';
+
+  var html = '';
+  html += '<div class="back-row"><button class="btn btn-ghost btn-sm" id="backBtn">&larr; Alle Fächer</button></div>';
+  html += '<div class="subject-head"><div class="subject-visual" style="background:'+s.soft+';">'+s.icon+'</div><h2>'+s.name+'</h2></div>';
+
+  if(isTeacher){
+    html += '<div class="dropzone" id="dropzone">';
+    html += '<div class="dz-title">Neue Übungsseite hinzufügen</div>';
+    html += '<div>HTML-Datei hierher ziehen oder <label for="fileInput" style="color:var(--brand);text-decoration:underline;cursor:pointer;">Datei auswählen</label></div>';
+    html += '<input type="file" id="fileInput" accept=".html,text/html">';
+    html += '<div class="upload-progress" id="uploadProgress"></div>';
+    html += '</div>';
+  }
+
+  html += '<div id="resourceList" class="resource-list"><div class="empty-state">Übungen werden geladen …</div></div>';
+
+  renderChrome(html);
+  document.getElementById('backBtn').addEventListener('click', goHome);
+
+  if(isTeacher){ wireDropzone(subjectId); }
+
+  var listEl = document.getElementById('resourceList');
+  // No orderBy here on purpose: filtering by subject AND ordering by a
+  // different field would need a Firestore composite index. Instead we sort
+  // client-side (see sortResources below) — the list is small (a handful of
+  // exercises per subject), so this costs nothing noticeable.
+  var q = query(collection(db,'resources'), where('subject','==',subjectId));
+  state.resourceUnsub = onSnapshot(q, function(snap){
+    if(snap.empty){
+      listEl.innerHTML = '<div class="empty-state">Für dieses Fach gibt es noch keine Übung.'+(isTeacher?' Lade oben die erste Datei hoch.':' Schau später wieder vorbei!')+'</div>';
+      return;
+    }
+    var resources = [];
+    snap.forEach(function(d){ resources.push(Object.assign({id:d.id}, d.data())); });
+    sortResources(resources);
+    listEl.innerHTML = resources.map(function(r, i){ return resourceCardHtml(r, i, resources.length, isTeacher); }).join('');
+
+    resources.forEach(function(r, i){
+      watchProgress(r.id, function(p){ updateResourceBar(r.id, p); });
+      var openBtn = document.getElementById('open-'+r.id);
+      if(openBtn) openBtn.addEventListener('click', function(){ goResource(r); });
+      if(isTeacher){
+        var delBtn = document.getElementById('del-'+r.id);
+        if(delBtn) delBtn.addEventListener('click', function(){ confirmDeleteResource(r); });
+        var upBtn = document.getElementById('up-'+r.id);
+        if(upBtn) upBtn.addEventListener('click', function(){ moveResource(resources, i, -1); });
+        var downBtn = document.getElementById('down-'+r.id);
+        if(downBtn) downBtn.addEventListener('click', function(){ moveResource(resources, i, 1); });
+        var curBtn = document.getElementById('cur-'+r.id);
+        if(curBtn) curBtn.addEventListener('click', function(){ toggleCurrent(resources, r); });
+      }
+    });
+  }, function(err){
+    console.error(err);
+    listEl.innerHTML = '<div class="empty-state">Übungen konnten nicht geladen werden.</div>';
+  });
+}
+
+// Resources with an explicit `order` (set once a teacher uses the move
+// arrows) come first, sorted by that order; anything never manually
+// reordered falls back to newest-first, same as the original behaviour.
+function sortResources(resources){
+  resources.sort(function(a, b){
+    var oa = typeof a.order === 'number' ? a.order : null;
+    var ob = typeof b.order === 'number' ? b.order : null;
+    if(oa !== null && ob !== null) return oa - ob;
+    if(oa !== null) return -1;
+    if(ob !== null) return 1;
+    var ta = a.uploadedAt && a.uploadedAt.toDate ? a.uploadedAt.toDate().getTime() : 0;
+    var tb = b.uploadedAt && b.uploadedAt.toDate ? b.uploadedAt.toDate().getTime() : 0;
+    return tb - ta;
+  });
+}
+
+// Moves the resource at `index` up (-1) or down (+1) within the currently
+// displayed list, then writes a fresh 0..n-1 `order` value to EVERY resource
+// in that list (not just the two swapped ones) so the ordering stays
+// consistent even for items that never had an explicit order before.
+function moveResource(resources, index, direction){
+  var newIndex = index + direction;
+  if(newIndex < 0 || newIndex >= resources.length) return;
+  var reordered = resources.slice();
+  var tmp = reordered[index];
+  reordered[index] = reordered[newIndex];
+  reordered[newIndex] = tmp;
+  var batch = writeBatch(db);
+  reordered.forEach(function(r, i){
+    batch.update(doc(db,'resources', r.id), {order: i});
+  });
+  batch.commit().catch(function(err){
+    console.error(err);
+    toast('Verschieben fehlgeschlagen.');
+  });
+}
+
+// Marks one resource as "current" (highlighted in red for everyone) and
+// un-marks any other resource in the same subject, so at most one is
+// highlighted at a time. Clicking the already-current one turns it off again.
+//
+// Marking something current also pulls it straight to the top of the list
+// (order 0); un-marking it sends it back to exactly the spot it came from.
+// `resources` is the already-sorted list as currently displayed, so its
+// index of r is r's position before the move — that gets stored on the
+// resource itself (prevOrder) so it can be restored later, then every
+// resource in the subject gets a fresh 0..n-1 `order` to keep things
+// consistent (same approach as the manual move-up/down arrows).
+function toggleCurrent(resources, r){
+  var makeCurrent = !r.current;
+  var batch = writeBatch(db);
+  var reordered;
+
+  if(makeCurrent){
+    var prevIndex = resources.findIndex(function(x){ return x.id === r.id; });
+    reordered = [r].concat(resources.filter(function(x){ return x.id !== r.id; }));
+    reordered.forEach(function(item, i){
+      var patch = { order: i };
+      if(item.id === r.id){ patch.current = true; patch.prevOrder = prevIndex; }
+      else if(item.current){ patch.current = false; }
+      batch.update(doc(db,'resources', item.id), patch);
+    });
+  } else {
+    var others = resources.filter(function(x){ return x.id !== r.id; });
+    var restoreAt = typeof r.prevOrder === 'number' ? Math.max(0, Math.min(r.prevOrder, others.length)) : others.length;
+    reordered = others.slice(0, restoreAt).concat([r]).concat(others.slice(restoreAt));
+    reordered.forEach(function(item, i){
+      var patch = { order: i };
+      if(item.id === r.id){ patch.current = false; patch.prevOrder = null; }
+      batch.update(doc(db,'resources', item.id), patch);
+    });
+  }
+
+  batch.commit().catch(function(err){
+    console.error(err);
+    toast('Aktualisieren fehlgeschlagen.');
+  });
+}
+
+function resourceCardHtml(r, index, total, isTeacher){
+  var uploaded = r.uploadedAt && r.uploadedAt.toDate ? r.uploadedAt.toDate().toLocaleDateString('de-CH') : '';
+  var html = '<div class="resource-card'+(r.current?' current':'')+'" id="card-'+r.id+'">';
+  if(isTeacher){
+    html += '<div class="move-btns">';
+    html += '<button class="move-btn" id="up-'+r.id+'" type="button" title="Nach oben"'+(index===0?' disabled':'')+'><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 15l6-6 6 6"/></svg></button>';
+    html += '<button class="move-btn" id="down-'+r.id+'" type="button" title="Nach unten"'+(index===total-1?' disabled':'')+'><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></button>';
+    html += '</div>';
+  }
+  html += '<div class="resource-info"><h4>'+esc(r.title || r.fileName)+(r.current?' <span class="chip-current">Aktuell</span>':'')+'</h4>';
+  html += '<div class="resource-bar"><span id="pbar-'+r.id+'" style="width:0%;background:var(--brand)"></span></div>';
+  html += '<div class="resource-meta" id="pmeta-'+r.id+'">Noch nicht geübt'+(uploaded?' · hinzugefügt am '+uploaded:'')+'</div>';
+  html += '</div>';
+  html += '<div class="resource-actions">';
+  html += '<button class="btn btn-primary btn-sm" id="open-'+r.id+'">Öffnen</button>';
+  if(isTeacher){
+    html += '<button class="btn btn-sm btn-current'+(r.current?' active':'')+'" id="cur-'+r.id+'">'+(r.current?'Nicht mehr aktuell':'Als aktuell markieren')+'</button>';
+    html += '<button class="btn btn-danger btn-sm" id="del-'+r.id+'">Löschen</button>';
+  }
+  html += '</div></div>';
+  return html;
+}
+
+function updateResourceBar(resourceId, p){
+  var bar = document.getElementById('pbar-'+resourceId);
+  var meta = document.getElementById('pmeta-'+resourceId);
+  if(!bar || !meta) return;
+  if(!p || p.attempted===0){ bar.style.width='0%'; meta.textContent = meta.textContent.indexOf('hinzugefügt')>=0 ? meta.textContent : 'Noch nicht geübt'; return; }
+  var pct = p.coveragePct!==null ? p.coveragePct : p.correctPct;
+  bar.style.width = pct+'%';
+  var parts = [];
+  if(p.total){ parts.push(p.attempted+' / '+p.total+' geübt'); } else { parts.push(p.attempted+' bearbeitet'); }
+  if(p.correctPct!==null){ parts.push(p.correctPct+'% richtig'); }
+  meta.textContent = parts.join(' · ');
+}
+
+async function confirmDeleteResource(r){
+  if(!confirm('«'+(r.title||r.fileName)+'» wirklich löschen? Das kann nicht rückgängig gemacht werden.')) return;
+  try{
+    var contentSnap = await getDoc(doc(db,'resourceContent', r.id));
+    var chunkCount = (contentSnap.exists() && contentSnap.data().chunkCount) || 0;
+    var batch = writeBatch(db);
+    batch.delete(doc(db,'resources', r.id));
+    batch.delete(doc(db,'resourceContent', r.id));
+    for(var i=0;i<chunkCount;i++){
+      batch.delete(doc(db,'resourceContent', r.id, 'chunks', String(i)));
+    }
+    await batch.commit();
+    toast('Übung gelöscht.');
+  }catch(err){
+    console.error(err);
+    toast('Löschen fehlgeschlagen.');
+  }
+}
+
+/* ===================== TEACHER UPLOAD ===================== */
+
+function wireDropzone(subjectId){
+  var dz = document.getElementById('dropzone');
+  var input = document.getElementById('fileInput');
+  ['dragenter','dragover'].forEach(function(evt){
+    dz.addEventListener(evt, function(e){ e.preventDefault(); dz.classList.add('drag'); });
+  });
+  ['dragleave','drop'].forEach(function(evt){
+    dz.addEventListener(evt, function(e){ e.preventDefault(); dz.classList.remove('drag'); });
+  });
+  dz.addEventListener('drop', function(e){
+    var files = e.dataTransfer.files;
+    if(files && files.length){ handleUpload(subjectId, files[0]); }
+  });
+  input.addEventListener('change', function(){
+    if(input.files && input.files.length){ handleUpload(subjectId, input.files[0]); input.value=''; }
+  });
+}
+
+function readFileAsText(file){
+  return new Promise(function(resolve, reject){
+    var reader = new FileReader();
+    reader.onload = function(){ resolve(reader.result); };
+    reader.onerror = function(){ reject(reader.error); };
+    reader.readAsText(file, 'utf-8');
+  });
+}
+
+async function handleUpload(subjectId, file){
+  var progEl = document.getElementById('uploadProgress');
+  if(!/\.html?$/i.test(file.name) && file.type !== 'text/html'){
+    toast('Bitte eine HTML-Datei hochladen (.html).');
+    return;
+  }
+  if(file.size > MAX_RESOURCE_BYTES){
+    toast('Datei ist zu gross (max. '+Math.round(MAX_RESOURCE_BYTES/1024/1024)+' MB).');
+    return;
+  }
+  var title = file.name.replace(/\.html?$/i,'').replace(/[_-]+/g,' ');
+  var typedTitle = prompt('Titel für diese Übung:', title);
+  if(typedTitle === null) return; // cancelled
+  title = typedTitle.trim() || title;
+
+  progEl.textContent = 'Lade «'+file.name+'» hoch …';
+  progEl.classList.add('show');
+  try{
+    var htmlText = await readFileAsText(file);
+    if(new Blob([htmlText]).size > MAX_RESOURCE_BYTES){
+      toast('Datei ist zu gross (max. '+Math.round(MAX_RESOURCE_BYTES/1024/1024)+' MB).');
+      return;
+    }
+    var chunks = chunkStringByBytes(htmlText, MAX_CHUNK_BYTES);
+    var resId = subjectId+'_'+Date.now();
+    var batch = writeBatch(db);
+    batch.set(doc(db,'resources', resId), {
+      subject: subjectId,
+      title: title,
+      fileName: file.name,
+      uploadedAt: serverTimestamp(),
+      uploadedBy: state.user.uid
+    });
+    batch.set(doc(db,'resourceContent', resId), { chunkCount: chunks.length });
+    chunks.forEach(function(chunk, i){
+      batch.set(doc(db,'resourceContent', resId, 'chunks', String(i)), { html: chunk });
+    });
+    await batch.commit();
+    toast('«'+title+'» wurde veröffentlicht.');
+  }catch(err){
+    console.error(err);
+    toast('Hochladen fehlgeschlagen: '+(err && err.message ? err.message : 'unbekannter Fehler'));
+  }finally{
+    progEl.classList.remove('show');
+  }
+}
+
+/* ===================== RENDER: RESOURCE VIEWER ===================== */
+
+var currentViewerResourceId = null;
+var progressWriteTimers = {};
+
+function renderResource(r){
+  clearOverviewWatchers();
+  unwatchAllProgress();
+  currentViewerResourceId = r.id;
+  var s = subjectById(r.subject);
+
+  var html = '<div class="viewer-wrap">';
+  html += '<div class="back-row"><button class="btn btn-ghost btn-sm" id="backBtn">&larr; '+esc(s ? s.name : 'Fach')+'</button></div>';
+  html += '<div class="viewer-head"><h2>'+esc(r.title || r.fileName)+'</h2><span class="viewer-progress" id="viewerProgress"></span>';
+  html += '<button class="btn btn-ghost btn-sm btn-fs" id="fsBtn" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3"/></svg> Vollbild</button>';
+  html += '</div>';
+  html += '<div class="viewer-frame-wrap" id="frameWrap"><iframe id="resourceFrame" title="'+esc(r.title||r.fileName)+'"></iframe></div>';
+  html += '</div>';
+
+  renderChrome(html);
+  document.getElementById('backBtn').addEventListener('click', function(){ goSubject(r.subject); });
+  wireFullscreen();
+
+  watchProgress(r.id, function(p){ updateViewerProgress(p); });
+
+  getDoc(doc(db,'resourceContent', r.id)).then(function(snap){
+    if(!snap.exists()){ throw new Error('no content'); }
+    var chunkCount = snap.data().chunkCount || 0;
+    var chunkIndexes = [];
+    for(var i=0;i<chunkCount;i++){ chunkIndexes.push(i); }
+    return Promise.all(chunkIndexes.map(function(i){
+      return getDoc(doc(db,'resourceContent', r.id, 'chunks', String(i)));
+    }));
+  }).then(function(chunkSnaps){
+    var html = chunkSnaps.map(function(s){ return (s.exists() && s.data().html) || ''; }).join('');
+    document.getElementById('resourceFrame').srcdoc = html;
+  }).catch(function(err){
+    console.error(err);
+    var wrap = document.querySelector('.viewer-frame-wrap');
+    if(wrap) wrap.innerHTML = '<div class="empty-state">Diese Übung konnte nicht geladen werden.</div>';
+  });
+}
+
+var FS_ICON_ENTER = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3"/></svg> Vollbild';
+var FS_ICON_EXIT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3v3a2 2 0 0 1-2 2H4M15 3v3a2 2 0 0 0 2 2h3M9 21v-3a2 2 0 0 0-2-2H4M15 21v-3a2 2 0 0 1 2-2h3"/></svg> Vollbild verlassen';
+var fullscreenListenerAttached = false;
+
+// Fullscreens the viewer's frame wrapper (not the iframe itself) so it works
+// consistently across browsers. Looks elements up by id on every call/event
+// rather than closing over them, so this is safe to call again on every
+// resource-viewer render without leaking stale references or duplicate
+// document-level listeners.
+function updateFsButtonLabel(){
+  var wrap = document.getElementById('frameWrap');
+  var btn = document.getElementById('fsBtn');
+  if(!wrap || !btn) return;
+  var isFs = (document.fullscreenElement || document.webkitFullscreenElement) === wrap;
+  btn.innerHTML = isFs ? FS_ICON_EXIT : FS_ICON_ENTER;
+}
+
+function wireFullscreen(){
+  var wrap = document.getElementById('frameWrap');
+  var btn = document.getElementById('fsBtn');
+  if(!wrap || !btn) return;
+  if(!(wrap.requestFullscreen || wrap.webkitRequestFullscreen)){
+    // Fullscreen API unavailable (older browser) — hide the button rather than offer a broken one.
+    btn.style.display = 'none';
+    return;
+  }
+  btn.addEventListener('click', function(){
+    var w = document.getElementById('frameWrap');
+    if(!w) return;
+    var isFs = (document.fullscreenElement || document.webkitFullscreenElement) === w;
+    var action = isFs
+      ? (document.exitFullscreen || document.webkitExitFullscreen).call(document)
+      : (w.requestFullscreen || w.webkitRequestFullscreen).call(w);
+    if(action && action.catch){
+      action.catch(function(){ toast('Vollbild wird von diesem Browser gerade nicht zugelassen.'); });
+    }
+  });
+  updateFsButtonLabel();
+  if(!fullscreenListenerAttached){
+    document.addEventListener('fullscreenchange', updateFsButtonLabel);
+    document.addEventListener('webkitfullscreenchange', updateFsButtonLabel);
+    fullscreenListenerAttached = true;
+  }
+}
+
+function updateViewerProgress(p){
+  var el = document.getElementById('viewerProgress');
+  if(!el) return;
+  if(!p || p.attempted===0){ el.textContent = 'Noch nicht geübt'; return; }
+  var parts = [];
+  if(p.total){ parts.push(p.attempted+' / '+p.total+' geübt'); } else { parts.push(p.attempted+' bearbeitet'); }
+  if(p.correctPct!==null){ parts.push(p.correctPct+'% richtig'); }
+  el.textContent = parts.join(' · ');
+}
+
+window.addEventListener('message', function(e){
+  var data = e.data;
+  if(!data || !data.__libProgress || !currentViewerResourceId || !state.user) return;
+  var resourceId = currentViewerResourceId;
+  clearTimeout(progressWriteTimers[resourceId]);
+  progressWriteTimers[resourceId] = setTimeout(function(){
+    setDoc(doc(db,'progress', state.user.uid, 'resources', resourceId), {
+      stats: data.stats || {},
+      total: typeof data.total === 'number' ? data.total : null,
+      updatedAt: serverTimestamp()
+    }, {merge:true}).catch(function(err){ console.error('progress write failed', err); });
+  }, 500);
+});
+
+/* ===================== MAIN RENDER ===================== */
+
+function render(){
+  clearOverviewWatchers();
+  if(state.route.name === 'loading'){
+    app.innerHTML = '<div class="spinner-wrap">Lädt …</div>';
+    return;
+  }
+  if(state.route.name === 'login'){ renderLogin(); return; }
+  if(!state.profile){ app.innerHTML = '<div class="spinner-wrap">Lädt …</div>'; return; }
+  if(state.route.name === 'home'){ renderHome(); return; }
+  if(state.route.name === 'subject'){ renderSubject(state.route.subject); return; }
+  if(state.route.name === 'resource'){ renderResource(state.route.resource); return; }
+}
+</script>
+</body>
+</html>
