@@ -4,7 +4,15 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Helfenberger's Library</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%93%9A%3C/text%3E%3C/svg%3E">
+<link rel="icon" href="assets/icon-192.png">
+<link rel="apple-touch-icon" href="assets/icon-180.png">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#3A3F73">
+<!-- "Zum Home-Bildschirm hinzufügen" auf iOS ignoriert das Web-Manifest weitgehend und
+     braucht diese eigenen Meta-Tags, um als eigenständige App (ohne Safari-Chrome) zu starten. -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Library">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Karla:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap">
@@ -48,7 +56,7 @@
 
   *{box-sizing:border-box;}
   html{margin:0;padding:0;background:var(--bg);}
-  html,body{min-height:100%;}
+  html,body{min-height:100%;overflow-x:hidden;}
   body{
     margin:0;padding:0;color:var(--text);
     font:15px/1.5 Karla,-apple-system,BlinkMacSystemFont,sans-serif;
@@ -100,13 +108,22 @@
   .btn-danger{background:var(--bad-soft);color:var(--bad);}
 
   /* ---------- Chrome / header ---------- */
-  .topbar{display:flex;align-items:center;gap:14px;padding:14px 22px;background:var(--surface);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:20;}
+  .topbar{display:flex;align-items:center;flex-wrap:wrap;row-gap:8px;gap:14px;padding:14px 22px;background:var(--surface);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:20;}
   .topbar-logo{height:36px;width:auto;flex-shrink:0;cursor:pointer;display:flex;align-items:center;}
   .topbar-logo img{height:100%;width:auto;object-fit:contain;display:block;}
   .topbar-title{font-family:'Baloo 2';font-weight:800;font-size:17px;color:var(--brand-ink);cursor:pointer;}
   .topbar-spacer{flex:1;}
-  .topbar-user{display:flex;align-items:center;gap:10px;font-size:14px;color:var(--text-muted);}
+  /* margin-left:auto (not just the spacer) so this block still hugs the right edge
+     even when it wraps onto its own row on a narrow screen — see the mobile
+     breakpoint below, which is what keeps the topbar from overflowing sideways. */
+  .topbar-user{display:flex;align-items:center;flex-wrap:wrap;gap:10px;margin-left:auto;font-size:14px;color:var(--text-muted);}
   .topbar-user b{color:var(--text);}
+  @media (max-width:480px){
+    .topbar{padding:12px 16px;gap:10px;}
+    .topbar-user{font-size:12.5px;gap:7px;}
+    .badge-teacher{padding:2px 8px;font-size:10px;}
+    .topbar-user .btn-sm{padding:7px 12px;font-size:12px;}
+  }
   .badge-teacher{background:var(--brand);color:var(--brand-contrast);border-radius:999px;padding:2px 10px;font-size:11px;font-weight:700;letter-spacing:.02em;}
 
   .content{flex:1;max-width:1100px;margin:0 auto;padding:28px 22px 60px;width:100%;}
@@ -179,12 +196,22 @@
   .viewer-head{display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
   .viewer-head h2{font-size:19px;flex:1;}
   .viewer-progress{font-size:13px;color:var(--text-muted);}
-  .viewer-frame-wrap{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden;height:calc(100vh - 210px);min-height:420px;}
+  .viewer-frame-wrap{position:relative;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden;height:calc(100vh - 210px);min-height:420px;}
   .viewer-frame-wrap iframe{width:100%;height:100%;border:0;display:block;background:#fff;}
   .viewer-frame-wrap:fullscreen,
   .viewer-frame-wrap:-webkit-full-screen{border-radius:0;border:0;height:100vh;}
   .viewer-frame-wrap:fullscreen iframe,
   .viewer-frame-wrap:-webkit-full-screen iframe{height:100%;}
+  /* #fsBtn (in .viewer-head) sits OUTSIDE #frameWrap, so once #frameWrap is the
+     Fullscreen-API element, #fsBtn is no longer part of what's on screen and can't
+     be clicked — Esc was the only way out. This overlay button lives INSIDE
+     #frameWrap instead, so it stays visible/clickable while fullscreen, and is
+     hidden the rest of the time via the :fullscreen selector below. */
+  .btn-fs-overlay-exit{position:absolute;top:14px;right:14px;z-index:5;display:none;align-items:center;justify-content:center;width:40px;height:40px;border-radius:999px;border:none;background:rgba(20,20,32,.55);color:#fff;cursor:pointer;backdrop-filter:blur(2px);transition:background .15s ease;}
+  .btn-fs-overlay-exit:hover{background:rgba(20,20,32,.78);}
+  .btn-fs-overlay-exit svg{width:18px;height:18px;}
+  .viewer-frame-wrap:fullscreen .btn-fs-overlay-exit,
+  .viewer-frame-wrap:-webkit-full-screen .btn-fs-overlay-exit{display:flex;}
   .btn-fs svg{width:15px;height:15px;}
 
   .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--brand-ink);color:#fff;padding:11px 20px;border-radius:999px;font-size:13.5px;box-shadow:var(--shadow);z-index:99;opacity:0;pointer-events:none;transition:opacity .25s ease, transform .25s ease;}
@@ -821,7 +848,10 @@ function renderResource(r){
   html += '<div class="viewer-head"><h2>'+esc(r.title || r.fileName)+'</h2><span class="viewer-progress" id="viewerProgress"></span>';
   html += '<button class="btn btn-ghost btn-sm btn-fs" id="fsBtn" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3"/></svg> Vollbild</button>';
   html += '</div>';
-  html += '<div class="viewer-frame-wrap" id="frameWrap"><iframe id="resourceFrame" title="'+esc(r.title||r.fileName)+'"></iframe></div>';
+  html += '<div class="viewer-frame-wrap" id="frameWrap">';
+  html += '<button class="btn-fs-overlay-exit" id="fsExitBtn" type="button" title="Vollbild verlassen" aria-label="Vollbild verlassen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3v3a2 2 0 0 1-2 2H4M15 3v3a2 2 0 0 0 2 2h3M9 21v-3a2 2 0 0 0-2-2H4M15 21v-3a2 2 0 0 1 2-2h3"/></svg></button>';
+  html += '<iframe id="resourceFrame" title="'+esc(r.title||r.fileName)+'"></iframe>';
+  html += '</div>';
   html += '</div>';
 
   renderChrome(html);
@@ -865,26 +895,39 @@ function updateFsButtonLabel(){
   btn.innerHTML = isFs ? FS_ICON_EXIT : FS_ICON_ENTER;
 }
 
+function exitFullscreenNow(){
+  var action = (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+  if(action && action.catch){ action.catch(function(){}); }
+}
+
 function wireFullscreen(){
   var wrap = document.getElementById('frameWrap');
   var btn = document.getElementById('fsBtn');
+  var exitBtn = document.getElementById('fsExitBtn');
   if(!wrap || !btn) return;
   if(!(wrap.requestFullscreen || wrap.webkitRequestFullscreen)){
-    // Fullscreen API unavailable (older browser) — hide the button rather than offer a broken one.
+    // Fullscreen API unavailable (older browser) — hide both buttons rather than offer a broken one.
     btn.style.display = 'none';
+    if(exitBtn) exitBtn.style.display = 'none';
     return;
   }
   btn.addEventListener('click', function(){
     var w = document.getElementById('frameWrap');
     if(!w) return;
     var isFs = (document.fullscreenElement || document.webkitFullscreenElement) === w;
-    var action = isFs
-      ? (document.exitFullscreen || document.webkitExitFullscreen).call(document)
-      : (w.requestFullscreen || w.webkitRequestFullscreen).call(w);
+    if(isFs){ exitFullscreenNow(); return; }
+    var action = (w.requestFullscreen || w.webkitRequestFullscreen).call(w);
     if(action && action.catch){
       action.catch(function(){ toast('Vollbild wird von diesem Browser gerade nicht zugelassen.'); });
     }
   });
+  // #fsBtn sits in .viewer-head, OUTSIDE #frameWrap — once #frameWrap is the
+  // fullscreen element, #fsBtn is no longer on screen at all (only the
+  // fullscreen element and its descendants render), so it can't be clicked to
+  // get back out. #fsExitBtn lives inside #frameWrap instead (see CSS: shown
+  // only while :fullscreen) so there's always a visible, clickable way out
+  // besides Esc.
+  if(exitBtn){ exitBtn.addEventListener('click', exitFullscreenNow); }
   updateFsButtonLabel();
   if(!fullscreenListenerAttached){
     document.addEventListener('fullscreenchange', updateFsButtonLabel);
