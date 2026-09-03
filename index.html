@@ -201,6 +201,39 @@
 
   .empty-state{background:var(--surface);border:1px dashed var(--border);border-radius:var(--radius);padding:36px 20px;text-align:center;color:var(--text-muted);}
 
+
+  /* ---------- Ordner (Unterordner pro Fach) ---------- */
+  .crumbs{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:13.5px;color:var(--text-muted);margin-bottom:16px;}
+  .crumbs button{background:none;border:0;padding:2px 4px;border-radius:6px;font:inherit;color:var(--brand-ink);cursor:pointer;}
+  .crumbs button:hover{background:var(--surface-2);text-decoration:underline;}
+  .crumbs .sep{opacity:.5;}
+  .crumbs .here{color:var(--text);font-weight:700;}
+
+  .folder-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px 18px;box-shadow:var(--shadow);display:flex;align-items:center;gap:16px;flex-wrap:wrap;}
+  .folder-card.has-current{border-color:var(--bad);box-shadow:var(--shadow), inset 4px 0 0 var(--bad);}
+  .folder-open{display:flex;align-items:center;gap:12px;flex:1;min-width:200px;background:none;border:0;padding:0;font:inherit;color:inherit;text-align:left;cursor:pointer;}
+  .folder-glyph{width:40px;height:40px;border-radius:11px;display:flex;align-items:center;justify-content:center;flex-shrink:0;background:var(--surface-2);}
+  .folder-glyph svg{width:22px;height:22px;}
+  .folder-name{font-weight:700;font-size:15.5px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+  .folder-count{font-size:12px;color:var(--text-muted);margin-top:2px;}
+  .folder-actions{display:flex;align-items:center;gap:8px;flex-shrink:0;flex-wrap:wrap;}
+  .section-label{font-size:12px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--text-muted);margin:4px 2px -2px;}
+
+  /* ---------- Eigener Dialog (nie window.confirm/prompt — siehe Vollbild-Hinweis) ---------- */
+  .modal-overlay{position:fixed;inset:0;background:rgba(15,16,32,.55);display:none;align-items:center;justify-content:center;padding:20px;z-index:2000;}
+  .modal-overlay.show{display:flex;}
+  .modal{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:0 24px 60px rgba(0,0,0,.28);width:100%;max-width:440px;max-height:85vh;overflow:auto;padding:22px;}
+  .modal h3{font-size:18px;margin:0 0 8px;}
+  .modal p{font-size:14px;color:var(--text-muted);margin:0 0 16px;line-height:1.5;}
+  .modal input[type=text]{width:100%;padding:11px 13px;border:1px solid var(--border);border-radius:10px;font:inherit;background:var(--surface-2);color:var(--text);margin-bottom:16px;}
+  .modal input[type=text]:focus{outline:2px solid var(--brand);outline-offset:1px;}
+  .modal-actions{display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;}
+  .pick-list{display:flex;flex-direction:column;gap:6px;margin-bottom:16px;}
+  .pick-item{display:flex;align-items:center;gap:8px;width:100%;text-align:left;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:var(--surface-2);font:inherit;color:var(--text);cursor:pointer;}
+  .pick-item:hover:not(:disabled){border-color:var(--brand);background:var(--surface);}
+  .pick-item:disabled{opacity:.45;cursor:default;}
+  .pick-item .pick-here{margin-left:auto;font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;}
+
   /* ---------- Teacher upload zone ---------- */
   .dropzone{border:2.5px dashed var(--border);border-radius:var(--radius);padding:28px 20px;text-align:center;color:var(--text-muted);margin-bottom:22px;background:var(--surface);transition:border-color .15s ease, background .15s ease;}
   .dropzone.drag{border-color:var(--brand);background:var(--surface-2);color:var(--text);}
@@ -258,6 +291,7 @@
 <div class="desk-prop desk-prop-right" aria-hidden="true">☕✏️</div>
 <div id="app"><div class="spinner-wrap">Lädt …</div></div>
 <div class="toast" id="toast"></div>
+<div class="modal-overlay" id="modalOverlay"></div>
 
 <script type="module">
 import {
@@ -267,7 +301,7 @@ import {
   getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut, setPersistence, browserLocalPersistence
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 import {
-  getFirestore, doc, getDoc, setDoc, deleteDoc, collection, query, where, onSnapshot, serverTimestamp, orderBy, writeBatch
+  getFirestore, doc, getDoc, setDoc, deleteDoc, collection, query, where, onSnapshot, serverTimestamp, writeBatch
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 
 /* =====================================================================
@@ -370,9 +404,11 @@ function subjectById(id){ return SUBJECTS.find(function(s){return s.id===id;}); 
 var state = {
   user:null,          // firebase auth user
   profile:null,       // {username, displayName, role}
-  route:{name:'loading'},
-  resourcesBySubject:{}, // subject -> [resource,...] (live)
+  route:{name:'loading'},   // {name:'subject', subject, folderId} — folderId null = Fach-Hauptebene
+  resources:[],       // alle Übungen des offenen Fachs (live)
+  folders:[],         // alle Ordner des offenen Fachs (live)
   resourceUnsub:null,
+  folderUnsub:null,
   progressCache:{},   // resourceId -> {stats,total}
   progressUnsubs:{}
 };
@@ -409,7 +445,7 @@ async function doLogin(rawName){
 function doLogout(){
   Object.values(state.progressUnsubs).forEach(function(fn){ try{fn();}catch(e){} });
   state.progressUnsubs = {};
-  if(state.resourceUnsub){ state.resourceUnsub(); state.resourceUnsub = null; }
+  clearSubjectWatchers();
   signOut(auth);
 }
 
@@ -440,7 +476,15 @@ onAuthStateChanged(auth, async function(user){
 /* ===================== ROUTER ===================== */
 
 function goHome(){ state.route = {name:'home'}; render(); }
-function goSubject(id){ state.route = {name:'subject', subject:id}; render(); }
+function goSubject(id, folderId){
+  var sameSubject = state.route.name === 'subject' && state.route.subject === id;
+  state.route = {name:'subject', subject:id, folderId: folderId || null};
+  // Innerhalb desselben Fachs nur den Inhalt neu zeichnen: die Firestore-
+  // Listener hängen am ganzen Fach und müssen beim Wechsel in einen
+  // Unterordner nicht neu aufgebaut werden.
+  if(sameSubject && document.getElementById('resourceList')){ renderFolderContents(); return; }
+  render();
+}
 function goResource(res){ state.route = {name:'resource', resource:res}; render(); }
 
 /* ===================== RENDER: LOGIN ===================== */
@@ -505,6 +549,7 @@ function renderChrome(innerHtml){
 /* ===================== RENDER: HOME ===================== */
 
 function renderHome(){
+  clearSubjectWatchers();
   var isTeacher = state.profile.role === 'teacher';
   var html = '';
   html += '<div class="hero-frame">';
@@ -593,72 +638,466 @@ function unwatchAllProgress(){
   state.progressUnsubs = {};
 }
 
-function renderSubject(subjectId){
+/* ===================== ORDNER: Datenmodell & Helfer =====================
+
+   Firestore-Collection `folders`:
+     folders/{folderId} -> {subject, parentId, name, order, createdAt, createdBy}
+       parentId === null  ->  Ordner liegt direkt im Fach
+       parentId === '<id>' -> Ordner liegt in diesem Ordner (beliebig tief)
+
+   Eine Übung (resources/{id}) liegt in genau einem Container:
+     folderId fehlt/null   ->  direkt im Fach  (so liegen alle Altbestände)
+     folderId === '<id>'   ->  in diesem Ordner
+
+   Beide Queries filtern NUR nach `subject` (reine Gleichheitsbedingung, kein
+   orderBy) — damit braucht es weiterhin KEINEN Firestore-Composite-Index.
+   Sortiert und verschachtelt wird alles im Client; pro Fach sind es nur ein
+   paar Dutzend Dokumente.
+   ===================================================================== */
+
+var MAX_FOLDER_DEPTH = 6;   // Sicherheitsnetz gegen versehentlich tiefe Bäume
+
+function clearSubjectWatchers(){
+  if(state.resourceUnsub){ try{ state.resourceUnsub(); }catch(e){} state.resourceUnsub = null; }
+  if(state.folderUnsub){ try{ state.folderUnsub(); }catch(e){} state.folderUnsub = null; }
+}
+
+function folderById(id){
+  if(!id) return null;
+  for(var i=0;i<state.folders.length;i++){ if(state.folders[i].id === id) return state.folders[i]; }
+  return null;
+}
+
+// Kette vom obersten Ordner bis zum angegebenen (für die Brotkrumen-Navigation).
+// Der Zähler bricht ab, falls je ein Zyklus in den Daten landen sollte.
+function folderChain(folderId){
+  var chain = [], guard = 0, cur = folderById(folderId);
+  while(cur && guard++ < 50){ chain.unshift(cur); cur = folderById(cur.parentId); }
+  return chain;
+}
+
+function foldersIn(parentId){
+  var list = state.folders.filter(function(f){ return (f.parentId || null) === (parentId || null); });
+  sortByOrder(list, 'name');
+  return list;
+}
+
+function resourcesIn(folderId){
+  var list = state.resources.filter(function(r){ return (r.folderId || null) === (folderId || null); });
+  sortResources(list);
+  return list;
+}
+
+// Alle Nachfahren-Ordner-Ids (inkl. des Ordners selbst) — für die Zählung im
+// Ordner-Kärtchen und um zu verhindern, dass ein Ordner in sich selbst wandert.
+function subtreeIds(folderId){
+  var ids = [folderId], queue = [folderId], guard = 0;
+  while(queue.length && guard++ < 500){
+    var cur = queue.shift();
+    state.folders.forEach(function(f){
+      if((f.parentId || null) === cur && ids.indexOf(f.id) < 0){ ids.push(f.id); queue.push(f.id); }
+    });
+  }
+  return ids;
+}
+
+function subtreeCounts(folderId){
+  var ids = subtreeIds(folderId);
+  var res = state.resources.filter(function(r){ return ids.indexOf(r.folderId || null) >= 0; });
+  return { folders: ids.length - 1, resources: res.length, hasCurrent: res.some(function(r){ return !!r.current; }) };
+}
+
+function folderDepth(folderId){ return folderChain(folderId).length; }
+
+function sortByOrder(list, fallbackField){
+  list.sort(function(a,b){
+    var oa = typeof a.order === 'number' ? a.order : null;
+    var ob = typeof b.order === 'number' ? b.order : null;
+    if(oa !== null && ob !== null && oa !== ob) return oa - ob;
+    if(oa !== null && ob === null) return -1;
+    if(oa === null && ob !== null) return 1;
+    return String(a[fallbackField]||'').localeCompare(String(b[fallbackField]||''), 'de');
+  });
+  return list;
+}
+
+/* ===================== EIGENE DIALOGE =====================
+   Bewusst KEIN window.confirm/alert/prompt: native Dialoge erzwingen einen
+   Fullscreen-Exit und können die im Viewer eingebettete Übungsseite in einen
+   kaputten, leeren Zustand bringen (siehe Projekt-Notiz zum Reset-Bug).
+   ========================================================= */
+
+var modalEl = document.getElementById('modalOverlay');
+
+function closeModal(){ modalEl.classList.remove('show'); modalEl.innerHTML = ''; }
+
+function openModal(innerHtml){
+  modalEl.innerHTML = '<div class="modal" role="dialog" aria-modal="true">'+innerHtml+'</div>';
+  modalEl.classList.add('show');
+  modalEl.onclick = function(e){ if(e.target === modalEl) closeModal(); };
+  document.addEventListener('keydown', modalEscHandler);
+}
+function modalEscHandler(e){
+  if(e.key === 'Escape' && modalEl.classList.contains('show')){
+    closeModal();
+    document.removeEventListener('keydown', modalEscHandler);
+  }
+}
+
+function uiPrompt(title, description, defaultValue, okLabel, onOk){
+  openModal(
+    '<h3>'+esc(title)+'</h3>'+
+    (description ? '<p>'+esc(description)+'</p>' : '')+
+    '<input type="text" id="modalInput" value="'+esc(defaultValue||'')+'" maxlength="60">'+
+    '<div class="modal-actions">'+
+      '<button class="btn btn-ghost btn-sm" id="modalCancel" type="button">Abbrechen</button>'+
+      '<button class="btn btn-primary btn-sm" id="modalOk" type="button">'+esc(okLabel)+'</button>'+
+    '</div>'
+  );
+  var input = document.getElementById('modalInput');
+  input.focus(); input.select();
+  function submit(){
+    var v = input.value.trim();
+    if(!v){ input.focus(); return; }
+    closeModal(); onOk(v);
+  }
+  document.getElementById('modalOk').addEventListener('click', submit);
+  document.getElementById('modalCancel').addEventListener('click', closeModal);
+  input.addEventListener('keydown', function(e){ if(e.key === 'Enter') submit(); });
+}
+
+function uiConfirm(title, description, okLabel, onOk, danger){
+  openModal(
+    '<h3>'+esc(title)+'</h3>'+
+    (description ? '<p>'+esc(description)+'</p>' : '')+
+    '<div class="modal-actions">'+
+      '<button class="btn btn-ghost btn-sm" id="modalCancel" type="button">Abbrechen</button>'+
+      '<button class="btn '+(danger?'btn-danger':'btn-primary')+' btn-sm" id="modalOk" type="button">'+esc(okLabel)+'</button>'+
+    '</div>'
+  );
+  document.getElementById('modalOk').addEventListener('click', function(){ closeModal(); onOk(); });
+  document.getElementById('modalCancel').addEventListener('click', closeModal);
+}
+
+function uiInfo(title, description){
+  openModal(
+    '<h3>'+esc(title)+'</h3>'+
+    '<p>'+esc(description)+'</p>'+
+    '<div class="modal-actions"><button class="btn btn-primary btn-sm" id="modalOk" type="button">Verstanden</button></div>'
+  );
+  document.getElementById('modalOk').addEventListener('click', closeModal);
+}
+
+// Zielauswahl für "Verschieben": zeigt die Fach-Hauptebene und darunter den
+// eingerückten Ordnerbaum des GLEICHEN Fachs. `blockedIds` schliesst Ordner aus
+// (ein Ordner darf nie in sich selbst oder einen seiner Unterordner wandern),
+// `currentId` markiert den jetzigen Ort und ist nicht anklickbar.
+function uiPickFolder(title, description, currentId, blockedIds, onPick){
+  var rows = '';
+  function row(id, label, depth, disabled, reason){
+    rows += '<button class="pick-item" type="button" data-target="'+(id===null?'__root__':esc(id))+'"'+(disabled?' disabled':'')+
+      ' style="padding-left:'+(12 + depth*18)+'px">'+
+      '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>'+
+      '<span>'+esc(label)+'</span>'+
+      (reason ? '<span class="pick-here">'+esc(reason)+'</span>' : '')+
+      '</button>';
+  }
+  row(null, 'Fach-Hauptebene', 0, (currentId||null) === null, (currentId||null) === null ? 'hier' : '');
+  (function walk(parentId, depth){
+    foldersIn(parentId).forEach(function(f){
+      var blocked = blockedIds.indexOf(f.id) >= 0;
+      var isHere = f.id === currentId;
+      row(f.id, f.name, depth + 1, blocked || isHere, isHere ? 'hier' : '');
+      if(depth + 1 < MAX_FOLDER_DEPTH) walk(f.id, depth + 1);
+    });
+  })(null, 0);
+
+  openModal(
+    '<h3>'+esc(title)+'</h3>'+
+    (description ? '<p>'+esc(description)+'</p>' : '')+
+    '<div class="pick-list">'+rows+'</div>'+
+    '<div class="modal-actions"><button class="btn btn-ghost btn-sm" id="modalCancel" type="button">Abbrechen</button></div>'
+  );
+  document.getElementById('modalCancel').addEventListener('click', closeModal);
+  Array.prototype.forEach.call(modalEl.querySelectorAll('.pick-item'), function(btn){
+    btn.addEventListener('click', function(){
+      var t = btn.getAttribute('data-target');
+      closeModal();
+      onPick(t === '__root__' ? null : t);
+    });
+  });
+}
+
+/* ===================== RENDER: FACH / ORDNER ===================== */
+
+function renderSubject(subjectId, folderId){
   clearOverviewWatchers();
+  clearSubjectWatchers();
   unwatchAllProgress();
+  state.folders = [];
+  state.resources = [];
+
   var s = subjectById(subjectId);
   var isTeacher = state.profile.role === 'teacher';
 
   var html = '';
   html += '<div class="back-row"><button class="btn btn-ghost btn-sm" id="backBtn">&larr; Alle Fächer</button></div>';
   html += '<div class="subject-head"><div class="subject-visual" style="background:'+s.soft+';">'+s.icon+'</div><h2>'+s.name+'</h2></div>';
+  html += '<div class="crumbs" id="crumbs"></div>';
 
   if(isTeacher){
     html += '<div class="dropzone" id="dropzone">';
     html += '<div class="dz-title">Neue Übungsseite hinzufügen</div>';
     html += '<div>HTML-Datei hierher ziehen oder <label for="fileInput" style="color:var(--brand);text-decoration:underline;cursor:pointer;">Datei auswählen</label></div>';
+    html += '<div id="dzTarget" style="font-size:12.5px;margin-top:8px;"></div>';
     html += '<input type="file" id="fileInput" accept=".html,text/html">';
     html += '<div class="upload-progress" id="uploadProgress"></div>';
     html += '</div>';
+    html += '<div class="back-row"><button class="btn btn-ghost btn-sm" id="newFolderBtn" type="button">+ Neuer Ordner</button></div>';
   }
 
-  html += '<div id="resourceList" class="resource-list"><div class="empty-state">Übungen werden geladen …</div></div>';
+  html += '<div id="resourceList" class="resource-list"><div class="empty-state">Wird geladen …</div></div>';
 
   renderChrome(html);
   document.getElementById('backBtn').addEventListener('click', goHome);
-
-  if(isTeacher){ wireDropzone(subjectId); }
-
-  var listEl = document.getElementById('resourceList');
-  // No orderBy here on purpose: filtering by subject AND ordering by a
-  // different field would need a Firestore composite index. Instead we sort
-  // client-side (see sortResources below) — the list is small (a handful of
-  // exercises per subject), so this costs nothing noticeable.
-  var q = query(collection(db,'resources'), where('subject','==',subjectId));
-  state.resourceUnsub = onSnapshot(q, function(snap){
-    if(snap.empty){
-      listEl.innerHTML = '<div class="empty-state">Für dieses Fach gibt es noch keine Übung.'+(isTeacher?' Lade oben die erste Datei hoch.':' Schau später wieder vorbei!')+'</div>';
-      return;
-    }
-    var resources = [];
-    snap.forEach(function(d){ resources.push(Object.assign({id:d.id}, d.data())); });
-    sortResources(resources);
-    listEl.innerHTML = resources.map(function(r, i){ return resourceCardHtml(r, i, resources.length, isTeacher); }).join('');
-
-    resources.forEach(function(r, i){
-      watchProgress(r.id, function(p){ updateResourceBar(r.id, p); });
-      var openBtn = document.getElementById('open-'+r.id);
-      if(openBtn) openBtn.addEventListener('click', function(){ goResource(r); });
-      if(isTeacher){
-        var delBtn = document.getElementById('del-'+r.id);
-        if(delBtn) delBtn.addEventListener('click', function(){ confirmDeleteResource(r); });
-        var upBtn = document.getElementById('up-'+r.id);
-        if(upBtn) upBtn.addEventListener('click', function(){ moveResource(resources, i, -1); });
-        var downBtn = document.getElementById('down-'+r.id);
-        if(downBtn) downBtn.addEventListener('click', function(){ moveResource(resources, i, 1); });
-        var curBtn = document.getElementById('cur-'+r.id);
-        if(curBtn) curBtn.addEventListener('click', function(){ toggleCurrent(resources, r); });
+  if(isTeacher){
+    wireDropzone(subjectId);
+    document.getElementById('newFolderBtn').addEventListener('click', function(){
+      var here = state.route.folderId || null;
+      if(folderDepth(here) >= MAX_FOLDER_DEPTH){
+        uiInfo('Zu tief verschachtelt', 'Mehr als '+MAX_FOLDER_DEPTH+' Ordner-Ebenen sind nicht vorgesehen — sonst wird das Zurechtfinden für die Klasse mühsam.');
+        return;
       }
+      uiPrompt('Neuer Ordner', 'Wie soll der Ordner heissen? (z.B. «Diktate»)', '', 'Anlegen', function(name){
+        createFolder(subjectId, here, name);
+      });
     });
+  }
+
+  var loaded = {res:false, fold:false};
+  function maybeRender(){ if(loaded.res && loaded.fold) renderFolderContents(); }
+
+  var qf = query(collection(db,'folders'), where('subject','==',subjectId));
+  state.folderUnsub = onSnapshot(qf, function(snap){
+    state.folders = [];
+    snap.forEach(function(d){ state.folders.push(Object.assign({id:d.id}, d.data())); });
+    loaded.fold = true;
+    maybeRender();
+  }, function(err){ console.error(err); loaded.fold = true; maybeRender(); });
+
+  var qr = query(collection(db,'resources'), where('subject','==',subjectId));
+  state.resourceUnsub = onSnapshot(qr, function(snap){
+    state.resources = [];
+    snap.forEach(function(d){ state.resources.push(Object.assign({id:d.id}, d.data())); });
+    loaded.res = true;
+    maybeRender();
   }, function(err){
     console.error(err);
-    listEl.innerHTML = '<div class="empty-state">Übungen konnten nicht geladen werden.</div>';
+    var listEl = document.getElementById('resourceList');
+    if(listEl) listEl.innerHTML = '<div class="empty-state">Übungen konnten nicht geladen werden.</div>';
   });
 }
 
-// Resources with an explicit `order` (set once a teacher uses the move
-// arrows) come first, sorted by that order; anything never manually
-// reordered falls back to newest-first, same as the original behaviour.
+// Zeichnet Brotkrumen + den Inhalt des gerade offenen Containers neu. Wird bei
+// jeder Snapshot-Änderung und nach jeder Navigation in einen Unterordner
+// aufgerufen — die Firestore-Listener bleiben dabei bestehen (sie hängen am
+// ganzen Fach, nicht am einzelnen Ordner).
+function renderFolderContents(){
+  var listEl = document.getElementById('resourceList');
+  if(!listEl) return;
+  var subjectId = state.route.subject;
+  var here = state.route.folderId || null;
+  var isTeacher = state.profile.role === 'teacher';
+  var s = subjectById(subjectId);
+
+  // Ordner könnte inzwischen (z.B. auf einem anderen Gerät) gelöscht worden sein
+  if(here && !folderById(here)){ state.route.folderId = null; here = null; }
+
+  var chain = folderChain(here);
+  var crumbHtml = '<button type="button" data-crumb="__root__">'+esc(s.name)+'</button>';
+  chain.forEach(function(f, i){
+    crumbHtml += '<span class="sep">/</span>';
+    crumbHtml += (i === chain.length-1)
+      ? '<span class="here">'+esc(f.name)+'</span>'
+      : '<button type="button" data-crumb="'+esc(f.id)+'">'+esc(f.name)+'</button>';
+  });
+  var crumbEl = document.getElementById('crumbs');
+  if(crumbEl){
+    // Auf der Fach-Hauptebene wäre die Brotkrume nur eine Wiederholung der
+    // Überschrift — erst ab dem ersten Ordner ist sie eine echte Navigation.
+    crumbEl.style.display = chain.length ? 'flex' : 'none';
+    crumbEl.innerHTML = crumbHtml;
+    Array.prototype.forEach.call(crumbEl.querySelectorAll('button'), function(b){
+      b.addEventListener('click', function(){
+        var t = b.getAttribute('data-crumb');
+        goSubject(subjectId, t === '__root__' ? null : t);
+      });
+    });
+  }
+  var dzTarget = document.getElementById('dzTarget');
+  if(dzTarget){
+    dzTarget.innerHTML = here
+      ? 'Die Datei landet im Ordner <b>'+esc(folderById(here).name)+'</b>.'
+      : 'Die Datei landet direkt im Fach <b>'+esc(s.name)+'</b>.';
+  }
+
+  var folders = foldersIn(here);
+  var resources = resourcesIn(here);
+
+  if(!folders.length && !resources.length){
+    listEl.innerHTML = '<div class="empty-state">'+
+      (here ? 'Dieser Ordner ist noch leer.' : 'Für dieses Fach gibt es noch keine Übung.')+
+      (isTeacher ? ' Lade oben eine Datei hoch oder lege einen Ordner an.' : ' Schau später wieder vorbei!')+
+      '</div>';
+    return;
+  }
+
+  var html = '';
+  if(folders.length){
+    html += '<div class="section-label">Ordner</div>';
+    html += folders.map(function(f, i){ return folderCardHtml(f, i, folders.length, isTeacher); }).join('');
+  }
+  if(resources.length){
+    if(folders.length) html += '<div class="section-label">Übungen</div>';
+    html += resources.map(function(r, i){ return resourceCardHtml(r, i, resources.length, isTeacher); }).join('');
+  }
+  listEl.innerHTML = html;
+
+  folders.forEach(function(f, i){
+    document.getElementById('fopen-'+f.id).addEventListener('click', function(){ goSubject(subjectId, f.id); });
+    if(!isTeacher) return;
+    document.getElementById('fup-'+f.id).addEventListener('click', function(){ reorderFolder(folders, i, -1); });
+    document.getElementById('fdown-'+f.id).addEventListener('click', function(){ reorderFolder(folders, i, 1); });
+    document.getElementById('frename-'+f.id).addEventListener('click', function(){
+      uiPrompt('Ordner umbenennen', null, f.name, 'Speichern', function(name){ renameFolder(f, name); });
+    });
+    document.getElementById('fmove-'+f.id).addEventListener('click', function(){ askMoveFolder(f); });
+    document.getElementById('fdel-'+f.id).addEventListener('click', function(){ askDeleteFolder(f); });
+  });
+
+  resources.forEach(function(r, i){
+    watchProgress(r.id, function(p){ updateResourceBar(r.id, p); });
+    var openBtn = document.getElementById('open-'+r.id);
+    if(openBtn) openBtn.addEventListener('click', function(){ goResource(r); });
+    if(!isTeacher) return;
+    document.getElementById('del-'+r.id).addEventListener('click', function(){ askDeleteResource(r); });
+    document.getElementById('up-'+r.id).addEventListener('click', function(){ moveResource(resources, i, -1); });
+    document.getElementById('down-'+r.id).addEventListener('click', function(){ moveResource(resources, i, 1); });
+    document.getElementById('cur-'+r.id).addEventListener('click', function(){ toggleCurrent(resources, r); });
+    document.getElementById('mv-'+r.id).addEventListener('click', function(){ askMoveResource(r); });
+  });
+}
+
+function folderCardHtml(f, index, total, isTeacher){
+  var c = subtreeCounts(f.id);
+  var parts = [];
+  if(c.folders) parts.push(c.folders+' Ordner');
+  parts.push(c.resources+' Übung'+(c.resources===1?'':'en'));
+
+  var html = '<div class="folder-card'+(c.hasCurrent?' has-current':'')+'" id="fcard-'+f.id+'">';
+  if(isTeacher){
+    html += '<div class="move-btns">';
+    html += '<button class="move-btn" id="fup-'+f.id+'" type="button" title="Nach oben"'+(index===0?' disabled':'')+'><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 15l6-6 6 6"/></svg></button>';
+    html += '<button class="move-btn" id="fdown-'+f.id+'" type="button" title="Nach unten"'+(index===total-1?' disabled':'')+'><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></button>';
+    html += '</div>';
+  }
+  html += '<button class="folder-open" id="fopen-'+f.id+'" type="button">';
+  html += '<span class="folder-glyph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></span>';
+  html += '<span><span class="folder-name">'+esc(f.name)+(c.hasCurrent?' <span class="chip-current">Aktuelles Thema</span>':'')+'</span>';
+  html += '<span class="folder-count">'+parts.join(' · ')+'</span></span>';
+  html += '</button>';
+  if(isTeacher){
+    html += '<div class="folder-actions">';
+    html += '<button class="btn btn-ghost btn-sm" id="frename-'+f.id+'" type="button">Umbenennen</button>';
+    html += '<button class="btn btn-ghost btn-sm" id="fmove-'+f.id+'" type="button">Verschieben</button>';
+    html += '<button class="btn btn-danger btn-sm" id="fdel-'+f.id+'" type="button">Löschen</button>';
+    html += '</div>';
+  }
+  html += '</div>';
+  return html;
+}
+
+/* ===================== ORDNER-AKTIONEN (nur Lehrperson) ===================== */
+
+function createFolder(subjectId, parentId, name){
+  var siblings = foldersIn(parentId);
+  var id = subjectId+'_f_'+Date.now();
+  setDoc(doc(db,'folders', id), {
+    subject: subjectId,
+    parentId: parentId || null,
+    name: name.slice(0,60),
+    order: siblings.length,
+    createdAt: serverTimestamp(),
+    createdBy: state.user.uid
+  }).then(function(){ toast('Ordner «'+name+'» angelegt.'); })
+    .catch(function(err){ console.error(err); toast('Ordner konnte nicht angelegt werden.'); });
+}
+
+function renameFolder(f, name){
+  setDoc(doc(db,'folders', f.id), {name: name.slice(0,60)}, {merge:true})
+    .catch(function(err){ console.error(err); toast('Umbenennen fehlgeschlagen.'); });
+}
+
+// Reihenfolge der Ordner innerhalb desselben Elternordners (gleiches Muster wie
+// bei den Übungen: nach dem Tausch bekommt JEDER Ordner der Liste eine frische
+// 0..n-1-Nummer, damit auch nie manuell sortierte Ordner konsistent bleiben).
+function reorderFolder(folders, index, direction){
+  var newIndex = index + direction;
+  if(newIndex < 0 || newIndex >= folders.length) return;
+  var reordered = folders.slice();
+  var tmp = reordered[index]; reordered[index] = reordered[newIndex]; reordered[newIndex] = tmp;
+  var batch = writeBatch(db);
+  reordered.forEach(function(f, i){ batch.update(doc(db,'folders', f.id), {order: i}); });
+  batch.commit().catch(function(err){ console.error(err); toast('Verschieben fehlgeschlagen.'); });
+}
+
+function askMoveFolder(f){
+  // Ein Ordner darf weder in sich selbst noch in einen seiner eigenen
+  // Unterordner wandern — sonst hinge der Teilbaum in einem Zyklus fest.
+  var blocked = subtreeIds(f.id);
+  uiPickFolder('«'+f.name+'» verschieben', 'Wohin soll der Ordner mit seinem ganzen Inhalt?', f.parentId || null, blocked, function(targetId){
+    var ownHeight = maxDepthBelow(f.id);
+    if(folderDepth(targetId) + 1 + ownHeight > MAX_FOLDER_DEPTH){
+      uiInfo('Zu tief verschachtelt', 'Dort würden mehr als '+MAX_FOLDER_DEPTH+' Ordner-Ebenen entstehen. Wähle einen Ort weiter oben.');
+      return;
+    }
+    var siblings = foldersIn(targetId);
+    setDoc(doc(db,'folders', f.id), {parentId: targetId || null, order: siblings.length}, {merge:true})
+      .then(function(){ toast('«'+f.name+'» verschoben.'); })
+      .catch(function(err){ console.error(err); toast('Verschieben fehlgeschlagen.'); });
+  });
+}
+
+// Wie viele Ebenen hängen unter diesem Ordner noch dran? (0 = keine Unterordner)
+function maxDepthBelow(folderId){
+  var kids = state.folders.filter(function(f){ return (f.parentId||null) === folderId; });
+  if(!kids.length) return 0;
+  return 1 + Math.max.apply(null, kids.map(function(k){ return maxDepthBelow(k.id); }));
+}
+
+// Löschen bewusst nur, wenn wirklich nichts mehr drin ist — so kann nie
+// versehentlich eine ganze Übungssammlung mitverschwinden.
+function askDeleteFolder(f){
+  var c = subtreeCounts(f.id);
+  if(c.folders || c.resources){
+    var was = [];
+    if(c.folders) was.push(c.folders+' Unterordner');
+    if(c.resources) was.push(c.resources+' Übung'+(c.resources===1?'':'en'));
+    uiInfo('Ordner ist nicht leer',
+      '«'+f.name+'» enthält noch '+was.join(' und ')+'. Verschiebe den Inhalt zuerst woandershin (Knopf «Verschieben»), dann lässt sich der Ordner löschen.');
+    return;
+  }
+  uiConfirm('Ordner löschen?', '«'+f.name+'» ist leer und wird entfernt.', 'Löschen', function(){
+    deleteDoc(doc(db,'folders', f.id))
+      .then(function(){ toast('Ordner gelöscht.'); })
+      .catch(function(err){ console.error(err); toast('Löschen fehlgeschlagen.'); });
+  }, true);
+}
+
+/* ===================== ÜBUNGEN: SORTIEREN, VERSCHIEBEN, MARKIEREN ===================== */
+
+// Übungen mit ausdrücklicher `order` (gesetzt, sobald die Pfeile benutzt wurden)
+// kommen zuerst; alles nie manuell Sortierte fällt auf "neuste zuoberst" zurück.
 function sortResources(resources){
   resources.sort(function(a, b){
     var oa = typeof a.order === 'number' ? a.order : null;
@@ -672,67 +1111,70 @@ function sortResources(resources){
   });
 }
 
-// Moves the resource at `index` up (-1) or down (+1) within the currently
-// displayed list, then writes a fresh 0..n-1 `order` value to EVERY resource
-// in that list (not just the two swapped ones) so the ordering stays
-// consistent even for items that never had an explicit order before.
+// Verschiebt die Übung an `index` innerhalb des GERADE ANGEZEIGTEN Containers
+// (Fach-Hauptebene oder ein Ordner) und schreibt danach für jede Übung dieses
+// Containers eine frische 0..n-1-Nummer.
 function moveResource(resources, index, direction){
   var newIndex = index + direction;
   if(newIndex < 0 || newIndex >= resources.length) return;
   var reordered = resources.slice();
-  var tmp = reordered[index];
-  reordered[index] = reordered[newIndex];
-  reordered[newIndex] = tmp;
+  var tmp = reordered[index]; reordered[index] = reordered[newIndex]; reordered[newIndex] = tmp;
   var batch = writeBatch(db);
-  reordered.forEach(function(r, i){
-    batch.update(doc(db,'resources', r.id), {order: i});
-  });
-  batch.commit().catch(function(err){
-    console.error(err);
-    toast('Verschieben fehlgeschlagen.');
+  reordered.forEach(function(r, i){ batch.update(doc(db,'resources', r.id), {order: i}); });
+  batch.commit().catch(function(err){ console.error(err); toast('Verschieben fehlgeschlagen.'); });
+}
+
+// Übung in einen anderen Ordner desselben Fachs legen. Sie landet am Ende des
+// Zielcontainers; im Herkunftscontainer werden die Nummern wieder lückenlos
+// durchgezählt, damit die Pfeile dort weiter sauber funktionieren.
+function askMoveResource(r){
+  var title = r.title || r.fileName;
+  uiPickFolder('«'+title+'» verschieben', 'In welchen Ordner soll diese Übung?', r.folderId || null, [], function(targetId){
+    var targetList = resourcesIn(targetId);
+    var sourceList = resourcesIn(r.folderId || null).filter(function(x){ return x.id !== r.id; });
+    var batch = writeBatch(db);
+    batch.update(doc(db,'resources', r.id), {folderId: targetId || null, order: targetList.length, prevOrder: null});
+    sourceList.forEach(function(x, i){ batch.update(doc(db,'resources', x.id), {order: i}); });
+    batch.commit()
+      .then(function(){ toast('«'+title+'» verschoben.'); })
+      .catch(function(err){ console.error(err); toast('Verschieben fehlgeschlagen.'); });
   });
 }
 
-// Marks one resource as "current" (highlighted in red for everyone) and
-// un-marks any other resource in the same subject, so at most one is
-// highlighted at a time. Clicking the already-current one turns it off again.
-//
-// Marking something current also pulls it straight to the top of the list
-// (order 0); un-marking it sends it back to exactly the spot it came from.
-// `resources` is the already-sorted list as currently displayed, so its
-// index of r is r's position before the move — that gets stored on the
-// resource itself (prevOrder) so it can be restored later, then every
-// resource in the subject gets a fresh 0..n-1 `order` to keep things
-// consistent (same approach as the manual move-up/down arrows).
+// Markiert genau EINE Übung pro Fach als "aktuell" (rot hervorgehoben, auch für
+// die Klasse sichtbar). Beim Markieren rutscht sie zusätzlich an den Anfang
+// ihres eigenen Ordners; beim Entfernen der Markierung wieder genau dorthin
+// zurück, wo sie vorher stand (prevOrder). Ordner, in denen das aktuelle Thema
+// liegt, werden im Kärtchen ebenfalls rot markiert, damit man es findet.
 function toggleCurrent(resources, r){
   var makeCurrent = !r.current;
   var batch = writeBatch(db);
-  var reordered;
 
   if(makeCurrent){
     var prevIndex = resources.findIndex(function(x){ return x.id === r.id; });
-    reordered = [r].concat(resources.filter(function(x){ return x.id !== r.id; }));
+    var reordered = [r].concat(resources.filter(function(x){ return x.id !== r.id; }));
     reordered.forEach(function(item, i){
       var patch = { order: i };
       if(item.id === r.id){ patch.current = true; patch.prevOrder = prevIndex; }
-      else if(item.current){ patch.current = false; }
       batch.update(doc(db,'resources', item.id), patch);
+    });
+    // jede andere im Fach als "aktuell" markierte Übung entmarkieren — auch in
+    // anderen Ordnern, deshalb über state.resources statt nur die Liste hier
+    state.resources.forEach(function(x){
+      if(x.id !== r.id && x.current){ batch.update(doc(db,'resources', x.id), {current: false}); }
     });
   } else {
     var others = resources.filter(function(x){ return x.id !== r.id; });
     var restoreAt = typeof r.prevOrder === 'number' ? Math.max(0, Math.min(r.prevOrder, others.length)) : others.length;
-    reordered = others.slice(0, restoreAt).concat([r]).concat(others.slice(restoreAt));
-    reordered.forEach(function(item, i){
+    var back = others.slice(0, restoreAt).concat([r]).concat(others.slice(restoreAt));
+    back.forEach(function(item, i){
       var patch = { order: i };
       if(item.id === r.id){ patch.current = false; patch.prevOrder = null; }
       batch.update(doc(db,'resources', item.id), patch);
     });
   }
 
-  batch.commit().catch(function(err){
-    console.error(err);
-    toast('Aktualisieren fehlgeschlagen.');
-  });
+  batch.commit().catch(function(err){ console.error(err); toast('Aktualisieren fehlgeschlagen.'); });
 }
 
 function resourceCardHtml(r, index, total, isTeacher){
@@ -752,6 +1194,7 @@ function resourceCardHtml(r, index, total, isTeacher){
   html += '<button class="btn btn-primary btn-sm" id="open-'+r.id+'">Öffnen</button>';
   if(isTeacher){
     html += '<button class="btn btn-sm btn-current'+(r.current?' active':'')+'" id="cur-'+r.id+'">'+(r.current?'Nicht mehr aktuell':'Als aktuell markieren')+'</button>';
+    html += '<button class="btn btn-ghost btn-sm" id="mv-'+r.id+'" type="button">Verschieben</button>';
     html += '<button class="btn btn-danger btn-sm" id="del-'+r.id+'">Löschen</button>';
   }
   html += '</div></div>';
@@ -771,8 +1214,13 @@ function updateResourceBar(resourceId, p){
   meta.textContent = parts.join(' · ');
 }
 
-async function confirmDeleteResource(r){
-  if(!confirm('«'+(r.title||r.fileName)+'» wirklich löschen? Das kann nicht rückgängig gemacht werden.')) return;
+function askDeleteResource(r){
+  uiConfirm('Übung löschen?',
+    '«'+(r.title||r.fileName)+'» wird endgültig entfernt. Das kann nicht rückgängig gemacht werden.',
+    'Löschen', function(){ deleteResource(r); }, true);
+}
+
+async function deleteResource(r){
   try{
     var contentSnap = await getDoc(doc(db,'resourceContent', r.id));
     var chunkCount = (contentSnap.exists() && contentSnap.data().chunkCount) || 0;
@@ -792,6 +1240,9 @@ async function confirmDeleteResource(r){
 
 /* ===================== TEACHER UPLOAD ===================== */
 
+// Die Dropzone lädt immer in den GERADE OFFENEN Ordner (state.route.folderId).
+// Sie wird nur einmal pro Fachseite verdrahtet und liest das Ziel erst beim
+// Ablegen aus — so stimmt es auch nach einem Wechsel in einen Unterordner.
 function wireDropzone(subjectId){
   var dz = document.getElementById('dropzone');
   var input = document.getElementById('fileInput');
@@ -803,10 +1254,10 @@ function wireDropzone(subjectId){
   });
   dz.addEventListener('drop', function(e){
     var files = e.dataTransfer.files;
-    if(files && files.length){ handleUpload(subjectId, files[0]); }
+    if(files && files.length){ handleUpload(subjectId, state.route.folderId || null, files[0]); }
   });
   input.addEventListener('change', function(){
-    if(input.files && input.files.length){ handleUpload(subjectId, input.files[0]); input.value=''; }
+    if(input.files && input.files.length){ handleUpload(subjectId, state.route.folderId || null, input.files[0]); input.value=''; }
   });
 }
 
@@ -819,8 +1270,7 @@ function readFileAsText(file){
   });
 }
 
-async function handleUpload(subjectId, file){
-  var progEl = document.getElementById('uploadProgress');
+function handleUpload(subjectId, folderId, file){
   if(!/\.html?$/i.test(file.name) && file.type !== 'text/html'){
     toast('Bitte eine HTML-Datei hochladen (.html).');
     return;
@@ -829,11 +1279,16 @@ async function handleUpload(subjectId, file){
     toast('Datei ist zu gross (max. '+Math.round(MAX_RESOURCE_BYTES/1024/1024)+' MB).');
     return;
   }
-  var title = file.name.replace(/\.html?$/i,'').replace(/[_-]+/g,' ');
-  var typedTitle = prompt('Titel für diese Übung:', title);
-  if(typedTitle === null) return; // cancelled
-  title = typedTitle.trim() || title;
+  var suggested = file.name.replace(/\.html?$/i,'').replace(/[_-]+/g,' ');
+  var where_ = folderId ? ('Ordner «'+(folderById(folderId) ? folderById(folderId).name : '')+'»') : 'Fach-Hauptebene';
+  uiPrompt('Titel für diese Übung', 'Die Datei wird in der '+where_+' abgelegt.', suggested, 'Hochladen', function(title){
+    doUpload(subjectId, folderId, file, title);
+  });
+}
 
+async function doUpload(subjectId, folderId, file, title){
+  var progEl = document.getElementById('uploadProgress');
+  if(!progEl) return;
   progEl.textContent = 'Lade «'+file.name+'» hoch …';
   progEl.classList.add('show');
   try{
@@ -847,6 +1302,7 @@ async function handleUpload(subjectId, file){
     var batch = writeBatch(db);
     batch.set(doc(db,'resources', resId), {
       subject: subjectId,
+      folderId: folderId || null,
       title: title,
       fileName: file.name,
       uploadedAt: serverTimestamp(),
@@ -873,6 +1329,7 @@ var progressWriteTimers = {};
 
 function renderResource(r){
   clearOverviewWatchers();
+  clearSubjectWatchers();
   unwatchAllProgress();
   currentViewerResourceId = r.id;
   var s = subjectById(r.subject);
@@ -889,7 +1346,7 @@ function renderResource(r){
   html += '</div>';
 
   renderChrome(html);
-  document.getElementById('backBtn').addEventListener('click', function(){ goSubject(r.subject); });
+  document.getElementById('backBtn').addEventListener('click', function(){ goSubject(r.subject, r.folderId || null); });
   wireFullscreen();
 
   watchProgress(r.id, function(p){ updateViewerProgress(p); });
@@ -1041,7 +1498,7 @@ function render(){
   if(state.route.name === 'login'){ renderLogin(); return; }
   if(!state.profile){ app.innerHTML = '<div class="spinner-wrap">Lädt …</div>'; return; }
   if(state.route.name === 'home'){ renderHome(); return; }
-  if(state.route.name === 'subject'){ renderSubject(state.route.subject); return; }
+  if(state.route.name === 'subject'){ renderSubject(state.route.subject, state.route.folderId || null); return; }
   if(state.route.name === 'resource'){ renderResource(state.route.resource); return; }
 }
 </script>
