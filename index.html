@@ -71,6 +71,24 @@
     background-repeat:no-repeat;
     background-attachment:fixed;
   }
+  /* Mobile: "background-attachment:fixed" combined with a background-image on
+     <body> is notoriously unreliable on phone browsers (especially iOS
+     Safari) — the photo only paints inside the first viewport-height and then
+     disappears while scrolling, since mobile browsers don't reliably repaint
+     a fixed background against the dynamic viewport. Rather than fight that,
+     the photo layer is simply dropped below this breakpoint (explicit user
+     request: keep it on desktop, drop it on the phone/app version); the two
+     subtle gradient accents stay so the background doesn't look flat. */
+  @media (max-width:600px){
+    body{
+      background-image:
+        radial-gradient(ellipse at 12% 0%, color-mix(in srgb, var(--brand) 5%, transparent), transparent 45%),
+        radial-gradient(ellipse at 100% 100%, color-mix(in srgb, #C98B1F 6%, transparent), transparent 50%);
+      background-size:auto,auto;
+      background-position:center,center;
+      background-attachment:scroll;
+    }
+  }
   .desk-prop{position:fixed;bottom:0;font-size:64px;line-height:1;opacity:.5;pointer-events:none;z-index:0;filter:saturate(.9);}
   .desk-prop-left{left:14px;}
   .desk-prop-right{right:14px;}
@@ -559,7 +577,12 @@ function watchProgress(resourceId, onChange){
     state.progressCache[resourceId] = {
       attempted:attempted, correct:correct, total:total,
       coveragePct: total ? Math.round(attempted/total*100) : null,
-      correctPct: attempted ? Math.round(correct/attempted*100) : null
+      // "% richtig" muss mit der Formel in den Übungsseiten selbst übereinstimmen
+      // (naehrstoffe_training.html / industrialisierung_training.html:
+      // richtig / ALLE Aufgaben insgesamt, sinkt nie mehr) — vorher stand hier
+      // richtig/bereits-bearbeitet, was bei wenigen Versuchen fälschlich hoch
+      // wirkte und nicht zur Anzeige in der Übung selbst passte.
+      correctPct: total ? Math.round(correct/total*100) : (attempted ? Math.round(correct/attempted*100) : null)
     };
     if(onChange) onChange(state.progressCache[resourceId]);
   }, function(err){ console.error(err); });
