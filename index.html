@@ -443,6 +443,7 @@ async function doLogin(rawName){
 }
 
 function doLogout(){
+  stopResourceSync();   // offenen Übungsstand noch sichern, solange die Rechte da sind
   Object.values(state.progressUnsubs).forEach(function(fn){ try{fn();}catch(e){} });
   state.progressUnsubs = {};
   clearSubjectWatchers();
@@ -1322,6 +1323,198 @@ async function doUpload(subjectId, folderId, file, title){
   }
 }
 
+/* ===================== ÜBUNGSSTAND GERÄTEÜBERGREIFEND SYNCHRONISIEREN =====
+
+   Problem: die Übungsseiten speichern ihren Detailstand (beantwortete Fragen,
+   Karteikarten, Diktat-Eingaben) in `localStorage` — also pro Gerät/Browser.
+   Wer am Laptop übt und am Handy weitermacht, fing bisher wieder bei null an,
+   und der leere Handy-Stand überschrieb sogar die angezeigten Prozentzahlen.
+
+   Lösung ohne Änderung an den Übungsseiten selbst: die Seiten laufen in einem
+   `srcdoc`-iframe und teilen deshalb denselben Origin — und damit denselben
+   `localStorage` — mit der Library-Shell. Die Shell kann den Stand also direkt
+   lesen und schreiben:
+
+     - Beim Öffnen einer Übung wird der in Firestore gesicherte Stand geladen
+       und (falls neuer als der lokale) in `localStorage` geschrieben, BEVOR
+       das iframe geladen wird.
+     - Während die Übung offen ist, wird `localStorage` beobachtet; alles, was
+       sich ändert, gehört zu dieser Übung und wird gebündelt nach Firestore
+       geschrieben (`progress/{uid}/resources/{rid}`, Feld `storeJson`).
+
+   Konfliktregel (bewusst so gewählt): NEUESTER STAND GEWINNT, ohne Nachfrage.
+   Dafür trägt jeder Stand eine Revisionsnummer (`storeRev`, aus `Date.now()`),
+   die lokal unter `hl_rev_<rid>` mitgeführt wird. Nur wenn die Revision in
+   Firestore grösser ist als die lokale, wird der entfernte Stand angewendet.
+
+   Warum `storeJson` (String) statt einer Firestore-Map: `setDoc(..., {merge:true})`
+   führt Maps FELDWEISE zusammen — ein gelöschter Schlüssel (z.B. nach „Alles
+   zurücksetzen") bliebe dann für immer stehen. Ein String wird komplett ersetzt.
+============================================================================ */
+
+var LIB_PREFIX = 'hl_';        // eigene Schlüssel der Shell — werden nie synchronisiert
+var SYNC_MAX_BYTES = 600000;   // Sicherheitsabstand zum 1-MiB-Limit eines Firestore-Dokuments
+var SYNC_POLL_MS = 1500;
+var SYNC_DEBOUNCE_MS = 800;
+
+var syncState = {
+  resourceId: null,   // Übung, die gerade offen ist
+  tracked: {},        // Schlüssel, die zu dieser Übung gehören (Objekt als Set)
+  baseline: {},       // localStorage-Stand beim Öffnen — Vergleichsbasis
+  lastWritten: null,  // zuletzt geschriebenes JSON (spart unnötige Schreibvorgänge)
+  pollTimer: null,
+  writeTimer: null
+};
+
+function lsGet(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } }
+function lsSet(k,v){ try{ localStorage.setItem(k,v); }catch(e){} }
+function lsDel(k){ try{ localStorage.removeItem(k); }catch(e){} }
+
+// Alle Schlüssel ausser den eigenen der Shell.
+function lsSnapshot(){
+  var out = {};
+  try{
+    for(var i=0;i<localStorage.length;i++){
+      var k = localStorage.key(i);
+      if(k && k.indexOf(LIB_PREFIX) !== 0) out[k] = localStorage.getItem(k);
+    }
+  }catch(e){}
+  return out;
+}
+
+function localRev(rid){ return parseInt(lsGet(LIB_PREFIX+'rev_'+rid) || '0', 10) || 0; }
+function setLocalRev(rid, rev){ lsSet(LIB_PREFIX+'rev_'+rid, String(rev)); }
+
+// Welche Schlüssel gehören zu dieser Übung? Lokal gemerkt, damit die Zuordnung
+// einen Reload überlebt; beim Öffnen mit der Liste aus Firestore vereinigt.
+function loadTrackedKeys(rid){
+  var out = {};
+  try{
+    var raw = lsGet(LIB_PREFIX+'keys_'+rid);
+    if(raw) JSON.parse(raw).forEach(function(k){ out[k] = true; });
+  }catch(e){}
+  return out;
+}
+function saveTrackedKeys(rid, tracked){
+  try{ lsSet(LIB_PREFIX+'keys_'+rid, JSON.stringify(Object.keys(tracked))); }catch(e){}
+}
+
+// Entfernten Stand anwenden: gesetzte Schlüssel schreiben, fehlende entfernen
+// (so wandert auch ein „Alles zurücksetzen" auf das andere Gerät).
+function applyRemoteStore(keys, store){
+  keys.forEach(function(k){
+    if(k.indexOf(LIB_PREFIX) === 0) return;
+    if(Object.prototype.hasOwnProperty.call(store, k)) lsSet(k, store[k]);
+    else lsDel(k);
+  });
+}
+
+// Vor dem Laden des iframes aufrufen. Läuft nie in einen Fehler, der das
+// Öffnen der Übung verhindern würde — im Zweifel wird ohne Sync geöffnet.
+async function prepareResourceSync(rid){
+  stopResourceSync();          // evtl. vorherige Übung sauber abschliessen
+  syncState.resourceId = rid;
+  syncState.tracked = loadTrackedKeys(rid);
+  syncState.lastWritten = null;
+  if(!state.user){ syncState.baseline = lsSnapshot(); return; }
+  try{
+    var snap = await getDoc(doc(db,'progress', state.user.uid, 'resources', rid));
+    var data = snap.exists() ? snap.data() : null;
+    var remoteRev = (data && typeof data.storeRev === 'number') ? data.storeRev : 0;
+    var keys = (data && Array.isArray(data.storeKeys)) ? data.storeKeys : [];
+    keys.forEach(function(k){ syncState.tracked[k] = true; });
+    if(data && data.storeJson && remoteRev > localRev(rid)){
+      var store = {};
+      try{ store = JSON.parse(data.storeJson) || {}; }catch(e){ store = {}; }
+      applyRemoteStore(keys, store);
+      setLocalRev(rid, remoteRev);
+      saveTrackedKeys(rid, syncState.tracked);
+    }
+  }catch(err){
+    console.error('Stand konnte nicht geladen werden', err);
+  }
+  syncState.baseline = lsSnapshot();
+  syncState.pollTimer = setInterval(function(){ checkLocalChanges(rid); }, SYNC_POLL_MS);
+}
+
+// Jeder Schlüssel, der sich seit dem Öffnen geändert hat oder neu ist, gehört
+// zu dieser Übung. Einmal erfasste Schlüssel bleiben erfasst (auch wenn ihr
+// Wert später wieder dem Ausgangswert entspricht oder sie gelöscht werden).
+function checkLocalChanges(rid){
+  if(syncState.resourceId !== rid) return;
+  var now = lsSnapshot(), changed = false;
+  Object.keys(now).forEach(function(k){
+    if(now[k] !== syncState.baseline[k] && !syncState.tracked[k]){ syncState.tracked[k] = true; changed = true; }
+  });
+  Object.keys(syncState.baseline).forEach(function(k){
+    if(!(k in now) && !syncState.tracked[k]){ syncState.tracked[k] = true; changed = true; }
+  });
+  var payload = buildStorePayload();
+  if(changed || payload.json !== syncState.lastWritten) scheduleStoreWrite(rid);
+}
+
+function buildStorePayload(){
+  var keys = Object.keys(syncState.tracked).sort(), store = {};
+  keys.forEach(function(k){ var v = lsGet(k); if(v !== null) store[k] = v; });
+  return { keys: keys, json: JSON.stringify(store) };
+}
+
+function scheduleStoreWrite(rid){
+  clearTimeout(syncState.writeTimer);
+  syncState.writeTimer = setTimeout(function(){ writeStore(rid); }, SYNC_DEBOUNCE_MS);
+}
+
+function writeStore(rid){
+  if(!state.user || syncState.resourceId !== rid) return;
+  var payload = buildStorePayload();
+  if(!payload.keys.length || payload.json === syncState.lastWritten) return;
+  if(payload.json.length > SYNC_MAX_BYTES){
+    console.warn('Übungsstand zu gross für die Synchronisierung ('+payload.json.length+' Zeichen) — bleibt nur auf diesem Gerät.');
+    return;
+  }
+  // Revision optimistisch hochzählen: so gewinnt auch dann das zuletzt
+  // benutzte Gerät, wenn der Schreibvorgang gerade offline scheitert.
+  var rev = Math.max(Date.now(), localRev(rid) + 1);
+  setLocalRev(rid, rev);
+  saveTrackedKeys(rid, syncState.tracked);
+  syncState.lastWritten = payload.json;
+  setDoc(doc(db,'progress', state.user.uid, 'resources', rid), {
+    storeJson: payload.json,
+    storeKeys: payload.keys,
+    storeRev: rev,
+    storeAt: serverTimestamp()
+  }, {merge:true}).catch(function(err){
+    console.error('Stand konnte nicht gespeichert werden', err);
+    syncState.lastWritten = null;   // beim nächsten Versuch erneut schreiben
+  });
+}
+
+// Beim Verlassen der Übung (oder der Seite) noch einmal alles sichern.
+function flushResourceSync(){
+  var rid = syncState.resourceId;
+  if(!rid) return;
+  clearTimeout(syncState.writeTimer);
+  checkLocalChanges(rid);
+  writeStore(rid);
+}
+
+function stopResourceSync(){
+  flushResourceSync();
+  clearInterval(syncState.pollTimer);
+  clearTimeout(syncState.writeTimer);
+  syncState.pollTimer = null;
+  syncState.writeTimer = null;
+  syncState.resourceId = null;
+  syncState.tracked = {};
+  syncState.baseline = {};
+  syncState.lastWritten = null;
+}
+
+window.addEventListener('pagehide', flushResourceSync);
+document.addEventListener('visibilitychange', function(){
+  if(document.visibilityState === 'hidden') flushResourceSync();
+});
+
 /* ===================== RENDER: RESOURCE VIEWER ===================== */
 
 var currentViewerResourceId = null;
@@ -1351,7 +1544,7 @@ function renderResource(r){
 
   watchProgress(r.id, function(p){ updateViewerProgress(p); });
 
-  getDoc(doc(db,'resourceContent', r.id)).then(function(snap){
+  var contentPromise = getDoc(doc(db,'resourceContent', r.id)).then(function(snap){
     if(!snap.exists()){ throw new Error('no content'); }
     var chunkCount = snap.data().chunkCount || 0;
     var chunkIndexes = [];
@@ -1359,7 +1552,13 @@ function renderResource(r){
     return Promise.all(chunkIndexes.map(function(i){
       return getDoc(doc(db,'resourceContent', r.id, 'chunks', String(i)));
     }));
-  }).then(function(chunkSnaps){
+  });
+
+  // Der gesicherte Übungsstand muss in localStorage stehen, BEVOR das iframe
+  // lädt — die Übungsseite liest ihn direkt beim Start. Beides läuft parallel,
+  // damit das Öffnen nicht langsamer wird.
+  Promise.all([contentPromise, prepareResourceSync(r.id)]).then(function(res){
+    var chunkSnaps = res[0];
     var html = chunkSnaps.map(function(s){ return (s.exists() && s.data().html) || ''; }).join('');
     document.getElementById('resourceFrame').srcdoc = html;
   }).catch(function(err){
@@ -1477,6 +1676,9 @@ window.addEventListener('message', function(e){
   var data = e.data;
   if(!data || !data.__libProgress || !currentViewerResourceId || !state.user) return;
   var resourceId = currentViewerResourceId;
+  // Eine Fortschrittsmeldung heisst: in der Übung ist gerade etwas passiert —
+  // guter Moment, auch den localStorage-Stand einzusammeln.
+  checkLocalChanges(resourceId);
   clearTimeout(progressWriteTimers[resourceId]);
   progressWriteTimers[resourceId] = setTimeout(function(){
     setDoc(doc(db,'progress', state.user.uid, 'resources', resourceId), {
@@ -1491,6 +1693,11 @@ window.addEventListener('message', function(e){
 
 function render(){
   clearOverviewWatchers();
+  // Übung verlassen: Stand ein letztes Mal sichern und die Beobachtung stoppen.
+  if(state.route.name !== 'resource' && syncState.resourceId){
+    stopResourceSync();
+    currentViewerResourceId = null;
+  }
   if(state.route.name === 'loading'){
     app.innerHTML = '<div class="spinner-wrap">Lädt …</div>';
     return;
