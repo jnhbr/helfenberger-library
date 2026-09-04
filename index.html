@@ -225,8 +225,8 @@
   .modal{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:0 24px 60px rgba(0,0,0,.28);width:100%;max-width:440px;max-height:85vh;overflow:auto;padding:22px;}
   .modal h3{font-size:18px;margin:0 0 8px;}
   .modal p{font-size:14px;color:var(--text-muted);margin:0 0 16px;line-height:1.5;}
-  .modal input[type=text]{width:100%;padding:11px 13px;border:1px solid var(--border);border-radius:10px;font:inherit;background:var(--surface-2);color:var(--text);margin-bottom:16px;}
-  .modal input[type=text]:focus{outline:2px solid var(--brand);outline-offset:1px;}
+  .modal input[type=text],.modal input[type=password]{width:100%;padding:11px 13px;border:1px solid var(--border);border-radius:10px;font:inherit;background:var(--surface-2);color:var(--text);margin-bottom:16px;}
+  .modal input[type=text]:focus,.modal input[type=password]:focus{outline:2px solid var(--brand);outline-offset:1px;}
   .modal-actions{display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;}
   .pick-list{display:flex;flex-direction:column;gap:6px;margin-bottom:16px;}
   .pick-item{display:flex;align-items:center;gap:8px;width:100%;text-align:left;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:var(--surface-2);font:inherit;color:var(--text);cursor:pointer;}
@@ -298,7 +298,8 @@ import {
   initializeApp
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
 import {
-  getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut, setPersistence, browserLocalPersistence
+  getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut, setPersistence, browserLocalPersistence,
+  updatePassword, EmailAuthProvider, reauthenticateWithCredential
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 import {
   getFirestore, doc, getDoc, setDoc, deleteDoc, collection, query, where, onSnapshot, serverTimestamp, writeBatch
@@ -331,6 +332,13 @@ const firebaseConfig = {
 
 const EMAIL_DOMAIN = "helfenberger-library.app"; // fake domain, only used internally for Firebase Auth accounts
 const PASSWORD_SUFFIX = "2024"; // login convention: password = name + this suffix (see README security note)
+// Zugaenge, die sich NICHT mit dem automatischen Passwort (<name>2024) anmelden,
+// sondern beim Login ein eigenes, frei gesetztes Passwort verlangen. Gedacht fuer
+// Lehrpersonen-Konten: das Passwort wird ueber "Passwort aendern" in der
+// Lehrer-Ansicht gesetzt (updatePassword) und ist danach nicht mehr aus dem
+// oeffentlichen Frontend-Code ableitbar. Schuelerinnen und Schueler merken davon
+// nichts - bei ihnen bleibt es beim reinen Namensfeld.
+const PASSWORD_LOGIN_SLUGS = ["helfenberger"];
 const MAX_CHUNK_BYTES = 900 * 1024; // safety margin under Firestore's 1 MiB per-document limit
 const MAX_RESOURCE_BYTES = 8 * 1024 * 1024; // overall cap per uploaded resource (spread across chunks if needed)
 
@@ -433,13 +441,18 @@ function slugName(name){
     .replace(/[^a-z0-9-]/g,'');
 }
 
-async function doLogin(rawName){
+async function doLogin(rawName, customPassword){
   var slug = slugName(rawName);
   if(!slug){ throw new Error('leer'); }
   var email = slug + '@' + EMAIL_DOMAIN;
-  var password = slug + PASSWORD_SUFFIX;
+  var password = customPassword ? customPassword : (slug + PASSWORD_SUFFIX);
   await setPersistence(auth, browserLocalPersistence);
   await signInWithEmailAndPassword(auth, email, password);
+}
+
+// true, wenn fuer diesen Namen ein eigenes Passwort verlangt wird (Lehrperson).
+function needsOwnPassword(rawName){
+  return PASSWORD_LOGIN_SLUGS.indexOf(slugName(rawName)) !== -1;
 }
 
 function doLogout(){
@@ -499,6 +512,7 @@ function renderLogin(){
     '<div class="login-err" id="loginErr"></div>'+
     '<form id="loginForm">'+
     '<input type="text" id="loginName" placeholder="Dein Name" autocomplete="username" autofocus>'+
+    '<input type="password" id="loginPass" placeholder="Passwort" autocomplete="current-password" style="display:none">'+
     '<button type="submit" class="btn btn-primary">Anmelden</button>'+
     '</form>'+
     '<p class="login-hint">Frag deine Lehrperson, falls dein Login nicht funktioniert.</p>'+
@@ -506,17 +520,39 @@ function renderLogin(){
 
   var form = document.getElementById('loginForm');
   var errEl = document.getElementById('loginErr');
+  var nameEl = document.getElementById('loginName');
+  var passEl = document.getElementById('loginPass');
+
+  function passVisible(){ return passEl.style.display !== 'none'; }
+  function hidePass(){ passEl.style.display = 'none'; passEl.value = ''; }
+
+  // Wird ein anderer Name eingetippt, verschwindet das Passwortfeld wieder.
+  nameEl.addEventListener('input', function(){
+    if(passVisible() && !needsOwnPassword(nameEl.value)){ hidePass(); }
+  });
+
   form.addEventListener('submit', async function(e){
     e.preventDefault();
     errEl.classList.remove('show');
-    var name = document.getElementById('loginName').value;
+    var name = nameEl.value;
+
+    // Lehrpersonen-Zugang: kein automatisches Passwort senden, sondern danach fragen.
+    if(needsOwnPassword(name) && !passVisible()){
+      passEl.style.display = '';
+      passEl.focus();
+      errEl.textContent = 'Für diesen Zugang ist ein Passwort nötig.';
+      errEl.classList.add('show');
+      return;
+    }
+
     var btn = form.querySelector('button');
     btn.disabled = true;
     try{
-      await doLogin(name);
+      await doLogin(name, passVisible() ? passEl.value : null);
     }catch(err){
       var msg = 'Login fehlgeschlagen. Prüfe die Schreibweise deines Namens.';
       if(err && err.code === 'auth/too-many-requests'){ msg = 'Zu viele Versuche. Bitte warte kurz und versuch es erneut.'; }
+      else if(passVisible()){ msg = 'Passwort stimmt nicht.'; }
       errEl.textContent = msg;
       errEl.classList.add('show');
     }finally{
@@ -537,6 +573,7 @@ function renderChrome(innerHtml){
   html += '<div class="topbar-user">';
   if(isTeacher){ html += '<span class="badge-teacher">Lehrperson</span>'; }
   html += '<span>Hallo, <b>'+esc(state.profile.displayName)+'</b></span>';
+  if(isTeacher){ html += '<button class="btn btn-ghost btn-sm" id="pwBtn" title="Passwort dieses Kontos ändern">Passwort</button>'; }
   html += '<button class="btn btn-ghost btn-sm" id="logoutBtn">Abmelden</button>';
   html += '</div></div>';
   html += '<div class="content">'+innerHtml+'</div>';
@@ -545,6 +582,8 @@ function renderChrome(innerHtml){
   document.getElementById('logoBtn').addEventListener('click', goHome);
   document.getElementById('titleBtn').addEventListener('click', goHome);
   document.getElementById('logoutBtn').addEventListener('click', doLogout);
+  var pwBtn = document.getElementById('pwBtn');
+  if(pwBtn){ pwBtn.addEventListener('click', uiChangePassword); }
 }
 
 /* ===================== RENDER: HOME ===================== */
@@ -787,6 +826,69 @@ function uiInfo(title, description){
     '<div class="modal-actions"><button class="btn btn-primary btn-sm" id="modalOk" type="button">Verstanden</button></div>'
   );
   document.getElementById('modalOk').addEventListener('click', closeModal);
+}
+
+// Eigenes Passwort setzen (nur fuer das gerade angemeldete Konto). Firebase
+// verlangt fuer updatePassword eine "frische" Anmeldung, deshalb wird mit dem
+// aktuellen Passwort zuerst re-authentifiziert. Danach ist der Zugang nicht mehr
+// ueber die <name>2024-Konvention erratbar - Voraussetzung dafuer ist, dass der
+// Name in PASSWORD_LOGIN_SLUGS steht (sonst wuerde der Login weiterhin das
+// automatische Passwort senden).
+function uiChangePassword(){
+  openModal(
+    '<h3>Passwort ändern</h3>'+
+    '<p>Gilt nur für dieses Konto. Das neue Passwort braucht mindestens 6 Zeichen. Notiere es dir gut – es lässt sich nur über diesen Weg wieder ändern.</p>'+
+    '<div class="login-err" id="pwErr"></div>'+
+    '<input type="password" id="pwOld" placeholder="Aktuelles Passwort" autocomplete="current-password">'+
+    '<input type="password" id="pwNew" placeholder="Neues Passwort" autocomplete="new-password">'+
+    '<input type="password" id="pwNew2" placeholder="Neues Passwort wiederholen" autocomplete="new-password">'+
+    '<div class="modal-actions">'+
+      '<button class="btn btn-ghost btn-sm" id="modalCancel" type="button">Abbrechen</button>'+
+      '<button class="btn btn-primary btn-sm" id="modalOk" type="button">Speichern</button>'+
+    '</div>'
+  );
+  var errEl = document.getElementById('pwErr');
+  var oldEl = document.getElementById('pwOld');
+  var newEl = document.getElementById('pwNew');
+  var new2El = document.getElementById('pwNew2');
+  var okBtn = document.getElementById('modalOk');
+  oldEl.focus();
+
+  function showErr(m){ errEl.textContent = m; errEl.classList.add('show'); }
+
+  async function submit(){
+    errEl.classList.remove('show');
+    var oldPw = oldEl.value;
+    var a = newEl.value;
+    var b = new2El.value;
+    if(!oldPw){ showErr('Bitte das aktuelle Passwort eingeben.'); oldEl.focus(); return; }
+    if(a.length < 6){ showErr('Das neue Passwort braucht mindestens 6 Zeichen.'); newEl.focus(); return; }
+    if(a !== b){ showErr('Die beiden neuen Passwörter stimmen nicht überein.'); new2El.focus(); return; }
+    var user = auth.currentUser;
+    if(!user){ showErr('Nicht angemeldet.'); return; }
+    okBtn.disabled = true;
+    try{
+      await reauthenticateWithCredential(user, EmailAuthProvider.credential(user.email, oldPw));
+      await updatePassword(user, a);
+      closeModal();
+      toast('Passwort geändert.');
+    }catch(err){
+      console.error(err);
+      var m = 'Konnte nicht geändert werden. Bitte nochmals versuchen.';
+      if(err && (err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential')){ m = 'Das aktuelle Passwort stimmt nicht.'; }
+      else if(err && err.code === 'auth/weak-password'){ m = 'Das neue Passwort ist zu schwach (mind. 6 Zeichen).'; }
+      else if(err && err.code === 'auth/too-many-requests'){ m = 'Zu viele Versuche. Bitte kurz warten.'; }
+      showErr(m);
+    }finally{
+      okBtn.disabled = false;
+    }
+  }
+
+  okBtn.addEventListener('click', submit);
+  document.getElementById('modalCancel').addEventListener('click', closeModal);
+  [oldEl, newEl, new2El].forEach(function(el){
+    el.addEventListener('keydown', function(e){ if(e.key === 'Enter'){ e.preventDefault(); submit(); } });
+  });
 }
 
 // Zielauswahl für "Verschieben": zeigt die Fach-Hauptebene und darunter den
