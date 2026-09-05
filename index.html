@@ -202,6 +202,20 @@
 
   .empty-state{background:var(--surface);border:1px dashed var(--border);border-radius:var(--radius);padding:36px 20px;text-align:center;color:var(--text-muted);}
 
+  /* Fehleranalyse Diktate (Lehrperson) */
+  .da-toolbar{display:flex;justify-content:flex-end;margin-bottom:10px;}
+  .da-table{width:100%;border-collapse:collapse;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;font-size:13.5px;}
+  .da-table th,.da-table td{text-align:left;padding:8px 12px;border-bottom:1px solid var(--border);}
+  .da-table th{background:var(--surface-2);font-weight:600;font-size:12.5px;color:var(--text-muted);white-space:nowrap;}
+  .da-table tr:last-child td{border-bottom:none;}
+  .da-student-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px;margin-bottom:14px;}
+  .da-student-card h4{margin:0 0 10px;}
+  .weak-bar-row{display:flex;align-items:center;gap:10px;margin:8px 0;}
+  .weak-bar-label{width:220px;flex:none;font-size:13px;display:flex;align-items:center;gap:6px;}
+  .weak-bar-track{flex:1;height:9px;background:var(--surface-2);border-radius:6px;overflow:hidden;}
+  .weak-bar-fill{height:100%;border-radius:6px;}
+  .weak-bar-count{width:24px;text-align:right;font-size:12.5px;color:var(--text-muted);}
+
 
   /* ---------- Ordner (Unterordner pro Fach) ---------- */
   .crumbs{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:13.5px;color:var(--text-muted);margin-bottom:16px;}
@@ -303,7 +317,7 @@ import {
   updatePassword, EmailAuthProvider, reauthenticateWithCredential
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 import {
-  getFirestore, doc, getDoc, setDoc, deleteDoc, collection, query, where, onSnapshot, serverTimestamp, writeBatch
+  getFirestore, doc, getDoc, getDocs, setDoc, deleteDoc, collection, query, where, onSnapshot, serverTimestamp, writeBatch
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 
 /* =====================================================================
@@ -408,6 +422,163 @@ const SUBJECTS = [
 ];
 SUBJECTS.forEach(function(s){ s.icon = subjectVisual(s); });
 function subjectById(id){ return SUBJECTS.find(function(s){return s.id===id;}); }
+
+/* ===================== DIKTAT-FEHLERANALYSE (Lehrperson) =====================
+   Jede Diktat-Übungsseite (Skill diktat-training-uebungsseite) speichert pro
+   Versuch eine Fehlerzahl je Rechtschreib-Kategorie (`weakness` in ihrem
+   localStorage-Schlüssel "..._attempts") - dank des bestehenden Übungsstand-
+   Sync (siehe weiter unten) landet das automatisch, ohne jede Änderung an den
+   Diktatseiten, in progress/{uid}/resources/{resourceId}.storeJson.
+   Diese Ansicht liest das für alle Schüler:innen und alle Diktate aus und
+   fasst es zusammen - kein neues Firestore-Feld, keine neue Regel nötig
+   (progress/{uid}/resources/{resourceId} erlaubt der Lehrperson laut
+   firestore.rules bereits "allow read: if isOwner(uid) || isTeacher()").
+   Kategorie-IDs/Icons/Farben exakt aus dem Skill übernommen - bei Erweiterung
+   um neue Kategorien dort UND hier nachführen. */
+var DIKTAT_RULE_META = {
+  vf:          {name:'V für den F-Laut', icon:'✌️', color:'#2d4a7c'},
+  doppel:      {name:'Doppelkonsonanten', icon:'🔠', color:'#8a6314'},
+  grossklein:  {name:'Gross- oder Kleinschreibung', icon:'🅰️', color:'#6b3f8f'},
+  zusgetrennt: {name:'Getrennt- oder Zusammenschreibung', icon:'🔗', color:'#31684a'},
+  fremd:       {name:'Fremdwörter', icon:'🌍', color:'#a13a2c'},
+  ieei:        {name:'„ie" oder „ei"', icon:'👂', color:'#1f7a6c'},
+  eu_aeu:      {name:'„eu" oder „äu"', icon:'🔊', color:'#b8562e'},
+  dehnung_h:   {name:'Dehnungs-h', icon:'🧩', color:'#0f7a99'},
+  stummesh:    {name:'Stummes h', icon:'🎩', color:'#4d6b2f'},
+  ck_k:        {name:'„ck" oder „k"', icon:'🦎', color:'#5c7a1e'},
+  tz_z:        {name:'„tz" oder „z"', icon:'🚂', color:'#8c2f4a'},
+  s_ss:        {name:'„s", „ss" (o. „ß")', icon:'🐍', color:'#4a3f8a'},
+  auslaut:     {name:'Auslautverhärtung', icon:'🔉', color:'#8a5a1f'},
+  ableiten:    {name:'Ableiten/Stammprinzip', icon:'🔄', color:'#7a4a5a'},
+  merkwoerter: {name:'Merkwörter', icon:'🎯', color:'#b8355c'},
+  endungen:    {name:'Endungen', icon:'📝', color:'#556270'},
+  sonstige:    {name:'Sonstige Fehler', icon:'❓', color:'#6b5f4e'}
+};
+
+// Lädt für alle Diktat-Ressourcen des Fachs Deutsch und alle Schüler:innen
+// den jeweils letzten Diktatversuch (aus progress/{uid}/resources/{rid}) und
+// fasst die Fehlerkategorien pro Schüler:in zusammen. Einmaliger Ladevorgang
+// (kein Live-Listener) - die Ansicht hat einen "Neu laden"-Knopf.
+async function loadDiktatAuswertung(){
+  var result = { resources: [], students: [], perStudent: {} };
+
+  var resSnap = await getDocs(query(collection(db,'resources'), where('subject','==','deutsch')));
+  var diktatResources = [];
+  resSnap.forEach(function(d){
+    var data = d.data();
+    var title = data.title || data.fileName || '';
+    if(/diktat/i.test(title)) diktatResources.push(Object.assign({id:d.id}, data));
+  });
+  diktatResources.sort(function(a,b){ return (a.title||'').localeCompare(b.title||'', 'de'); });
+  result.resources = diktatResources;
+
+  var stuSnap = await getDocs(query(collection(db,'students'), where('role','==','student')));
+  var students = [];
+  stuSnap.forEach(function(d){ students.push(Object.assign({uid:d.id}, d.data())); });
+  students.sort(function(a,b){ return (a.displayName||'').localeCompare(b.displayName||'', 'de'); });
+  result.students = students;
+
+  // Jedes {Schüler:in x Diktat}-Paar einzeln lesen (Lehrperson-Leserecht laut
+  // firestore.rules) - bei 14-16 Kindern x wenigen Diktaten unproblematisch
+  // fürs kostenlose Firestore-Kontingent.
+  var reads = [];
+  students.forEach(function(stu){
+    diktatResources.forEach(function(res){
+      reads.push(
+        getDoc(doc(db,'progress', stu.uid, 'resources', res.id)).then(function(snap){
+          return {uid:stu.uid, resId:res.id, snap:snap};
+        }).catch(function(){ return {uid:stu.uid, resId:res.id, snap:null}; })
+      );
+    });
+  });
+  var settled = await Promise.all(reads);
+
+  students.forEach(function(stu){
+    result.perStudent[stu.uid] = { byResource:{}, categoryTotals:{} };
+  });
+
+  settled.forEach(function(r){
+    if(!r.snap || !r.snap.exists()) return;
+    var data = r.snap.data();
+    if(!data.storeJson) return;
+    var store;
+    try{ store = JSON.parse(data.storeJson); }catch(e){ return; }
+    var attemptsKey = Object.keys(store).filter(function(k){ return /_attempts$/.test(k); })[0];
+    if(!attemptsKey) return;
+    var attempts;
+    try{ attempts = JSON.parse(store[attemptsKey]); }catch(e){ return; }
+    if(!Array.isArray(attempts) || !attempts.length) return;
+    var last = attempts[attempts.length-1];
+    var bucket = result.perStudent[r.uid];
+    bucket.byResource[r.resId] = { pct: last.pct, date: last.date, attemptCount: attempts.length };
+    Object.keys(last.weakness||{}).forEach(function(catId){
+      var meta = DIKTAT_RULE_META[catId] ? catId : 'sonstige';
+      bucket.categoryTotals[meta] = (bucket.categoryTotals[meta]||0) + last.weakness[catId];
+    });
+  });
+
+  return result;
+}
+
+function renderDiktatAuswertung(){
+  clearSubjectWatchers(); clearOverviewWatchers(); unwatchAllProgress();
+  var html = '<div class="back-row"><button class="btn btn-ghost btn-sm" id="backBtn">&larr; Deutsch</button></div>';
+  html += '<h2>📊 Fehleranalyse Diktate</h2>';
+  html += '<p class="muted" style="margin:-6px 0 14px;">Fasst pro Schüler:in den jeweils letzten Versuch aller Diktate zusammen. Nur für dich sichtbar.</p>';
+  html += '<div id="diktatAuswertungBody"><div class="empty-state">Wird geladen …</div></div>';
+  renderChrome(html);
+  document.getElementById('backBtn').addEventListener('click', function(){ goSubject('deutsch', null); });
+
+  loadDiktatAuswertung().then(function(result){
+    var body = document.getElementById('diktatAuswertungBody');
+    if(!body) return;
+    if(!result.resources.length){
+      body.innerHTML = '<div class="empty-state">Noch keine Diktat-Übungsseiten unter „Deutsch" gefunden (Titel muss „Diktat" enthalten).</div>';
+      return;
+    }
+    var h = '';
+    h += '<div class="da-toolbar"><button class="btn btn-ghost btn-sm" id="daReloadBtn" type="button">↻ Neu laden</button></div>';
+    h += '<table class="da-table"><thead><tr><th>Schüler:in</th>';
+    result.resources.forEach(function(res){ h += '<th>'+esc(res.title||res.fileName)+'</th>'; });
+    h += '</tr></thead><tbody>';
+    result.students.forEach(function(stu){
+      var bucket = result.perStudent[stu.uid];
+      h += '<tr><td>'+esc(stu.displayName)+'</td>';
+      result.resources.forEach(function(res){
+        var by = bucket.byResource[res.id];
+        h += '<td>'+(by ? by.pct+'%' : '<span class="muted">–</span>')+'</td>';
+      });
+      h += '</tr>';
+    });
+    h += '</tbody></table>';
+
+    h += '<h3 style="margin-top:26px;">Fehlerkategorien pro Schüler:in (alle Diktate zusammen)</h3>';
+    result.students.forEach(function(stu){
+      var totals = result.perStudent[stu.uid].categoryTotals;
+      var entries = Object.keys(totals).map(function(id){ return {id:id, count:totals[id]}; }).sort(function(a,b){ return b.count-a.count; });
+      h += '<div class="da-student-card"><h4>'+esc(stu.displayName)+'</h4>';
+      if(!entries.length){
+        h += '<p class="muted small">Noch kein ausgewerteter Diktatversuch.</p>';
+      } else {
+        var max = entries[0].count;
+        entries.forEach(function(e){
+          var meta = DIKTAT_RULE_META[e.id] || DIKTAT_RULE_META.sonstige;
+          h += '<div class="weak-bar-row"><div class="weak-bar-label">'+meta.icon+' '+esc(meta.name)+'</div>' +
+            '<div class="weak-bar-track"><div class="weak-bar-fill" style="width:'+Math.round(e.count/max*100)+'%;background:'+meta.color+'"></div></div>' +
+            '<div class="weak-bar-count">'+e.count+'</div></div>';
+        });
+      }
+      h += '</div>';
+    });
+
+    body.innerHTML = h;
+    document.getElementById('daReloadBtn').addEventListener('click', renderDiktatAuswertung);
+  }).catch(function(err){
+    console.error(err);
+    var body = document.getElementById('diktatAuswertungBody');
+    if(body) body.innerHTML = '<div class="empty-state">Auswertung konnte nicht geladen werden.</div>';
+  });
+}
 
 /* ===================== STATE ===================== */
 
@@ -951,6 +1122,10 @@ function renderSubject(subjectId, folderId){
   html += '<div class="subject-head"><div class="subject-visual" style="background:'+s.soft+';">'+s.icon+'</div><h2>'+s.name+'</h2></div>';
   html += '<div class="crumbs" id="crumbs"></div>';
 
+  if(isTeacher && subjectId==='deutsch'){
+    html += '<div class="back-row"><button class="btn btn-ghost btn-sm" id="diktatAnalyseBtn" type="button">📊 Fehleranalyse Diktate</button></div>';
+  }
+
   if(isTeacher){
     html += '<div class="dropzone" id="dropzone">';
     html += '<div class="dz-title">Neue Übungsseite hinzufügen</div>';
@@ -966,6 +1141,13 @@ function renderSubject(subjectId, folderId){
 
   renderChrome(html);
   document.getElementById('backBtn').addEventListener('click', goHome);
+  var diktatAnalyseBtn = document.getElementById('diktatAnalyseBtn');
+  if(diktatAnalyseBtn){
+    diktatAnalyseBtn.addEventListener('click', function(){
+      state.route = {name:'diktatauswertung'};
+      render();
+    });
+  }
   if(isTeacher){
     wireDropzone(subjectId);
     document.getElementById('newFolderBtn').addEventListener('click', function(){
@@ -1812,6 +1994,7 @@ function render(){
   if(state.route.name === 'home'){ renderHome(); return; }
   if(state.route.name === 'subject'){ renderSubject(state.route.subject, state.route.folderId || null); return; }
   if(state.route.name === 'resource'){ renderResource(state.route.resource); return; }
+  if(state.route.name === 'diktatauswertung'){ renderDiktatAuswertung(); return; }
 }
 </script>
 </body>
