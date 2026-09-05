@@ -205,9 +205,13 @@
   /* Fehleranalyse Diktate (Lehrperson) */
   .da-toolbar{display:flex;justify-content:flex-end;margin-bottom:10px;}
   .da-table{width:100%;border-collapse:collapse;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;font-size:13.5px;}
-  .da-table th,.da-table td{text-align:left;padding:8px 12px;border-bottom:1px solid var(--border);}
-  .da-table th{background:var(--surface-2);font-weight:600;font-size:12.5px;color:var(--text-muted);white-space:nowrap;}
+  .da-table th,.da-table td{text-align:left;padding:8px 12px;border-bottom:1px solid var(--border);white-space:nowrap;}
+  .da-table th{background:var(--surface-2);font-weight:600;font-size:12.5px;color:var(--text-muted);}
   .da-table tr:last-child td{border-bottom:none;}
+  /* Namensspalte bleibt beim horizontalen Scrollen sichtbar (v.a. Deutsch mit vielen Diktaten). */
+  .da-table th:first-child,.da-table td:first-child{position:sticky;left:0;z-index:1;box-shadow:1px 0 0 var(--border);}
+  .da-table td:first-child{background:var(--surface);}
+  .da-table th:first-child{background:var(--surface-2);z-index:2;}
   .da-student-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px;margin-bottom:14px;}
   .da-student-card h4{margin:0 0 10px;}
   .weak-bar-row{display:flex;align-items:center;gap:10px;margin:8px 0;}
@@ -244,7 +248,25 @@
   .modal p{font-size:14px;color:var(--text-muted);margin:0 0 16px;line-height:1.5;}
   .modal input[type=text],.modal input[type=password]{width:100%;padding:11px 13px;border:1px solid var(--border);border-radius:10px;font:inherit;background:var(--surface-2);color:var(--text);margin-bottom:16px;}
   .modal input[type=text]:focus,.modal input[type=password]:focus{outline:2px solid var(--brand);outline-offset:1px;}
+  .modal select,.modal input[type=date],.modal textarea{width:100%;padding:11px 13px;border:1px solid var(--border);border-radius:10px;font:inherit;background:var(--surface-2);color:var(--text);margin-bottom:16px;resize:vertical;}
+  .modal select:focus,.modal input[type=date]:focus,.modal textarea:focus{outline:2px solid var(--brand);outline-offset:1px;}
+  .modal-label{display:block;font-size:12.5px;font-weight:600;color:var(--text-muted);margin:0 0 6px;}
   .modal-actions{display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;}
+
+  /* Kalender */
+  .cal-list{display:flex;flex-direction:column;gap:10px;}
+  .cal-entry{display:flex;gap:14px;background:var(--surface);border:1px solid var(--border);border-left:5px solid var(--cal-c,var(--brand));border-radius:var(--radius-sm);padding:12px 14px;align-items:flex-start;}
+  .cal-entry-date{flex:none;width:64px;font-weight:700;font-size:14px;line-height:1.3;}
+  .cal-entry-weekday{display:block;font-weight:500;font-size:11px;color:var(--text-muted);}
+  .cal-entry-body{flex:1;min-width:0;}
+  .cal-entry-type{font-weight:600;font-size:12.5px;color:var(--cal-c,var(--brand));}
+  .cal-entry-title{margin-bottom:2px;}
+  .cal-entry-text{font-size:14.5px;font-weight:600;}
+  .cal-entry-desc{font-size:13px;color:var(--text-muted);margin-top:2px;white-space:pre-wrap;}
+  .cal-entry-actions{flex:none;display:flex;flex-direction:column;gap:4px;}
+  .cal-list-past{opacity:.6;}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px;margin-bottom:16px;}
+  .homework-card{border-left:5px solid #4361EE;}
   .pick-list{display:flex;flex-direction:column;gap:6px;margin-bottom:16px;}
   .pick-item{display:flex;align-items:center;gap:8px;width:100%;text-align:left;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:var(--surface-2);font:inherit;color:var(--text);cursor:pointer;}
   .pick-item:hover:not(:disabled){border-color:var(--brand);background:var(--surface);}
@@ -425,6 +447,186 @@ const SUBJECTS = [
 SUBJECTS.forEach(function(s){ s.icon = subjectVisual(s); });
 function subjectById(id){ return SUBJECTS.find(function(s){return s.id===id;}); }
 
+/* ===================== KALENDER (Hausaufgaben, Abgaben, Erinnerungen, Prüfungen) =====================
+   Neue, eigene Firestore-Collection `calendarEntries/{id}`:
+     {type, subject, title, description, dueDate ("YYYY-MM-DD"), createdAt, createdBy}
+   Für alle Angemeldeten lesbar, nur die Lehrperson darf schreiben (siehe firestore.rules-Nachtrag).
+   Bewusst OHNE where()+orderBy()-Kombination bei den Queries (keine Gleichheits- + Sortier-
+   Bedingung auf unterschiedlichen Feldern) - das hätte einen neuen Composite Index gebraucht
+   (siehe Firebase.md, "Betriebs-Fixes"). Stattdessen: ganze (kleine) Collection laden, Filtern/
+   Sortieren client-seitig. */
+
+var CALENDAR_TYPES = {
+  hausaufgabe: {label:'Hausaufgabe', icon:'📘', color:'#4361EE'},
+  abgabe:      {label:'Abgabe',      icon:'📤', color:'#E8752C'},
+  pruefung:    {label:'Prüfung',     icon:'📝', color:'#E63950'},
+  erinnerung:  {label:'Erinnerung',  icon:'🔔', color:'#8B5CF6'}
+};
+
+function pad2(n){ return n<10 ? '0'+n : ''+n; }
+function localDateStr(d){ return d.getFullYear()+'-'+pad2(d.getMonth()+1)+'-'+pad2(d.getDate()); }
+function todayStr(){ return localDateStr(new Date()); }
+function addDaysStr(days){ var d = new Date(); d.setDate(d.getDate()+days); return localDateStr(d); }
+function fmtDueDate(dateStr){
+  // "YYYY-MM-DD" ohne Zeitzonen-Umwege in ein lesbares CH-Datum umwandeln.
+  var parts = (dateStr||'').split('-');
+  if(parts.length!==3) return dateStr||'';
+  return parts[2]+'.'+parts[1]+'.'+parts[0];
+}
+function weekdayLabel(dateStr){
+  var parts = (dateStr||'').split('-').map(Number);
+  if(parts.length!==3) return '';
+  var d = new Date(parts[0], parts[1]-1, parts[2]);
+  return d.toLocaleDateString('de-CH', {weekday:'long'});
+}
+
+async function loadCalendarEntries(){
+  var snap = await getDocs(collection(db,'calendarEntries'));
+  var out = [];
+  snap.forEach(function(d){ out.push(Object.assign({id:d.id}, d.data())); });
+  out.sort(function(a,b){
+    if(a.dueDate !== b.dueDate) return (a.dueDate||'').localeCompare(b.dueDate||'');
+    return (a.createdAt && a.createdAt.toMillis ? a.createdAt.toMillis() : 0) - (b.createdAt && b.createdAt.toMillis ? b.createdAt.toMillis() : 0);
+  });
+  return out;
+}
+
+function calendarEntryLineHtml(e, isTeacher){
+  var meta = CALENDAR_TYPES[e.type] || {label:e.type, icon:'📌', color:'#556270'};
+  var s = e.subject ? subjectById(e.subject) : null;
+  var html = '<div class="cal-entry" style="--cal-c:'+meta.color+'">';
+  html += '<div class="cal-entry-date">'+fmtDueDate(e.dueDate)+'<span class="cal-entry-weekday">'+esc(weekdayLabel(e.dueDate))+'</span></div>';
+  html += '<div class="cal-entry-body">';
+  html += '<div class="cal-entry-title"><span class="cal-entry-type">'+meta.icon+' '+esc(meta.label)+'</span>'+(s?' · '+esc(s.name):'')+'</div>';
+  html += '<div class="cal-entry-text">'+esc(e.title)+'</div>';
+  if(e.description){ html += '<div class="cal-entry-desc">'+esc(e.description)+'</div>'; }
+  html += '</div>';
+  if(isTeacher){
+    html += '<div class="cal-entry-actions">'+
+      '<button class="btn btn-ghost btn-sm cal-edit-btn" type="button" data-id="'+esc(e.id)+'">Bearbeiten</button>'+
+      '<button class="btn btn-ghost btn-sm cal-del-btn" type="button" data-id="'+esc(e.id)+'">Löschen</button>'+
+      '</div>';
+  }
+  html += '</div>';
+  return html;
+}
+
+// Formular (neu anlegen ODER bearbeiten, wenn `existing` gesetzt ist).
+function uiCalendarEntryForm(existing, onSaved){
+  var typeOptions = Object.keys(CALENDAR_TYPES).map(function(id){
+    return '<option value="'+id+'"'+(existing && existing.type===id ? ' selected':'')+'>'+CALENDAR_TYPES[id].icon+' '+CALENDAR_TYPES[id].label+'</option>';
+  }).join('');
+  var subjectOptions = '<option value=""'+(!existing || !existing.subject ? ' selected':'')+'>— Kein Fach / allgemein —</option>' +
+    SUBJECTS.filter(function(s){ return !s.teacherOnly; }).map(function(s){
+      return '<option value="'+s.id+'"'+(existing && existing.subject===s.id ? ' selected':'')+'>'+s.name+'</option>';
+    }).join('');
+
+  openModal(
+    '<h3>'+(existing ? 'Eintrag bearbeiten' : 'Neuer Kalender-Eintrag')+'</h3>'+
+    '<label class="modal-label">Art</label><select id="calType">'+typeOptions+'</select>'+
+    '<label class="modal-label">Fach</label><select id="calSubject">'+subjectOptions+'</select>'+
+    '<label class="modal-label">Titel</label><input type="text" id="calTitle" maxlength="120" value="'+esc(existing?existing.title:'')+'" placeholder="z.B. Seite 42, Aufgabe 3–5">'+
+    '<label class="modal-label">Datum</label><input type="date" id="calDate" value="'+esc(existing?existing.dueDate:todayStr())+'">'+
+    '<label class="modal-label">Details (optional)</label><textarea id="calDesc" rows="3" maxlength="500" placeholder="Weitere Angaben …">'+esc(existing?existing.description||'':'')+'</textarea>'+
+    '<div class="login-err" id="calErr"></div>'+
+    '<div class="modal-actions">'+
+      '<button class="btn btn-ghost btn-sm" id="modalCancel" type="button">Abbrechen</button>'+
+      '<button class="btn btn-primary btn-sm" id="modalOk" type="button">Speichern</button>'+
+    '</div>'
+  );
+  var titleEl = document.getElementById('calTitle');
+  titleEl.focus();
+  document.getElementById('modalCancel').addEventListener('click', closeModal);
+  document.getElementById('modalOk').addEventListener('click', async function(){
+    var errEl = document.getElementById('calErr');
+    errEl.classList.remove('show');
+    var type = document.getElementById('calType').value;
+    var subject = document.getElementById('calSubject').value;
+    var title = titleEl.value.trim();
+    var dueDate = document.getElementById('calDate').value;
+    var description = document.getElementById('calDesc').value.trim();
+    if(!title){ errEl.textContent='Bitte einen Titel eingeben.'; errEl.classList.add('show'); titleEl.focus(); return; }
+    if(!dueDate){ errEl.textContent='Bitte ein Datum wählen.'; errEl.classList.add('show'); return; }
+    var data = { type:type, subject:subject, title:title.slice(0,120), description:description.slice(0,500), dueDate:dueDate };
+    try{
+      if(existing){
+        await setDoc(doc(db,'calendarEntries', existing.id), data, {merge:true});
+      } else {
+        data.createdAt = serverTimestamp();
+        data.createdBy = state.user.uid;
+        await setDoc(doc(db,'calendarEntries', 'cal_'+Date.now()+'_'+Math.random().toString(36).slice(2,8)), data);
+      }
+      closeModal();
+      toast(existing ? 'Eintrag aktualisiert.' : 'Eintrag hinzugefügt.');
+      onSaved();
+    }catch(err){
+      console.error(err);
+      errEl.textContent = 'Konnte nicht gespeichert werden.'; errEl.classList.add('show');
+    }
+  });
+}
+
+function wireCalendarEntryActions(container, entries, isTeacher, onChanged){
+  if(!isTeacher) return;
+  Array.prototype.forEach.call(container.querySelectorAll('.cal-edit-btn'), function(btn){
+    btn.addEventListener('click', function(){
+      var entry = entries.find(function(e){ return e.id===btn.getAttribute('data-id'); });
+      if(entry) uiCalendarEntryForm(entry, onChanged);
+    });
+  });
+  Array.prototype.forEach.call(container.querySelectorAll('.cal-del-btn'), function(btn){
+    btn.addEventListener('click', function(){
+      var id = btn.getAttribute('data-id');
+      uiConfirm('Eintrag löschen?', 'Das kann nicht rückgängig gemacht werden.', 'Löschen', async function(){
+        try{ await deleteDoc(doc(db,'calendarEntries', id)); toast('Gelöscht.'); onChanged(); }
+        catch(err){ console.error(err); toast('Löschen fehlgeschlagen.'); }
+      }, true);
+    });
+  });
+}
+
+function renderKalender(){
+  clearSubjectWatchers(); clearOverviewWatchers(); unwatchAllProgress();
+  var isTeacher = state.profile.role === 'teacher';
+  var html = '<div class="back-row"><button class="btn btn-ghost btn-sm" id="backBtn">&larr; Start</button></div>';
+  html += '<h2>📅 Kalender</h2>';
+  if(isTeacher){
+    html += '<div class="back-row"><button class="btn btn-primary btn-sm" id="calNewBtn" type="button">+ Neuer Eintrag</button></div>';
+  }
+  html += '<div id="kalenderBody"><div class="empty-state">Wird geladen …</div></div>';
+  renderChrome(html);
+  document.getElementById('backBtn').addEventListener('click', goHome);
+  var newBtn = document.getElementById('calNewBtn');
+  if(newBtn){ newBtn.addEventListener('click', function(){ uiCalendarEntryForm(null, renderKalender); }); }
+
+  loadCalendarEntries().then(function(entries){
+    var body = document.getElementById('kalenderBody');
+    if(!body) return;
+    var today = todayStr();
+    var upcoming = entries.filter(function(e){ return e.dueDate >= today; });
+    var past = entries.filter(function(e){ return e.dueDate < today; });
+    var h = '';
+    if(!upcoming.length && !past.length){
+      h += '<div class="empty-state">Noch keine Einträge.'+(isTeacher?' Leg oben den ersten an.':'')+'</div>';
+    }
+    if(upcoming.length){
+      h += '<div class="cal-list">'+upcoming.map(function(e){ return calendarEntryLineHtml(e, isTeacher); }).join('')+'</div>';
+    } else if(past.length){
+      h += '<div class="empty-state">Keine anstehenden Einträge mehr.</div>';
+    }
+    if(past.length){
+      h += '<h3 style="margin-top:26px;">Vergangen</h3>';
+      h += '<div class="cal-list cal-list-past">'+past.slice().reverse().map(function(e){ return calendarEntryLineHtml(e, isTeacher); }).join('')+'</div>';
+    }
+    body.innerHTML = h;
+    wireCalendarEntryActions(body, entries, isTeacher, renderKalender);
+  }).catch(function(err){
+    console.error(err);
+    var body = document.getElementById('kalenderBody');
+    if(body) body.innerHTML = '<div class="empty-state">Kalender konnte nicht geladen werden.</div>';
+  });
+}
+
 /* ===================== DIKTAT-FEHLERANALYSE (Lehrperson) =====================
    Jede Diktat-Übungsseite (Skill diktat-training-uebungsseite) speichert pro
    Versuch eine Fehlerzahl je Rechtschreib-Kategorie (`weakness` in ihrem
@@ -599,14 +801,26 @@ function fmtHistoryEntry(h){
   return ds+': '+fmtLearnedSummary(h.summary);
 }
 
+// Fächer, die in der Lernstand-Übersicht nichts verloren haben: Berufswahl
+// (keine "gelernt"-Metrik im klassischen Sinn) und Lehrerbereich (interne
+// Tools, keine Schüler:innen-Übungen).
+var LERNSTAND_EXCLUDED_SUBJECTS = ['berufswahl', 'lehrerbereich'];
+
 async function loadLernstandUebersicht(){
   var resSnap = await getDocs(collection(db,'resources'));
   var resources = [];
-  resSnap.forEach(function(d){ resources.push(Object.assign({id:d.id}, d.data())); });
+  resSnap.forEach(function(d){
+    var data = d.data();
+    if(LERNSTAND_EXCLUDED_SUBJECTS.indexOf(data.subject) !== -1) return;
+    resources.push(Object.assign({id:d.id}, data));
+  });
   resources.sort(function(a,b){
     var sa = subjectById(a.subject), sb = subjectById(b.subject);
     var sn = (sa?sa.name:a.subject).localeCompare(sb?sb.name:b.subject, 'de');
     if(sn!==0) return sn;
+    // Als "aktuelles Thema" markierte Übungen zuvorderst, sonst alphabetisch.
+    var ac = a.current ? 0 : 1, bc = b.current ? 0 : 1;
+    if(ac!==bc) return ac-bc;
     return (a.title||a.fileName||'').localeCompare(b.title||b.fileName||'', 'de');
   });
 
@@ -908,9 +1122,13 @@ function renderHome(){
     : 'Diese Seite ist Übungsplattform und Infoseite für den Unterricht bei Herrn Helfenberger in einem: Trainiere die Themen deiner Fächer, und schau im jeweiligen Fach nach, welches Thema rot markiert ist – so siehst du, woran wir gerade arbeiten.')
     +'</p>';
   html += '</div></div>';
+  html += '<div class="back-row" style="flex-wrap:wrap;">';
+  html += '<button class="btn btn-primary btn-sm" id="kalenderBtn" type="button">📅 Kalender</button>';
   if(isTeacher){
-    html += '<div class="back-row"><button class="btn btn-ghost btn-sm" id="lernstandBtn" type="button">📈 Lernstand-Übersicht (alle Fächer)</button></div>';
+    html += '<button class="btn btn-ghost btn-sm" id="lernstandBtn" type="button">📈 Lernstand-Übersicht (alle Fächer)</button>';
   }
+  html += '</div>';
+  html += '<div id="homeworkWidget"></div>';
   html += '<div class="subject-grid" id="subjectGrid">';
   var visibleSubjects = SUBJECTS.filter(function(s){ return !s.teacherOnly || isTeacher; });
   visibleSubjects.forEach(function(s){
@@ -933,9 +1151,29 @@ function renderHome(){
   if(lernstandBtn){
     lernstandBtn.addEventListener('click', function(){ state.route = {name:'lernstand'}; render(); });
   }
+  document.getElementById('kalenderBtn').addEventListener('click', function(){ state.route = {name:'kalender'}; render(); });
+  renderHomeworkWidget();
 
   // subscribe to all visible subjects' resource counts (light overview)
   visibleSubjects.forEach(function(s){ watchSubjectOverview(s.id); });
+}
+
+// Kleines "Hausaufgaben der nächsten 7 Tage"-Widget auf der Startseite -
+// bewusst nur Typ "hausaufgabe" (nicht Abgaben/Prüfungen/Erinnerungen),
+// die volle Übersicht gibt es über den Kalender-Knopf.
+function renderHomeworkWidget(){
+  var host = document.getElementById('homeworkWidget');
+  if(!host) return;
+  loadCalendarEntries().then(function(entries){
+    if(!document.getElementById('homeworkWidget')) return; // Seite inzwischen gewechselt
+    var today = todayStr(), horizon = addDaysStr(7);
+    var upcoming = entries.filter(function(e){ return e.type==='hausaufgabe' && e.dueDate>=today && e.dueDate<=horizon; });
+    if(!upcoming.length){ host.innerHTML=''; return; }
+    var h = '<div class="card homework-card"><h3 style="margin-top:0;">📘 Hausaufgaben der nächsten 7 Tage</h3>';
+    h += '<div class="cal-list">'+upcoming.map(function(e){ return calendarEntryLineHtml(e, false); }).join('')+'</div>';
+    h += '</div>';
+    host.innerHTML = h;
+  }).catch(function(err){ console.error(err); });
 }
 
 var overviewUnsubs = {};
@@ -2219,6 +2457,7 @@ function render(){
   if(state.route.name === 'resource'){ renderResource(state.route.resource); return; }
   if(state.route.name === 'diktatauswertung'){ renderDiktatAuswertung(); return; }
   if(state.route.name === 'lernstand'){ renderLernstandUebersicht(); return; }
+  if(state.route.name === 'kalender'){ renderKalender(); return; }
 }
 </script>
 </body>
