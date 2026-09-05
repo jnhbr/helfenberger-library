@@ -263,6 +263,10 @@
   .cal-entry-title{margin-bottom:2px;}
   .cal-entry-text{font-size:14.5px;font-weight:600;}
   .cal-entry-desc{font-size:13px;color:var(--text-muted);margin-top:2px;white-space:pre-wrap;}
+  .cal-open-res-btn{margin-top:6px;padding-left:0;}
+  .cal-sub-btn{margin-top:6px;margin-left:8px;}
+  .submission-list{max-height:320px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;margin:10px 0;}
+  .submission-row{display:flex;align-items:center;gap:8px;font-size:14.5px;padding:4px 2px;}
   .cal-entry-actions{flex:none;display:flex;flex-direction:column;gap:4px;}
   .cal-list-past{opacity:.6;}
   .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px;margin-bottom:16px;}
@@ -341,7 +345,7 @@ import {
   updatePassword, EmailAuthProvider, reauthenticateWithCredential
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 import {
-  getFirestore, doc, getDoc, getDocs, setDoc, deleteDoc, collection, query, where, onSnapshot, serverTimestamp, writeBatch
+  getFirestore, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, collection, query, where, onSnapshot, serverTimestamp, writeBatch
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 
 /* =====================================================================
@@ -491,7 +495,7 @@ async function loadCalendarEntries(){
   return out;
 }
 
-function calendarEntryLineHtml(e, isTeacher){
+function calendarEntryLineHtml(e, isTeacher, roster){
   var meta = CALENDAR_TYPES[e.type] || {label:e.type, icon:'📌', color:'#556270'};
   var s = e.subject ? subjectById(e.subject) : null;
   var html = '<div class="cal-entry" style="--cal-c:'+meta.color+'">';
@@ -500,6 +504,12 @@ function calendarEntryLineHtml(e, isTeacher){
   html += '<div class="cal-entry-title"><span class="cal-entry-type">'+meta.icon+' '+esc(meta.label)+'</span>'+(s?' · '+esc(s.name):'')+'</div>';
   html += '<div class="cal-entry-text">'+esc(e.title)+'</div>';
   if(e.description){ html += '<div class="cal-entry-desc">'+esc(e.description)+'</div>'; }
+  if(e.resourceId){
+    html += '<button class="btn btn-ghost btn-sm cal-open-res-btn" type="button" data-resource-id="'+esc(e.resourceId)+'">▶ Zur Übung'+(e.resourceTitle?': '+esc(e.resourceTitle):'')+'</button>';
+  }
+  if(isTeacher && e.type==='hausaufgabe' && roster){
+    html += '<button class="btn btn-ghost btn-sm cal-sub-btn" type="button" data-id="'+esc(e.id)+'">☑ '+esc(submittedCountLabel(e, roster))+'</button>';
+  }
   html += '</div>';
   if(isTeacher){
     html += '<div class="cal-entry-actions">'+
@@ -528,6 +538,7 @@ function uiCalendarEntryForm(existing, onSaved){
     '<label class="modal-label">Titel</label><input type="text" id="calTitle" maxlength="120" value="'+esc(existing?existing.title:'')+'" placeholder="z.B. Seite 42, Aufgabe 3–5">'+
     '<label class="modal-label">Datum</label><input type="date" id="calDate" value="'+esc(existing?existing.dueDate:todayStr())+'">'+
     '<label class="modal-label">Details (optional)</label><textarea id="calDesc" rows="3" maxlength="500" placeholder="Weitere Angaben …">'+esc(existing?existing.description||'':'')+'</textarea>'+
+    '<label class="modal-label">Übung verlinken (optional)</label><select id="calResource"><option value="">— Keine Übung verlinken —</option></select>'+
     '<div class="login-err" id="calErr"></div>'+
     '<div class="modal-actions">'+
       '<button class="btn btn-ghost btn-sm" id="modalCancel" type="button">Abbrechen</button>'+
@@ -535,19 +546,54 @@ function uiCalendarEntryForm(existing, onSaved){
     '</div>'
   );
   var titleEl = document.getElementById('calTitle');
+  var subjectEl = document.getElementById('calSubject');
+  var resourceEl = document.getElementById('calResource');
   titleEl.focus();
   document.getElementById('modalCancel').addEventListener('click', closeModal);
+
+  var currentResourceId = existing ? (existing.resourceId || '') : '';
+  var currentResourceTitle = existing ? (existing.resourceTitle || '') : '';
+  function loadResourceOptionsFor(subjectId){
+    resourceEl.innerHTML = '<option value="">— Keine Übung verlinken —</option>';
+    if(!subjectId) return;
+    var q = query(collection(db,'resources'), where('subject','==',subjectId));
+    getDocs(q).then(function(snap){
+      var opts = ['<option value="">— Keine Übung verlinken —</option>'];
+      var found = false;
+      snap.forEach(function(d){
+        var res = d.data();
+        var label = res.title || res.fileName || d.id;
+        if(d.id === currentResourceId){ found = true; currentResourceTitle = label; }
+        opts.push('<option value="'+esc(d.id)+'"'+(d.id===currentResourceId?' selected':'')+'>'+esc(label)+'</option>');
+      });
+      resourceEl.innerHTML = opts.join('');
+      // Falls die verlinkte Übung inzwischen aus diesem Fach entfernt/verschoben wurde,
+      // Option trotzdem anzeigen, damit nichts stillschweigend verloren geht.
+      if(currentResourceId && !found){
+        var extra = document.createElement('option');
+        extra.value = currentResourceId;
+        extra.textContent = currentResourceTitle + ' (nicht mehr in diesem Fach gefunden)';
+        extra.selected = true;
+        resourceEl.appendChild(extra);
+      }
+    }).catch(function(err){ console.error(err); });
+  }
+  loadResourceOptionsFor(subjectEl.value);
+  subjectEl.addEventListener('change', function(){ currentResourceId=''; loadResourceOptionsFor(subjectEl.value); });
+
   document.getElementById('modalOk').addEventListener('click', async function(){
     var errEl = document.getElementById('calErr');
     errEl.classList.remove('show');
     var type = document.getElementById('calType').value;
-    var subject = document.getElementById('calSubject').value;
+    var subject = subjectEl.value;
     var title = titleEl.value.trim();
     var dueDate = document.getElementById('calDate').value;
     var description = document.getElementById('calDesc').value.trim();
+    var resourceId = resourceEl.value;
+    var resourceTitle = resourceId ? (resourceEl.options[resourceEl.selectedIndex].textContent||'').replace(' (nicht mehr in diesem Fach gefunden)','') : '';
     if(!title){ errEl.textContent='Bitte einen Titel eingeben.'; errEl.classList.add('show'); titleEl.focus(); return; }
     if(!dueDate){ errEl.textContent='Bitte ein Datum wählen.'; errEl.classList.add('show'); return; }
-    var data = { type:type, subject:subject, title:title.slice(0,120), description:description.slice(0,500), dueDate:dueDate };
+    var data = { type:type, subject:subject, title:title.slice(0,120), description:description.slice(0,500), dueDate:dueDate, resourceId:resourceId, resourceTitle:resourceTitle };
     try{
       if(existing){
         await setDoc(doc(db,'calendarEntries', existing.id), data, {merge:true});
@@ -566,7 +612,68 @@ function uiCalendarEntryForm(existing, onSaved){
   });
 }
 
-function wireCalendarEntryActions(container, entries, isTeacher, onChanged){
+async function loadStudentRoster(){
+  var stuSnap = await getDocs(query(collection(db,'students'), where('role','==','student')));
+  var students = [];
+  stuSnap.forEach(function(d){ students.push(Object.assign({uid:d.id}, d.data())); });
+  students.sort(function(a,b){ return (a.displayName||'').localeCompare(b.displayName||'', 'de'); });
+  return students;
+}
+
+// Abgabe-Checkliste (nur Lehrperson): pro Hausaufgaben-Eintrag ankreuzen, wer
+// bereits abgegeben hat. Gespeichert direkt auf dem Kalender-Eintrag unter
+// submitted.{uid}=true/false, per updateDoc mit Dot-Notation - das ändert
+// gezielt nur das eine Feld des verschachtelten Objekts, ohne die Abgaben
+// anderer Schüler:innen zu überschreiben.
+function submittedCountLabel(entry, roster){
+  if(!roster || !roster.length) return '';
+  var done = roster.filter(function(s){ return entry.submitted && entry.submitted[s.uid]; }).length;
+  return done+' / '+roster.length+' abgegeben';
+}
+
+function uiSubmissionChecklist(entry, roster, onChanged){
+  var rows = roster.map(function(stu){
+    var checked = entry.submitted && entry.submitted[stu.uid];
+    return '<label class="submission-row"><input type="checkbox" class="sub-check" data-uid="'+esc(stu.uid)+'"'+(checked?' checked':'')+'> '+esc(stu.displayName||stu.username)+'</label>';
+  }).join('');
+  openModal(
+    '<h3>Abgegeben: '+esc(entry.title)+'</h3>'+
+    '<div class="submission-list">'+(rows || '<div class="empty-state">Keine Schüler:innen gefunden.</div>')+'</div>'+
+    '<div class="modal-actions"><button class="btn btn-primary btn-sm" id="modalOk" type="button">Fertig</button></div>'
+  );
+  Array.prototype.forEach.call(document.querySelectorAll('.sub-check'), function(cb){
+    cb.addEventListener('change', async function(){
+      var uid = cb.getAttribute('data-uid');
+      var val = cb.checked;
+      try{
+        await updateDoc(doc(db,'calendarEntries', entry.id), 'submitted.'+uid, val);
+        entry.submitted = entry.submitted || {};
+        entry.submitted[uid] = val;
+        onChanged();
+      }catch(err){
+        console.error(err);
+        cb.checked = !val;
+        toast('Konnte nicht gespeichert werden.');
+      }
+    });
+  });
+  document.getElementById('modalOk').addEventListener('click', closeModal);
+}
+
+function wireCalendarResourceLinks(container){
+  Array.prototype.forEach.call(container.querySelectorAll('.cal-open-res-btn'), function(btn){
+    btn.addEventListener('click', async function(){
+      var rid = btn.getAttribute('data-resource-id');
+      try{
+        var snap = await getDoc(doc(db,'resources', rid));
+        if(!snap.exists()){ toast('Diese Übung wurde entfernt.'); return; }
+        goResource(Object.assign({id:rid}, snap.data()));
+      }catch(err){ console.error(err); toast('Übung konnte nicht geöffnet werden.'); }
+    });
+  });
+}
+
+function wireCalendarEntryActions(container, entries, isTeacher, onChanged, roster){
   if(!isTeacher) return;
   Array.prototype.forEach.call(container.querySelectorAll('.cal-edit-btn'), function(btn){
     btn.addEventListener('click', function(){
@@ -581,6 +688,15 @@ function wireCalendarEntryActions(container, entries, isTeacher, onChanged){
         try{ await deleteDoc(doc(db,'calendarEntries', id)); toast('Gelöscht.'); onChanged(); }
         catch(err){ console.error(err); toast('Löschen fehlgeschlagen.'); }
       }, true);
+    });
+  });
+  Array.prototype.forEach.call(container.querySelectorAll('.cal-sub-btn'), function(btn){
+    btn.addEventListener('click', function(){
+      var entry = entries.find(function(e){ return e.id===btn.getAttribute('data-id'); });
+      if(!entry || !roster) return;
+      uiSubmissionChecklist(entry, roster, function(){
+        btn.textContent = '☑ '+submittedCountLabel(entry, roster);
+      });
     });
   });
 }
@@ -599,7 +715,8 @@ function renderKalender(){
   var newBtn = document.getElementById('calNewBtn');
   if(newBtn){ newBtn.addEventListener('click', function(){ uiCalendarEntryForm(null, renderKalender); }); }
 
-  loadCalendarEntries().then(function(entries){
+  Promise.all([loadCalendarEntries(), isTeacher ? loadStudentRoster() : Promise.resolve(null)]).then(function(res){
+    var entries = res[0], roster = res[1];
     var body = document.getElementById('kalenderBody');
     if(!body) return;
     var today = todayStr();
@@ -610,16 +727,17 @@ function renderKalender(){
       h += '<div class="empty-state">Noch keine Einträge.'+(isTeacher?' Leg oben den ersten an.':'')+'</div>';
     }
     if(upcoming.length){
-      h += '<div class="cal-list">'+upcoming.map(function(e){ return calendarEntryLineHtml(e, isTeacher); }).join('')+'</div>';
+      h += '<div class="cal-list">'+upcoming.map(function(e){ return calendarEntryLineHtml(e, isTeacher, roster); }).join('')+'</div>';
     } else if(past.length){
       h += '<div class="empty-state">Keine anstehenden Einträge mehr.</div>';
     }
     if(past.length){
       h += '<h3 style="margin-top:26px;">Vergangen</h3>';
-      h += '<div class="cal-list cal-list-past">'+past.slice().reverse().map(function(e){ return calendarEntryLineHtml(e, isTeacher); }).join('')+'</div>';
+      h += '<div class="cal-list cal-list-past">'+past.slice().reverse().map(function(e){ return calendarEntryLineHtml(e, isTeacher, roster); }).join('')+'</div>';
     }
     body.innerHTML = h;
-    wireCalendarEntryActions(body, entries, isTeacher, renderKalender);
+    wireCalendarEntryActions(body, entries, isTeacher, renderKalender, roster);
+    wireCalendarResourceLinks(body);
   }).catch(function(err){
     console.error(err);
     var body = document.getElementById('kalenderBody');
@@ -1173,6 +1291,7 @@ function renderHomeworkWidget(){
     h += '<div class="cal-list">'+upcoming.map(function(e){ return calendarEntryLineHtml(e, false); }).join('')+'</div>';
     h += '</div>';
     host.innerHTML = h;
+    wireCalendarResourceLinks(host);
   }).catch(function(err){ console.error(err); });
 }
 
