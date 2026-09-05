@@ -1,0 +1,36 @@
+name: Tägliche Erinnerungen
+
+on:
+  schedule:
+    # 18:00 Uhr Schweizer Zeit abdecken (Sommer- UND Winterzeit): das Skript
+    # selbst prüft, welcher der beiden Läufe gerade wirklich 18 Uhr lokal ist,
+    # und tut beim jeweils "falschen" Lauf nichts.
+    - cron: '0 16 * * *'   # 18:00 MESZ (Sommerzeit, UTC+2)
+    - cron: '0 17 * * *'   # 18:00 MEZ  (Winterzeit, UTC+1)
+  workflow_dispatch:
+    inputs:
+      force:
+        description: 'Sofort verschicken, unabhängig von der Uhrzeit (zum Testen)'
+        required: false
+        default: 'false'
+
+jobs:
+  send-reminders:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install dependencies
+        working-directory: admin
+        run: npm install --omit=dev
+      - name: Send reminders
+        working-directory: admin
+        env:
+          FIREBASE_SERVICE_ACCOUNT_KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_KEY }}
+          VAPID_PUBLIC_KEY: ${{ secrets.VAPID_PUBLIC_KEY }}
+          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
+          VAPID_SUBJECT: ${{ secrets.VAPID_SUBJECT }}
+          FORCE_SEND: ${{ github.event.inputs.force }}
+        run: node send-reminders.js
