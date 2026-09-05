@@ -136,6 +136,10 @@
      breakpoint below, which is what keeps the topbar from overflowing sideways. */
   .topbar-user{display:flex;align-items:center;flex-wrap:wrap;gap:10px;margin-left:auto;font-size:14px;color:var(--text-muted);}
   .topbar-user b{color:var(--text);}
+  .topbar-bell{position:relative;font-size:17px;line-height:1;padding:7px 10px;}
+  .push-popover{position:fixed;top:60px;right:18px;z-index:60;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:0 10px 30px rgba(0,0,0,.18);padding:14px 16px;width:270px;}
+  .push-popover h4{margin:0 0 6px;font-size:14.5px;}
+  .push-popover .push-hint{font-size:12.5px;color:var(--text-muted);margin:4px 0 10px;}
   @media (max-width:480px){
     .topbar{padding:12px 16px;gap:10px;}
     .topbar-user{font-size:12.5px;gap:7px;}
@@ -617,7 +621,13 @@ function uiCalendarEntryForm(existing, onSaved){
 async function loadStudentRoster(){
   var stuSnap = await getDocs(query(collection(db,'students'), where('role','==','student')));
   var students = [];
-  stuSnap.forEach(function(d){ students.push(Object.assign({uid:d.id}, d.data())); });
+  // Der generische Demo-/Test-Account "schueler" ist kein echter Schüler und
+  // soll nirgends mitgezählt werden (Abgabe-Checkliste, Lernstand-Übersicht etc.).
+  stuSnap.forEach(function(d){
+    var data = d.data();
+    if((data.username||'').toLowerCase() === 'schueler') return;
+    students.push(Object.assign({uid:d.id}, data));
+  });
   students.sort(function(a,b){ return (a.displayName||'').localeCompare(b.displayName||'', 'de'); });
   return students;
 }
@@ -745,23 +755,23 @@ async function disablePushReminders(){
   catch(err){ console.error(err); }
 }
 
-function renderPushWidget(){
-  var host = document.getElementById('pushWidget');
+function renderPushPopover(){
+  var host = document.getElementById('pushPopover');
   if(!host) return;
   if(!pushSupported()){
-    host.innerHTML = '<div class="card push-card"><h3 style="margin-top:0;">🔔 Erinnerungen</h3>'+
-      '<div class="push-hint">Dieser Browser unterstützt keine Erinnerungen. Auf dem iPhone: Safari öffnen, dann über "Teilen" &rarr; "Zum Home-Bildschirm" hinzufügen und von dort erneut öffnen.</div></div>';
+    host.innerHTML = '<h4>🔔 Erinnerungen</h4>'+
+      '<div class="push-hint">Dieser Browser unterstützt keine Erinnerungen. Auf dem iPhone: Safari öffnen, dann über "Teilen" &rarr; "Zum Home-Bildschirm" hinzufügen und von dort erneut öffnen.</div>';
     return;
   }
   if(isIos() && !isStandalonePwa()){
-    host.innerHTML = '<div class="card push-card"><h3 style="margin-top:0;">🔔 Erinnerungen</h3>'+
-      '<div class="push-hint">Auf dem iPhone funktionieren Erinnerungen nur, wenn diese Seite zuerst über "Teilen" &rarr; "Zum Home-Bildschirm" hinzugefügt und von dort geöffnet wird.</div></div>';
+    host.innerHTML = '<h4>🔔 Erinnerungen</h4>'+
+      '<div class="push-hint">Auf dem iPhone funktionieren Erinnerungen nur, wenn diese Seite zuerst über "Teilen" &rarr; "Zum Home-Bildschirm" hinzugefügt und von dort geöffnet wird.</div>';
     return;
   }
-  host.innerHTML = '<div class="card push-card"><h3 style="margin-top:0;">🔔 Erinnerungen</h3>'+
-    '<div class="push-hint">Erhalte am Vortag um 18 Uhr eine Erinnerung an fällige Hausaufgaben, Abgaben und Prüfungen.</div>'+
+  host.innerHTML = '<h4>🔔 Erinnerungen</h4>'+
+    '<div class="push-hint">Erhalte am Vortag um 18 Uhr eine Erinnerung an fällige Hausaufgaben, Abgaben, Prüfungen und Erinnerungen.</div>'+
     '<div id="pushStatus" class="push-hint">Wird geprüft …</div>'+
-    '<button class="btn btn-primary btn-sm" id="pushToggleBtn" type="button" disabled>…</button></div>';
+    '<button class="btn btn-primary btn-sm" id="pushToggleBtn" type="button" disabled>…</button>';
   var statusEl = document.getElementById('pushStatus');
   var btn = document.getElementById('pushToggleBtn');
   getPushSubscription().then(function(sub){
@@ -769,12 +779,13 @@ function renderPushWidget(){
     statusEl.textContent = active ? 'Erinnerungen sind aktiviert.' : 'Erinnerungen sind noch nicht aktiviert.';
     btn.textContent = active ? 'Erinnerungen deaktivieren' : 'Erinnerungen aktivieren';
     btn.disabled = false;
-    btn.onclick = async function(){
+    btn.onclick = async function(ev){
+      if(ev) ev.stopPropagation();
       btn.disabled = true;
       try{
         if(active){ await disablePushReminders(); toast('Erinnerungen deaktiviert.'); }
         else { await enablePushReminders(); toast('Erinnerungen aktiviert.'); }
-        renderPushWidget();
+        renderPushPopover();
       }catch(err){
         console.error(err);
         if(err && err.message === 'denied'){ toast('Bitte Benachrichtigungen im Browser erlauben.'); }
@@ -906,10 +917,7 @@ async function loadDiktatAuswertung(){
   diktatResources.sort(function(a,b){ return (a.title||'').localeCompare(b.title||'', 'de'); });
   result.resources = diktatResources;
 
-  var stuSnap = await getDocs(query(collection(db,'students'), where('role','==','student')));
-  var students = [];
-  stuSnap.forEach(function(d){ students.push(Object.assign({uid:d.id}, d.data())); });
-  students.sort(function(a,b){ return (a.displayName||'').localeCompare(b.displayName||'', 'de'); });
+  var students = await loadStudentRoster();
   result.students = students;
 
   // Jedes {Schüler:in x Diktat}-Paar einzeln lesen (Lehrperson-Leserecht laut
@@ -1054,10 +1062,7 @@ async function loadLernstandUebersicht(){
     return (a.title||a.fileName||'').localeCompare(b.title||b.fileName||'', 'de');
   });
 
-  var stuSnap = await getDocs(query(collection(db,'students'), where('role','==','student')));
-  var students = [];
-  stuSnap.forEach(function(d){ students.push(Object.assign({uid:d.id}, d.data())); });
-  students.sort(function(a,b){ return (a.displayName||'').localeCompare(b.displayName||'', 'de'); });
+  var students = await loadStudentRoster();
 
   var reads = [];
   students.forEach(function(stu){
@@ -1321,9 +1326,11 @@ function renderChrome(innerHtml){
   html += '<div class="topbar-user">';
   if(isTeacher){ html += '<span class="badge-teacher">Lehrperson</span>'; }
   html += '<span>Hallo, <b>'+esc(state.profile.displayName)+'</b></span>';
+  html += '<button class="btn btn-ghost btn-sm topbar-bell" id="pushBellBtn" type="button" title="Erinnerungen">🔔</button>';
   if(isTeacher){ html += '<button class="btn btn-ghost btn-sm" id="pwBtn" title="Passwort dieses Kontos ändern">Passwort</button>'; }
   html += '<button class="btn btn-ghost btn-sm" id="logoutBtn">Abmelden</button>';
   html += '</div></div>';
+  html += '<div class="push-popover" id="pushPopover" hidden></div>';
   html += '<div class="content">'+innerHtml+'</div>';
   app.innerHTML = html;
 
@@ -1332,6 +1339,20 @@ function renderChrome(innerHtml){
   document.getElementById('logoutBtn').addEventListener('click', doLogout);
   var pwBtn = document.getElementById('pwBtn');
   if(pwBtn){ pwBtn.addEventListener('click', uiChangePassword); }
+
+  document.getElementById('pushBellBtn').addEventListener('click', function(e){
+    e.stopPropagation();
+    var pop = document.getElementById('pushPopover');
+    var willShow = pop.hidden;
+    pop.hidden = !willShow;
+    if(willShow) renderPushPopover();
+  });
+  document.addEventListener('click', function(e){
+    var pop = document.getElementById('pushPopover');
+    if(!pop || pop.hidden) return;
+    if(pop.contains(e.target) || e.target.id === 'pushBellBtn') return;
+    pop.hidden = true;
+  });
 }
 
 /* ===================== RENDER: HOME ===================== */
@@ -1359,7 +1380,6 @@ function renderHome(){
   }
   html += '</div>';
   html += '<div id="homeworkWidget"></div>';
-  html += '<div id="pushWidget"></div>';
   html += '<div class="subject-grid" id="subjectGrid">';
   var visibleSubjects = SUBJECTS.filter(function(s){ return !s.teacherOnly || isTeacher; });
   visibleSubjects.forEach(function(s){
@@ -1384,24 +1404,23 @@ function renderHome(){
   }
   document.getElementById('kalenderBtn').addEventListener('click', function(){ state.route = {name:'kalender'}; render(); });
   renderHomeworkWidget();
-  renderPushWidget();
 
   // subscribe to all visible subjects' resource counts (light overview)
   visibleSubjects.forEach(function(s){ watchSubjectOverview(s.id); });
 }
 
-// Kleines "Hausaufgaben der nächsten 7 Tage"-Widget auf der Startseite -
-// bewusst nur Typ "hausaufgabe" (nicht Abgaben/Prüfungen/Erinnerungen),
-// die volle Übersicht gibt es über den Kalender-Knopf.
+// Kleines "Die nächsten 7 Tage"-Widget auf der Startseite - zeigt alle
+// Eintragstypen (Hausaufgaben, Abgaben, Prüfungen, Erinnerungen); die volle
+// Übersicht gibt es über den Kalender-Knopf.
 function renderHomeworkWidget(){
   var host = document.getElementById('homeworkWidget');
   if(!host) return;
   loadCalendarEntries().then(function(entries){
     if(!document.getElementById('homeworkWidget')) return; // Seite inzwischen gewechselt
     var today = todayStr(), horizon = addDaysStr(7);
-    var upcoming = entries.filter(function(e){ return e.type==='hausaufgabe' && e.dueDate>=today && e.dueDate<=horizon; });
+    var upcoming = entries.filter(function(e){ return e.dueDate>=today && e.dueDate<=horizon; });
     if(!upcoming.length){ host.innerHTML=''; return; }
-    var h = '<div class="card homework-card"><h3 style="margin-top:0;">📘 Hausaufgaben der nächsten 7 Tage</h3>';
+    var h = '<div class="card homework-card"><h3 style="margin-top:0;">📘 Die nächsten 7 Tage</h3>';
     h += '<div class="cal-list">'+upcoming.map(function(e){ return calendarEntryLineHtml(e, false); }).join('')+'</div>';
     h += '</div>';
     host.innerHTML = h;
