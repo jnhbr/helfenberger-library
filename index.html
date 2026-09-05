@@ -165,6 +165,7 @@
   @media (max-width:840px){ .subject-grid{grid-template-columns:repeat(2,1fr);} }
   @media (max-width:560px){ .subject-grid{grid-template-columns:1fr;} }
   .subject-card{background:var(--surface);border:1px solid var(--border);border-radius:22px;padding:22px 20px;text-align:left;box-shadow:var(--shadow);transition:transform .15s ease, box-shadow .15s ease;display:flex;align-items:center;gap:18px;min-height:150px;}
+  .subject-card-wide{grid-column:1/-1;}
   .subject-card:hover{transform:translateY(-3px);box-shadow:0 18px 34px -16px rgba(20,20,40,.32);}
   .subject-card-body{flex:1;min-width:0;display:flex;flex-direction:column;gap:9px;}
   .subject-visual{border-radius:18px;display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden;}
@@ -391,6 +392,7 @@ function subjectVisual(s){
 }
 
 const SUBJECTS = [
+  {id:'lehrerbereich', name:'Lehrerbereich', color:'#475569', soft:'#E2E6EC', img:'assets/subject-lehrerbereich.png', teacherOnly:true, wide:true},
   {id:'mathe', name:'Mathe', color:'#4361EE', soft:'#E4E8FD', img:'assets/subject-mathe.png'},
   {id:'deutsch', name:'Deutsch', color:'#E63950', soft:'#FBDEE2', img:'assets/subject-deutsch.png'},
   {id:'geschichte', name:'Geschichte', color:'#C98B1F', soft:'#F6E8CC', img:'assets/subject-geschichte.png'},
@@ -605,8 +607,9 @@ function renderHome(){
     +'</p>';
   html += '</div></div>';
   html += '<div class="subject-grid" id="subjectGrid">';
-  SUBJECTS.forEach(function(s){
-    html += '<button class="subject-card" data-subject="'+s.id+'">';
+  var visibleSubjects = SUBJECTS.filter(function(s){ return !s.teacherOnly || isTeacher; });
+  visibleSubjects.forEach(function(s){
+    html += '<button class="subject-card'+(s.wide ? ' subject-card-wide' : '')+'" data-subject="'+s.id+'">';
     html += '<div class="subject-visual" style="background:'+s.soft+';">'+s.icon+'</div>';
     html += '<div class="subject-card-body">';
     html += '<h3>'+s.name+'</h3>';
@@ -622,8 +625,8 @@ function renderHome(){
     btn.addEventListener('click', function(){ goSubject(btn.getAttribute('data-subject')); });
   });
 
-  // subscribe to all subjects' resource counts (light overview)
-  SUBJECTS.forEach(function(s){ watchSubjectOverview(s.id); });
+  // subscribe to all visible subjects' resource counts (light overview)
+  visibleSubjects.forEach(function(s){ watchSubjectOverview(s.id); });
 }
 
 var overviewUnsubs = {};
