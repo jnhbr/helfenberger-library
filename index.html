@@ -215,6 +215,8 @@
   .weak-bar-track{flex:1;height:9px;background:var(--surface-2);border-radius:6px;overflow:hidden;}
   .weak-bar-fill{height:100%;border-radius:6px;}
   .weak-bar-count{width:24px;text-align:right;font-size:12.5px;color:var(--text-muted);}
+  .table-scroll{overflow-x:auto;}
+  .da-reset-badge{display:inline-block;background:var(--bad-soft);color:var(--bad);border-radius:999px;padding:1px 7px;font-size:11px;font-weight:700;margin-left:4px;cursor:help;white-space:nowrap;}
 
 
   /* ---------- Ordner (Unterordner pro Fach) ---------- */
@@ -580,6 +582,135 @@ function renderDiktatAuswertung(){
   });
 }
 
+/* ===================== LERNSTAND-ÜBERSICHT (alle Fächer, Lehrperson) =====================
+   Zeigt für jede Übung in jedem Fach, ob und wie viel jede/r Schüler:in
+   gelernt hat - aktueller Stand plus die komplette Reset-Historie (siehe
+   writeProgressWithHistory oben). Baut auf denselben Rohdaten wie die
+   Diktat-Auswertung, aber fachübergreifend und mit sichtbarer Historie. */
+
+function fmtLearnedSummary(s){
+  if(!s) return '–';
+  if(s.kind==='quiz') return s.attempted+' / '+s.total+(s.pct!==null ? ' ('+s.pct+'% richtig)' : '');
+  return s.pct+'% richtig (Versuch '+s.attemptCount+')';
+}
+function fmtHistoryEntry(h){
+  var d = new Date(h.archivedAt);
+  var ds = isNaN(d) ? h.archivedAt : d.toLocaleDateString('de-CH', {day:'2-digit', month:'2-digit', year:'numeric'});
+  return ds+': '+fmtLearnedSummary(h.summary);
+}
+
+async function loadLernstandUebersicht(){
+  var resSnap = await getDocs(collection(db,'resources'));
+  var resources = [];
+  resSnap.forEach(function(d){ resources.push(Object.assign({id:d.id}, d.data())); });
+  resources.sort(function(a,b){
+    var sa = subjectById(a.subject), sb = subjectById(b.subject);
+    var sn = (sa?sa.name:a.subject).localeCompare(sb?sb.name:b.subject, 'de');
+    if(sn!==0) return sn;
+    return (a.title||a.fileName||'').localeCompare(b.title||b.fileName||'', 'de');
+  });
+
+  var stuSnap = await getDocs(query(collection(db,'students'), where('role','==','student')));
+  var students = [];
+  stuSnap.forEach(function(d){ students.push(Object.assign({uid:d.id}, d.data())); });
+  students.sort(function(a,b){ return (a.displayName||'').localeCompare(b.displayName||'', 'de'); });
+
+  var reads = [];
+  students.forEach(function(stu){
+    resources.forEach(function(res){
+      reads.push(
+        getDoc(doc(db,'progress', stu.uid, 'resources', res.id)).then(function(snap){
+          return {uid:stu.uid, resId:res.id, data: snap.exists() ? snap.data() : null};
+        }).catch(function(){ return {uid:stu.uid, resId:res.id, data:null}; })
+      );
+    });
+  });
+  var settled = await Promise.all(reads);
+
+  var bySubject = {};
+  resources.forEach(function(res){
+    if(!bySubject[res.subject]) bySubject[res.subject] = {resources:[], cell:{}};
+    bySubject[res.subject].resources.push(res);
+  });
+  settled.forEach(function(r){
+    var subj = resources.find(function(x){ return x.id===r.resId; }).subject;
+    bySubject[subj].cell[r.uid+'|'+r.resId] = {
+      current: learnedSummary(r.data),
+      history: (r.data && Array.isArray(r.data.history)) ? r.data.history : []
+    };
+  });
+
+  return {students:students, bySubject:bySubject};
+}
+
+function renderLernstandUebersicht(){
+  clearSubjectWatchers(); clearOverviewWatchers(); unwatchAllProgress();
+  var html = '<div class="back-row"><button class="btn btn-ghost btn-sm" id="backBtn">&larr; Start</button></div>';
+  html += '<h2>📈 Lernstand-Übersicht</h2>';
+  html += '<p class="muted" style="margin:-6px 0 14px;">Aktueller Stand pro Schüler:in und Übung, über alle Fächer. „↺" = wie oft zurückgesetzt, mit dem jeweiligen Stand unmittelbar davor. Nur für dich sichtbar.</p>';
+  html += '<div id="lernstandBody"><div class="empty-state">Wird geladen …</div></div>';
+  renderChrome(html);
+  document.getElementById('backBtn').addEventListener('click', goHome);
+
+  loadLernstandUebersicht().then(function(result){
+    var body = document.getElementById('lernstandBody');
+    if(!body) return;
+    var subjectIds = Object.keys(result.bySubject).filter(function(id){ return result.bySubject[id].resources.length>0; });
+    subjectIds.sort(function(a,b){
+      var sa = subjectById(a), sb = subjectById(b);
+      return (sa?sa.name:a).localeCompare(sb?sb.name:b, 'de');
+    });
+    if(!subjectIds.length){ body.innerHTML = '<div class="empty-state">Noch keine Übungen vorhanden.</div>'; return; }
+
+    var h = '<div class="da-toolbar"><button class="btn btn-ghost btn-sm" id="lsReloadBtn" type="button">↻ Neu laden</button></div>';
+    subjectIds.forEach(function(subjId){
+      var sub = result.bySubject[subjId];
+      var s = subjectById(subjId);
+      h += '<h3 style="margin-top:22px;">'+(s?s.name:subjId)+'</h3>';
+      h += '<div class="table-scroll"><table class="da-table"><thead><tr><th>Schüler:in</th>';
+      sub.resources.forEach(function(res){ h += '<th>'+esc(res.title||res.fileName)+'</th>'; });
+      h += '</tr></thead><tbody>';
+      result.students.forEach(function(stu){
+        h += '<tr><td>'+esc(stu.displayName)+'</td>';
+        sub.resources.forEach(function(res){
+          var cell = sub.cell[stu.uid+'|'+res.id];
+          var current = cell ? cell.current : null;
+          var histCount = cell ? cell.history.length : 0;
+          h += '<td>'+esc(fmtLearnedSummary(current)) + (histCount ? ' <span class="da-reset-badge" title="'+esc(cell.history.map(fmtHistoryEntry).join(' · '))+'">↺'+histCount+'</span>' : '') + '</td>';
+        });
+        h += '</tr>';
+      });
+      h += '</tbody></table></div>';
+
+      // Ausführliche Historie nur für Zellen mit mindestens einem Reset anzeigen.
+      var histLines = [];
+      result.students.forEach(function(stu){
+        sub.resources.forEach(function(res){
+          var cell = sub.cell[stu.uid+'|'+res.id];
+          if(cell && cell.history.length){
+            histLines.push({stu:stu, res:res, cell:cell});
+          }
+        });
+      });
+      if(histLines.length){
+        h += '<div class="da-student-card"><h4 style="margin-top:0;">Reset-Verlauf</h4>';
+        histLines.forEach(function(l){
+          h += '<p class="small" style="margin:6px 0;"><strong>'+esc(l.stu.displayName)+'</strong> · '+esc(l.res.title||l.res.fileName)+':<br>'+
+            l.cell.history.map(fmtHistoryEntry).map(esc).join('<br>')+'</p>';
+        });
+        h += '</div>';
+      }
+    });
+
+    body.innerHTML = h;
+    document.getElementById('lsReloadBtn').addEventListener('click', renderLernstandUebersicht);
+  }).catch(function(err){
+    console.error(err);
+    var body = document.getElementById('lernstandBody');
+    if(body) body.innerHTML = '<div class="empty-state">Übersicht konnte nicht geladen werden.</div>';
+  });
+}
+
 /* ===================== STATE ===================== */
 
 var state = {
@@ -777,6 +908,9 @@ function renderHome(){
     : 'Diese Seite ist Übungsplattform und Infoseite für den Unterricht bei Herrn Helfenberger in einem: Trainiere die Themen deiner Fächer, und schau im jeweiligen Fach nach, welches Thema rot markiert ist – so siehst du, woran wir gerade arbeiten.')
     +'</p>';
   html += '</div></div>';
+  if(isTeacher){
+    html += '<div class="back-row"><button class="btn btn-ghost btn-sm" id="lernstandBtn" type="button">📈 Lernstand-Übersicht (alle Fächer)</button></div>';
+  }
   html += '<div class="subject-grid" id="subjectGrid">';
   var visibleSubjects = SUBJECTS.filter(function(s){ return !s.teacherOnly || isTeacher; });
   visibleSubjects.forEach(function(s){
@@ -795,6 +929,10 @@ function renderHome(){
   Array.prototype.forEach.call(document.querySelectorAll('.subject-card'), function(btn){
     btn.addEventListener('click', function(){ goSubject(btn.getAttribute('data-subject')); });
   });
+  var lernstandBtn = document.getElementById('lernstandBtn');
+  if(lernstandBtn){
+    lernstandBtn.addEventListener('click', function(){ state.route = {name:'lernstand'}; render(); });
+  }
 
   // subscribe to all visible subjects' resource counts (light overview)
   visibleSubjects.forEach(function(s){ watchSubjectOverview(s.id); });
@@ -1751,6 +1889,91 @@ function scheduleStoreWrite(rid){
   syncState.writeTimer = setTimeout(function(){ writeStore(rid); }, SYNC_DEBOUNCE_MS);
 }
 
+/* ===================== LERNSTAND-HISTORIE (überlebt "Zurücksetzen") =====
+
+   Wunsch von Jan: auch wenn ein Kind seinen Übungsstand zurücksetzt, soll
+   sichtbar bleiben, OB und WIE VIEL vorher gelernt wurde - für alle
+   Übungen, nicht nur Diktate. Die Übungsseiten selbst sollen dafür NICHT
+   angepasst werden müssen (unterschiedliche Formate: die Quiz-Lernpakete
+   melden stats/total per postMessage, die Diktate ihren Stand über den
+   generischen localStorage-Sync/storeJson - siehe oben).
+
+   Lösung: an der einzigen Stelle, an der progress/{uid}/resources/{rid}
+   tatsächlich geschrieben wird (writeProgressWithHistory, von beiden
+   Schreibpfaden benutzt), wird VOR jedem Schreiben zuerst der bisherige
+   Stand gelesen und in einen normalisierten "Lernstand" umgerechnet
+   (learnedSummary). Fällt dieser Wert von "etwas" auf "nichts" (= ein
+   Reset-Knopf wurde gedrückt), wird der alte Stand zuerst in ein
+   history-Array gehängt, bevor die neuen (leeren) Werte geschrieben
+   werden. Nur ab jetzt - bereits vor diesem Update erfolgte Resets sind
+   nicht mehr rekonstruierbar. */
+
+var PROGRESS_HISTORY_MAX = 50;
+
+// Rechnet die auf progress/{uid}/resources/{rid} gespeicherten Rohdaten in
+// einen einzigen, vergleichbaren "Lernstand" um - unabhängig davon, ob die
+// Übung über stats/total (Quiz-Lernpakete) oder storeJson (Diktate, über
+// den generischen Sync) meldet. null = noch kein auswertbarer Lernstand.
+function learnedSummary(data){
+  if(!data) return null;
+  if(data.stats && typeof data.total === 'number'){
+    var attempted=0, correct=0;
+    Object.keys(data.stats).forEach(function(k){
+      if(data.stats[k] && data.stats[k].status){ attempted++; if(data.stats[k].status==='correct') correct++; }
+    });
+    if(attempted>0){
+      return { kind:'quiz', attempted:attempted, correct:correct, total:data.total,
+        pct: data.total ? Math.round(correct/data.total*100) : null };
+    }
+  }
+  if(data.storeJson){
+    try{
+      var store = JSON.parse(data.storeJson);
+      var attemptsKey = Object.keys(store).filter(function(k){ return /_attempts$/.test(k); })[0];
+      if(attemptsKey){
+        var attempts = JSON.parse(store[attemptsKey]);
+        if(Array.isArray(attempts) && attempts.length){
+          var last = attempts[attempts.length-1];
+          return { kind:'diktat', attemptCount:attempts.length, pct:last.pct, correct:last.correct, total:last.total, lastDate:last.date };
+        }
+      }
+    }catch(e){}
+  }
+  return null;
+}
+function summaryAmount(s){
+  if(!s) return 0;
+  return s.kind==='quiz' ? s.attempted : s.attemptCount;
+}
+
+// Einziger Schreibweg nach progress/{uid}/resources/{rid}. Liest zuerst den
+// aktuellen Stand, erkennt einen Reset (Lernstand fällt auf 0) und sichert
+// ihn dann als history-Eintrag, bevor die neuen Felder geschrieben werden.
+async function writeProgressWithHistory(uid, rid, newFields){
+  var ref_ = doc(db, 'progress', uid, 'resources', rid);
+  var before = null;
+  try{
+    var snap = await getDoc(ref_);
+    before = snap.exists() ? snap.data() : null;
+  }catch(e){
+    console.error('Lernstand konnte vor dem Schreiben nicht gelesen werden', e);
+  }
+
+  var merged = Object.assign({}, before||{}, newFields);
+  var oldSummary = learnedSummary(before);
+  var newSummary = learnedSummary(merged);
+  var payload = Object.assign({}, newFields);
+
+  if(oldSummary && summaryAmount(oldSummary) > 0 && summaryAmount(newSummary) === 0){
+    var history = (before && Array.isArray(before.history)) ? before.history.slice() : [];
+    history.push({ archivedAt: new Date().toISOString(), summary: oldSummary });
+    if(history.length > PROGRESS_HISTORY_MAX) history = history.slice(history.length - PROGRESS_HISTORY_MAX);
+    payload.history = history;
+  }
+
+  return setDoc(ref_, payload, {merge:true});
+}
+
 function writeStore(rid){
   if(!state.user || syncState.resourceId !== rid) return;
   var payload = buildStorePayload();
@@ -1765,12 +1988,12 @@ function writeStore(rid){
   setLocalRev(rid, rev);
   saveTrackedKeys(rid, syncState.tracked);
   syncState.lastWritten = payload.json;
-  setDoc(doc(db,'progress', state.user.uid, 'resources', rid), {
+  writeProgressWithHistory(state.user.uid, rid, {
     storeJson: payload.json,
     storeKeys: payload.keys,
     storeRev: rev,
     storeAt: serverTimestamp()
-  }, {merge:true}).catch(function(err){
+  }).catch(function(err){
     console.error('Stand konnte nicht gespeichert werden', err);
     syncState.lastWritten = null;   // beim nächsten Versuch erneut schreiben
   });
@@ -1968,11 +2191,11 @@ window.addEventListener('message', function(e){
   checkLocalChanges(resourceId);
   clearTimeout(progressWriteTimers[resourceId]);
   progressWriteTimers[resourceId] = setTimeout(function(){
-    setDoc(doc(db,'progress', state.user.uid, 'resources', resourceId), {
+    writeProgressWithHistory(state.user.uid, resourceId, {
       stats: data.stats || {},
       total: typeof data.total === 'number' ? data.total : null,
       updatedAt: serverTimestamp()
-    }, {merge:true}).catch(function(err){ console.error('progress write failed', err); });
+    }).catch(function(err){ console.error('progress write failed', err); });
   }, 500);
 });
 
@@ -1995,6 +2218,7 @@ function render(){
   if(state.route.name === 'subject'){ renderSubject(state.route.subject, state.route.folderId || null); return; }
   if(state.route.name === 'resource'){ renderResource(state.route.resource); return; }
   if(state.route.name === 'diktatauswertung'){ renderDiktatAuswertung(); return; }
+  if(state.route.name === 'lernstand'){ renderLernstandUebersicht(); return; }
 }
 </script>
 </body>
