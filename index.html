@@ -271,6 +271,8 @@
   .cal-list-past{opacity:.6;}
   .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px;margin-bottom:16px;}
   .homework-card{border-left:5px solid #4361EE;}
+  .push-card{border-left:5px solid #8B5CF6;}
+  .push-hint{font-size:13px;color:var(--text-muted);margin:4px 0 10px;}
   .pick-list{display:flex;flex-direction:column;gap:6px;margin-bottom:16px;}
   .pick-item{display:flex;align-items:center;gap:8px;width:100%;text-align:left;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:var(--surface-2);font:inherit;color:var(--text);cursor:pointer;}
   .pick-item:hover:not(:disabled){border-color:var(--brand);background:var(--surface);}
@@ -671,6 +673,116 @@ function wireCalendarResourceLinks(container){
       }catch(err){ console.error(err); toast('Übung konnte nicht geöffnet werden.'); }
     });
   });
+}
+
+/* ===================== PUSH-BENACHRICHTIGUNGEN (Erinnerung am Vortag, 18 Uhr) =====================
+   Web-Push: der Client abonniert hier über den Service Worker (sw-push.js) einen
+   Push-Endpunkt und speichert das Abo in Firestore. Ein täglicher GitHub-Actions-
+   Cronjob (admin/send-reminders.js, ausserhalb dieser App) liest morgen fällige
+   calendarEntries und verschickt darüber die eigentliche Benachrichtigung - diese
+   Datei selbst verschickt nichts, sie verwaltet nur das Abonnement.
+   Öffentlicher VAPID-Schlüssel (unbedenklich, im Client sichtbar - das Gegenstück,
+   der private Schlüssel, existiert NUR als GitHub-Actions-Secret, niemals hier). */
+var VAPID_PUBLIC_KEY = 'BLvslDoJ7RaXfa09e7SpnLg_JWDJKPPi_18NxHRr_NUvvEEtuTBGPUI2dj5oofL8dEECLkKZxXUMGcGbr29MaSQ';
+
+function urlBase64ToUint8Array(base64String){
+  var padding = '='.repeat((4 - base64String.length % 4) % 4);
+  var base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  var rawData = atob(base64);
+  var outputArray = new Uint8Array(rawData.length);
+  for(var i=0;i<rawData.length;i++){ outputArray[i] = rawData.charCodeAt(i); }
+  return outputArray;
+}
+
+async function sha1Hex(str){
+  var buf = await crypto.subtle.digest('SHA-1', new TextEncoder().encode(str));
+  return Array.prototype.map.call(new Uint8Array(buf), function(b){ return b.toString(16).padStart(2,'0'); }).join('');
+}
+
+function pushSupported(){
+  return typeof navigator !== 'undefined' && 'serviceWorker' in navigator && 'PushManager' in window && window.isSecureContext;
+}
+function isIos(){
+  return /iphone|ipad|ipod/i.test(navigator.userAgent);
+}
+function isStandalonePwa(){
+  return (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;
+}
+
+async function getPushSubscription(){
+  if(!pushSupported()) return null;
+  var reg = await navigator.serviceWorker.getRegistration('./');
+  if(!reg) return null;
+  return reg.pushManager.getSubscription();
+}
+
+async function enablePushReminders(){
+  var reg = await navigator.serviceWorker.register('sw-push.js');
+  await navigator.serviceWorker.ready;
+  var permission = await Notification.requestPermission();
+  if(permission !== 'granted'){ throw new Error('denied'); }
+  var sub = await reg.pushManager.subscribe({
+    userVisibleOnly: true,
+    applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+  });
+  var subJson = sub.toJSON();
+  var subId = await sha1Hex(subJson.endpoint);
+  await setDoc(doc(db, 'pushSubscriptions', state.user.uid, 'devices', subId), {
+    endpoint: subJson.endpoint,
+    keys: subJson.keys,
+    userAgent: navigator.userAgent,
+    createdAt: serverTimestamp()
+  });
+}
+
+async function disablePushReminders(){
+  var sub = await getPushSubscription();
+  if(!sub) return;
+  var subJson = sub.toJSON();
+  var subId = await sha1Hex(subJson.endpoint);
+  await sub.unsubscribe();
+  try{ await deleteDoc(doc(db, 'pushSubscriptions', state.user.uid, 'devices', subId)); }
+  catch(err){ console.error(err); }
+}
+
+function renderPushWidget(){
+  var host = document.getElementById('pushWidget');
+  if(!host) return;
+  if(!pushSupported()){
+    host.innerHTML = '<div class="card push-card"><h3 style="margin-top:0;">🔔 Erinnerungen</h3>'+
+      '<div class="push-hint">Dieser Browser unterstützt keine Erinnerungen. Auf dem iPhone: Safari öffnen, dann über "Teilen" &rarr; "Zum Home-Bildschirm" hinzufügen und von dort erneut öffnen.</div></div>';
+    return;
+  }
+  if(isIos() && !isStandalonePwa()){
+    host.innerHTML = '<div class="card push-card"><h3 style="margin-top:0;">🔔 Erinnerungen</h3>'+
+      '<div class="push-hint">Auf dem iPhone funktionieren Erinnerungen nur, wenn diese Seite zuerst über "Teilen" &rarr; "Zum Home-Bildschirm" hinzugefügt und von dort geöffnet wird.</div></div>';
+    return;
+  }
+  host.innerHTML = '<div class="card push-card"><h3 style="margin-top:0;">🔔 Erinnerungen</h3>'+
+    '<div class="push-hint">Erhalte am Vortag um 18 Uhr eine Erinnerung an fällige Hausaufgaben, Abgaben und Prüfungen.</div>'+
+    '<div id="pushStatus" class="push-hint">Wird geprüft …</div>'+
+    '<button class="btn btn-primary btn-sm" id="pushToggleBtn" type="button" disabled>…</button></div>';
+  var statusEl = document.getElementById('pushStatus');
+  var btn = document.getElementById('pushToggleBtn');
+  getPushSubscription().then(function(sub){
+    var active = !!sub;
+    statusEl.textContent = active ? 'Erinnerungen sind aktiviert.' : 'Erinnerungen sind noch nicht aktiviert.';
+    btn.textContent = active ? 'Erinnerungen deaktivieren' : 'Erinnerungen aktivieren';
+    btn.disabled = false;
+    btn.onclick = async function(){
+      btn.disabled = true;
+      try{
+        if(active){ await disablePushReminders(); toast('Erinnerungen deaktiviert.'); }
+        else { await enablePushReminders(); toast('Erinnerungen aktiviert.'); }
+        renderPushWidget();
+      }catch(err){
+        console.error(err);
+        if(err && err.message === 'denied'){ toast('Bitte Benachrichtigungen im Browser erlauben.'); }
+        else { toast('Erinnerungen konnten nicht aktiviert werden.'); }
+        btn.disabled = false;
+      }
+    };
+  }).catch(function(err){ console.error(err); statusEl.textContent = 'Status konnte nicht geprüft werden.'; });
 }
 
 function wireCalendarEntryActions(container, entries, isTeacher, onChanged, roster){
@@ -1247,6 +1359,7 @@ function renderHome(){
   }
   html += '</div>';
   html += '<div id="homeworkWidget"></div>';
+  html += '<div id="pushWidget"></div>';
   html += '<div class="subject-grid" id="subjectGrid">';
   var visibleSubjects = SUBJECTS.filter(function(s){ return !s.teacherOnly || isTeacher; });
   visibleSubjects.forEach(function(s){
@@ -1271,6 +1384,7 @@ function renderHome(){
   }
   document.getElementById('kalenderBtn').addEventListener('click', function(){ state.route = {name:'kalender'}; render(); });
   renderHomeworkWidget();
+  renderPushWidget();
 
   // subscribe to all visible subjects' resource counts (light overview)
   visibleSubjects.forEach(function(s){ watchSubjectOverview(s.id); });
