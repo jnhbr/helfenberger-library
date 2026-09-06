@@ -8,6 +8,16 @@
 <link rel="apple-touch-icon" href="assets/icon-180.png">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#3A3F73">
+<script>
+// Gespeicherte Dark-/Light-Mode-Wahl VOR dem ersten Rendern setzen, sonst blitzt
+// beim Laden kurz das falsche Theme auf (Systemvorgabe statt manueller Wahl).
+(function(){
+  try{
+    var t = localStorage.getItem('hl_theme');
+    if(t === 'dark' || t === 'light'){ document.documentElement.setAttribute('data-theme', t); }
+  }catch(e){}
+})();
+</script>
 <!-- "Zum Home-Bildschirm hinzufügen" auf iOS ignoriert das Web-Manifest weitgehend und
      braucht diese eigenen Meta-Tags, um als eigenständige App (ohne Safari-Chrome) zu starten. -->
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -277,6 +287,14 @@
   .submission-row{display:flex;align-items:center;gap:8px;font-size:14.5px;padding:4px 2px;}
   .cal-entry-actions{flex:none;display:flex;flex-direction:column;gap:4px;}
   .cal-list-past{opacity:.6;}
+
+  .search-results{max-height:360px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;margin-top:2px;}
+  .search-result-row{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:10px;border:1px solid transparent;background:var(--surface-2);cursor:pointer;text-align:left;width:100%;font:inherit;color:inherit;}
+  .search-result-row:hover,.search-result-row:focus-visible{border-color:var(--border);outline:none;}
+  .search-result-icon{flex:none;width:11px;height:11px;border-radius:50%;margin-top:4px;}
+  .search-result-body{min-width:0;}
+  .search-result-title{font-weight:600;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .search-result-path{font-size:12px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px;margin-bottom:16px;}
   .homework-card{border-left:5px solid #4361EE;}
   .cal-ferien-item{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:6px 14px 6px 17px;border-left:3px dashed var(--border);font-size:12.5px;color:var(--text-muted);}
@@ -340,6 +358,14 @@
   @media (max-width:560px){
     .content{padding:20px 14px 50px;}
   }
+
+  @media print{
+    .topbar,.back-row,.da-toolbar,.push-popover,.modal-overlay,.toast,.desk-prop{display:none !important;}
+    body{background:#fff;}
+    .content{padding:0;}
+    .table-scroll{overflow:visible;}
+    .da-table{font-size:12px;}
+  }
 </style>
 </head>
 <body>
@@ -358,6 +384,7 @@ import {
   updatePassword, EmailAuthProvider, reauthenticateWithCredential
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 import {
+  initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
   getFirestore, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, collection, query, where, onSnapshot, serverTimestamp, writeBatch
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 
@@ -434,7 +461,19 @@ function chunkStringByBytes(str, maxBytes){
 
 const fbApp = initializeApp(firebaseConfig);
 const auth = getAuth(fbApp);
-const db = getFirestore(fbApp);
+// Offline-Cache: einmal geladene Übungen (Metadaten + Inhalts-Chunks) landen
+// automatisch im IndexedDB-Cache und bleiben so ohne Netz lesbar. Fällt das
+// Anlegen aus irgendeinem Grund aus (z.B. privates Surfen ohne IndexedDB),
+// fangen wir das ab und laufen einfach ohne Offline-Cache weiter.
+var db;
+try{
+  db = initializeFirestore(fbApp, {
+    localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
+  });
+}catch(e){
+  console.error('Offline-Cache konnte nicht aktiviert werden, arbeite ohne.', e);
+  db = getFirestore(fbApp);
+}
 
 /* ===================== SUBJECTS ===================== */
 
@@ -1326,7 +1365,9 @@ function renderLernstandUebersicht(){
     });
     if(!subjectIds.length){ body.innerHTML = '<div class="empty-state">Noch keine Übungen vorhanden.</div>'; return; }
 
-    var h = '<div class="da-toolbar"><button class="btn btn-ghost btn-sm" id="lsReloadBtn" type="button">↻ Neu laden</button></div>';
+    var h = '<div class="da-toolbar" style="gap:8px;"><button class="btn btn-ghost btn-sm" id="lsPrintBtn" type="button">🖨️ Drucken</button>'+
+      '<button class="btn btn-ghost btn-sm" id="lsCsvBtn" type="button">⬇️ CSV</button>'+
+      '<button class="btn btn-ghost btn-sm" id="lsReloadBtn" type="button">↻ Neu laden</button></div>';
     subjectIds.forEach(function(subjId){
       var sub = result.bySubject[subjId];
       var s = subjectById(subjId);
@@ -1368,6 +1409,22 @@ function renderLernstandUebersicht(){
 
     body.innerHTML = h;
     document.getElementById('lsReloadBtn').addEventListener('click', renderLernstandUebersicht);
+    document.getElementById('lsPrintBtn').addEventListener('click', function(){ window.print(); });
+    document.getElementById('lsCsvBtn').addEventListener('click', function(){
+      var rows = [['Fach','Schüler:in','Übung','Stand','Anzahl Reset']];
+      subjectIds.forEach(function(subjId){
+        var sub = result.bySubject[subjId];
+        var s = subjectById(subjId);
+        result.students.forEach(function(stu){
+          sub.resources.forEach(function(res){
+            var cell = sub.cell[stu.uid+'|'+res.id];
+            rows.push([s?s.name:subjId, stu.displayName, res.title||res.fileName, fmtLearnedSummary(cell?cell.current:null), cell?cell.history.length:0]);
+          });
+        });
+      });
+      var csv = rows.map(function(r){ return r.map(csvField).join(','); }).join('\r\n');
+      downloadTextFile('lernstand-'+todayStr()+'.csv', csv, 'text/csv');
+    });
   }).catch(function(err){
     console.error(err);
     var body = document.getElementById('lernstandBody');
@@ -1400,6 +1457,35 @@ function toast(msg){
 }
 
 function esc(s){ return (s||'').toString().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function csvField(v){
+  var s = v==null ? '' : String(v);
+  if(/[",\n]/.test(s)) s = '"'+s.replace(/"/g,'""')+'"';
+  return s;
+}
+function downloadTextFile(filename, text, mime){
+  var blob = new Blob(['﻿'+text], {type:(mime||'text/plain')+';charset=utf-8'});
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
+}
+
+/* ===================== DARSTELLUNG (Dark/Light Mode) ===================== */
+
+function currentEffectiveTheme(){
+  var explicit = document.documentElement.getAttribute('data-theme');
+  if(explicit === 'dark' || explicit === 'light') return explicit;
+  return (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light';
+}
+function toggleTheme(){
+  var next = currentEffectiveTheme() === 'dark' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', next);
+  try{ localStorage.setItem('hl_theme', next); }catch(e){}
+  var btn = document.getElementById('themeToggleBtn');
+  if(btn) btn.textContent = next === 'dark' ? '☀️' : '🌙';
+}
 
 /* ===================== AUTH ===================== */
 
@@ -1542,6 +1628,8 @@ function renderChrome(innerHtml){
   html += '<div class="topbar-user">';
   if(isTeacher){ html += '<span class="badge-teacher">Lehrperson</span>'; }
   html += '<span>Hallo, <b>'+esc(state.profile.displayName)+'</b></span>';
+  html += '<button class="btn btn-ghost btn-sm topbar-bell" id="searchBtn" type="button" title="Suche">🔍</button>';
+  html += '<button class="btn btn-ghost btn-sm topbar-bell" id="themeToggleBtn" type="button" title="Darstellung">'+(currentEffectiveTheme()==='dark'?'☀️':'🌙')+'</button>';
   html += '<button class="btn btn-ghost btn-sm topbar-bell" id="pushBellBtn" type="button" title="Erinnerungen">🔔</button>';
   if(isTeacher){ html += '<button class="btn btn-ghost btn-sm" id="pwBtn" title="Passwort dieses Kontos ändern">Passwort</button>'; }
   html += '<button class="btn btn-ghost btn-sm" id="logoutBtn">Abmelden</button>';
@@ -1555,6 +1643,9 @@ function renderChrome(innerHtml){
   document.getElementById('logoutBtn').addEventListener('click', doLogout);
   var pwBtn = document.getElementById('pwBtn');
   if(pwBtn){ pwBtn.addEventListener('click', uiChangePassword); }
+
+  document.getElementById('searchBtn').addEventListener('click', openSearchModal);
+  document.getElementById('themeToggleBtn').addEventListener('click', toggleTheme);
 
   document.getElementById('pushBellBtn').addEventListener('click', function(e){
     e.stopPropagation();
@@ -1844,6 +1935,76 @@ function uiInfo(title, description){
     '<div class="modal-actions"><button class="btn btn-primary btn-sm" id="modalOk" type="button">Verstanden</button></div>'
   );
   document.getElementById('modalOk').addEventListener('click', closeModal);
+}
+
+/* ===================== SUCHE ===================== */
+// Sucht über ALLE Fächer/Ordner hinweg im Titel der Übungen (die `resources`-
+// Collection ist laut firestore.rules für jede angemeldete Person lesbar, also
+// genügt ein einmaliger ungefilterter getDocs() pro Modal-Öffnung — keine
+// Composite-Index-Sorgen, da hier gar nicht per Query gefiltert wird).
+function openSearchModal(){
+  var isTeacher = state.profile.role === 'teacher';
+  openModal(
+    '<h3>🔍 Suche</h3>'+
+    '<input type="text" id="searchInput" placeholder="Übung suchen …" maxlength="80">'+
+    '<div class="search-results" id="searchResults"><div class="empty-state" style="padding:18px;">Wird geladen …</div></div>'
+  );
+  var input = document.getElementById('searchInput');
+  input.focus();
+
+  Promise.all([
+    getDocs(collection(db,'resources')),
+    getDocs(collection(db,'folders'))
+  ]).then(function(res){
+    var resultsEl = document.getElementById('searchResults');
+    if(!resultsEl) return; // Modal wurde inzwischen geschlossen
+
+    var foldersById = {};
+    res[1].docs.forEach(function(d){ foldersById[d.id] = Object.assign({id:d.id}, d.data()); });
+    function breadcrumb(r){
+      var parts = [], f = r.folderId ? foldersById[r.folderId] : null, guard = 0;
+      while(f && guard++ < MAX_FOLDER_DEPTH + 2){ parts.unshift(f.name); f = f.parentId ? foldersById[f.parentId] : null; }
+      return parts;
+    }
+    var allResources = res[0].docs.map(function(d){ return Object.assign({id:d.id}, d.data()); }).filter(function(r){
+      var s = subjectById(r.subject);
+      return s && (!s.teacherOnly || isTeacher);
+    });
+
+    function renderResults(qstr){
+      var q = qstr.trim().toLowerCase();
+      if(!q){ resultsEl.innerHTML = '<div class="empty-state" style="padding:18px;">Suchbegriff eingeben …</div>'; return; }
+      var matches = allResources.filter(function(r){
+        return (r.title || r.fileName || '').toLowerCase().indexOf(q) !== -1;
+      }).slice(0, 30);
+      if(!matches.length){ resultsEl.innerHTML = '<div class="empty-state" style="padding:18px;">Keine Treffer.</div>'; return; }
+      resultsEl.innerHTML = matches.map(function(r){
+        var s = subjectById(r.subject);
+        var path = (s ? s.name : r.subject) + (breadcrumb(r).length ? ' › '+breadcrumb(r).map(esc).join(' › ') : '');
+        return '<button type="button" class="search-result-row" data-id="'+esc(r.id)+'">'+
+          '<span class="search-result-icon" style="background:'+(s ? s.color : '#999')+';"></span>'+
+          '<span class="search-result-body">'+
+            '<span class="search-result-title">'+esc(r.title || r.fileName)+'</span>'+
+            '<span class="search-result-path">'+path+'</span>'+
+          '</span>'+
+        '</button>';
+      }).join('');
+      Array.prototype.forEach.call(resultsEl.querySelectorAll('.search-result-row'), function(btn){
+        btn.addEventListener('click', function(){
+          var r = allResources.find(function(x){ return x.id === btn.getAttribute('data-id'); });
+          if(!r) return;
+          closeModal();
+          goResource(r);
+        });
+      });
+    }
+    resultsEl.innerHTML = '<div class="empty-state" style="padding:18px;">Suchbegriff eingeben …</div>';
+    input.addEventListener('input', function(){ renderResults(input.value); });
+  }).catch(function(err){
+    console.error(err);
+    var resultsEl = document.getElementById('searchResults');
+    if(resultsEl) resultsEl.innerHTML = '<div class="empty-state" style="padding:18px;">Suche momentan nicht verfügbar.</div>';
+  });
 }
 
 // Eigenes Passwort setzen (nur fuer das gerade angemeldete Konto). Firebase
