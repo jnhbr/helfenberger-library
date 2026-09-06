@@ -269,6 +269,7 @@
   .cal-entry-desc{font-size:13px;color:var(--text-muted);margin-top:2px;white-space:pre-wrap;}
   .cal-open-res-btn{margin-top:6px;padding-left:0;}
   .cal-sub-btn{margin-top:6px;margin-left:8px;}
+  .submission-toolbar{display:flex;justify-content:flex-end;margin-top:10px;}
   .submission-list{max-height:320px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;margin:10px 0;}
   .submission-row{display:flex;align-items:center;gap:8px;font-size:14.5px;padding:4px 2px;}
   .cal-entry-actions{flex:none;display:flex;flex-direction:column;gap:4px;}
@@ -518,13 +519,55 @@ function calendarEntryLineHtml(e, isTeacher, roster){
   }
   html += '</div>';
   if(isTeacher){
+    var isPast = e.dueDate < todayStr();
     html += '<div class="cal-entry-actions">'+
       '<button class="btn btn-ghost btn-sm cal-edit-btn" type="button" data-id="'+esc(e.id)+'">Bearbeiten</button>'+
+      (isPast ? '<button class="btn btn-ghost btn-sm cal-reactivate-btn" type="button" data-id="'+esc(e.id)+'">↺ Reaktivieren</button>' : '')+
       '<button class="btn btn-ghost btn-sm cal-del-btn" type="button" data-id="'+esc(e.id)+'">Löschen</button>'+
       '</div>';
   }
   html += '</div>';
   return html;
+}
+
+// Setzt für einen vergangenen Eintrag ein neues (künftiges) Datum, damit er
+// wieder unter "Anstehend" statt "Vergangen" erscheint. Bei Hausaufgaben wird
+// die Abgabe-Checkliste dabei zurückgesetzt (updateDoc mit {} statt setDoc+
+// merge, weil merge:true ein leeres Objekt niemals über bestehende Schlüssel
+// mergen würde - siehe Firebase.md/Chunking-Hinweis oben zu diesem Bug).
+function uiReactivateEntry(entry, onDone){
+  openModal(
+    '<h3>Reaktivieren: '+esc(entry.title)+'</h3>'+
+    '<p>Setzt ein neues Datum für diesen Eintrag'+(entry.type==='hausaufgabe' ? ' und setzt die Abgabe-Checkliste zurück.' : '.')+'</p>'+
+    '<label class="modal-label">Neues Datum</label><input type="date" id="reactivateDate" value="'+esc(addDaysStr(1))+'">'+
+    '<div class="login-err" id="reactivateErr"></div>'+
+    '<div class="modal-actions">'+
+      '<button class="btn btn-ghost btn-sm" id="modalCancel" type="button">Abbrechen</button>'+
+      '<button class="btn btn-primary btn-sm" id="modalOk" type="button">Reaktivieren</button>'+
+    '</div>'
+  );
+  var dateEl = document.getElementById('reactivateDate');
+  dateEl.focus();
+  document.getElementById('modalCancel').addEventListener('click', closeModal);
+  document.getElementById('modalOk').addEventListener('click', async function(){
+    var errEl = document.getElementById('reactivateErr');
+    errEl.classList.remove('show');
+    var newDate = dateEl.value;
+    if(!newDate){ errEl.textContent='Bitte ein Datum wählen.'; errEl.classList.add('show'); return; }
+    try{
+      var updates = { dueDate: newDate };
+      if(entry.type === 'hausaufgabe'){ updates.submitted = {}; }
+      await updateDoc(doc(db,'calendarEntries', entry.id), updates);
+      entry.dueDate = newDate;
+      if(entry.type === 'hausaufgabe'){ entry.submitted = {}; }
+      closeModal();
+      toast('Eintrag reaktiviert.');
+      onDone();
+    }catch(err){
+      console.error(err);
+      errEl.textContent = 'Konnte nicht gespeichert werden.'; errEl.classList.add('show');
+    }
+  });
 }
 
 // Formular (neu anlegen ODER bearbeiten, wenn `existing` gesetzt ist).
@@ -650,6 +693,7 @@ function uiSubmissionChecklist(entry, roster, onChanged){
   }).join('');
   openModal(
     '<h3>Abgegeben: '+esc(entry.title)+'</h3>'+
+    (roster.length ? '<div class="submission-toolbar"><button class="btn btn-ghost btn-sm" id="subSelectAllBtn" type="button">☑ Alle auswählen</button></div>' : '')+
     '<div class="submission-list">'+(rows || '<div class="empty-state">Keine Schüler:innen gefunden.</div>')+'</div>'+
     '<div class="modal-actions"><button class="btn btn-primary btn-sm" id="modalOk" type="button">Fertig</button></div>'
   );
@@ -669,6 +713,31 @@ function uiSubmissionChecklist(entry, roster, onChanged){
       }
     });
   });
+  var selectAllBtn = document.getElementById('subSelectAllBtn');
+  if(selectAllBtn){
+    selectAllBtn.addEventListener('click', async function(){
+      var unchecked = Array.prototype.slice.call(document.querySelectorAll('.sub-check')).filter(function(cb){ return !cb.checked; });
+      if(!unchecked.length) return;
+      selectAllBtn.disabled = true;
+      try{
+        var batch = writeBatch(db);
+        unchecked.forEach(function(cb){
+          batch.update(doc(db,'calendarEntries', entry.id), 'submitted.'+cb.getAttribute('data-uid'), true);
+        });
+        await batch.commit();
+        entry.submitted = entry.submitted || {};
+        unchecked.forEach(function(cb){
+          cb.checked = true;
+          entry.submitted[cb.getAttribute('data-uid')] = true;
+        });
+        onChanged();
+      }catch(err){
+        console.error(err);
+        toast('Konnte nicht gespeichert werden.');
+      }
+      selectAllBtn.disabled = false;
+    });
+  }
   document.getElementById('modalOk').addEventListener('click', closeModal);
 }
 
@@ -820,6 +889,12 @@ function wireCalendarEntryActions(container, entries, isTeacher, onChanged, rost
       uiSubmissionChecklist(entry, roster, function(){
         btn.textContent = '☑ '+submittedCountLabel(entry, roster);
       });
+    });
+  });
+  Array.prototype.forEach.call(container.querySelectorAll('.cal-reactivate-btn'), function(btn){
+    btn.addEventListener('click', function(){
+      var entry = entries.find(function(e){ return e.id===btn.getAttribute('data-id'); });
+      if(entry) uiReactivateEntry(entry, onChanged);
     });
   });
 }
