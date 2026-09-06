@@ -279,10 +279,9 @@
   .cal-list-past{opacity:.6;}
   .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px;margin-bottom:16px;}
   .homework-card{border-left:5px solid #4361EE;}
-  .ferien-bar{display:flex;gap:10px 18px;flex-wrap:wrap;background:var(--surface-2);border-radius:var(--radius-sm);padding:9px 14px;margin-bottom:14px;font-size:12.5px;color:var(--text-muted);}
-  .ferien-bar-item{display:flex;align-items:center;gap:6px;white-space:nowrap;}
-  .ferien-bar-item b{color:var(--text);font-weight:600;}
-  .ferien-bar-item .ferien-days{color:var(--bad);font-weight:700;}
+  .cal-ferien-item{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:6px 14px 6px 17px;border-left:3px dashed var(--border);font-size:12.5px;color:var(--text-muted);}
+  .cal-ferien-item b{color:var(--text);font-weight:600;}
+  .cal-ferien-item .cal-ferien-tag{color:var(--bad);font-weight:700;}
   .push-card{border-left:5px solid #8B5CF6;}
   .push-hint{font-size:13px;color:var(--text-muted);margin:4px 0 10px;}
   .pick-list{display:flex;flex-direction:column;gap:6px;margin-bottom:16px;}
@@ -539,19 +538,32 @@ function upcomingFerien(n){
   var today = todayStr();
   return FERIEN_TG.filter(function(f){ return f.end >= today; }).slice(0, n || 2);
 }
-function ferienBarHtml(){
-  var next = upcomingFerien(2);
-  if(!next.length) return '';
+// Dezente Zeile für eine Ferienperiode, eingestreut zwischen den echten
+// Kalender-Einträgen (siehe calendarWithFerienHtml) - bewusst schlichter als
+// .cal-entry, damit die Ferien nicht mit Aufgaben/Prüfungen konkurrieren.
+function ferienEntryLineHtml(f){
   var today = todayStr();
-  var html = '<div class="ferien-bar">';
-  next.forEach(function(f){
-    var ongoing = f.start <= today;
-    html += '<div class="ferien-bar-item">'+f.icon+' <b>'+esc(f.label)+'</b> <span>'+esc(fmtDueDate(f.start))+'–'+esc(fmtDueDate(f.end))+'</span>'+
-      (ongoing ? ' <span class="ferien-days">laufen gerade</span>' : ' <span class="ferien-days">in '+ferienDaysUntil(f.start)+' Tag'+(ferienDaysUntil(f.start)===1?'':'en')+'</span>')+
-      '</div>';
+  var ongoing = f.start <= today && f.end >= today;
+  return '<div class="cal-ferien-item">'+f.icon+' <b>'+esc(f.label)+'</b> <span>'+esc(fmtDueDate(f.start))+'–'+esc(fmtDueDate(f.end))+'</span>'+
+    (ongoing ? ' <span class="cal-ferien-tag">laufen gerade</span>' : '')+
+    '</div>';
+}
+
+// Mischt echte Kalender-Einträge und Ferienperioden chronologisch sortiert in
+// eine gemeinsame Liste (jeweils nach Ferien-Start bzw. Eintrags-Fälligkeit).
+// reversed=true für den "Vergangen"-Block (neueste zuerst, wie bisher).
+function calendarWithFerienHtml(entries, ferienList, isTeacher, roster, reversed){
+  var items = entries.map(function(e){
+    return {date:e.dueDate, order:1, html:calendarEntryLineHtml(e, isTeacher, roster)};
+  }).concat(ferienList.map(function(f){
+    return {date:f.start, order:0, html:ferienEntryLineHtml(f)};
+  }));
+  items.sort(function(a,b){
+    if(a.date !== b.date) return a.date.localeCompare(b.date);
+    return a.order - b.order;
   });
-  html += '</div>';
-  return html;
+  if(reversed) items.reverse();
+  return items.map(function(it){ return it.html; }).join('');
 }
 function topbarFerienCountdownHtml(){
   var next = upcomingFerien(1)[0];
@@ -781,7 +793,7 @@ function uiSubmissionChecklist(entry, roster, onChanged){
   }).join('');
   openModal(
     '<h3>Abgegeben: '+esc(entry.title)+'</h3>'+
-    (roster.length ? '<div class="submission-toolbar"><button class="btn btn-ghost btn-sm" id="subSelectAllBtn" type="button">☑ Alle auswählen</button></div>' : '')+
+    (roster.length ? '<div class="submission-toolbar"><button class="btn btn-ghost btn-sm" id="subSelectAllBtn" type="button">☑ Alle auswählen</button><button class="btn btn-ghost btn-sm" id="subDeselectAllBtn" type="button">☐ Alle abwählen</button></div>' : '')+
     '<div class="submission-list">'+(rows || '<div class="empty-state">Keine Schüler:innen gefunden.</div>')+'</div>'+
     '<div class="modal-actions"><button class="btn btn-primary btn-sm" id="modalOk" type="button">Fertig</button></div>'
   );
@@ -824,6 +836,31 @@ function uiSubmissionChecklist(entry, roster, onChanged){
         toast('Konnte nicht gespeichert werden.');
       }
       selectAllBtn.disabled = false;
+    });
+  }
+  var deselectAllBtn = document.getElementById('subDeselectAllBtn');
+  if(deselectAllBtn){
+    deselectAllBtn.addEventListener('click', async function(){
+      var checked = Array.prototype.slice.call(document.querySelectorAll('.sub-check')).filter(function(cb){ return cb.checked; });
+      if(!checked.length) return;
+      deselectAllBtn.disabled = true;
+      try{
+        var batch = writeBatch(db);
+        checked.forEach(function(cb){
+          batch.update(doc(db,'calendarEntries', entry.id), 'submitted.'+cb.getAttribute('data-uid'), false);
+        });
+        await batch.commit();
+        entry.submitted = entry.submitted || {};
+        checked.forEach(function(cb){
+          cb.checked = false;
+          entry.submitted[cb.getAttribute('data-uid')] = false;
+        });
+        onChanged();
+      }catch(err){
+        console.error(err);
+        toast('Konnte nicht gespeichert werden.');
+      }
+      deselectAllBtn.disabled = false;
     });
   }
   document.getElementById('modalOk').addEventListener('click', closeModal);
@@ -1008,18 +1045,20 @@ function renderKalender(){
     var today = todayStr();
     var upcoming = entries.filter(function(e){ return e.dueDate >= today; });
     var past = entries.filter(function(e){ return e.dueDate < today; });
+    var ferienUpcoming = FERIEN_TG.filter(function(f){ return f.end >= today; });
+    var ferienPast = FERIEN_TG.filter(function(f){ return f.end < today; });
     var h = '';
-    if(!upcoming.length && !past.length){
+    if(!upcoming.length && !past.length && !ferienUpcoming.length && !ferienPast.length){
       h += '<div class="empty-state">Noch keine Einträge.'+(isTeacher?' Leg oben den ersten an.':'')+'</div>';
     }
-    if(upcoming.length){
-      h += '<div class="cal-list">'+upcoming.map(function(e){ return calendarEntryLineHtml(e, isTeacher, roster); }).join('')+'</div>';
-    } else if(past.length){
+    if(upcoming.length || ferienUpcoming.length){
+      h += '<div class="cal-list">'+calendarWithFerienHtml(upcoming, ferienUpcoming, isTeacher, roster, false)+'</div>';
+    } else if(past.length || ferienPast.length){
       h += '<div class="empty-state">Keine anstehenden Einträge mehr.</div>';
     }
-    if(past.length){
+    if(past.length || ferienPast.length){
       h += '<h3 style="margin-top:26px;">Vergangen</h3>';
-      h += '<div class="cal-list cal-list-past">'+past.slice().reverse().map(function(e){ return calendarEntryLineHtml(e, isTeacher, roster); }).join('')+'</div>';
+      h += '<div class="cal-list cal-list-past">'+calendarWithFerienHtml(past, ferienPast, isTeacher, roster, true)+'</div>';
     }
     body.innerHTML = h;
     wireCalendarEntryActions(body, entries, isTeacher, renderKalender, roster);
@@ -1583,13 +1622,9 @@ function renderHomeworkWidget(){
     if(!document.getElementById('homeworkWidget')) return; // Seite inzwischen gewechselt
     var today = todayStr(), horizon = addDaysStr(7);
     var upcoming = entries.filter(function(e){ return e.dueDate>=today && e.dueDate<=horizon; });
-    var ferienHtml = ferienBarHtml();
-    if(!upcoming.length && !ferienHtml){ host.innerHTML=''; return; }
+    if(!upcoming.length){ host.innerHTML=''; return; }
     var h = '<div class="card homework-card"><h3 style="margin-top:0;">📘 Die nächsten 7 Tage</h3>';
-    h += ferienHtml;
-    if(upcoming.length){
-      h += '<div class="cal-list">'+upcoming.map(function(e){ return calendarEntryLineHtml(e, false); }).join('')+'</div>';
-    }
+    h += '<div class="cal-list">'+upcoming.map(function(e){ return calendarEntryLineHtml(e, false); }).join('')+'</div>';
     h += '</div>';
     host.innerHTML = h;
     wireCalendarResourceLinks(host);
