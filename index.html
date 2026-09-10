@@ -385,7 +385,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 import {
   initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
-  getFirestore, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, collection, query, where, onSnapshot, serverTimestamp, writeBatch
+  getFirestore, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, collection, query, where, onSnapshot, serverTimestamp, writeBatch, increment
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 
 /* =====================================================================
@@ -1294,6 +1294,15 @@ function fmtHistoryEntry(h){
   var ds = isNaN(d) ? h.archivedAt : d.toLocaleDateString('de-CH', {day:'2-digit', month:'2-digit', year:'numeric'});
   return ds+': '+fmtLearnedSummary(h.summary);
 }
+// Sekunden (aus progress/{uid}/resources/{rid}.timeSpentSec, siehe Lernzeit-
+// Tracking oben) in Stunden auf eine Nachkommastelle. Unter 6 Minuten wird
+// nichts angezeigt — zu wenig aussagekräftig, meist nur kurz reingeschaut.
+function fmtHours(sec){
+  if(!sec) return null;
+  var h = Math.round(sec/360)/10;
+  if(h < 0.1) return null;
+  return h.toString().replace('.',',')+' Std.';
+}
 
 // Fächer, die in der Lernstand-Übersicht nichts verloren haben: Berufswahl
 // (keine "gelernt"-Metrik im klassischen Sinn) und Lehrerbereich (interne
@@ -1341,7 +1350,8 @@ async function loadLernstandUebersicht(){
     var subj = resources.find(function(x){ return x.id===r.resId; }).subject;
     bySubject[subj].cell[r.uid+'|'+r.resId] = {
       current: learnedSummary(r.data),
-      history: (r.data && Array.isArray(r.data.history)) ? r.data.history : []
+      history: (r.data && Array.isArray(r.data.history)) ? r.data.history : [],
+      timeSpentSec: (r.data && typeof r.data.timeSpentSec === 'number') ? r.data.timeSpentSec : 0
     };
   });
 
@@ -1352,7 +1362,7 @@ function renderLernstandUebersicht(){
   clearSubjectWatchers(); clearOverviewWatchers(); unwatchAllProgress();
   var html = '<div class="back-row"><button class="btn btn-ghost btn-sm" id="backBtn">&larr; Start</button></div>';
   html += '<h2>📈 Lernstand-Übersicht</h2>';
-  html += '<p class="muted" style="margin:-6px 0 14px;">Aktueller Stand pro Schüler:in und Übung, über alle Fächer. „↺" = wie oft zurückgesetzt, mit dem jeweiligen Stand unmittelbar davor. Nur für dich sichtbar.</p>';
+  html += '<p class="muted" style="margin:-6px 0 14px;">Aktueller Stand pro Schüler:in und Übung, über alle Fächer. „↺" = wie oft zurückgesetzt, mit dem jeweiligen Stand unmittelbar davor. „⏱" = wie lange die Übung schon offen war (nur aktive Zeit, kein Hintergrund-Tab). Nur für dich sichtbar.</p>';
   html += '<div id="lernstandBody"><div class="empty-state">Wird geladen …</div></div>';
   renderChrome(html);
   document.getElementById('backBtn').addEventListener('click', goHome);
@@ -1383,7 +1393,9 @@ function renderLernstandUebersicht(){
           var cell = sub.cell[stu.uid+'|'+res.id];
           var current = cell ? cell.current : null;
           var histCount = cell ? cell.history.length : 0;
-          h += '<td>'+esc(fmtLearnedSummary(current)) + (histCount ? ' <span class="da-reset-badge" title="'+esc(cell.history.map(fmtHistoryEntry).join(' · '))+'">↺'+histCount+'</span>' : '') + '</td>';
+          var hours = fmtHours(cell ? cell.timeSpentSec : 0);
+          h += '<td>'+esc(fmtLearnedSummary(current)) + (histCount ? ' <span class="da-reset-badge" title="'+esc(cell.history.map(fmtHistoryEntry).join(' · '))+'">↺'+histCount+'</span>' : '') +
+            (hours ? '<br><span class="tiny muted">⏱ '+esc(hours)+'</span>' : '') + '</td>';
         });
         h += '</tr>';
       });
@@ -1414,14 +1426,15 @@ function renderLernstandUebersicht(){
     document.getElementById('lsReloadBtn').addEventListener('click', renderLernstandUebersicht);
     document.getElementById('lsPrintBtn').addEventListener('click', function(){ window.print(); });
     document.getElementById('lsCsvBtn').addEventListener('click', function(){
-      var rows = [['Fach','Schüler:in','Übung','Stand','Anzahl Reset']];
+      var rows = [['Fach','Schüler:in','Übung','Stand','Anzahl Reset','Lernzeit (Std.)']];
       subjectIds.forEach(function(subjId){
         var sub = result.bySubject[subjId];
         var s = subjectById(subjId);
         result.students.forEach(function(stu){
           sub.resources.forEach(function(res){
             var cell = sub.cell[stu.uid+'|'+res.id];
-            rows.push([s?s.name:subjId, stu.displayName, res.title||res.fileName, fmtLearnedSummary(cell?cell.current:null), cell?cell.history.length:0]);
+            var h = cell ? Math.round((cell.timeSpentSec||0)/360)/10 : 0;
+            rows.push([s?s.name:subjId, stu.displayName, res.title||res.fileName, fmtLearnedSummary(cell?cell.current:null), cell?cell.history.length:0, h.toString().replace('.',',')]);
           });
         });
       });
@@ -1514,6 +1527,7 @@ function needsOwnPassword(rawName){
 
 function doLogout(){
   stopResourceSync();   // offenen Übungsstand noch sichern, solange die Rechte da sind
+  stopTimeTracking();   // dito für die Lernzeit
   Object.values(state.progressUnsubs).forEach(function(fn){ try{fn();}catch(e){} });
   state.progressUnsubs = {};
   clearSubjectWatchers();
@@ -2906,6 +2920,56 @@ document.addEventListener('visibilitychange', function(){
   if(document.visibilityState === 'hidden') flushResourceSync();
 });
 
+/* ===================== LERNZEIT (Stunden pro Schüler:in und Übung) =====================
+   Wunsch von Jan: in der Lernstand-Übersicht sehen, wie lange ein Kind an einer
+   Übung schon gearbeitet hat. Wie beim Stand-Sync oben: keine Änderung an den
+   Übungsseiten nötig — die Shell misst einfach, wie lange das iframe einer
+   Übung sichtbar und aktiv offen ist (Hintergrund-Tab zählt nicht mit), und
+   schreibt das kumulativ in Sekunden auf progress/{uid}/resources/{rid}.timeSpentSec.
+   increment() statt eines gelesenen+addierten Werts, damit gleichzeitige
+   Schreibvorgänge von mehreren Geräten sich addieren statt sich gegenseitig
+   zu überschreiben. */
+
+var timeTrack = { resourceId:null, startedAt:null, flushTimer:null };
+var TIME_FLUSH_MS = 60000;      // bei langen Sitzungen zwischendurch sichern, nicht erst beim Verlassen
+var TIME_MIN_FLUSH_SEC = 3;     // Mini-Blips (versehentlich geöffnet, sofort wieder zu) nicht mitzählen
+
+function startTimeTracking(rid){
+  stopTimeTracking();
+  timeTrack.resourceId = rid;
+  if(document.visibilityState !== 'hidden') timeTrack.startedAt = Date.now();
+  timeTrack.flushTimer = setInterval(flushTimeTracking, TIME_FLUSH_MS);
+}
+
+function flushTimeTracking(){
+  if(!timeTrack.resourceId || !timeTrack.startedAt || !state.user) return;
+  var elapsedSec = Math.round((Date.now() - timeTrack.startedAt) / 1000);
+  timeTrack.startedAt = Date.now();
+  if(elapsedSec < TIME_MIN_FLUSH_SEC) return;
+  setDoc(doc(db,'progress', state.user.uid, 'resources', timeTrack.resourceId),
+    { timeSpentSec: increment(elapsedSec) }, {merge:true}
+  ).catch(function(err){ console.error('Lernzeit konnte nicht gespeichert werden', err); });
+}
+
+function stopTimeTracking(){
+  flushTimeTracking();
+  clearInterval(timeTrack.flushTimer);
+  timeTrack.flushTimer = null;
+  timeTrack.resourceId = null;
+  timeTrack.startedAt = null;
+}
+
+document.addEventListener('visibilitychange', function(){
+  if(!timeTrack.resourceId) return;
+  if(document.visibilityState === 'hidden'){
+    flushTimeTracking();
+    timeTrack.startedAt = null;
+  } else if(document.visibilityState === 'visible'){
+    timeTrack.startedAt = Date.now();
+  }
+});
+window.addEventListener('pagehide', flushTimeTracking);
+
 /* ===================== RENDER: RESOURCE VIEWER ===================== */
 
 var currentViewerResourceId = null;
@@ -2916,6 +2980,7 @@ function renderResource(r){
   clearSubjectWatchers();
   unwatchAllProgress();
   currentViewerResourceId = r.id;
+  startTimeTracking(r.id);
   var s = subjectById(r.subject);
 
   var html = '<div class="viewer-wrap">';
@@ -3084,10 +3149,13 @@ window.addEventListener('message', function(e){
 
 function render(){
   clearOverviewWatchers();
-  // Übung verlassen: Stand ein letztes Mal sichern und die Beobachtung stoppen.
+  // Übung verlassen: Stand und Lernzeit ein letztes Mal sichern, Beobachtung stoppen.
   if(state.route.name !== 'resource' && syncState.resourceId){
     stopResourceSync();
     currentViewerResourceId = null;
+  }
+  if(state.route.name !== 'resource' && timeTrack.resourceId){
+    stopTimeTracking();
   }
   if(state.route.name === 'loading'){
     app.innerHTML = '<div class="spinner-wrap">Lädt …</div>';
