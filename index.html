@@ -1578,7 +1578,13 @@ function goSubject(id, folderId){
   if(sameSubject && document.getElementById('resourceList')){ renderFolderContents(); return; }
   render();
 }
-function goResource(res){ state.route = {name:'resource', resource:res}; render(); }
+// Ein "resources"-Dokument mit externalUrl ist kein hochgeladener Übungsinhalt,
+// sondern nur ein Link auf ein externes Tool (z.B. Rotstift) — statt in den
+// internen Übungs-Viewer zu navigieren, öffnet es in einem neuen Tab.
+function goResource(res){
+  if(res.externalUrl){ window.open(res.externalUrl, '_blank', 'noopener'); return; }
+  state.route = {name:'resource', resource:res}; render();
+}
 
 /* ===================== RENDER: LOGIN ===================== */
 
@@ -2159,10 +2165,6 @@ function renderSubject(subjectId, folderId){
     html += '<div class="back-row"><button class="btn btn-ghost btn-sm" id="diktatAnalyseBtn" type="button">📊 Fehleranalyse Diktate</button></div>';
   }
 
-  if(isTeacher && subjectId==='lehrerbereich'){
-    html += '<div class="back-row"><button class="btn btn-ghost btn-sm" id="rotstiftBtn" type="button">✏️ Rotstift – Prüfungskorrektur</button></div>';
-  }
-
   if(isTeacher){
     html += '<div class="dropzone" id="dropzone">';
     html += '<div class="dz-title">Neue Übungsseite hinzufügen</div>';
@@ -2185,11 +2187,8 @@ function renderSubject(subjectId, folderId){
       render();
     });
   }
-  var rotstiftBtn = document.getElementById('rotstiftBtn');
-  if(rotstiftBtn){
-    rotstiftBtn.addEventListener('click', function(){
-      window.open('https://claude.ai/code/artifact/f366b5e7-29ed-4bf2-8aa4-307c611d6b46', '_blank', 'noopener');
-    });
+  if(subjectId==='lehrerbereich' && isTeacher){
+    ensureRotstiftResource();
   }
   if(isTeacher){
     wireDropzone(subjectId);
@@ -2314,7 +2313,8 @@ function renderFolderContents(){
     document.getElementById('del-'+r.id).addEventListener('click', function(){ askDeleteResource(r); });
     document.getElementById('up-'+r.id).addEventListener('click', function(){ moveResource(resources, i, -1); });
     document.getElementById('down-'+r.id).addEventListener('click', function(){ moveResource(resources, i, 1); });
-    document.getElementById('cur-'+r.id).addEventListener('click', function(){ toggleCurrent(resources, r); });
+    var curBtn = document.getElementById('cur-'+r.id);
+    if(curBtn) curBtn.addEventListener('click', function(){ toggleCurrent(resources, r); });
     document.getElementById('mv-'+r.id).addEventListener('click', function(){ askMoveResource(r); });
   });
 }
@@ -2508,6 +2508,30 @@ function toggleCurrent(resources, r){
   batch.commit().catch(function(err){ console.error(err); toast('Aktualisieren fehlgeschlagen.'); });
 }
 
+// Legt den Rotstift-Link genau EINMAL als normalen resources-Eintrag an, damit
+// er sich wie jede Übung per Pfeiltasten verschieben, in einen Ordner ziehen
+// oder löschen lässt (goResource() öffnet ihn dank externalUrl extern statt im
+// Übungs-Viewer). Ein separates Marker-Dokument merkt sich, dass schon gesät
+// wurde — sonst würde ein bewusstes Löschen beim nächsten Laden der Seite
+// rückgängig gemacht.
+function ensureRotstiftResource(){
+  getDoc(doc(db,'appMeta','rotstiftSeed')).then(function(markerSnap){
+    if(markerSnap.exists()) return;
+    var batch = writeBatch(db);
+    batch.set(doc(db,'resources','rotstift-link'), {
+      subject: 'lehrerbereich',
+      folderId: null,
+      title: 'Rotstift – Prüfungskorrektur',
+      externalUrl: 'https://claude.ai/code/artifact/f366b5e7-29ed-4bf2-8aa4-307c611d6b46',
+      order: -1,
+      uploadedAt: serverTimestamp(),
+      createdBy: state.user.uid
+    });
+    batch.set(doc(db,'appMeta','rotstiftSeed'), { seededAt: serverTimestamp() });
+    batch.commit().catch(function(err){ console.error('Rotstift-Eintrag konnte nicht angelegt werden.', err); });
+  }).catch(function(err){ console.error(err); });
+}
+
 function resourceCardHtml(r, index, total, isTeacher){
   var uploaded = r.uploadedAt && r.uploadedAt.toDate ? r.uploadedAt.toDate().toLocaleDateString('de-CH') : '';
   var html = '<div class="resource-card'+(r.current?' current':'')+'" id="card-'+r.id+'">';
@@ -2524,7 +2548,9 @@ function resourceCardHtml(r, index, total, isTeacher){
   html += '<div class="resource-actions">';
   html += '<button class="btn btn-primary btn-sm" id="open-'+r.id+'">Öffnen</button>';
   if(isTeacher){
-    html += '<button class="btn btn-sm btn-current'+(r.current?' active':'')+'" id="cur-'+r.id+'">'+(r.current?'Nicht mehr aktuell':'Als aktuell markieren')+'</button>';
+    if(!r.externalUrl){
+      html += '<button class="btn btn-sm btn-current'+(r.current?' active':'')+'" id="cur-'+r.id+'">'+(r.current?'Nicht mehr aktuell':'Als aktuell markieren')+'</button>';
+    }
     html += '<button class="btn btn-ghost btn-sm" id="mv-'+r.id+'" type="button">Verschieben</button>';
     html += '<button class="btn btn-danger btn-sm" id="del-'+r.id+'">Löschen</button>';
   }

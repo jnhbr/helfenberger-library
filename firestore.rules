@@ -10,6 +10,10 @@ rules_version = '2';
 //   resourceContent/{resourceId}/chunks/{chunkId}    -> {html}   (<=~900KB each; a large upload is split into several of these and
 //                                                                 rejoined on read — see chunkStringByBytes() in index.html)
 //   progress/{uid}/resources/{resourceId}           -> {stats, total, updatedAt}                           (each student's own practice progress)
+//   appMeta/{id}                                    -> one-off seed markers (e.g. "was the Rotstift link
+//                                                       resource already created?"), so the app can create a
+//                                                       default entry exactly once without resurrecting it
+//                                                       after the teacher deletes it
 //
 // Only the teacher account (helfenberger) carries the custom claim `teacher: true`,
 // set by admin/create-accounts.js. Everyone else is a student.
@@ -65,6 +69,13 @@ service cloud.firestore {
     match /progress/{uid}/resources/{resourceId} {
       allow read: if isOwner(uid) || isTeacher();
       allow write: if isOwner(uid);
+    }
+
+    // One-off seed markers (see data model note above). No data validation
+    // attached, so create/update/delete can safely stay combined.
+    match /appMeta/{id} {
+      allow read: if isSignedIn();
+      allow write: if isTeacher();
     }
   }
 }
