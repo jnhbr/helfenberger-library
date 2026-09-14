@@ -17,6 +17,12 @@ rules_version = '2';
 //                                                       resource already created?"), so the app can create a
 //                                                       default entry exactly once without resurrecting it
 //                                                       after the teacher deletes it
+//   pruefungKorrektur/{pruefungId}                            -> {titel, fach, klasse, aufgaben, erstelltAm} (teacher-only exam
+//                                                                 correction tool, "Rotstift" — separate from the resources/
+//                                                                 progress system, never shown to students)
+//   pruefungKorrektur/{pruefungId}/schueler/{schuelerId}      -> {name, pageCount, ergebnisse, gesamtpunkte, maxPunkte, korrigiertAm}
+//   pruefungKorrekturScans/{schuelerId}/pages/{pageIndex}     -> {b64, mime, bytes} (downscaled JPEG per scanned page,
+//                                                                 base64 in Firestore since there is no Firebase Storage)
 //
 // Only the teacher account (helfenberger) carries the custom claim `teacher: true`,
 // set by admin/create-accounts.js. Everyone else is a student.
@@ -98,6 +104,21 @@ service cloud.firestore {
     match /appMeta/{id} {
       allow read: if isSignedIn();
       allow write: if isTeacher();
+    }
+
+    // Rotstift: exam correction tool. Teacher-only end to end — this holds
+    // exam scores, so unlike resources/folders it is never student-readable.
+    match /pruefungKorrektur/{pruefungId} {
+      allow read, write: if isTeacher();
+      match /schueler/{schuelerId} {
+        allow read, write: if isTeacher();
+      }
+    }
+    match /pruefungKorrekturScans/{schuelerId} {
+      allow read, write: if isTeacher();
+      match /pages/{pageIndex} {
+        allow read, write: if isTeacher();
+      }
     }
   }
 }
