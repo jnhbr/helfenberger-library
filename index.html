@@ -2187,9 +2187,6 @@ function renderSubject(subjectId, folderId){
       render();
     });
   }
-  if(subjectId==='lehrerbereich' && isTeacher){
-    ensureRotstiftResource();
-  }
   if(isTeacher){
     wireDropzone(subjectId);
     document.getElementById('newFolderBtn').addEventListener('click', function(){
@@ -2506,30 +2503,6 @@ function toggleCurrent(resources, r){
   }
 
   batch.commit().catch(function(err){ console.error(err); toast('Aktualisieren fehlgeschlagen.'); });
-}
-
-// Legt den Rotstift-Link genau EINMAL als normalen resources-Eintrag an, damit
-// er sich wie jede Übung per Pfeiltasten verschieben, in einen Ordner ziehen
-// oder löschen lässt (goResource() öffnet ihn dank externalUrl extern statt im
-// Übungs-Viewer). Ein separates Marker-Dokument merkt sich, dass schon gesät
-// wurde — sonst würde ein bewusstes Löschen beim nächsten Laden der Seite
-// rückgängig gemacht.
-function ensureRotstiftResource(){
-  getDoc(doc(db,'appMeta','rotstiftSeed')).then(function(markerSnap){
-    if(markerSnap.exists()) return;
-    var batch = writeBatch(db);
-    batch.set(doc(db,'resources','rotstift-link'), {
-      subject: 'lehrerbereich',
-      folderId: null,
-      title: 'Rotstift – Prüfungskorrektur',
-      externalUrl: 'https://claude.ai/code/artifact/f366b5e7-29ed-4bf2-8aa4-307c611d6b46',
-      order: -1,
-      uploadedAt: serverTimestamp(),
-      createdBy: state.user.uid
-    });
-    batch.set(doc(db,'appMeta','rotstiftSeed'), { seededAt: serverTimestamp() });
-    batch.commit().catch(function(err){ console.error('Rotstift-Eintrag konnte nicht angelegt werden.', err); });
-  }).catch(function(err){ console.error(err); });
 }
 
 function resourceCardHtml(r, index, total, isTeacher){
