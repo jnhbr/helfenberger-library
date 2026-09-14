@@ -10,6 +10,9 @@ rules_version = '2';
 //   resourceContent/{resourceId}/chunks/{chunkId}    -> {html}   (<=~900KB each; a large upload is split into several of these and
 //                                                                 rejoined on read — see chunkStringByBytes() in index.html)
 //   progress/{uid}/resources/{resourceId}           -> {stats, total, updatedAt}                           (each student's own practice progress)
+//   folders/{folderId}                              -> {subject, parentId, name, order, createdAt, createdBy} (per-subject folder tree)
+//   calendarEntries/{entryId}                       -> {type, subject, title, description, dueDate, createdAt, createdBy} (Hausaufgaben/Abgaben/Prüfungen/Erinnerungen)
+//   pushSubscriptions/{uid}/devices/{subId}          -> each signed-in user's own push-notification device registrations
 //   appMeta/{id}                                    -> one-off seed markers (e.g. "was the Rotstift link
 //                                                       resource already created?"), so the app can create a
 //                                                       default entry exactly once without resurrecting it
@@ -69,6 +72,25 @@ service cloud.firestore {
     match /progress/{uid}/resources/{resourceId} {
       allow read: if isOwner(uid) || isTeacher();
       allow write: if isOwner(uid);
+    }
+
+    // Per-subject folder tree (same access pattern as resources: everyone
+    // signed in browses, only the teacher creates/renames/moves/deletes).
+    match /folders/{folderId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isTeacher();
+    }
+
+    // Kalender (Hausaufgaben, Abgaben, Prüfungen, Erinnerungen) — visible to
+    // the whole class, only the teacher writes.
+    match /calendarEntries/{entryId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isTeacher();
+    }
+
+    // Each signed-in user's own push-notification device registrations.
+    match /pushSubscriptions/{uid}/devices/{subId} {
+      allow read, write: if isOwner(uid);
     }
 
     // One-off seed markers (see data model note above). No data validation
