@@ -2312,6 +2312,9 @@ function renderFolderContents(){
     document.getElementById('down-'+r.id).addEventListener('click', function(){ moveResource(resources, i, 1); });
     var curBtn = document.getElementById('cur-'+r.id);
     if(curBtn) curBtn.addEventListener('click', function(){ toggleCurrent(resources, r); });
+    document.getElementById('rrename-'+r.id).addEventListener('click', function(){
+      uiPrompt('Übung umbenennen', null, r.title || r.fileName, 'Speichern', function(title){ renameResource(r, title); });
+    });
     document.getElementById('mv-'+r.id).addEventListener('click', function(){ askMoveResource(r); });
   });
 }
@@ -2524,6 +2527,7 @@ function resourceCardHtml(r, index, total, isTeacher){
     if(!r.externalUrl){
       html += '<button class="btn btn-sm btn-current'+(r.current?' active':'')+'" id="cur-'+r.id+'">'+(r.current?'Nicht mehr aktuell':'Als aktuell markieren')+'</button>';
     }
+    html += '<button class="btn btn-ghost btn-sm" id="rrename-'+r.id+'" type="button">Umbenennen</button>';
     html += '<button class="btn btn-ghost btn-sm" id="mv-'+r.id+'" type="button">Verschieben</button>';
     html += '<button class="btn btn-danger btn-sm" id="del-'+r.id+'">Löschen</button>';
   }
@@ -2542,6 +2546,11 @@ function updateResourceBar(resourceId, p){
   if(p.total){ parts.push(p.attempted+' / '+p.total+' geübt'); } else { parts.push(p.attempted+' bearbeitet'); }
   if(p.correctPct!==null){ parts.push(p.correctPct+'% richtig'); }
   meta.textContent = parts.join(' · ');
+}
+
+function renameResource(r, title){
+  setDoc(doc(db,'resources', r.id), {title: title.slice(0,120)}, {merge:true})
+    .catch(function(err){ console.error(err); toast('Umbenennen fehlgeschlagen.'); });
 }
 
 function askDeleteResource(r){

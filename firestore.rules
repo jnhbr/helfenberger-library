@@ -61,16 +61,20 @@ service cloud.firestore {
     // per-document limit (e.g. once exercises start including images).
     match /resourceContent/{resourceId} {
       allow read: if isSignedIn();
-      allow create, update, delete: if isTeacher()
+      allow create, update: if isTeacher()
         && request.resource.data.chunkCount is int
         && request.resource.data.chunkCount > 0
         && request.resource.data.chunkCount <= 20;
+      // Separate from create/update: on delete, request.resource is null, so a
+      // combined rule that reads request.resource.data would always deny it.
+      allow delete: if isTeacher();
 
       match /chunks/{chunkId} {
         allow read: if isSignedIn();
-        allow create, update, delete: if isTeacher()
+        allow create, update: if isTeacher()
           && request.resource.data.html is string
           && request.resource.data.html.size() < 950000; // ~950KB, under Firestore's 1MiB document cap
+        allow delete: if isTeacher();
       }
     }
 
