@@ -101,7 +101,21 @@
   }
   .desk-prop{position:fixed;bottom:0;font-size:64px;line-height:1;opacity:.5;pointer-events:none;z-index:0;filter:saturate(.9);}
   .desk-prop-left{left:14px;}
-  .desk-prop-right{right:14px;}
+  .desk-prop-right{right:70px;}
+  /* Bleistift-Easter-Egg: eigenes Element statt Teil des dekorativen
+     "☕✏️"-Texts, damit genau dieser Bleistift klickbar sein kann, ohne die
+     ganze Kaffeetasse mit-interaktiv zu machen. */
+  .desk-prop-pencil{right:14px;background:none;border:0;padding:0;margin:0;color:inherit;pointer-events:auto;cursor:pointer;transition:opacity .15s ease;}
+  .desk-prop-pencil:hover,.desk-prop-pencil:focus-visible{opacity:.75;}
+  .desk-prop-pencil:focus-visible{outline:2px solid var(--brand);outline-offset:3px;border-radius:8px;}
+  .desk-prop-pencil-off{opacity:.22;filter:grayscale(1) saturate(.9);}
+  .pencil-bubble{position:fixed;bottom:92px;right:14px;z-index:70;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:0 10px 30px rgba(0,0,0,.18);padding:14px 16px;width:280px;max-width:calc(100vw - 28px);}
+  .pencil-bubble::after{content:'';position:absolute;bottom:-9px;right:26px;width:16px;height:16px;background:var(--surface);border-right:1px solid var(--border);border-bottom:1px solid var(--border);transform:rotate(45deg);}
+  .pencil-bubble-close{position:absolute;top:4px;right:6px;background:none;border:0;font-size:19px;line-height:1;cursor:pointer;color:var(--text-muted);padding:4px 7px;}
+  .pencil-bubble-msg{font-size:14px;line-height:1.5;padding-right:16px;}
+  .pencil-bubble-teacher{margin-top:10px;padding-top:10px;border-top:1px dashed var(--border);}
+  .pencil-bubble-teacher textarea{width:100%;box-sizing:border-box;margin:6px 0 10px;font:inherit;padding:8px 10px;border:1px solid var(--border);border-radius:10px;background:var(--surface-2);color:var(--text);resize:vertical;}
+  .pencil-bubble-actions{display:flex;gap:8px;flex-wrap:wrap;}
   @media (max-width:900px){ .desk-prop{display:none;} }
   #app{position:relative;z-index:1;}
   h1,h2,h3{font-family:'Baloo 2',Karla,sans-serif;margin:0 0 6px;}
@@ -360,7 +374,7 @@
   }
 
   @media print{
-    .topbar,.back-row,.da-toolbar,.push-popover,.modal-overlay,.toast,.desk-prop{display:none !important;}
+    .topbar,.back-row,.da-toolbar,.push-popover,.modal-overlay,.toast,.desk-prop,.pencil-bubble{display:none !important;}
     body{background:#fff;}
     .content{padding:0;}
     .table-scroll{overflow:visible;}
@@ -370,7 +384,8 @@
 </head>
 <body>
 <div class="desk-prop desk-prop-left" aria-hidden="true">📚</div>
-<div class="desk-prop desk-prop-right" aria-hidden="true">☕✏️</div>
+<div class="desk-prop desk-prop-right" aria-hidden="true">☕</div>
+<button type="button" id="pencilEgg" class="desk-prop desk-prop-pencil" hidden>✏️</button>
 <div id="app"><div class="spinner-wrap">Lädt …</div></div>
 <div class="toast" id="toast"></div>
 <div class="modal-overlay" id="modalOverlay"></div>
@@ -515,9 +530,15 @@ function subjectById(id){ return SUBJECTS.find(function(s){return s.id===id;}); 
 var CALENDAR_TYPES = {
   hausaufgabe: {label:'Hausaufgabe', icon:'📘', color:'#4361EE'},
   abgabe:      {label:'Abgabe',      icon:'📤', color:'#E8752C'},
+  unterschrift:{label:'Unterschrift',icon:'✍️', color:'#2E8B57'},
   pruefung:    {label:'Prüfung',     icon:'📝', color:'#E63950'},
   erinnerung:  {label:'Erinnerung',  icon:'🔔', color:'#8B5CF6'}
 };
+// Diese drei Eintragsarten kriegen die Abgabe-Checkliste (wer hat schon
+// abgehakt) - Prüfung/Erinnerung nicht, da dort niemand etwas "abgibt".
+function hasSubmissionChecklist(type){
+  return type==='hausaufgabe' || type==='abgabe' || type==='unterschrift';
+}
 
 // Ferien Volksschule Thurgau (Quelle: schulferien.org / Amt für Volksschule TG).
 // Fest hinterlegt statt live abgefragt, da es dafür keine offizielle API gibt -
@@ -666,7 +687,7 @@ function calendarEntryLineHtml(e, isTeacher, roster){
   if(e.resourceId){
     html += '<button class="btn btn-ghost btn-sm cal-open-res-btn" type="button" data-resource-id="'+esc(e.resourceId)+'">▶ Zur Übung'+(e.resourceTitle?': '+esc(e.resourceTitle):'')+'</button>';
   }
-  if(isTeacher && (e.type==='hausaufgabe' || e.type==='abgabe') && roster){
+  if(isTeacher && hasSubmissionChecklist(e.type) && roster){
     html += '<button class="btn btn-ghost btn-sm cal-sub-btn" type="button" data-id="'+esc(e.id)+'">☑ '+esc(submittedCountLabel(e, roster))+'</button>';
   }
   html += '</div>';
@@ -690,7 +711,7 @@ function calendarEntryLineHtml(e, isTeacher, roster){
 function uiReactivateEntry(entry, onDone){
   openModal(
     '<h3>Reaktivieren: '+esc(entry.title)+'</h3>'+
-    '<p>Setzt ein neues Datum für diesen Eintrag'+((entry.type==='hausaufgabe'||entry.type==='abgabe') ? ' und setzt die Abgabe-Checkliste zurück.' : '.')+'</p>'+
+    '<p>Setzt ein neues Datum für diesen Eintrag'+(hasSubmissionChecklist(entry.type) ? ' und setzt die Abgabe-Checkliste zurück.' : '.')+'</p>'+
     '<label class="modal-label">Neues Datum</label><input type="date" id="reactivateDate" value="'+esc(addDaysStr(1))+'">'+
     '<div class="login-err" id="reactivateErr"></div>'+
     '<div class="modal-actions">'+
@@ -708,10 +729,10 @@ function uiReactivateEntry(entry, onDone){
     if(!newDate){ errEl.textContent='Bitte ein Datum wählen.'; errEl.classList.add('show'); return; }
     try{
       var updates = { dueDate: newDate };
-      if(entry.type === 'hausaufgabe' || entry.type === 'abgabe'){ updates.submitted = {}; }
+      if(hasSubmissionChecklist(entry.type)){ updates.submitted = {}; }
       await updateDoc(doc(db,'calendarEntries', entry.id), updates);
       entry.dueDate = newDate;
-      if(entry.type === 'hausaufgabe' || entry.type === 'abgabe'){ entry.submitted = {}; }
+      if(hasSubmissionChecklist(entry.type)){ entry.submitted = {}; }
       closeModal();
       toast('Eintrag reaktiviert.');
       onDone();
@@ -1474,6 +1495,92 @@ function toast(msg){
 
 function esc(s){ return (s||'').toString().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
+/* ===================== "BLEISTIFT"-EASTER-EGG (unten rechts) =====================
+   Rein dekoratives Detail für aufmerksame Schüler:innen: der Bleistift neben der
+   Kaffeetasse ist klickbar und öffnet eine Sprechblase mit einer versteckten
+   Nachricht. An/Aus + Text liegen in Firestore unter appMeta/pencilEgg (appMeta
+   erlaubt laut firestore.rules bereits: alle lesen, nur die Lehrperson schreibt -
+   keine Regeländerung nötig). Für die Lehrperson bleibt der Bleistift auch im
+   ausgeblendeten Zustand sichtbar (nur schwächer/entsättigt), damit sie ihn
+   jederzeit wieder einschalten kann; für alle anderen verschwindet er komplett. */
+var PENCIL_EGG_DEFAULT_MESSAGE = "Du bist die erste Person, die mich entdeckt hat. Hol dir dein Schoggibrötli bei Herrn Helfenberger ab.";
+var pencilEgg = { enabled:true, message:PENCIL_EGG_DEFAULT_MESSAGE };
+var pencilEggBtn = document.getElementById('pencilEgg');
+if(pencilEggBtn){
+  pencilEggBtn.addEventListener('click', function(e){
+    e.stopPropagation();
+    if(document.getElementById('pencilBubble')){ closePencilBubble(); } else { openPencilBubble(); }
+  });
+}
+function loadPencilEgg(){
+  getDoc(doc(db,'appMeta','pencilEgg')).then(function(snap){
+    if(snap.exists()){
+      var data = snap.data();
+      if(typeof data.enabled === 'boolean') pencilEgg.enabled = data.enabled;
+      if(typeof data.message === 'string' && data.message.trim()) pencilEgg.message = data.message;
+    }
+    applyPencilEggVisibility();
+  }).catch(function(err){ console.error(err); applyPencilEggVisibility(); });
+}
+function applyPencilEggVisibility(){
+  if(!pencilEggBtn) return;
+  var isTeacher = state.profile && state.profile.role === 'teacher';
+  pencilEggBtn.hidden = !(pencilEgg.enabled || isTeacher);
+  pencilEggBtn.classList.toggle('desk-prop-pencil-off', !pencilEgg.enabled);
+}
+function openPencilBubble(){
+  var isTeacher = state.profile && state.profile.role === 'teacher';
+  var html = '<div class="pencil-bubble" id="pencilBubble">'+
+    '<button type="button" class="pencil-bubble-close" id="pencilBubbleClose" aria-label="Schliessen">×</button>'+
+    '<div class="pencil-bubble-msg">'+esc(pencilEgg.message)+'</div>';
+  if(isTeacher){
+    html += '<div class="pencil-bubble-teacher">'+
+      '<label class="modal-label">Nachricht (nur du siehst dieses Feld)</label>'+
+      '<textarea id="pencilMsgInput" rows="3" maxlength="300">'+esc(pencilEgg.message)+'</textarea>'+
+      '<div class="pencil-bubble-actions">'+
+        '<button class="btn btn-ghost btn-sm" id="pencilSaveBtn" type="button">Speichern</button>'+
+        '<button class="btn btn-ghost btn-sm" id="pencilHideBtn" type="button">'+(pencilEgg.enabled ? 'Funktion ausblenden' : 'Funktion einblenden')+'</button>'+
+      '</div></div>';
+  }
+  html += '</div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+  document.getElementById('pencilBubbleClose').addEventListener('click', closePencilBubble);
+  if(isTeacher){
+    document.getElementById('pencilSaveBtn').addEventListener('click', function(){
+      var val = document.getElementById('pencilMsgInput').value.trim().slice(0,300);
+      if(!val) return;
+      savePencilEgg({message:val});
+      closePencilBubble();
+    });
+    document.getElementById('pencilHideBtn').addEventListener('click', function(){
+      savePencilEgg({enabled: !pencilEgg.enabled});
+      closePencilBubble();
+    });
+  }
+  setTimeout(function(){ document.addEventListener('click', onOutsidePencilClick); }, 0);
+}
+function closePencilBubble(){
+  var el = document.getElementById('pencilBubble');
+  if(el) el.remove();
+  document.removeEventListener('click', onOutsidePencilClick);
+}
+function onOutsidePencilClick(e){
+  var el = document.getElementById('pencilBubble');
+  if(!el) return;
+  if(el.contains(e.target) || e.target === pencilEggBtn) return;
+  closePencilBubble();
+}
+function savePencilEgg(patch){
+  Object.assign(pencilEgg, patch);
+  applyPencilEggVisibility();
+  setDoc(doc(db,'appMeta','pencilEgg'), patch, {merge:true}).then(function(){
+    toast('Gespeichert.');
+  }).catch(function(err){
+    console.error(err);
+    toast('Konnte nicht gespeichert werden.');
+  });
+}
+
 function csvField(v){
   var s = v==null ? '' : String(v);
   if(/[",\n]/.test(s)) s = '"'+s.replace(/"/g,'""')+'"';
@@ -1546,6 +1653,8 @@ onAuthStateChanged(auth, async function(user){
     lastAuthedUid = null;
     state.profile = null;
     state.route = {name:'login'};
+    closePencilBubble();
+    applyPencilEggVisibility();
     render();
     return;
   }
@@ -1560,6 +1669,7 @@ onAuthStateChanged(auth, async function(user){
     state.profile = snap.data();
     state.route = {name:'home'};
     render();
+    loadPencilEgg();
   }catch(err){
     console.error(err);
     toast('Fehler beim Laden des Profils.');
