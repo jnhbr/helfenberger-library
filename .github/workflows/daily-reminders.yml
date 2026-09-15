@@ -2,11 +2,16 @@ name: Tägliche Erinnerungen
 
 on:
   schedule:
-    # 18:00 Uhr Schweizer Zeit abdecken (Sommer- UND Winterzeit): das Skript
-    # selbst prüft, welcher der beiden Läufe gerade wirklich 18 Uhr lokal ist,
-    # und tut beim jeweils "falschen" Lauf nichts.
+    # 18:00 Uhr Schweizer Zeit abdecken (Sommer- UND Winterzeit), plus 19:00
+    # als Absicherung, falls GitHub Actions einen Lauf mal verspätet startet
+    # (schon vorgekommen - dann lief das Skript erst nach 18 Uhr lokal und hat
+    # bewusst nichts verschickt). Das Skript selbst prüft, welcher der Läufe
+    # gerade wirklich 18 oder 19 Uhr lokal ist, und tut sonst nichts; ein
+    # Firestore-Log verhindert Doppelversand, falls sowohl der 18-Uhr- als
+    # auch der 19-Uhr-Lauf durchkommen.
     - cron: '0 16 * * *'   # 18:00 MESZ (Sommerzeit, UTC+2)
-    - cron: '0 17 * * *'   # 18:00 MEZ  (Winterzeit, UTC+1)
+    - cron: '0 17 * * *'   # 18:00 MEZ (Winterzeit) / 19:00 MESZ-Fallback (UTC+1/+2 je nach Jahreszeit)
+    - cron: '0 18 * * *'   # 19:00 MEZ-Fallback (Winterzeit, UTC+1)
   workflow_dispatch:
     inputs:
       force:

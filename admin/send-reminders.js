@@ -2,10 +2,14 @@
 /**
  * Tägliche Erinnerungen (Helfenberger's Library).
  *
- * Läuft via GitHub Actions (.github/workflows/daily-reminders.yml), zweimal
- * pro Tag angestossen (ein UTC-Cron für Sommerzeit, einer für Winterzeit) -
- * prüft selbst, ob es gerade wirklich 18 Uhr Schweizer Zeit ist, und tut beim
- * jeweils "falschen" Lauf nichts. So ist keine manuelle Zeitumstellung nötig.
+ * Läuft via GitHub Actions (.github/workflows/daily-reminders.yml), pro Tag
+ * mehrfach angestossen (UTC-Crons, die je nach Sommer-/Winterzeit auf 18 Uhr
+ * und - als Absicherung, falls GitHub Actions einen Lauf mal verspätet -
+ * 19 Uhr Schweizer Zeit fallen) - prüft selbst, ob es gerade wirklich 18 oder
+ * 19 Uhr Schweizer Zeit ist, und tut sonst nichts. So ist keine manuelle
+ * Zeitumstellung nötig. Ein Firestore-Log (siehe logRef unten) verhindert,
+ * dass der 19-Uhr-Fallback nochmal verschickt, falls der 18-Uhr-Lauf schon
+ * durchkam.
  *
  * Braucht als Umgebungsvariablen (GitHub-Actions-Secrets, siehe Workflow-Datei):
  *   FIREBASE_SERVICE_ACCOUNT_KEY  - kompletter Inhalt der serviceAccountKey.json
@@ -41,8 +45,8 @@ var TYPE_LABELS = { hausaufgabe: 'Hausaufgabe', abgabe: 'Abgabe', pruefung: 'Pr�
 async function main(){
   var z = nowInZurich();
   var force = process.env.FORCE_SEND === 'true'; // für manuellen Testlauf via workflow_dispatch
-  if(!force && z.hour !== 18){
-    console.log('Aktuell ' + z.hour + ' Uhr in Zürich, nicht 18 Uhr - nichts zu tun.');
+  if(!force && z.hour !== 18 && z.hour !== 19){
+    console.log('Aktuell ' + z.hour + ' Uhr in Zürich, nicht 18 oder 19 Uhr - nichts zu tun.');
     return;
   }
 
@@ -51,6 +55,23 @@ async function main(){
   var serviceAccount = JSON.parse(keyJson);
   admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
   var db = admin.firestore();
+
+  var dueDate = tomorrowDateStrZurich();
+
+  // Absicherung gegen Doppelversand: normale (nicht erzwungene) Läufe
+  // markieren hier, dass für dueDate schon geprüft/verschickt wurde. Kommt
+  // der 18-Uhr-Lauf verspätet oder fällt aus, greift der 19-Uhr-Fallback -
+  // lief 18 Uhr aber schon durch, überspringt der 19-Uhr-Lauf dank dieser
+  // Markierung. Bei FORCE_SEND (manueller Testlauf) wird weder geprüft noch
+  // markiert, damit Tests den automatischen Versand nicht blockieren.
+  var logRef = db.collection('reminderLog').doc(dueDate);
+  if(!force){
+    var logSnap = await logRef.get();
+    if(logSnap.exists){
+      console.log('Für ' + dueDate + ' wurde bereits verschickt (Lauf um ' + logSnap.data().hour + ' Uhr) - nichts zu tun.');
+      return;
+    }
+  }
 
   if(!process.env.VAPID_PUBLIC_KEY || !process.env.VAPID_PRIVATE_KEY){
     throw new Error('VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY fehlen.');
@@ -61,8 +82,10 @@ async function main(){
     process.env.VAPID_PRIVATE_KEY
   );
 
-  var dueDate = tomorrowDateStrZurich();
   var entriesSnap = await db.collection('calendarEntries').where('dueDate', '==', dueDate).get();
+  if(!force){
+    await logRef.set({ hour: z.hour, checkedAt: admin.firestore.FieldValue.serverTimestamp(), entryCount: entriesSnap.size });
+  }
   if(entriesSnap.empty){
     console.log('Keine Einträge fällig am ' + dueDate + ' - keine Erinnerungen zu verschicken.');
     return;
