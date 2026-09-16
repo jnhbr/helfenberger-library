@@ -560,6 +560,19 @@
   .lk-hard-title{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted);width:100%;}
   .lk-hard-chip{background:var(--bad-soft);color:var(--bad);border-radius:999px;padding:5px 12px;font-size:12.5px;font-weight:600;}
 
+  /* ---------- Lernstand-Übersicht: ein Klappfach pro Fach ----------
+     <details>/<summary> statt eigener JS-Logik. Offen/zu wird pro Fach im
+     localStorage gemerkt (Präfix hl_ gehört der Shell, in der wir hier sind).
+     Beim Drucken werden alle Fächer aufgeklappt (siehe lsPrintBtn). */
+  .ls-fach{border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);margin-top:14px;overflow:hidden;}
+  .ls-fach > summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:10px;padding:13px 16px;font-family:'Baloo 2',system-ui,sans-serif;font-weight:700;font-size:17px;}
+  .ls-fach > summary::-webkit-details-marker{display:none;}
+  .ls-fach > summary:hover{background:var(--surface-2);}
+  .ls-fach > summary::before{content:'▸';font-size:13px;color:var(--text-muted);transition:transform .15s ease;}
+  .ls-fach[open] > summary::before{transform:rotate(90deg);}
+  .ls-fach > summary .ls-fach-count{margin-left:auto;font-family:inherit;font-size:12px;font-weight:500;color:var(--text-muted);}
+  .ls-fach-body{padding:0 16px 16px;}
+
   /* ---------- Klassenzimmer-Sammelseite ---------- */
   .kz-intro{color:var(--text-muted);font-size:14px;margin:0 2px 16px;}
   .kz-tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px;}
@@ -586,9 +599,9 @@
   .sp-dragging{opacity:.85;cursor:grabbing;z-index:6;}
   .sp-kind-pult{background:#6B4F35;border-color:#43301F;}
   .sp-kind-block{background:#1F5134;border-color:#12301F;}
-  .sp-table-label{flex:1;display:flex;align-items:center;justify-content:center;color:#fff;font-size:9px;font-weight:700;letter-spacing:.05em;pointer-events:none;}
+  .sp-table-label{flex:1;display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:700;letter-spacing:.05em;pointer-events:none;}
   .sp-table-sel{outline:2px solid var(--brand);outline-offset:2px;z-index:3;}
-  .sp-seat{flex:1;min-width:0;border:none;background:transparent;font:inherit;font-size:9px;font-weight:700;color:#3A2A18;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0 2px;border-right:1px dashed rgba(0,0,0,.25);}
+  .sp-seat{flex:1;min-width:0;border:none;background:transparent;font:inherit;font-size:11px;font-weight:700;color:#3A2A18;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0 2px;border-right:1px dashed rgba(0,0,0,.25);}
   .sp-seat:last-child{border-right:none;}
   .sp-seat span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;}
   .sp-seat-on{background:#FFF3DF;}
@@ -619,6 +632,22 @@
   .sp-rule-empty{color:var(--text-muted);font-size:13px;}
   .sp-rule-add{display:flex;flex-wrap:wrap;gap:7px;align-items:center;margin-bottom:16px;}
   .sp-rule-add .sp-select{flex:1;min-width:150px;}
+  /* ---------- Sitzplan im Vollbild (Beamer) ----------
+     Vollbild-Element ist #spHost: diese Node wird von paintSitzplan() NICHT
+     ersetzt (nur ihr innerHTML), darum übersteht das Vollbild jedes
+     Neuzeichnen beim Setzen/Verschieben. Der Verlassen-Knopf liegt deshalb
+     auch innerhalb von #spHost — Geschwister-Elemente werden im nativen
+     Vollbild gar nicht gerendert. Für iOS-Safari (kein Fullscreen-API) gibt
+     es wie beim Übungs-Viewer den CSS-Pseudo-Vollbild-Fallback .sp-fs. */
+  #spHost:fullscreen,#spHost:-webkit-full-screen,#spHost.sp-fs{background:var(--bg);padding:14px 16px;overflow:auto;}
+  #spHost.sp-fs{position:fixed;inset:0;z-index:1000;width:100vw;height:100vh;height:100dvh;}
+  #spHost:fullscreen .sp-room,#spHost:-webkit-full-screen .sp-room,#spHost.sp-fs .sp-room{max-width:calc(80vh * 9 / 8);}
+  #spHost:fullscreen .sp-seat,#spHost:-webkit-full-screen .sp-seat,#spHost.sp-fs .sp-seat{font-size:15px;}
+  #spHost:fullscreen .sp-table-label,#spHost:-webkit-full-screen .sp-table-label,#spHost.sp-fs .sp-table-label{font-size:14px;}
+  #spHost:fullscreen .sp-board,#spHost:-webkit-full-screen .sp-board,#spHost.sp-fs .sp-board{font-size:15px;}
+  .sp-fs-exit{display:none;position:fixed;top:14px;right:16px;z-index:1001;align-items:center;justify-content:center;gap:6px;border:none;border-radius:999px;padding:9px 16px;background:rgba(20,20,32,.6);color:#fff;font:inherit;font-weight:700;font-size:13px;cursor:pointer;}
+  .sp-fs-exit:hover{background:rgba(20,20,32,.82);}
+  #spHost:fullscreen .sp-fs-exit,#spHost:-webkit-full-screen .sp-fs-exit,#spHost.sp-fs .sp-fs-exit{display:flex;}
   body.sp-printing .topbar,body.sp-printing .sp-tools,body.sp-printing .sp-side,body.sp-printing .back-row,body.sp-printing .desk-prop{display:none !important;}
   @media print{
     .topbar,.sp-tools,.sp-side,.back-row,.desk-prop,.toast{display:none !important;}
@@ -1730,6 +1759,19 @@ async function loadLernstandUebersicht(){
   return {students:students, bySubject:bySubject};
 }
 
+// Offen/zu-Zustand der Fach-Klappboxen. Default: offen — beim ersten Besuch
+// soll wie bisher alles dastehen, zugeklappt wird nur, was stört.
+function lsFachOffen(subjId){
+  try{ return localStorage.getItem('hl_lernstand_zu_'+subjId) !== '1'; }
+  catch(e){ return true; }
+}
+function lsFachSetzen(subjId, offen){
+  try{
+    if(offen) localStorage.removeItem('hl_lernstand_zu_'+subjId);
+    else localStorage.setItem('hl_lernstand_zu_'+subjId, '1');
+  }catch(e){}
+}
+
 function renderLernstandUebersicht(){
   clearSubjectWatchers(); clearOverviewWatchers(); unwatchAllProgress();
   var html = '<div class="back-row"><button class="btn btn-ghost btn-sm" id="backBtn">&larr; Start</button></div>';
@@ -1755,7 +1797,9 @@ function renderLernstandUebersicht(){
     subjectIds.forEach(function(subjId){
       var sub = result.bySubject[subjId];
       var s = subjectById(subjId);
-      h += '<h3 style="margin-top:22px;">'+(s?s.name:subjId)+'</h3>';
+      h += '<details class="ls-fach" data-subj="'+esc(subjId)+'"'+(lsFachOffen(subjId)?' open':'')+'>';
+      h += '<summary>'+esc(s?s.name:subjId)+'<span class="ls-fach-count">'+sub.resources.length+' '+(sub.resources.length===1?'Übung':'Übungen')+'</span></summary>';
+      h += '<div class="ls-fach-body">';
       h += '<div class="table-scroll"><table class="da-table"><thead><tr><th>Schüler:in</th>';
       sub.resources.forEach(function(res){ h += '<th>'+esc(res.title||res.fileName)+'</th>'; });
       h += '</tr></thead><tbody>';
@@ -1792,11 +1836,20 @@ function renderLernstandUebersicht(){
         });
         h += '</div>';
       }
+      h += '</div></details>';
     });
 
     body.innerHTML = h;
+    // Offen/zu je Fach merken.
+    Array.prototype.forEach.call(body.querySelectorAll('.ls-fach'), function(d){
+      d.addEventListener('toggle', function(){ lsFachSetzen(d.getAttribute('data-subj'), d.open); });
+    });
     document.getElementById('lsReloadBtn').addEventListener('click', renderLernstandUebersicht);
-    document.getElementById('lsPrintBtn').addEventListener('click', function(){ window.print(); });
+    document.getElementById('lsPrintBtn').addEventListener('click', function(){
+      // Zugeklappte Fächer stehen nicht im Ausdruck — vorher alle öffnen.
+      Array.prototype.forEach.call(body.querySelectorAll('.ls-fach'), function(d){ d.open = true; });
+      window.print();
+    });
     document.getElementById('lsCsvBtn').addEventListener('click', function(){
       var rows = [['Fach','Schüler:in','Übung','Stand','Anzahl Reset','Lernzeit (Std.)']];
       subjectIds.forEach(function(subjId){
@@ -5085,10 +5138,16 @@ function paintLiveKlasse(root){
 
 /* ===================== 🪑 SITZPLAN (nur Lehrperson) =====================
    Klassenzimmer 9 m (Breite) x 8 m (Tiefe), Wandtafel vorne mittig an der
-   9-m-Wand. Drei Möbelarten: Zweiertisch (1,0 x 0,5 m, zwei Plätze),
-   Lehrerpult und eine gesperrte Fläche in Dunkelgrün (gleiche Masse wie ein
-   Tisch, aber niemand sitzt dort). Alles frei verschiebbar und drehbar;
-   Sitzordnungen lassen sich benannt speichern und wieder laden.
+   9-m-Wand. Drei Möbelarten: Zweiertisch (zwei Plätze), Lehrerpult und eine
+   gesperrte Fläche in Dunkelgrün (gleiche Masse wie ein Tisch, aber niemand
+   sitzt dort). Alles frei verschiebbar und drehbar; Sitzordnungen lassen sich
+   benannt speichern und wieder laden.
+
+   Die Möbel sind bewusst NICHT massstabsgetreu: ein Zweiertisch ist real
+   1,0 x 0,5 m, wird hier aber mit dem doppelten Mass gezeichnet, damit die
+   Namen auf dem Beamer lesbar bleiben. Das Zimmerraster bleibt bei 1 m. Wer
+   die Masse wieder echt haben will, halbiert die vier Konstanten unten — die
+   Tischordnungs-Vorlagen rechnen mit TABLE_W/TABLE_H und passen sich an.
 
    Der Arbeitsstand liegt in EINEM Firestore-Dokument (klassenzimmer/sitzplan),
    die gespeicherten Varianten in klassenzimmer/sitzplaene. Beide sind klein,
@@ -5097,8 +5156,8 @@ function paintLiveKlasse(root){
    — diese Collection wird ausschliesslich vom Admin-Skript geschrieben. */
 
 var ROOM_W = 9, ROOM_D = 8;          // Meter
-var TABLE_W = 1.0, TABLE_H = 0.5;    // Zweiertisch
-var PULT_W = 1.4, PULT_H = 0.7;      // Lehrerpult
+var TABLE_W = 2.0, TABLE_H = 1.0;    // Zweiertisch (doppelt gezeichnet)
+var PULT_W = 2.8, PULT_H = 1.4;      // Lehrerpult (doppelt gezeichnet)
 var SP_DEFAULT_TABLES = 11;          // so viele Zweiertische stehen im Zimmer
 var SNAP = 0.1;
 
@@ -5124,6 +5183,62 @@ function spKind(t){ return t.kind || 'tisch'; }
 function spHasSeats(t){ return spKind(t) === 'tisch'; }
 function spTableSize(t){
   return spKind(t) === 'pult' ? {w:PULT_W, h:PULT_H} : {w:TABLE_W, h:TABLE_H};
+}
+
+/* ---------- Vollbild der Pultdarstellung ----------
+   Siehe CSS-Kommentar bei #spHost:fullscreen: es wird bewusst #spHost
+   gefullscreent und nicht der Raum selbst, damit die Werkzeugleiste und die
+   Klassenliste bedienbar bleiben und das Vollbild ein Neuzeichnen übersteht. */
+var spFsWired = false;
+
+function spIsFs(){
+  var host = document.getElementById('spHost');
+  if(!host) return false;
+  return (document.fullscreenElement || document.webkitFullscreenElement) === host
+      || host.classList.contains('sp-fs');
+}
+function spSyncFsBtn(){
+  var btn = document.getElementById('spFs');
+  if(btn) btn.innerHTML = spIsFs() ? '✕ Vollbild beenden' : '⛶ Vollbild';
+}
+function spPseudoFsOn(host){
+  host.classList.add('sp-fs');
+  document.body.classList.add('pseudo-fs-active');
+  spSyncFsBtn();
+}
+function spPseudoFsOff(host){
+  host.classList.remove('sp-fs');
+  document.body.classList.remove('pseudo-fs-active');
+  spSyncFsBtn();
+}
+function spExitFs(){
+  var host = document.getElementById('spHost');
+  if(host && host.classList.contains('sp-fs')){ spPseudoFsOff(host); return; }
+  if(document.fullscreenElement || document.webkitFullscreenElement){
+    var action = (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+    if(action && action.catch){ action.catch(function(){}); }
+  }
+}
+function spToggleFs(){
+  var host = document.getElementById('spHost');
+  if(!host) return;
+  if(spIsFs()){ spExitFs(); return; }
+  var native = host.requestFullscreen || host.webkitRequestFullscreen;
+  if(!native){ spPseudoFsOn(host); return; }   // iOS-Safari / Homescreen-App
+  var action = native.call(host);
+  if(action && action.catch){
+    action.catch(function(){ spPseudoFsOn(host); });
+  }
+}
+function spWireFsOnce(){
+  if(spFsWired) return;
+  spFsWired = true;
+  document.addEventListener('fullscreenchange', spSyncFsBtn);
+  document.addEventListener('webkitfullscreenchange', spSyncFsBtn);
+  document.addEventListener('keydown', function(e){
+    var host = document.getElementById('spHost');
+    if(e.key === 'Escape' && host && host.classList.contains('sp-fs')) spPseudoFsOff(host);
+  });
 }
 
 function spStudentById(uid){
@@ -5217,7 +5332,10 @@ function renderSitzplan(){
   html += '<h2 class="page-welcome" style="margin-bottom:10px;">🪑 Sitzplan</h2>';
   html += '<div id="spHost"><div class="empty-state">Wird geladen …</div></div>';
   renderChrome(html);
-  document.getElementById('backBtn').addEventListener('click', function(){ state.route = {name:'klassenzimmer'}; render(); });
+  document.getElementById('backBtn').addEventListener('click', function(){
+    spExitFs();   // sonst bliebe body.pseudo-fs-active hängen
+    state.route = {name:'klassenzimmer'}; render();
+  });
 
   Promise.all([
     loadStudentRoster(),
@@ -5299,9 +5417,11 @@ function paintSitzplan(){
   html += '</span>';
   html += '<span class="sp-tool-group">';
   html += '<button class="btn btn-ghost btn-sm" id="spMirror" type="button">'+(sp.doc.mirror?'🔁 Sicht: Klasse':'🔁 Sicht: Lehrer')+'</button>';
+  html += '<button class="btn btn-ghost btn-sm" id="spFs" type="button">'+(spIsFs()?'✕ Vollbild beenden':'⛶ Vollbild')+'</button>';
   html += '<button class="btn btn-ghost btn-sm" id="spPrint" type="button">🖨 Drucken</button>';
   html += '</span>';
   html += '</div>';
+  html += '<button class="sp-fs-exit" id="spFsExit" type="button">✕ Vollbild beenden</button>';
 
   html += '<div class="sp-layout">';
 
@@ -5419,6 +5539,9 @@ function wireSitzplan(){
   host.querySelector('#spMirror').addEventListener('click', function(){
     sp.doc.mirror = !sp.doc.mirror; spSave(); paintSitzplan();
   });
+  host.querySelector('#spFs').addEventListener('click', spToggleFs);
+  host.querySelector('#spFsExit').addEventListener('click', spExitFs);
+  spWireFsOnce();
   host.querySelector('#spPrint').addEventListener('click', function(){
     document.body.classList.add('sp-printing');
     window.print();
@@ -5581,8 +5704,8 @@ function spAutoLayout(kind, silent){
   var i;
   if(kind === 'reihen'){
     // Vier Tische pro Reihe mit Mittelgang, alle zur Wandtafel ausgerichtet.
-    var cols = 4, gapX = 0.4, blockGap = 0.8;
-    var rowY = 2.4, rowGap = 1.3;
+    var cols = 4, gapX = 0.15, blockGap = 0.35;
+    var rowY = 2.6, rowGap = 1.35;
     var rowWidth = cols*TABLE_W + (cols-1)*gapX + blockGap;
     var startX = (ROOM_W - rowWidth)/2 + TABLE_W/2;
     for(i=0;i<n;i++){
@@ -5597,7 +5720,7 @@ function spAutoLayout(kind, silent){
     for(i=0;i<islands;i++){
       var ic = i % perRow, ir = Math.floor(i/perRow);
       var cx = gx + TABLE_W/2 + ic*(TABLE_W+gx);
-      var cy = 2.6 + ir*1.8;
+      var cy = 2.8 + ir*2.4;
       tables.push({ id: spNewTableId(), kind:'tisch', x: spSnap(cx), y: spSnap(Math.min(ROOM_D-1.0, cy - TABLE_H/2 - 0.02)), rot: 0 });
       if(tables.length < n) tables.push({ id: spNewTableId(), kind:'tisch', x: spSnap(cx), y: spSnap(Math.min(ROOM_D-0.5, cy + TABLE_H/2 + 0.02)), rot: 180 });
     }
@@ -5606,36 +5729,50 @@ function spAutoLayout(kind, silent){
     // U-Form: die beiden Flanken zur Mitte gedreht, hinten eine Reihe. Ein um
     // 90 Grad gedrehter Tisch ist 1,0 m TIEF — der Abstand der Flankentische
     // muss darum grösser sein als die Tischlänge.
-    var sideGap = 1.2, sideTop = 2.3;
+    var sideGap = 2.2, sideTop = 2.6;
     var maxSide = Math.max(0, Math.floor((ROOM_D - sideTop - 1.5) / sideGap) + 1);
     var sideCount = Math.min(maxSide, Math.floor(n/3));
     for(i=0;i<sideCount;i++){
-      tables.push({ id: spNewTableId(), kind:'tisch', x: 0.9, y: spSnap(sideTop + i*sideGap), rot: 90 });
-      if(tables.length < n) tables.push({ id: spNewTableId(), kind:'tisch', x: spSnap(ROOM_W-0.9), y: spSnap(sideTop + i*sideGap), rot: 270 });
+      tables.push({ id: spNewTableId(), kind:'tisch', x: 1.0, y: spSnap(sideTop + i*sideGap), rot: 90 });
+      if(tables.length < n) tables.push({ id: spNewTableId(), kind:'tisch', x: spSnap(ROOM_W-1.0), y: spSnap(sideTop + i*sideGap), rot: 270 });
     }
     var backCount = Math.max(0, n - tables.length);
-    var bw = Math.min(5, Math.max(1, backCount));
-    var bStart = (ROOM_W - (bw*TABLE_W + (bw-1)*0.35))/2 + TABLE_W/2;
+    var bw = Math.min(4, Math.max(1, backCount));
+    var bStart = (ROOM_W - (bw*TABLE_W + (bw-1)*0.2))/2 + TABLE_W/2;
     for(i=0;i<backCount;i++){
       var bc = i % bw, br = Math.floor(i/bw);
-      tables.push({ id: spNewTableId(), kind:'tisch', x: spSnap(bStart + bc*(TABLE_W+0.35)), y: spSnap(Math.max(1.5, ROOM_D-0.8 - br*0.8)), rot: 180 });
+      tables.push({ id: spNewTableId(), kind:'tisch', x: spSnap(bStart + bc*(TABLE_W+0.2)), y: spSnap(Math.max(1.5, ROOM_D-1.0 - br*(TABLE_H+0.2))), rot: 180 });
     }
     tables = tables.slice(0, n);
   } else {
     // Zufall: gesetzt wird nur, wo nichts kollidiert (einfacher Radius-Test).
+    var minX = TABLE_W/2 + 0.1, maxX = ROOM_W - TABLE_W/2 - 0.1;
+    var minY = 2.2 + TABLE_H/2, maxY = ROOM_D - TABLE_H/2 - 0.1;
+    var fits = function(list, cand, mx, my){
+      return list.every(function(t){
+        return Math.abs(t.x-cand.x) > mx || Math.abs(t.y-cand.y) > my;
+      });
+    };
     var tries = 0;
-    while(tables.length < n && tries < 6000){
+    while(tables.length < n && tries < 4000){
       tries++;
       var cand = {
         id: spNewTableId(), kind:'tisch',
-        x: spSnap(0.8 + Math.random()*(ROOM_W-1.6)),
-        y: spSnap(2.2 + Math.random()*(ROOM_D-2.8)),
+        x: spSnap(minX + Math.random()*(maxX-minX)),
+        y: spSnap(minY + Math.random()*(maxY-minY)),
         rot: [0,0,0,45,315][Math.floor(Math.random()*5)]
       };
-      var ok = tables.every(function(t){
-        return Math.abs(t.x-cand.x) > TABLE_W+0.3 || Math.abs(t.y-cand.y) > TABLE_H+0.6;
-      });
-      if(ok) tables.push(cand);
+      if(fits(tables, cand, TABLE_W+0.2, TABLE_H+0.3)) tables.push(cand);
+    }
+    // Mit den grösseren Tischen wird das Zimmer eng: der reine Zufall (mit
+    // grosszügigem Abstand) bringt oft nur 8-10 Tische unter. Der Rest wird
+    // danach feinrastrig aufgefüllt — dort reicht ein Abstand, bei dem sich
+    // die Tische gerade nicht mehr überlappen.
+    for(var gy = minY; gy <= maxY + 0.001 && tables.length < n; gy += SNAP){
+      for(var gx2 = minX; gx2 <= maxX + 0.001 && tables.length < n; gx2 += SNAP){
+        var slot = { id: spNewTableId(), kind:'tisch', x: spSnap(gx2), y: spSnap(gy), rot: 0 };
+        if(fits(tables, slot, TABLE_W+0.05, TABLE_H+0.05)) tables.push(slot);
+      }
     }
   }
 
