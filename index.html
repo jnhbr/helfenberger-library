@@ -116,6 +116,30 @@
   .pencil-bubble-teacher{margin-top:10px;padding-top:10px;border-top:1px dashed var(--border);}
   .pencil-bubble-teacher textarea{width:100%;box-sizing:border-box;margin:6px 0 10px;font:inherit;padding:8px 10px;border:1px solid var(--border);border-radius:10px;background:var(--surface-2);color:var(--text);resize:vertical;}
   .pencil-bubble-actions{display:flex;gap:8px;flex-wrap:wrap;}
+
+  /* ---------- Schulden ("Münze" oben links) ---------- */
+  .topbar-coin{position:relative;font-size:17px;line-height:1;padding:7px 10px;flex-shrink:0;}
+  .topbar-coin-badge{position:absolute;top:-3px;right:-3px;min-width:18px;height:18px;padding:0 4px;box-sizing:border-box;border-radius:999px;background:var(--bad);color:#fff;font-size:10.5px;font-weight:800;line-height:18px;text-align:center;}
+  .coin-bubble{position:fixed;top:66px;left:14px;z-index:70;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:0 10px 30px rgba(0,0,0,.18);padding:14px 16px;width:300px;max-width:calc(100vw - 28px);}
+  .coin-bubble::before{content:'';position:absolute;top:-9px;left:28px;width:16px;height:16px;background:var(--surface);border-left:1px solid var(--border);border-top:1px solid var(--border);transform:rotate(45deg);}
+  .coin-bubble h4{margin:0 0 8px;font-size:15px;padding-right:18px;}
+  .coin-bubble-close{position:absolute;top:4px;right:6px;background:none;border:0;font-size:19px;line-height:1;cursor:pointer;color:var(--text-muted);padding:4px 7px;}
+  .coin-bubble-total{font-weight:800;color:var(--bad);font-size:17px;margin-bottom:8px;}
+  .coin-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px;font-size:13.5px;}
+  .coin-list li{display:flex;justify-content:space-between;gap:10px;border-top:1px dashed var(--border);padding-top:6px;}
+  .coin-list li span{min-width:0;overflow-wrap:anywhere;}
+  .coin-list li b{white-space:nowrap;}
+  .debt-list{max-height:calc(85vh - 320px);overflow-y:auto;margin:10px 0;}
+  .debt-row,.debt-entry{display:flex;align-items:center;gap:10px;padding:8px 2px;border-bottom:1px solid var(--border);font-size:14.5px;}
+  .debt-row-name,.debt-entry-what{flex:1;min-width:0;overflow-wrap:anywhere;}
+  .debt-entry-date{font-size:11.5px;color:var(--text-muted);}
+  .debt-row-sum{font-weight:800;white-space:nowrap;color:var(--text-muted);}
+  .debt-row-sum.has-debt{color:var(--bad);}
+  .debt-divider{font-size:12px;font-weight:700;color:var(--text-muted);letter-spacing:.03em;text-transform:uppercase;margin:16px 0 4px;}
+  .debt-form{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin:14px 0 6px;}
+  .debt-form input{margin-bottom:0 !important;}
+  .debt-form-amount{width:120px;}
+  .debt-form-what{flex:1;min-width:160px;}
   @media (max-width:900px){ .desk-prop{display:none;} }
   #app{position:relative;z-index:1;}
   h1,h2,h3{font-family:'Baloo 2',Karla,sans-serif;margin:0 0 6px;}
@@ -268,8 +292,8 @@
   .modal-wide{max-width:640px;}
   .modal h3{font-size:18px;margin:0 0 8px;}
   .modal p{font-size:14px;color:var(--text-muted);margin:0 0 16px;line-height:1.5;}
-  .modal input[type=text],.modal input[type=password]{width:100%;padding:11px 13px;border:1px solid var(--border);border-radius:10px;font:inherit;background:var(--surface-2);color:var(--text);margin-bottom:16px;}
-  .modal input[type=text]:focus,.modal input[type=password]:focus{outline:2px solid var(--brand);outline-offset:1px;}
+  .modal input[type=text],.modal input[type=password],.modal input[type=number]{width:100%;padding:11px 13px;border:1px solid var(--border);border-radius:10px;font:inherit;background:var(--surface-2);color:var(--text);margin-bottom:16px;}
+  .modal input[type=text]:focus,.modal input[type=password]:focus,.modal input[type=number]:focus{outline:2px solid var(--brand);outline-offset:1px;}
   .modal select,.modal input[type=date],.modal textarea{width:100%;padding:11px 13px;border:1px solid var(--border);border-radius:10px;font:inherit;background:var(--surface-2);color:var(--text);margin-bottom:16px;resize:vertical;}
   .modal select:focus,.modal input[type=date]:focus,.modal textarea:focus{outline:2px solid var(--brand);outline-offset:1px;}
   .modal-label{display:block;font-size:12.5px;font-weight:600;color:var(--text-muted);margin:0 0 6px;}
@@ -374,7 +398,7 @@
   }
 
   @media print{
-    .topbar,.back-row,.da-toolbar,.push-popover,.modal-overlay,.toast,.desk-prop,.pencil-bubble{display:none !important;}
+    .topbar,.back-row,.da-toolbar,.push-popover,.modal-overlay,.toast,.desk-prop,.pencil-bubble,.coin-bubble{display:none !important;}
     body{background:#fff;}
     .content{padding:0;}
     .table-scroll{overflow:visible;}
@@ -1581,6 +1605,264 @@ function savePencilEgg(patch){
   });
 }
 
+/* ===================== SCHULDEN ("Münze" oben links) =====================
+   Kleine Beträge, die Schüler:innen Herrn Helfenberger schulden (Schoggibrötli
+   & Co.). Datenmodell: debts/{uid} -> {entries:[{id, amount, what, createdAt}],
+   updatedAt}. Laut firestore.rules liest jede:r nur das eigene Dokument, die
+   Lehrperson liest/schreibt alle - so sieht jede Schüler:in ausschliesslich die
+   eigenen Schulden. Das Dokument wird bei jeder Änderung komplett neu
+   geschrieben (setDoc ohne merge), damit gelöschte Einträge wirklich
+   verschwinden. Für Schüler:innen erscheint die Münze nur bei offenen Schulden
+   und öffnet die Sprechblase von selbst; die Lehrperson sieht sie immer (mit
+   Badge = Anzahl Schuldner:innen) und muss sie anklicken, um die Verwaltung zu
+   öffnen. */
+var myDebt = { entries:[], total:0 };
+var myDebtUnsub = null;
+var teacherDebtCount = 0;
+var coinAutoShownSig = '';
+
+function fmtChf(n){ return 'CHF ' + (Math.round(Number(n)*100)/100).toFixed(2); }
+function debtSum(entries){
+  return (entries||[]).reduce(function(s,e){ var v = Number(e.amount); return s + (isFinite(v) ? v : 0); }, 0);
+}
+function normalizeDebtEntries(data){
+  var arr = (data && Array.isArray(data.entries)) ? data.entries : [];
+  return arr.filter(function(e){ return e && isFinite(Number(e.amount)); }).map(function(e){
+    return {
+      id: e.id || ('d_'+Date.now()+'_'+Math.random().toString(36).slice(2,8)),
+      amount: Number(e.amount),
+      what: (e.what||'').toString(),
+      createdAt: Number(e.createdAt) || 0
+    };
+  });
+}
+function fmtDebtDate(ms){
+  if(!ms) return '';
+  var d = new Date(ms);
+  return pad2(d.getDate())+'.'+pad2(d.getMonth()+1)+'.'+d.getFullYear();
+}
+function startDebtWatch(){
+  stopDebtWatch();
+  if(!state.user) return;
+  if(state.profile && state.profile.role === 'teacher'){ loadTeacherDebtCount(); return; }
+  myDebtUnsub = onSnapshot(doc(db,'debts', state.user.uid), function(snap){
+    myDebt.entries = snap.exists() ? normalizeDebtEntries(snap.data()) : [];
+    myDebt.total = debtSum(myDebt.entries);
+    refreshMyDebtUi();
+  }, function(err){ console.error(err); });
+}
+function stopDebtWatch(){
+  if(myDebtUnsub){ myDebtUnsub(); myDebtUnsub = null; }
+  myDebt = { entries:[], total:0 };
+  teacherDebtCount = 0;
+  coinAutoShownSig = '';
+  closeCoinBubble();
+}
+function loadTeacherDebtCount(){
+  // Bewusst ohne where()/orderBy(): die Collection ist winzig, und so wird kein
+  // Composite Index nötig.
+  getDocs(collection(db,'debts')).then(function(snap){
+    var n = 0;
+    snap.forEach(function(d){ if(debtSum(normalizeDebtEntries(d.data())) > 0) n++; });
+    teacherDebtCount = n;
+    updateCoinButton();
+  }).catch(function(err){ console.error(err); });
+}
+function updateCoinButton(){
+  var btn = document.getElementById('coinBtn');
+  if(!btn) return;
+  var badge = document.getElementById('coinBadge');
+  var isTeacher = state.profile && state.profile.role === 'teacher';
+  if(isTeacher){
+    btn.hidden = false;
+    btn.title = teacherDebtCount ? teacherDebtCount+' mit offenen Schulden' : 'Schulden verwalten';
+    if(badge){ badge.hidden = !teacherDebtCount; badge.textContent = teacherDebtCount ? String(teacherDebtCount) : ''; }
+  } else {
+    btn.hidden = !(myDebt.total > 0);
+    btn.title = 'Offene Schulden: '+fmtChf(myDebt.total);
+    if(badge){ badge.hidden = true; badge.textContent = ''; }
+  }
+}
+function refreshMyDebtUi(){
+  updateCoinButton();
+  if(myDebt.total <= 0){ coinAutoShownSig = ''; closeCoinBubble(); return; }
+  // Die Sprechblase geht von selbst auf - beim Anmelden und jedes Mal, wenn ein
+  // Eintrag dazukommt oder sich ändert. Wer sie wegklickt, hat Ruhe, bis sich
+  // wieder etwas an den eigenen Schulden ändert.
+  var sig = myDebt.entries.map(function(e){ return e.id+':'+e.amount+':'+e.what; }).join('|');
+  if(sig !== coinAutoShownSig){ coinAutoShownSig = sig; openCoinBubble(); return; }
+  if(document.getElementById('coinBubble')) openCoinBubble();
+}
+function onCoinClick(){
+  if(state.profile && state.profile.role === 'teacher'){ openDebtManager(); return; }
+  if(document.getElementById('coinBubble')) closeCoinBubble(); else openCoinBubble();
+}
+function openCoinBubble(){
+  closeCoinBubble();
+  var items = myDebt.entries.slice().sort(function(a,b){ return (b.createdAt||0)-(a.createdAt||0); }).map(function(e){
+    return '<li><span>'+esc(e.what || 'Ohne Angabe')+'</span><b>'+esc(fmtChf(e.amount))+'</b></li>';
+  }).join('');
+  document.body.insertAdjacentHTML('beforeend',
+    '<div class="coin-bubble" id="coinBubble">'+
+      '<button type="button" class="coin-bubble-close" id="coinBubbleClose" aria-label="Schliessen">×</button>'+
+      '<h4>Du schuldest Herrn Helfenberger</h4>'+
+      '<div class="coin-bubble-total">'+esc(fmtChf(myDebt.total))+'</div>'+
+      '<ul class="coin-list">'+items+'</ul>'+
+    '</div>');
+  document.getElementById('coinBubbleClose').addEventListener('click', closeCoinBubble);
+  setTimeout(function(){ document.addEventListener('click', onOutsideCoinClick); }, 0);
+}
+function closeCoinBubble(){
+  var el = document.getElementById('coinBubble');
+  if(el) el.remove();
+  document.removeEventListener('click', onOutsideCoinClick);
+}
+function onOutsideCoinClick(e){
+  var el = document.getElementById('coinBubble');
+  if(!el) return;
+  var btn = document.getElementById('coinBtn');
+  if(el.contains(e.target) || (btn && btn.contains(e.target))) return;
+  closeCoinBubble();
+}
+
+/* --- Verwaltung (nur Lehrperson) --- */
+async function openDebtManager(){
+  openModal('<h3>Schulden</h3><p>Wird geladen …</p>', 'modal-wide');
+  var rows;
+  try{
+    var roster = await loadStudentRoster();
+    var byUid = {};
+    var snap = await getDocs(collection(db,'debts'));
+    snap.forEach(function(d){ byUid[d.id] = normalizeDebtEntries(d.data()); });
+    rows = roster.map(function(s){
+      var entries = byUid[s.uid] || [];
+      return { stu:s, entries:entries, total:debtSum(entries) };
+    });
+  }catch(err){
+    console.error(err);
+    openModal('<h3>Schulden</h3><p>Konnte nicht geladen werden.</p>'+
+      '<div class="modal-actions"><button class="btn btn-primary btn-sm" id="modalOk" type="button">Ok</button></div>');
+    document.getElementById('modalOk').addEventListener('click', closeModal);
+    return;
+  }
+  renderDebtOverview(rows);
+}
+function debtRowHtml(r){
+  return '<div class="debt-row">'+
+    '<span class="debt-row-name">'+esc(r.stu.displayName||r.stu.username)+'</span>'+
+    '<span class="debt-row-sum'+(r.total>0?' has-debt':'')+'">'+esc(fmtChf(r.total))+'</span>'+
+    '<button class="btn btn-ghost btn-sm debt-open" type="button" data-uid="'+esc(r.stu.uid)+'">'+(r.total>0?'Bearbeiten':'Eintragen')+'</button>'+
+    '</div>';
+}
+function renderDebtOverview(rows){
+  var debtors = rows.filter(function(r){ return r.total > 0; });
+  var rest = rows.filter(function(r){ return r.total <= 0; });
+  var gesamt = debtors.reduce(function(s,r){ return s + r.total; }, 0);
+  openModal(
+    '<h3>Schulden</h3>'+
+    '<p>'+(debtors.length
+      ? esc(debtors.length+' Schüler:in'+(debtors.length===1?'':'nen')+' mit offenen Schulden · total '+fmtChf(gesamt))
+      : 'Momentan hat niemand offene Schulden.')+'</p>'+
+    '<div class="debt-list">'+
+      debtors.map(debtRowHtml).join('')+
+      (rest.length ? '<div class="debt-divider">Ohne Schulden</div>'+rest.map(debtRowHtml).join('') : '')+
+    '</div>'+
+    '<div class="modal-actions"><button class="btn btn-primary btn-sm" id="modalOk" type="button">Fertig</button></div>',
+    'modal-wide'
+  );
+  document.getElementById('modalOk').addEventListener('click', closeModal);
+  Array.prototype.forEach.call(document.querySelectorAll('.debt-open'), function(b){
+    b.addEventListener('click', function(){
+      var uid = b.getAttribute('data-uid');
+      var row = rows.filter(function(x){ return x.stu.uid === uid; })[0];
+      if(row) renderDebtDetail(row, rows);
+    });
+  });
+}
+function renderDebtDetail(row, rows){
+  var sorted = row.entries.slice().sort(function(a,b){ return (b.createdAt||0)-(a.createdAt||0); });
+  var list = sorted.length ? sorted.map(function(e){
+    return '<div class="debt-entry">'+
+      '<span class="debt-entry-what">'+esc(e.what||'Ohne Angabe')+
+        (e.createdAt ? '<span class="debt-entry-date"> · '+esc(fmtDebtDate(e.createdAt))+'</span>' : '')+'</span>'+
+      '<span class="debt-row-sum has-debt">'+esc(fmtChf(e.amount))+'</span>'+
+      '<button class="btn btn-ghost btn-sm debt-del" type="button" data-id="'+esc(e.id)+'" title="Beglichen – Eintrag löschen">🗑</button>'+
+      '</div>';
+  }).join('') : '<div class="empty-state">Keine offenen Schulden.</div>';
+  openModal(
+    '<h3>'+esc(row.stu.displayName||row.stu.username)+'</h3>'+
+    '<p>Offen: <b>'+esc(fmtChf(row.total))+'</b></p>'+
+    '<div class="debt-list">'+list+'</div>'+
+    '<div class="debt-form">'+
+      '<div class="debt-form-amount"><label class="modal-label" for="debtAmount">Betrag (CHF)</label>'+
+        '<input type="number" id="debtAmount" step="0.05" min="0" placeholder="2.00"></div>'+
+      '<div class="debt-form-what"><label class="modal-label" for="debtWhat">Wofür?</label>'+
+        '<input type="text" id="debtWhat" maxlength="80" placeholder="z.B. Schoggibrötli"></div>'+
+      '<button class="btn btn-primary btn-sm" id="debtAddBtn" type="button">Hinzufügen</button>'+
+    '</div>'+
+    '<div class="login-err" id="debtErr"></div>'+
+    '<div class="modal-actions">'+
+      (row.total>0 ? '<button class="btn btn-danger btn-sm" id="debtClearBtn" type="button">Alles beglichen</button>' : '')+
+      '<button class="btn btn-ghost btn-sm" id="debtBackBtn" type="button">Zurück</button>'+
+    '</div>',
+    'modal-wide'
+  );
+  var errEl = document.getElementById('debtErr');
+  var amountEl = document.getElementById('debtAmount');
+  var whatEl = document.getElementById('debtWhat');
+
+  function addEntry(){
+    errEl.classList.remove('show');
+    var amount = Math.round(parseFloat((amountEl.value||'').replace(',','.'))*100)/100;
+    var what = whatEl.value.trim().slice(0,80);
+    if(!isFinite(amount) || amount <= 0){
+      errEl.textContent = 'Bitte einen Betrag grösser als 0 eingeben.'; errEl.classList.add('show'); amountEl.focus(); return;
+    }
+    if(!what){
+      errEl.textContent = 'Bitte eintragen, wofür.'; errEl.classList.add('show'); whatEl.focus(); return;
+    }
+    saveDebtEntries(row, rows, row.entries.concat([{
+      id: 'd_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),
+      amount: amount,
+      what: what,
+      createdAt: Date.now()
+    }]));
+  }
+  document.getElementById('debtAddBtn').addEventListener('click', addEntry);
+  whatEl.addEventListener('keydown', function(e){ if(e.key === 'Enter') addEntry(); });
+  amountEl.addEventListener('keydown', function(e){ if(e.key === 'Enter') whatEl.focus(); });
+  document.getElementById('debtBackBtn').addEventListener('click', function(){ renderDebtOverview(rows); });
+  var clearBtn = document.getElementById('debtClearBtn');
+  if(clearBtn){
+    clearBtn.addEventListener('click', function(){
+      uiConfirm('Alles beglichen?', (row.stu.displayName||row.stu.username)+' hat '+fmtChf(row.total)+' bezahlt. Alle Einträge werden gelöscht.', 'Ja, beglichen', function(){
+        saveDebtEntries(row, rows, []);
+      }, true);
+    });
+  }
+  Array.prototype.forEach.call(document.querySelectorAll('.debt-del'), function(b){
+    b.addEventListener('click', function(){
+      var id = b.getAttribute('data-id');
+      saveDebtEntries(row, rows, row.entries.filter(function(e){ return e.id !== id; }));
+    });
+  });
+}
+function saveDebtEntries(row, rows, entries){
+  // Ganzes Dokument ersetzen (kein merge): nur so verschwinden gelöschte
+  // Einträge auch wirklich aus dem Array.
+  setDoc(doc(db,'debts', row.stu.uid), { entries: entries, updatedAt: serverTimestamp() }).then(function(){
+    row.entries = entries;
+    row.total = debtSum(entries);
+    teacherDebtCount = rows.filter(function(r){ return r.total > 0; }).length;
+    updateCoinButton();
+    toast('Gespeichert.');
+    renderDebtDetail(row, rows);
+  }).catch(function(err){
+    console.error(err);
+    toast('Konnte nicht gespeichert werden.');
+  });
+}
+
 function csvField(v){
   var s = v==null ? '' : String(v);
   if(/[",\n]/.test(s)) s = '"'+s.replace(/"/g,'""')+'"';
@@ -1654,6 +1936,7 @@ onAuthStateChanged(auth, async function(user){
     state.profile = null;
     state.route = {name:'login'};
     closePencilBubble();
+    stopDebtWatch();
     applyPencilEggVisibility();
     render();
     return;
@@ -1670,6 +1953,7 @@ onAuthStateChanged(auth, async function(user){
     state.route = {name:'home'};
     render();
     loadPencilEgg();
+    startDebtWatch();
   }catch(err){
     console.error(err);
     toast('Fehler beim Laden des Profils.');
@@ -1764,6 +2048,7 @@ function renderChrome(innerHtml){
   html += '<div class="topbar">';
   html += '<div class="topbar-logo" id="logoBtn"><img src="assets/logo.png" alt="" onerror="this.style.display=\'none\'"></div>';
   html += '<div class="topbar-title" id="titleBtn">Helfenberger\'s Library</div>';
+  html += '<button class="btn btn-ghost btn-sm topbar-coin" id="coinBtn" type="button" title="Schulden" hidden>🪙<span class="topbar-coin-badge" id="coinBadge" hidden></span></button>';
   html += topbarFerienCountdownHtml();
   html += '<div class="topbar-spacer"></div>';
   html += '<div class="topbar-user">';
@@ -1784,6 +2069,10 @@ function renderChrome(innerHtml){
   document.getElementById('logoutBtn').addEventListener('click', doLogout);
   var pwBtn = document.getElementById('pwBtn');
   if(pwBtn){ pwBtn.addEventListener('click', uiChangePassword); }
+
+  var coinBtn = document.getElementById('coinBtn');
+  if(coinBtn){ coinBtn.addEventListener('click', function(e){ e.stopPropagation(); onCoinClick(); }); }
+  updateCoinButton();
 
   document.getElementById('searchBtn').addEventListener('click', openSearchModal);
   document.getElementById('themeToggleBtn').addEventListener('click', toggleTheme);

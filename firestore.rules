@@ -13,6 +13,8 @@ rules_version = '2';
 //   folders/{folderId}                              -> {subject, parentId, name, order, createdAt, createdBy} (per-subject folder tree)
 //   calendarEntries/{entryId}                       -> {type, subject, title, description, dueDate, createdAt, createdBy} (Hausaufgaben/Abgaben/Prüfungen/Erinnerungen)
 //   pushSubscriptions/{uid}/devices/{subId}          -> each signed-in user's own push-notification device registrations
+//   debts/{uid}                                     -> {entries:[{id, amount, what, createdAt}], updatedAt} (kleine Schulden
+//                                                       bei der Lehrperson; nur die betroffene Person und die Lehrperson lesen)
 //   appMeta/{id}                                    -> one-off seed markers (e.g. "was the Rotstift link
 //                                                       resource already created?"), so the app can create a
 //                                                       default entry exactly once without resurrecting it
@@ -101,6 +103,18 @@ service cloud.firestore {
     // Each signed-in user's own push-notification device registrations.
     match /pushSubscriptions/{uid}/devices/{subId} {
       allow read, write: if isOwner(uid);
+    }
+
+    // Schulden ("Münze" oben links): kleine Beträge, die Schüler:innen dem
+    // Lehrer schulden. Jede:r liest nur das eigene Dokument, damit niemand die
+    // Schulden der anderen sieht; geschrieben wird ausschliesslich vom Lehrer.
+    match /debts/{uid} {
+      allow read: if isOwner(uid) || isTeacher();
+      allow create, update: if isTeacher()
+        && request.resource.data.entries is list
+        && request.resource.data.entries.size() <= 100;
+      // Separat von create/update: bei einem delete ist request.resource null.
+      allow delete: if isTeacher();
     }
 
     // One-off seed markers (see data model note above). No data validation
