@@ -28,11 +28,15 @@ rules_version = '2';
 //   pruefungKorrekturScans/{schuelerId}/pages/{pageIndex}     -> {b64, mime, bytes} (downscaled JPEG per scanned page,
 //                                                                 base64 in Firestore since there is no Firebase Storage)
 //
-//   klassenzimmer/{id}                              -> Werkzeuge der Lehrperson, aktuell "sitzplan"
-//                                                       {tables, seats, meta, rules, absent, genderMode, mirror}
-//   fragen/{fragenId}                               -> {text, subject, answer, published, createdAt} (anonyme Fragebox:
-//                                                       KEINE uid im Dokument; nur die Lehrperson liest ungefilterte
-//                                                       Fragen, veröffentlichte Antworten sieht die ganze Klasse)
+//   klassenzimmer/sitzplan                          -> aktueller Sitzplan {tables, seats, meta, rules, absent,
+//                                                       genderMode, mirror}; tables[].kind = tisch | pult | block
+//   klassenzimmer/sitzplaene                        -> {plans:[{id, name, savedAt, tables, seats}]} gespeicherte
+//                                                       Sitzordnungen zum Wiederladen
+//   fragen/{fragenId}                               -> {text, subject, name, answer, published, createdAt} (Fragebox:
+//                                                       name ist leer, wenn anonym gefragt wurde - dann steht im
+//                                                       Dokument nichts über die Person, auch keine uid; nur die
+//                                                       Lehrperson liest ungefilterte Fragen, veröffentlichte
+//                                                       Antworten sieht die ganze Klasse)
 //   streaks/{uid}                                   -> {days:{'YYYY-MM-DD': Sekunden}, goalMin} (Lern-Serie)
 //   quizzes/{quizId}                                -> {title, subject, questions:[{q,a,c,sec}], createdAt} (NUR Lehrperson
 //                                                       lesbar - hier stehen die richtigen Antworten drin)
@@ -162,8 +166,9 @@ service cloud.firestore {
       allow read, write: if isTeacher();
     }
 
-    // Anonyme Fragebox. Jede:r Angemeldete darf eine Frage anlegen - im
-    // Dokument steht bewusst keine uid, es ist also auch im Nachhinein nicht
+    // Fragebox. Jede:r Angemeldete darf eine Frage anlegen. Wer anonym fragt,
+    // schickt name:'' mit - im Dokument steht dann bewusst nichts über die
+    // Person (auch keine uid), es ist also auch im Nachhinein nicht
     // zuzuordnen. Gelesen wird es nur von der Lehrperson, ausser sie hat es
     // beantwortet und veröffentlicht (published == true): dann sieht es die
     // ganze Klasse über die Abfrage where('published','==',true).
