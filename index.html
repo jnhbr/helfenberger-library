@@ -782,7 +782,13 @@
   @media (max-width:560px){ .qp-answers{grid-template-columns:1fr;} }
   .qp-a{display:flex;align-items:center;gap:12px;padding:20px;border:none;border-radius:16px;color:#fff;font:inherit;font-size:17px;font-weight:700;cursor:pointer;text-align:left;min-height:84px;}
   .qp-a-picked{outline:4px solid var(--text);transform:scale(.97);}
-  .qp-note{color:var(--good);font-weight:700;}
+  /* Eigener Hot-Zustand statt .qh-timer-hot: auf dem Handy soll die Zahl nur
+     rot werden, nicht auch noch springen. */
+  .qp-timer-hot{color:var(--bad);}
+  .qp-a[disabled]{cursor:default;}
+  .qp-a[disabled]:not(.qp-a-picked){opacity:.4;}
+  .qp-note{color:var(--good);font-weight:700;min-height:21px;}
+  .qp-note-late{color:var(--text-muted);}
   .qp-mid{display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center;padding:24px 0;width:100%;}
   .qp-big{font-family:'Baloo 2',system-ui,sans-serif;font-weight:800;font-size:clamp(28px,6vw,52px);}
   .qp-right .qp-big{color:var(--good);}
@@ -794,7 +800,12 @@
   .topbar-badge[hidden]{display:none;}
   .topbar-badge{position:absolute;top:-3px;right:-3px;min-width:17px;height:17px;border-radius:999px;background:var(--bad);color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;padding:0 4px;}
   .topbar-offline{background:var(--bad-soft);color:var(--bad);border-radius:999px;padding:5px 12px;font-size:12px;font-weight:700;flex-shrink:0;}
-  .topbar-quiz{background:#E8752C;color:#fff;border-radius:999px;padding:8px 16px;font-size:13.5px;font-weight:700;border:none;cursor:pointer;animation:tmPulse 1.6s ease-in-out infinite;flex-shrink:0;}
+  /* Kein transform:scale hier: der Knopf sitzt in einer umbrechenden Flex-Zeile,
+     und ein pulsierendes Element wirkt dort wie ein hüpfendes Symbol. Der Ring
+     aus box-shadow fällt genauso auf, verändert aber nichts an der Grösse. */
+  .topbar-quiz{background:#E8752C;color:#fff;border-radius:999px;padding:8px 16px;font-size:13.5px;font-weight:700;border:none;cursor:pointer;animation:qzGlow 2.2s ease-in-out infinite;flex-shrink:0;}
+  @keyframes qzGlow{0%,100%{box-shadow:0 0 0 0 rgba(232,117,44,.55);}50%{box-shadow:0 0 0 8px rgba(232,117,44,0);}}
+  @media (prefers-reduced-motion: reduce){ .topbar-quiz{animation:none;} }
 </style>
 </head>
 <body>
@@ -6380,12 +6391,38 @@ function openStreakModal(){
    Kinder können ihren eigenen Punktestand nicht selbst setzen. */
 
 var QUIZ_SESSION = ['quizSessions', 'aktiv'];
-var quizLive = { session:null, unsub:null, overlay:null, unsubAnswers:null, unsubPlayers:null, tick:null, answered:{}, players:[] };
+var quizLive = { session:null, unsub:null, overlay:null, unsubAnswers:null, unsubPlayers:null, tick:null, answered:{}, players:[], sig:null, revealing:false, stepping:false };
 
 function quizSessionRef(){ return doc(db, QUIZ_SESSION[0], QUIZ_SESSION[1]); }
 function quizAnswersCol(){ return collection(db, QUIZ_SESSION[0], QUIZ_SESSION[1], 'antworten'); }
 function quizPlayersCol(){ return collection(db, QUIZ_SESSION[0], QUIZ_SESSION[1], 'spieler'); }
 function quizIsRunning(s){ return !!(s && s.state && s.state !== 'idle'); }
+
+/* Der Countdown darf NICHT aus s.startedAt minus der eigenen Uhr gerechnet
+   werden: startedAt kommt vom Lehrergerät, und die Uhren der Schulgeräte gehen
+   regelmässig ein paar Sekunden daneben. Dann stand beim Kind 0, während am
+   Beamer noch 18 lief (oder umgekehrt). Darum misst jedes Gerät ab dem Moment
+   selbst mit, in dem es die Frage zum ersten Mal sieht - übrig bleibt nur die
+   Netzwerk-Latenz von ein paar Zehntelsekunden. */
+var quizClock = { key:'', start:0 };
+function quizSecondsLeft(s){
+  if(!s || s.state !== 'frage') return 0;
+  var key = String(s.qIndex)+'|'+String(s.startedAt||0);
+  if(quizClock.key !== key){
+    quizClock.key = key;
+    // Wenn die Uhr dieses Geräts halbwegs stimmt, ist das hier die echte
+    // bisherige Laufzeit - dann stimmt der Countdown auch für jemanden, der
+    // mitten in der Frage dazukommt. Kommt etwas Unmögliches heraus (negativ
+    // oder länger als die Frage dauert), geht die Uhr falsch: ab dann misst
+    // das Gerät selbst, lieber etwas zu lang als sofort auf 0.
+    var elapsed = Date.now() - (s.startedAt||0);
+    quizClock.start = (elapsed >= 0 && elapsed <= (s.sec||0)*1000) ? Date.now() - elapsed : Date.now();
+  }
+  return Math.max(0, Math.ceil((s.sec||0) - (Date.now() - quizClock.start)/1000));
+}
+// Wie lange das eigene Gerät seit dem Auftauchen der Frage gemessen hat - das
+// wandert mit der Antwort mit, damit der Tempo-Bonus nicht von fremden Uhren abhängt.
+function quizElapsedMs(){ return Math.max(0, Date.now() - (quizClock.start || Date.now())); }
 
 // Läuft für alle Angemeldeten ab dem Login: sobald ein Quiz startet, erscheint
 // oben der Mitmachen-Knopf.
@@ -6399,14 +6436,24 @@ function startQuizWatcher(){
 }
 function stopQuizWatcher(){
   if(quizLive.unsub){ quizLive.unsub(); quizLive.unsub = null; }
+  // Die beiden hier hingen früher weiter an Firestore, auch nach dem Abmelden.
+  if(quizLive.unsubPlayers){ quizLive.unsubPlayers(); quizLive.unsubPlayers = null; }
+  if(quizLive.unsubAnswers){ quizLive.unsubAnswers(); quizLive.unsubAnswers = null; }
+  clearInterval(quizLive.tick); quizLive.tick = null;
+  clearTimeout(quizPlay.tick);
   quizLive.session = null;
+  quizLive.players = [];
+  quizLive.answered = {};
+  quizLive.sig = null;
+  quizPlay.sig = null;
+  quizClock.key = '';
 }
 
 function updateQuizBanner(){
   var btn = document.getElementById('quizJoinBtn');
   if(!btn || !state.profile) return;
   var running = quizIsRunning(quizLive.session);
-  btn.hidden = !running || state.profile.role === 'teacher';
+  btn.hidden = !running || state.profile.role === 'teacher' || state.route.name === 'quizplay';
   if(running) btn.innerHTML = '🎮 Quiz läuft — mitmachen';
 }
 
@@ -6624,6 +6671,7 @@ function openQuizImport(){
 /* ---------- Lehrer: Live-Steuerung ---------- */
 
 function startQuizSession(quiz){
+  quizLive.revealing = false; quizLive.stepping = false; quizLive.sig = null; quizClock.key = '';
   setDoc(quizSessionRef(), {
     quizId: quiz.id, title: quiz.title, state:'lobby', qIndex:-1,
     totalQ: (quiz.questions||[]).length, question:null, sec:0, startedAt:0,
@@ -6648,6 +6696,10 @@ function openQuizHost(quiz){
     if(quizLive.unsubAnswers){ quizLive.unsubAnswers(); quizLive.unsubAnswers = null; }
     if(quizLive.unsubPlayers){ quizLive.unsubPlayers(); quizLive.unsubPlayers = null; }
     clearInterval(quizLive.tick);
+    quizLive.tick = null;
+    quizLive.sig = null;
+    quizLive.revealing = false;
+    quizLive.stepping = false;
     quizLive.overlay = null;
     setDoc(quizSessionRef(), { state:'idle', question:null, updatedAt: serverTimestamp() }, {merge:true}).catch(function(){});
   }, 'kz-overlay-quiz');
@@ -6669,7 +6721,8 @@ function openQuizHost(quiz){
     snap.forEach(function(d){ quizLive.players.push(Object.assign({uid:d.id}, d.data())); });
     paintQuizHost(quiz);
   });
-  quizLive.tick = setInterval(function(){ paintQuizHost(quiz); }, 500);
+  quizLive.sig = null;
+  quizLive.tick = setInterval(function(){ paintQuizHost(quiz); }, 250);
   paintQuizHost(quiz);
 }
 
@@ -6677,10 +6730,49 @@ function quizLeaderboard(){
   return quizLive.players.slice().sort(function(a,b){ return (b.score||0)-(a.score||0) || (a.name||'').localeCompare(b.name||'', 'de'); });
 }
 
+function quizAnsweredCount(s){
+  return Object.keys(quizLive.answered).filter(function(uid){
+    return quizLive.answered[uid].qIndex === s.qIndex;
+  }).length;
+}
+
+// Alles, was ein echtes Neuzeichnen rechtfertigt. Der Countdown steht bewusst
+// NICHT drin: früher wurde die ganze Bühne zweimal pro Sekunde neu gebaut, was
+// am Beamer flackerte und jede CSS-Animation neu startete.
+function quizHostSig(s){
+  return [s.state, s.qIndex, s.correctIndex, (s.stats||[]).join(','), quizAnsweredCount(s),
+          quizLive.players.map(function(p){ return p.uid+':'+(p.score||0)+':'+(p.name||''); }).join(',')].join('|');
+}
+
 function paintQuizHost(quiz){
   if(!quizLive.overlay) return;
   var stage = quizLive.overlay.el.querySelector('#qhStage');
+  if(!stage) return;
   var s = quizLive.session || {};
+
+  // Zeit abgelaufen -> von selbst auflösen. Vorher passierte beim Ablauf des
+  // Countdowns gar nichts, die Klasse sass vor einer 0 und wartete.
+  if(s.state === 'frage' && quizSecondsLeft(s) <= 0) quizAutoReveal(quiz);
+
+  var sig = quizHostSig(s);
+  if(sig !== quizLive.sig || !stage.firstChild){
+    quizLive.sig = sig;
+    paintQuizHostFull(quiz, stage, s);
+  }
+  quizHostTick(s);
+}
+
+// Zwischen zwei Neuzeichnungen wandert nur noch die Zahl im Timer.
+function quizHostTick(s){
+  if(s.state !== 'frage') return;
+  var t = document.querySelector('.qh-timer');
+  if(!t) return;
+  var left = quizSecondsLeft(s);
+  t.textContent = left;
+  t.classList.toggle('qh-timer-hot', left <= 5);
+}
+
+function paintQuizHostFull(quiz, stage, s){
   var h = '';
 
   if(s.state === 'lobby'){
@@ -6690,8 +6782,8 @@ function paintQuizHost(quiz){
     h += '<div class="qh-count">'+quizLive.players.length+' dabei</div>';
     h += '<button class="btn btn-primary tm-big" id="qhNext" type="button">Erste Frage ▶︎</button></div>';
   } else if(s.state === 'frage'){
-    var left = Math.max(0, Math.round((s.sec||0) - (Date.now() - (s.startedAt||0))/1000));
-    var count = Object.keys(quizLive.answered).filter(function(uid){ return quizLive.answered[uid].qIndex === s.qIndex; }).length;
+    var left = quizSecondsLeft(s);
+    var count = quizAnsweredCount(s);
     h += '<div class="qh-q"><div class="qh-qnum">Frage '+((s.qIndex||0)+1)+' / '+(s.totalQ||0)+'</div>';
     h += '<div class="qh-qtext">'+esc(s.question ? s.question.text : '')+'</div>';
     h += '<div class="qh-answers">'+((s.question && s.question.answers)||[]).map(function(a, i){
@@ -6737,29 +6829,54 @@ function paintQuizHost(quiz){
 }
 
 function quizNextStep(quiz){
+  // Ohne diese Sperre sprang ein zweiter Klick (oder ein Doppeltipp am Beamer)
+  // eine Frage weiter, bevor die erste Antwort von Firestore zurück war.
+  if(quizLive.stepping) return;
   var s = quizLive.session || {};
   var nextIndex = (typeof s.qIndex === 'number' ? s.qIndex : -1) + 1;
   var questions = quiz.questions || [];
+  quizLive.stepping = true;
+  var done = function(){ quizLive.stepping = false; };
   if(nextIndex >= questions.length){
     setDoc(quizSessionRef(), { state:'ende', question:null, updatedAt: serverTimestamp() }, {merge:true})
-      .catch(function(err){ console.error(err); });
+      .then(done).catch(function(err){ done(); console.error(err); });
     return;
   }
   var q = questions[nextIndex];
+  quizLive.revealing = false;
   setDoc(quizSessionRef(), {
     state:'frage', qIndex: nextIndex,
     question: { text: q.q, answers: q.a },
     sec: q.sec || 25, startedAt: Date.now(),
     correctIndex: -1, stats: [], updatedAt: serverTimestamp()
-  }, {merge:true}).catch(function(err){ console.error(err); toast('Frage konnte nicht gestartet werden.'); });
+  }, {merge:true}).then(done).catch(function(err){ done(); console.error(err); toast('Frage konnte nicht gestartet werden.'); });
+}
+
+// Auflösen wird von zwei Seiten ausgelöst (Knopf und Zeitablauf) - die Sperre
+// sorgt dafür, dass daraus nicht zweimal gepunktet wird.
+function quizAutoReveal(quiz){
+  if(quizLive.revealing) return;
+  quizReveal(quiz);
 }
 
 function quizReveal(quiz){
   var s = quizLive.session || {};
-  var qIndex = s.qIndex || 0;
+  if(s.state !== 'frage') return;
+  if(quizLive.revealing) return;
+  var qIndex = (typeof s.qIndex === 'number') ? s.qIndex : 0;
   var q = (quiz.questions || [])[qIndex];
   if(!q) return;
   var sec = q.sec || 25;
+  quizLive.revealing = true;
+
+  // ZUERST nur umschalten, sonst nichts. Vorher lief erst ein getDocs und dann
+  // ein ganzer writeBatch, bevor die Session überhaupt auf 'aufloesung' ging -
+  // die Klasse starrte solange auf die Frage. Für "richtig oder falsch" braucht
+  // ein Schülergerät ohnehin nur correctIndex; Balken und Punkte kommen gleich
+  // danach nach.
+  setDoc(quizSessionRef(), {
+    state:'aufloesung', correctIndex: q.c, stats: [0,0,0,0], updatedAt: serverTimestamp()
+  }, {merge:true}).catch(function(err){ console.error(err); toast('Auflösen fehlgeschlagen.'); });
 
   getDocs(quizAnswersCol()).then(function(snap){
     var stats = [0,0,0,0];
@@ -6775,7 +6892,12 @@ function quizReveal(quiz){
       var gained = 0;
       if(a.choice === q.c){
         // Grundpunkte plus Tempo-Bonus — schnell und richtig lohnt sich.
-        var usedSec = Math.max(0, Math.min(sec, (a.at - (s.startedAt||a.at))/1000));
+        // a.ms ist die auf dem Schülergerät selbst gemessene Zeit; die alte
+        // Rechnung a.at - s.startedAt verglich zwei verschiedene Uhren und hat
+        // je nach Geräteuhr den Bonus verschenkt oder voll ausgeschüttet.
+        var usedSec = (typeof a.ms === 'number')
+          ? Math.max(0, Math.min(sec, a.ms/1000))
+          : Math.max(0, Math.min(sec, ((a.at||0) - (s.startedAt||a.at||0))/1000));
         gained = 500 + Math.round(500 * (1 - usedSec/sec));
       }
       updates.push({
@@ -6791,26 +6913,72 @@ function quizReveal(quiz){
       batch.set(doc(quizPlayersCol(), u.uid), { name:u.name, score:u.score, correct:u.correct }, {merge:true});
     });
     return batch.commit().then(function(){
-      return setDoc(quizSessionRef(), {
-        state:'aufloesung', correctIndex: q.c, stats: stats, updatedAt: serverTimestamp()
-      }, {merge:true});
+      return setDoc(quizSessionRef(), { stats: stats, updatedAt: serverTimestamp() }, {merge:true});
     });
-  }).catch(function(err){ console.error(err); toast('Auflösen fehlgeschlagen.'); });
+  }).catch(function(err){ console.error(err); toast('Punkte konnten nicht verrechnet werden.'); });
 }
 
 /* ---------- Schüler:innen: mitspielen ---------- */
 
-var quizPlay = { choice:null, lastQIndex:-1 };
+var quizPlay = { choice:null, lastQIndex:-1, sig:null, tick:null };
+
+// Nur diese Dinge rechtfertigen ein komplettes Neuzeichnen. Der Countdown gehört
+// bewusst nicht dazu: renderQuizPlay() ruft renderChrome(), und das baute früher
+// zweimal pro Sekunde die ganze Kopfzeile neu - inklusive eines weiteren
+// document-Klicklisteners pro Durchgang und neu startender Animationen.
+function quizPlaySig(s){
+  var uid = (state.user||{}).uid;
+  var me = quizLive.players.filter(function(p){ return p.uid === uid; })[0];
+  return [s.state, s.qIndex, s.correctIndex, quizPlay.choice,
+          me ? (me.score||0) : -1, quizLive.players.length, (s.stats||[]).join(',')].join('|');
+}
 
 function renderQuizPlay(){
   var s = quizLive.session;
   if(!quizIsRunning(s)){
+    clearTimeout(quizPlay.tick);
+    quizPlay.sig = null;
     state.route = {name:'home'};
     render();
     return;
   }
   if(s.qIndex !== quizPlay.lastQIndex){ quizPlay.lastQIndex = s.qIndex; quizPlay.choice = null; }
 
+  var sig = quizPlaySig(s);
+  if(sig !== quizPlay.sig || !document.querySelector('.qp-wrap')){
+    quizPlay.sig = sig;
+    quizPlayFullRender(s);
+  }
+  quizPlayTick(s);
+
+  // Den Countdown weiterlaufen lassen, ohne auf ein Firestore-Update zu warten.
+  clearTimeout(quizPlay.tick);
+  if(s.state === 'frage'){
+    quizPlay.tick = setTimeout(function(){ if(state.route.name==='quizplay') renderQuizPlay(); }, 250);
+  }
+}
+
+// Zwischen zwei Neuzeichnungen wird nur die Zahl im Timer nachgezogen - und ab
+// 0 werden die Antwortknöpfe gesperrt. Vorher konnte man nach Ablauf der Zeit
+// noch in Ruhe antworten und dafür sogar volle Punkte kassieren.
+function quizPlayTick(s){
+  if(s.state !== 'frage') return;
+  var left = quizSecondsLeft(s);
+  var t = document.querySelector('.qp-timer');
+  if(t){ t.textContent = left; t.classList.toggle('qp-timer-hot', left <= 5); }
+  var over = left <= 0;
+  Array.prototype.forEach.call(document.querySelectorAll('[data-choice]'), function(b){
+    b.disabled = over || quizPlay.choice !== null;
+  });
+  var note = document.getElementById('qpNote');
+  if(note){
+    note.textContent = quizPlay.choice !== null ? 'Antwort abgeschickt ✓'
+                     : (over ? 'Zeit abgelaufen — die Auflösung kommt gleich.' : '');
+    note.classList.toggle('qp-note-late', quizPlay.choice === null && over);
+  }
+}
+
+function quizPlayFullRender(s){
   var html = '';
   html += '<div class="qp-wrap">';
   html += '<div class="qp-head"><b>🎮 '+esc(s.title||'Quiz')+'</b>'
@@ -6819,15 +6987,15 @@ function renderQuizPlay(){
   if(s.state === 'lobby'){
     html += '<div class="qp-mid"><div class="qp-big">Du bist dabei!</div><p>Gleich geht es los …</p></div>';
   } else if(s.state === 'frage'){
-    var left = Math.max(0, Math.round((s.sec||0) - (Date.now() - (s.startedAt||0))/1000));
-    html += '<div class="qp-timer'+(left<=5?' qh-timer-hot':'')+'">'+left+'</div>';
+    var left = quizSecondsLeft(s);
+    html += '<div class="qp-timer'+(left<=5?' qp-timer-hot':'')+'">'+left+'</div>';
     html += '<div class="qp-q">'+esc(s.question ? s.question.text : '')+'</div>';
     html += '<div class="qp-answers">'+((s.question && s.question.answers)||[]).map(function(a, i){
       if(!a) return '';
       return '<button class="qp-a qh-a-'+i+(quizPlay.choice===i?' qp-a-picked':'')+'" type="button" data-choice="'+i+'">'
            + '<b>'+['▲','◆','●','■'][i]+'</b>'+esc(a)+'</button>';
     }).join('')+'</div>';
-    if(quizPlay.choice !== null) html += '<div class="qp-note">Antwort abgeschickt ✓</div>';
+    html += '<div class="qp-note" id="qpNote"></div>';
   } else if(s.state === 'aufloesung'){
     var right = quizPlay.choice === s.correctIndex;
     var me = quizLive.players.filter(function(p){ return p.uid === state.user.uid; })[0];
@@ -6848,23 +7016,25 @@ function renderQuizPlay(){
   html += '</div>';
 
   renderChrome(html);
-  document.getElementById('qpLeave').addEventListener('click', function(){ state.route = {name:'home'}; render(); });
+  document.getElementById('qpLeave').addEventListener('click', function(){
+    clearTimeout(quizPlay.tick);
+    quizPlay.sig = null;
+    state.route = {name:'home'};
+    render();
+  });
   Array.prototype.forEach.call(document.querySelectorAll('[data-choice]'), function(b){
     b.addEventListener('click', function(){
       if(quizPlay.choice !== null) return;   // eine Antwort pro Frage
+      if(quizSecondsLeft(quizLive.session) <= 0) return;   // nach Ablauf zählt nichts mehr
       var c = parseInt(b.getAttribute('data-choice'),10);
       quizPlay.choice = c;
       playBlip();
       setDoc(doc(quizAnswersCol(), state.user.uid), {
-        qIndex: s.qIndex, choice: c, at: Date.now(), name: state.profile.displayName
+        qIndex: s.qIndex, choice: c, at: Date.now(), ms: quizElapsedMs(), name: state.profile.displayName
       }).catch(function(err){ console.error(err); toast('Antwort kam nicht an.'); });
       renderQuizPlay();
     });
   });
-
-  // Den Countdown weiterlaufen lassen, ohne auf ein Firestore-Update zu warten.
-  clearTimeout(quizPlay.tick);
-  if(s.state === 'frage'){ quizPlay.tick = setTimeout(function(){ if(state.route.name==='quizplay') renderQuizPlay(); }, 500); }
 }
 
 function joinQuiz(){
@@ -6887,6 +7057,8 @@ function joinQuiz(){
     }, function(err){ console.error(err); });
   }
   quizPlay.lastQIndex = -1;
+  quizPlay.choice = null;
+  quizPlay.sig = null;
   state.route = {name:'quizplay'};
   render();
 }
