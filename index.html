@@ -593,7 +593,13 @@
   .sp-room-outer{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px;}
   /* Raster = 1 m. background-size statt repeating-linear-gradient: nur so
      sitzen die Linien wirklich bei 1/9 bzw. 1/8 der Fläche. */
-  .sp-room{position:relative;width:100%;max-width:calc(66vh * 9 / 8);margin:0 auto;aspect-ratio:9/8;background-color:var(--surface);background-image:linear-gradient(to right,var(--border) 1px,transparent 1px),linear-gradient(to bottom,var(--border) 1px,transparent 1px);background-size:calc(100%/9) calc(100%/8);border:2px solid var(--text-muted);border-radius:8px;touch-action:none;overflow:hidden;}
+  /* Der Raum steckt in .sp-room-wrap: dessen seitliche Polster tragen die
+     Beschriftungen "Fenster" und "Tür", die ausserhalb der Wand stehen. Die
+     max-width sitzt darum am Wrapper (Raumbreite + beide Polster). */
+  .sp-room-wrap{position:relative;width:100%;max-width:calc(66vh * 9 / 8 + 44px);margin:0 auto;padding:0 22px;box-sizing:border-box;}
+  .sp-edge-label{position:absolute;width:22px;display:flex;align-items:center;justify-content:center;writing-mode:vertical-rl;text-orientation:mixed;font-size:10px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--text-muted);pointer-events:none;}
+  .sp-edge-window{top:0;bottom:0;transform:rotate(180deg);}
+  .sp-room{position:relative;width:100%;margin:0 auto;aspect-ratio:9/8;background-color:var(--surface);background-image:linear-gradient(to right,var(--border) 1px,transparent 1px),linear-gradient(to bottom,var(--border) 1px,transparent 1px);background-size:calc(100%/9) calc(100%/8);border:2px solid var(--text-muted);border-radius:8px;touch-action:none;overflow:hidden;}
   .sp-board{position:absolute;top:0;left:50%;transform:translateX(-50%);width:33%;height:4.5%;background:#000;color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;border-radius:0 0 6px 6px;letter-spacing:.05em;z-index:1;}
   /* Fenstersims: durchgehend an der Fensterwand, 0,5 m tief. Breite/Position
      kommen aus SILL_W, damit CSS und Vorlagen nicht auseinanderlaufen. */
@@ -603,10 +609,9 @@
      Wand. Beide liegen unter den Tischen (DOM-Reihenfolge), damit ein Möbel sie
      im Zweifel überdeckt statt umgekehrt. */
   .sp-sill-label{writing-mode:vertical-rl;text-orientation:mixed;transform:rotate(180deg);font-size:10px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:#4A5059;pointer-events:none;}
-  .sp-window-label{position:absolute;top:0;bottom:0;display:flex;align-items:center;justify-content:center;writing-mode:vertical-rl;text-orientation:mixed;transform:rotate(180deg);font-size:10px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--text-muted);pointer-events:none;}
-  /* Tür: hochkant an der rechten Wand, 20 cm von der hinteren Ecke. */
-  .sp-door{position:absolute;background:#C99B6A;border:1px solid #8B6944;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#3A2A18;letter-spacing:.05em;}
-  .sp-door span{writing-mode:vertical-rl;text-orientation:mixed;}
+  /* Tür: brauner Strich in der rechten Wand, 20 cm von der hinteren Ecke; das
+     Wort steht wie beim Fenster ausserhalb der Wand. */
+  .sp-door{position:absolute;background:#8B6944;}
   .sp-room-size{position:absolute;right:6px;top:4px;font-size:10.5px;color:var(--text-muted);}
   .sp-table{position:absolute;display:flex;background:#C99B6A;border:1px solid #8B6944;border-radius:4px;overflow:visible;cursor:grab;box-shadow:0 2px 5px rgba(0,0,0,.18);touch-action:none;}
   .sp-dragging{opacity:.85;cursor:grabbing;z-index:6;}
@@ -654,7 +659,7 @@
      es wie beim Übungs-Viewer den CSS-Pseudo-Vollbild-Fallback .sp-fs. */
   #spHost:fullscreen,#spHost:-webkit-full-screen,#spHost.sp-fs{background:var(--bg);padding:14px 16px;overflow:auto;}
   #spHost.sp-fs{position:fixed;inset:0;z-index:1000;width:100vw;height:100vh;height:100dvh;}
-  #spHost:fullscreen .sp-room,#spHost:-webkit-full-screen .sp-room,#spHost.sp-fs .sp-room{max-width:calc(80vh * 9 / 8);}
+  #spHost:fullscreen .sp-room-wrap,#spHost:-webkit-full-screen .sp-room-wrap,#spHost.sp-fs .sp-room-wrap{max-width:calc(80vh * 9 / 8 + 44px);}
   #spHost:fullscreen .sp-seat,#spHost:-webkit-full-screen .sp-seat,#spHost.sp-fs .sp-seat{font-size:15px;}
   #spHost:fullscreen .sp-table-label,#spHost:-webkit-full-screen .sp-table-label,#spHost.sp-fs .sp-table-label{font-size:14px;}
   #spHost:fullscreen .sp-board,#spHost:-webkit-full-screen .sp-board,#spHost.sp-fs .sp-board{font-size:15px;}
@@ -5180,7 +5185,7 @@ var ROOM_W = 9, ROOM_D = 8;          // Meter
 var TABLE_W = 1.5, TABLE_H = 0.75;   // Zweiertisch (vergrössert gezeichnet)
 var PULT_W = 1.5, PULT_H = 0.75;     // Lehrerpult — gleich gross wie ein Tisch
 var SILL_W = 0.5;                    // Fenstersims links, durchgehend
-var DOOR_W = 0.9, DOOR_D = 0.25;     // Türbreite und -tiefe
+var DOOR_W = 0.9, DOOR_D = 0.08;     // Türbreite und Strichstärke in der Wand
 var DOOR_GAP = 0.2;                  // Abstand zur hinteren Ecke, rechte Wand
 var SP_DEFAULT_TABLES = 11;          // so viele Zweiertische stehen im Zimmer
 var SNAP = 0.1;
@@ -5472,17 +5477,22 @@ function paintSitzplan(){
 
   /* Raum */
   html += '<div class="sp-room-outer" id="spRoomOuter">';
-  html += '<div class="sp-room" id="spRoom">';
-  html += '<div class="sp-board">Wandtafel</div>';
   // Fenstersims und Tür kippen im gespiegelten Blick auf die andere Seite mit,
   // sonst stimmte auf dem Ausdruck links/rechts nicht mehr.
   var mir = !!sp.doc.mirror;
+  // Die beiden Wörter stehen ausserhalb der Wand, im Polster des Wrappers:
+  // "Fenster" links neben dem Fenstersims, "Tür" rechts neben dem Türstrich.
+  var doorBottomPct = DOOR_GAP/ROOM_D*100, doorHeightPct = DOOR_W/ROOM_D*100;
+  html += '<div class="sp-room-wrap">';
+  html += '<span class="sp-edge-label sp-edge-window" style="'+(mir?'right':'left')+':0;">Fenster</span>';
+  html += '<span class="sp-edge-label" style="'+(mir?'left':'right')+':0;bottom:'+doorBottomPct+'%;height:'+doorHeightPct+'%;'
+        + (mir?'transform:rotate(180deg);':'')+'">Tür</span>';
+  html += '<div class="sp-room" id="spRoom">';
+  html += '<div class="sp-board">Wandtafel</div>';
   html += '<div class="sp-sill'+(mir?' sp-sill-mirror':'')+'" style="'+(mir?'right':'left')+':0;width:'+(SILL_W/ROOM_W*100)+'%;">'
         + '<span class="sp-sill-label">Fenstersims</span></div>';
-  html += '<div class="sp-window-label" style="'+(mir?'right':'left')+':'+(SILL_W/ROOM_W*100)+'%;width:'+(0.45/ROOM_W*100)+'%;">Fenster</div>';
   html += '<div class="sp-door" style="'+(mir?'left':'right')+':0;width:'+(DOOR_D/ROOM_W*100)+'%;'
-        + 'bottom:'+(DOOR_GAP/ROOM_D*100)+'%;height:'+(DOOR_W/ROOM_D*100)+'%;'
-        + 'border-radius:'+(mir?'0 6px 6px 0':'6px 0 0 6px')+';"><span>Tür</span></div>';
+        + 'bottom:'+doorBottomPct+'%;height:'+doorHeightPct+'%;"></div>';
   html += '<div class="sp-room-size">9 m × 8 m</div>';
   sp.doc.tables.forEach(function(t){
     var kind = spKind(t);
@@ -5512,7 +5522,7 @@ function paintSitzplan(){
     }
     html += '</div>';
   });
-  html += '</div></div>';
+  html += '</div></div></div>';
 
   /* Seitenliste */
   html += '<div class="sp-side">';
