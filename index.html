@@ -561,8 +561,9 @@
   .lk-hard-chip{background:var(--bad-soft);color:var(--bad);border-radius:999px;padding:5px 12px;font-size:12.5px;font-weight:600;}
 
   /* ---------- Lernstand-Übersicht: ein Klappfach pro Fach ----------
-     <details>/<summary> statt eigener JS-Logik. Offen/zu wird pro Fach im
-     localStorage gemerkt (Präfix hl_ gehört der Shell, in der wir hier sind).
+     <details>/<summary> statt eigener JS-Logik. Alle Fächer starten zu; offen
+     wird pro Fach im localStorage gemerkt (Präfix hl_ gehört der Shell, in der
+     wir hier sind).
      Beim Drucken werden alle Fächer aufgeklappt (siehe lsPrintBtn). */
   .ls-fach{border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);margin-top:14px;overflow:hidden;}
   .ls-fach > summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:10px;padding:13px 16px;font-family:'Baloo 2',system-ui,sans-serif;font-weight:700;font-size:17px;}
@@ -593,8 +594,14 @@
   /* Raster = 1 m. background-size statt repeating-linear-gradient: nur so
      sitzen die Linien wirklich bei 1/9 bzw. 1/8 der Fläche. */
   .sp-room{position:relative;width:100%;max-width:calc(66vh * 9 / 8);margin:0 auto;aspect-ratio:9/8;background-color:var(--surface);background-image:linear-gradient(to right,var(--border) 1px,transparent 1px),linear-gradient(to bottom,var(--border) 1px,transparent 1px);background-size:calc(100%/9) calc(100%/8);border:2px solid var(--text-muted);border-radius:8px;touch-action:none;overflow:hidden;}
-  .sp-board{position:absolute;top:0;left:50%;transform:translateX(-50%);width:33%;height:4.5%;background:#2F4F3E;color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;border-radius:0 0 6px 6px;letter-spacing:.05em;}
-  .sp-room-size{position:absolute;right:6px;bottom:4px;font-size:10.5px;color:var(--text-muted);}
+  .sp-board{position:absolute;top:0;left:50%;transform:translateX(-50%);width:33%;height:4.5%;background:#000;color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;border-radius:0 0 6px 6px;letter-spacing:.05em;z-index:1;}
+  /* Fenstersims: durchgehend an der Fensterwand, 0,5 m tief. Breite/Position
+     kommen aus SILL_W, damit CSS und Vorlagen nicht auseinanderlaufen. */
+  .sp-sill{position:absolute;top:0;bottom:0;background:#C9CDD4;border-right:1px solid #9AA0AA;display:flex;align-items:center;justify-content:center;}
+  .sp-sill-mirror{border-right:none;border-left:1px solid #9AA0AA;}
+  .sp-sill-label{writing-mode:vertical-rl;text-orientation:mixed;transform:rotate(180deg);font-size:10px;font-weight:700;letter-spacing:.22em;text-transform:uppercase;color:#4A5059;}
+  .sp-door{position:absolute;bottom:0;height:3.2%;background:#C99B6A;border:1px solid #8B6944;border-radius:6px 6px 0 0;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#3A2A18;letter-spacing:.05em;}
+  .sp-room-size{position:absolute;right:6px;top:4px;font-size:10.5px;color:var(--text-muted);}
   .sp-table{position:absolute;display:flex;background:#C99B6A;border:1px solid #8B6944;border-radius:4px;overflow:visible;cursor:grab;box-shadow:0 2px 5px rgba(0,0,0,.18);touch-action:none;}
   .sp-dragging{opacity:.85;cursor:grabbing;z-index:6;}
   .sp-kind-pult{background:#6B4F35;border-color:#43301F;}
@@ -654,6 +661,9 @@
     .sp-layout{grid-template-columns:1fr;}
     .sp-room-outer{border:none;padding:0;}
     .sp-table{box-shadow:none;}
+    /* Ohne das druckt Chrome/Safari Hintergründe gar nicht: Tische, Wandtafel,
+       Fenstersims und die Geschlechterfarben kämen weiss heraus. */
+    .sp-room,.sp-room *{-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important;}
   }
 
   /* ---------- Fragebox ---------- */
@@ -1759,16 +1769,16 @@ async function loadLernstandUebersicht(){
   return {students:students, bySubject:bySubject};
 }
 
-// Offen/zu-Zustand der Fach-Klappboxen. Default: offen — beim ersten Besuch
-// soll wie bisher alles dastehen, zugeklappt wird nur, was stört.
+// Offen/zu-Zustand der Fach-Klappboxen. Default: ZU — die Seite startet als
+// kompakte Fächerliste, aufgeklappt wird, was gerade interessiert.
 function lsFachOffen(subjId){
-  try{ return localStorage.getItem('hl_lernstand_zu_'+subjId) !== '1'; }
-  catch(e){ return true; }
+  try{ return localStorage.getItem('hl_lernstand_auf_'+subjId) === '1'; }
+  catch(e){ return false; }
 }
 function lsFachSetzen(subjId, offen){
   try{
-    if(offen) localStorage.removeItem('hl_lernstand_zu_'+subjId);
-    else localStorage.setItem('hl_lernstand_zu_'+subjId, '1');
+    if(offen) localStorage.setItem('hl_lernstand_auf_'+subjId, '1');
+    else localStorage.removeItem('hl_lernstand_auf_'+subjId);
   }catch(e){}
 }
 
@@ -5144,10 +5154,14 @@ function paintLiveKlasse(root){
    benannt speichern und wieder laden.
 
    Die Möbel sind bewusst NICHT massstabsgetreu: ein Zweiertisch ist real
-   1,0 x 0,5 m, wird hier aber mit dem doppelten Mass gezeichnet, damit die
-   Namen auf dem Beamer lesbar bleiben. Das Zimmerraster bleibt bei 1 m. Wer
-   die Masse wieder echt haben will, halbiert die vier Konstanten unten — die
-   Tischordnungs-Vorlagen rechnen mit TABLE_W/TABLE_H und passen sich an.
+   1,0 x 0,5 m, wird hier aber mit 1,5 x 0,75 m gezeichnet, damit die Namen auf
+   dem Beamer lesbar bleiben. Das Lehrerpult wird gleich gross gezeichnet wie
+   ein Zweiertisch. Das Zimmerraster bleibt bei 1 m. Die Tischordnungs-Vorlagen
+   rechnen mit TABLE_W/TABLE_H und passen sich an, wenn man die Masse ändert.
+
+   Links am Fenster läuft ein durchgehendes Fenstersims von 0,5 m Tiefe — dort
+   stellen die Vorlagen keine Tische hin. Die Tür liegt hinten rechts, 20 cm
+   von der Ecke entfernt.
 
    Der Arbeitsstand liegt in EINEM Firestore-Dokument (klassenzimmer/sitzplan),
    die gespeicherten Varianten in klassenzimmer/sitzplaene. Beide sind klein,
@@ -5156,8 +5170,10 @@ function paintLiveKlasse(root){
    — diese Collection wird ausschliesslich vom Admin-Skript geschrieben. */
 
 var ROOM_W = 9, ROOM_D = 8;          // Meter
-var TABLE_W = 2.0, TABLE_H = 1.0;    // Zweiertisch (doppelt gezeichnet)
-var PULT_W = 2.8, PULT_H = 1.4;      // Lehrerpult (doppelt gezeichnet)
+var TABLE_W = 1.5, TABLE_H = 0.75;   // Zweiertisch (vergrössert gezeichnet)
+var PULT_W = 1.5, PULT_H = 0.75;     // Lehrerpult — gleich gross wie ein Tisch
+var SILL_W = 0.5;                    // Fenstersims links, durchgehend
+var DOOR_W = 0.9, DOOR_GAP = 0.2;    // Tür hinten rechts, 20 cm von der Ecke
 var SP_DEFAULT_TABLES = 11;          // so viele Zweiertische stehen im Zimmer
 var SNAP = 0.1;
 
@@ -5180,6 +5196,14 @@ function spSeatId(tableId, slot){ return tableId + '#' + slot; }
 function spClamp(v, lo, hi){ return Math.max(lo, Math.min(hi, v)); }
 function spSnap(v){ return Math.round(v / SNAP) * SNAP; }
 function spKind(t){ return t.kind || 'tisch'; }
+// Tische stehen nur waagrecht oder senkrecht. Ältere Stände (und gespeicherte
+// Varianten) können noch 45-Grad-Winkel enthalten — die werden beim Laden auf
+// das nächste Vielfache von 90 Grad gerundet.
+function spNormRot(r){ return ((Math.round((r||0)/90)*90) % 360 + 360) % 360; }
+function spNormTables(tables){
+  (tables||[]).forEach(function(t){ t.rot = spNormRot(t.rot); });
+  return tables;
+}
 function spHasSeats(t){ return spKind(t) === 'tisch'; }
 function spTableSize(t){
   return spKind(t) === 'pult' ? {w:PULT_W, h:PULT_H} : {w:TABLE_W, h:TABLE_H};
@@ -5348,7 +5372,7 @@ function renderSitzplan(){
     var d = res[1].exists() ? res[1].data() : null;
     var base = spEmptyPlan();
     sp.doc = {
-      tables: (d && Array.isArray(d.tables)) ? d.tables : base.tables,
+      tables: spNormTables((d && Array.isArray(d.tables)) ? d.tables : base.tables),
       seats:  (d && d.seats) ? Object.assign({}, d.seats) : base.seats,
       meta:   (d && d.meta) ? Object.assign({}, d.meta) : base.meta,
       rules:  (d && Array.isArray(d.rules)) ? d.rules : base.rules,
@@ -5429,6 +5453,12 @@ function paintSitzplan(){
   html += '<div class="sp-room-outer" id="spRoomOuter">';
   html += '<div class="sp-room" id="spRoom">';
   html += '<div class="sp-board">Wandtafel</div>';
+  // Fenstersims und Tür kippen im gespiegelten Blick auf die andere Seite mit,
+  // sonst stimmte auf dem Ausdruck links/rechts nicht mehr.
+  var mir = !!sp.doc.mirror;
+  html += '<div class="sp-sill'+(mir?' sp-sill-mirror':'')+'" style="'+(mir?'right':'left')+':0;width:'+(SILL_W/ROOM_W*100)+'%;">'
+        + '<span class="sp-sill-label">Fenster</span></div>';
+  html += '<div class="sp-door" style="'+(mir?'left':'right')+':'+(DOOR_GAP/ROOM_W*100)+'%;width:'+(DOOR_W/ROOM_W*100)+'%;">Tür</div>';
   html += '<div class="sp-room-size">9 m × 8 m</div>';
   sp.doc.tables.forEach(function(t){
     var kind = spKind(t);
@@ -5445,11 +5475,12 @@ function paintSitzplan(){
         var uid = spSeatedUid(spSeatId(t.id, shown));
         var g = uid ? spGender(uid) : '';
         html += '<button class="sp-seat'+(uid?' sp-seat-on':'')+(g?' sp-g-'+g:'')+'" type="button" title="'+esc(uid?spFullName(uid):'Freier Platz')+'" data-seat="'+spSeatId(t.id, shown)+'">';
-        html += '<span>'+(uid ? esc(spSeatLabel(uid)) : '')+'</span>';
+        // Ein um 180 Grad gedrehter Tisch stünde sonst mit kopfstehenden Namen da.
+        html += '<span'+(rot===180?' style="transform:rotate(180deg);"':'')+'>'+(uid ? esc(spSeatLabel(uid)) : '')+'</span>';
         html += '</button>';
       });
     } else {
-      html += '<span class="sp-table-label">'+(kind === 'pult' ? 'Pult' : '')+'</span>';
+      html += '<span class="sp-table-label"'+(rot===180?' style="transform:rotate(180deg);"':'')+'>'+(kind === 'pult' ? 'Pult' : '')+'</span>';
     }
     if(sel){
       html += '<button class="sp-mini sp-mini-rot" type="button" data-rot="'+t.id+'" title="Drehen">↻</button>';
@@ -5568,7 +5599,7 @@ function wireSitzplan(){
     var plan = sp.saved.filter(function(p){ return p.id === id; })[0];
     if(!plan) return;
     uiConfirm('„'+plan.name+'" laden?', 'Die aktuelle Tisch- und Sitzordnung wird ersetzt.', 'Laden', function(){
-      sp.doc.tables = JSON.parse(JSON.stringify(plan.tables || []));
+      sp.doc.tables = spNormTables(JSON.parse(JSON.stringify(plan.tables || [])));
       sp.doc.seats = Object.assign({}, plan.seats || {});
       sp.picked = null; sp.selected = null;
       spSave(); paintSitzplan();
@@ -5623,7 +5654,7 @@ function wireSitzplan(){
       e.stopPropagation();
       var t = spTableById(btn.getAttribute('data-rot'));
       if(!t) return;
-      t.rot = ((t.rot||0) + 45) % 360;
+      t.rot = ((t.rot||0) + 90) % 360;   // nur waagrecht/senkrecht
       spSave(); paintSitzplan();
     });
   });
@@ -5702,12 +5733,14 @@ function spAutoLayout(kind, silent){
   var keep = sp.doc.tables.filter(function(t){ return !spHasSeats(t); });
   var tables = [];
   var i;
+  // Nutzbare Breite = Zimmer ohne das Fenstersims links.
+  var USE_X0 = SILL_W, USE_W = ROOM_W - SILL_W;
   if(kind === 'reihen'){
     // Vier Tische pro Reihe mit Mittelgang, alle zur Wandtafel ausgerichtet.
-    var cols = 4, gapX = 0.15, blockGap = 0.35;
-    var rowY = 2.6, rowGap = 1.35;
+    var cols = 4, gapX = 0.25, blockGap = 0.5;
+    var rowY = 2.4, rowGap = 1.1;
     var rowWidth = cols*TABLE_W + (cols-1)*gapX + blockGap;
-    var startX = (ROOM_W - rowWidth)/2 + TABLE_W/2;
+    var startX = USE_X0 + (USE_W - rowWidth)/2 + TABLE_W/2;
     for(i=0;i<n;i++){
       var c = i % cols, r = Math.floor(i/cols);
       var x = startX + c*(TABLE_W+gapX) + (c >= cols/2 ? blockGap : 0);
@@ -5715,30 +5748,32 @@ function spAutoLayout(kind, silent){
     }
   } else if(kind === 'gruppen'){
     // Inseln aus zwei Tischen (=4 Plätze), drei Inseln pro Reihe.
-    var perRow = 3, gx = (ROOM_W - perRow*TABLE_W) / (perRow+1);
+    var perRow = 3, gx = (USE_W - perRow*TABLE_W) / (perRow+1);
     var islands = Math.ceil(n/2);
     for(i=0;i<islands;i++){
       var ic = i % perRow, ir = Math.floor(i/perRow);
-      var cx = gx + TABLE_W/2 + ic*(TABLE_W+gx);
-      var cy = 2.8 + ir*2.4;
+      var cx = USE_X0 + gx + TABLE_W/2 + ic*(TABLE_W+gx);
+      var cy = 2.6 + ir*1.9;
       tables.push({ id: spNewTableId(), kind:'tisch', x: spSnap(cx), y: spSnap(Math.min(ROOM_D-1.0, cy - TABLE_H/2 - 0.02)), rot: 0 });
       if(tables.length < n) tables.push({ id: spNewTableId(), kind:'tisch', x: spSnap(cx), y: spSnap(Math.min(ROOM_D-0.5, cy + TABLE_H/2 + 0.02)), rot: 180 });
     }
     tables = tables.slice(0, n);
   } else if(kind === 'u'){
     // U-Form: die beiden Flanken zur Mitte gedreht, hinten eine Reihe. Ein um
-    // 90 Grad gedrehter Tisch ist 1,0 m TIEF — der Abstand der Flankentische
-    // muss darum grösser sein als die Tischlänge.
-    var sideGap = 2.2, sideTop = 2.6;
+    // 90 Grad gedrehter Tisch ist TABLE_W tief — der Abstand der Flankentische
+    // muss darum grösser sein als die Tischlänge. Die linke Flanke steht neben
+    // dem Fenstersims, nicht darauf.
+    var sideGap = TABLE_W + 0.2, sideTop = 2.4;
     var maxSide = Math.max(0, Math.floor((ROOM_D - sideTop - 1.5) / sideGap) + 1);
     var sideCount = Math.min(maxSide, Math.floor(n/3));
+    var sideX = spSnap(USE_X0 + TABLE_H/2 + 0.15);
     for(i=0;i<sideCount;i++){
-      tables.push({ id: spNewTableId(), kind:'tisch', x: 1.0, y: spSnap(sideTop + i*sideGap), rot: 90 });
-      if(tables.length < n) tables.push({ id: spNewTableId(), kind:'tisch', x: spSnap(ROOM_W-1.0), y: spSnap(sideTop + i*sideGap), rot: 270 });
+      tables.push({ id: spNewTableId(), kind:'tisch', x: sideX, y: spSnap(sideTop + i*sideGap), rot: 90 });
+      if(tables.length < n) tables.push({ id: spNewTableId(), kind:'tisch', x: spSnap(ROOM_W - TABLE_H/2 - 0.15), y: spSnap(sideTop + i*sideGap), rot: 270 });
     }
     var backCount = Math.max(0, n - tables.length);
     var bw = Math.min(4, Math.max(1, backCount));
-    var bStart = (ROOM_W - (bw*TABLE_W + (bw-1)*0.2))/2 + TABLE_W/2;
+    var bStart = USE_X0 + (USE_W - (bw*TABLE_W + (bw-1)*0.2))/2 + TABLE_W/2;
     for(i=0;i<backCount;i++){
       var bc = i % bw, br = Math.floor(i/bw);
       tables.push({ id: spNewTableId(), kind:'tisch', x: spSnap(bStart + bc*(TABLE_W+0.2)), y: spSnap(Math.max(1.5, ROOM_D-1.0 - br*(TABLE_H+0.2))), rot: 180 });
@@ -5746,7 +5781,7 @@ function spAutoLayout(kind, silent){
     tables = tables.slice(0, n);
   } else {
     // Zufall: gesetzt wird nur, wo nichts kollidiert (einfacher Radius-Test).
-    var minX = TABLE_W/2 + 0.1, maxX = ROOM_W - TABLE_W/2 - 0.1;
+    var minX = USE_X0 + TABLE_W/2 + 0.1, maxX = ROOM_W - TABLE_W/2 - 0.1;
     var minY = 2.2 + TABLE_H/2, maxY = ROOM_D - TABLE_H/2 - 0.1;
     var fits = function(list, cand, mx, my){
       return list.every(function(t){
@@ -5760,11 +5795,11 @@ function spAutoLayout(kind, silent){
         id: spNewTableId(), kind:'tisch',
         x: spSnap(minX + Math.random()*(maxX-minX)),
         y: spSnap(minY + Math.random()*(maxY-minY)),
-        rot: [0,0,0,45,315][Math.floor(Math.random()*5)]
+        rot: [0,0,0,180,180][Math.floor(Math.random()*5)]   // gleicher Grundriss
       };
       if(fits(tables, cand, TABLE_W+0.2, TABLE_H+0.3)) tables.push(cand);
     }
-    // Mit den grösseren Tischen wird das Zimmer eng: der reine Zufall (mit
+    // Das Zimmer ist eng: der reine Zufall (mit
     // grosszügigem Abstand) bringt oft nur 8-10 Tische unter. Der Rest wird
     // danach feinrastrig aufgefüllt — dort reicht ein Abstand, bei dem sich
     // die Tische gerade nicht mehr überlappen.
