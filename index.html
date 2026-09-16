@@ -359,6 +359,8 @@
   .todo-add select,.todo-add input[type=date]{flex:0 1 165px;min-width:0;padding:13px 12px;border:1px solid var(--border);border-radius:12px;font:inherit;font-size:15px;background:var(--surface-2);color:var(--text);}
   .todo-add input:focus,.todo-add select:focus{outline:2px solid var(--brand);outline-offset:1px;}
   .todo-add .btn{flex:0 0 auto;padding:13px 18px;font-size:15px;white-space:nowrap;}
+  .todo-add textarea{flex:1 1 100%;min-height:62px;padding:12px 15px;border:1px solid var(--border);border-radius:12px;font:inherit;font-size:15px;line-height:1.45;background:var(--surface-2);color:var(--text);resize:vertical;}
+  .todo-add textarea:focus{outline:2px solid var(--brand);outline-offset:1px;}
   .todo-list{display:flex;flex-direction:column;gap:10px;}
   .todo-item{display:flex;align-items:flex-start;gap:14px;background:var(--surface-2);border:1px solid var(--border);border-left:5px solid var(--todo-c,var(--border));border-radius:var(--radius-sm);padding:14px 16px;}
   .todo-check{flex:none;width:30px;height:30px;margin-top:1px;border-radius:9px;border:2.5px solid var(--border);background:var(--surface);cursor:pointer;display:flex;align-items:center;justify-content:center;color:transparent;font-size:18px;font-weight:800;line-height:1;padding:0;transition:border-color .12s ease,background .12s ease,color .12s ease;}
@@ -366,6 +368,7 @@
   .todo-check.on{background:var(--good);border-color:var(--good);color:#fff;}
   .todo-body{flex:1;min-width:0;}
   .todo-text{font-size:16.5px;font-weight:600;line-height:1.4;overflow-wrap:anywhere;}
+  .todo-desc{font-size:14.5px;color:var(--text-muted);margin-top:5px;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere;}
   .todo-meta{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:7px;font-size:13.5px;color:var(--text-muted);}
   .todo-tag{padding:3px 11px;border-radius:999px;font-size:12.5px;font-weight:700;background:var(--todo-soft,var(--border));color:var(--todo-c,var(--text));}
   .todo-due{font-weight:600;}
@@ -2613,7 +2616,7 @@ function uiPickFolder(title, description, currentId, blockedIds, onPick){
    "Lehrperson"), darum auf jeder Seite - der Listener läuft ab dem Anmelden
    durch und wird beim Seitenwechsel NICHT abgeräumt.
    Eigene Firestore-Collection `teacherTodos/{id}`:
-     {text, subject (''=kein Fach), dueDate ("YYYY-MM-DD" oder ''), done,
+     {text, description, subject (''=kein Fach), dueDate ("YYYY-MM-DD" oder ''), done,
       doneAt (ms, null solange offen), createdAt (ms), createdBy}
    Nur für die Lehrperson lesbar/schreibbar (siehe firestore.rules) - das sind
    private Notizen, die die Klasse nie sehen soll. Bewusst die ganze (kleine)
@@ -2643,6 +2646,7 @@ function todoPanelHtml(){
   h += '<select id="todoSubject" title="Fach (optional)">'+todoSubjectOptionsHtml('')+'</select>';
   h += '<input type="date" id="todoDate" title="Bis wann (optional)">';
   h += '<button class="btn btn-primary" id="todoAddBtn" type="button">+ Hinzufügen</button>';
+  h += '<textarea id="todoDesc" rows="2" maxlength="1000" placeholder="Genauere Beschreibung (optional) — z.B. welche Seiten, wer betroffen ist, woran du denken musst …"></textarea>';
   h += '</div>';
   h += '<div class="todo-open-scroll" id="todoOpen"><div class="todo-empty">Wird geladen …</div></div>';
   h += '<details class="todo-done-details" id="todoDoneBox"><summary id="todoDoneSummary">Gemacht</summary><div id="todoDone"></div>';
@@ -2658,6 +2662,7 @@ function todoItemHtml(t){
   h += '<button class="todo-check'+(t.done?' on':'')+'" id="tchk-'+esc(t.id)+'" type="button" title="'+(t.done?'Wieder öffnen':'Als erledigt abhaken')+'">✓</button>';
   h += '<div class="todo-body">';
   h += '<div class="todo-text">'+esc(t.text)+'</div>';
+  if(t.description) h += '<div class="todo-desc">'+esc(t.description)+'</div>';
   var meta = '';
   if(s) meta += '<span class="todo-tag">'+esc(s.name)+'</span>';
   if(t.dueDate){
@@ -2821,6 +2826,7 @@ function wireTodoPanel(){
   var textEl = document.getElementById('todoText');
   var subjectEl = document.getElementById('todoSubject');
   var dateEl = document.getElementById('todoDate');
+  var descEl = document.getElementById('todoDesc');
   var addBtn = document.getElementById('todoAddBtn');
   if(!textEl || !addBtn) return;
 
@@ -2829,6 +2835,7 @@ function wireTodoPanel(){
     if(!text){ textEl.focus(); return; }
     var data = {
       text: text.slice(0,200),
+      description: descEl.value.trim().slice(0,1000),
       subject: subjectEl.value || '',
       dueDate: dateEl.value || '',
       done: false,
@@ -2836,7 +2843,7 @@ function wireTodoPanel(){
       createdAt: Date.now(),
       createdBy: state.user.uid
     };
-    textEl.value = ''; dateEl.value = ''; textEl.focus();
+    textEl.value = ''; dateEl.value = ''; descEl.value = ''; textEl.focus();
     setDoc(doc(db,'teacherTodos', 'todo_'+Date.now()+'_'+Math.random().toString(36).slice(2,8)), data)
       .catch(function(err){ console.error(err); toast('Konnte nicht gespeichert werden.'); });
   }
@@ -2854,6 +2861,7 @@ function openTodoEditor(t){
   openModal(
     '<h3>To-do bearbeiten</h3>'+
     '<label class="modal-label">Aufgabe</label><input type="text" id="todoEditText" maxlength="200" value="'+esc(t.text)+'">'+
+    '<label class="modal-label">Beschreibung (optional)</label><textarea id="todoEditDesc" rows="4" maxlength="1000" placeholder="Genauere Beschreibung …">'+esc(t.description||'')+'</textarea>'+
     '<label class="modal-label">Fach (optional)</label><select id="todoEditSubject">'+todoSubjectOptionsHtml(t.subject||'')+'</select>'+
     '<label class="modal-label">Bis wann (optional)</label><input type="date" id="todoEditDate" value="'+esc(t.dueDate||'')+'">'+
     '<div class="modal-actions">'+
@@ -2869,6 +2877,7 @@ function openTodoEditor(t){
     if(!text){ textEl.focus(); return; }
     var updates = {
       text: text.slice(0,200),
+      description: document.getElementById('todoEditDesc').value.trim().slice(0,1000),
       subject: document.getElementById('todoEditSubject').value || '',
       dueDate: document.getElementById('todoEditDate').value || ''
     };
