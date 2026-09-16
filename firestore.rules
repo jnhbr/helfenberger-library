@@ -28,6 +28,14 @@ rules_version = '2';
 //   pruefungKorrekturScans/{schuelerId}/pages/{pageIndex}     -> {b64, mime, bytes} (downscaled JPEG per scanned page,
 //                                                                 base64 in Firestore since there is no Firebase Storage)
 //
+//   klasseninfo/aemtli                              -> {startDate, weekdays, zeiten, aemtli:[{icon,name,offset}],
+//                                                       teams:[[uid,uid],...], skipWeeks:[...]}  Aemtliplan. Liegt bewusst
+//                                                       NICHT unter klassenzimmer/: die Klasse muss ihn lesen koennen.
+//   klasseninfo/wochenplan                          -> {plaene:[{id, titel, von, bis, hinweis, aufgaben:[...]}]}
+//   progress/{uid}/wochenplan/{planId}              -> {done:{taskId:true}, updatedAt}  Haekchen der Schueler:in am
+//                                                       Wochenplan; gleiche Logik wie der Uebungsfortschritt
+//   quizSessions/umfrage                            -> laufende Blitzumfrage (nutzt die bestehenden quizSessions-Regeln,
+//                                                       Stimmen liegen unter .../antworten/{uid})
 //   klassenzimmer/sitzplan                          -> aktueller Sitzplan {tables, seats, meta, rules, absent,
 //                                                       genderMode, mirror}; tables[].kind = tisch | pult | block
 //   klassenzimmer/sitzplaene                        -> {plans:[{id, name, savedAt, tables, seats}]} gespeicherte
@@ -104,6 +112,15 @@ service cloud.firestore {
       allow write: if isOwner(uid);
     }
 
+    // Die abgehakten Aufgaben eines Wochenplans - dieselbe Zugriffslogik wie der
+    // Uebungsfortschritt daruber: jede:r schreibt nur die eigenen Haekchen, die
+    // Lehrperson liest sie fuer die Uebersicht. Keine Datenvalidierung angehaengt,
+    // darum kann write kombiniert bleiben (bei einem delete waere request.resource null).
+    match /progress/{uid}/wochenplan/{planId} {
+      allow read: if isOwner(uid) || isTeacher();
+      allow write: if isOwner(uid);
+    }
+
     // Per-subject folder tree (same access pattern as resources: everyone
     // signed in browses, only the teacher creates/renames/moves/deletes).
     match /folders/{folderId} {
@@ -164,6 +181,16 @@ service cloud.firestore {
     // Datenvalidierung angehängt, darum kann read/write kombiniert bleiben.
     match /klassenzimmer/{toolId} {
       allow read, write: if isTeacher();
+    }
+
+    // Werkzeug-Daten, die die KLASSE sehen soll: Aemtliplan und Wochenplan.
+    // Bewusst getrennt von klassenzimmer/{toolId} - das ist teacher-only lesbar,
+    // weil dort Notizen zur Klasse stehen. Hier gilt: alle lesen, nur die
+    // Lehrperson schreibt. Keine Datenvalidierung angehaengt, darum kann write
+    // kombiniert bleiben (bei einem delete waere request.resource null).
+    match /klasseninfo/{toolId} {
+      allow read: if isSignedIn();
+      allow write: if isTeacher();
     }
 
     // Fragebox. Jede:r Angemeldete darf eine Frage anlegen. Wer anonym fragt,
