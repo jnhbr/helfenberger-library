@@ -6391,7 +6391,18 @@ function openStreakModal(){
    Kinder können ihren eigenen Punktestand nicht selbst setzen. */
 
 var QUIZ_SESSION = ['quizSessions', 'aktiv'];
-var quizLive = { session:null, unsub:null, overlay:null, unsubAnswers:null, unsubPlayers:null, tick:null, answered:{}, players:[], sig:null, revealing:false, stepping:false };
+var quizLive = { session:null, unsub:null, overlay:null, unsubAnswers:null, unsubPlayers:null, tick:null, answered:{}, players:[], sig:null, busy:{} };
+
+/* Kurzer Klickschutz fuer die Knoepfe am Beamer: er ueberbrueckt nur den Moment,
+   bis Firestore die Aenderung zurueckspiegelt. Bewusst zeitbasiert und nicht an
+   ein Promise gehaengt - ein Schreibvorgang, der offline haengen bleibt, wuerde
+   den Knopf sonst dauerhaft totlegen. */
+function quizBusy(key){
+  var now = Date.now();
+  if(quizLive.busy[key] && now - quizLive.busy[key] < 1200) return true;
+  quizLive.busy[key] = now;
+  return false;
+}
 
 function quizSessionRef(){ return doc(db, QUIZ_SESSION[0], QUIZ_SESSION[1]); }
 function quizAnswersCol(){ return collection(db, QUIZ_SESSION[0], QUIZ_SESSION[1], 'antworten'); }
@@ -6671,7 +6682,7 @@ function openQuizImport(){
 /* ---------- Lehrer: Live-Steuerung ---------- */
 
 function startQuizSession(quiz){
-  quizLive.revealing = false; quizLive.stepping = false; quizLive.sig = null; quizClock.key = '';
+  quizLive.busy = {}; quizLive.sig = null; quizClock.key = '';
   setDoc(quizSessionRef(), {
     quizId: quiz.id, title: quiz.title, state:'lobby', qIndex:-1,
     totalQ: (quiz.questions||[]).length, question:null, sec:0, startedAt:0,
@@ -6698,8 +6709,7 @@ function openQuizHost(quiz){
     clearInterval(quizLive.tick);
     quizLive.tick = null;
     quizLive.sig = null;
-    quizLive.revealing = false;
-    quizLive.stepping = false;
+    quizLive.busy = {};
     quizLive.overlay = null;
     setDoc(quizSessionRef(), { state:'idle', question:null, updatedAt: serverTimestamp() }, {merge:true}).catch(function(){});
   }, 'kz-overlay-quiz');
@@ -6721,6 +6731,19 @@ function openQuizHost(quiz){
     snap.forEach(function(d){ quizLive.players.push(Object.assign({uid:d.id}, d.data())); });
     paintQuizHost(quiz);
   });
+  // Die Knoepfe haengen NICHT mehr einzeln am Listener, sondern an der Buehne:
+  // ein Neuzeichnen (z.B. weil gerade jemand geantwortet hat) hat die Knopf-
+  // Elemente zwischen Drücken und Loslassen ersetzt - dann kam gar kein Klick
+  // an, und man musste ein zweites Mal drücken.
+  var stageEl = quizLive.overlay.el.querySelector('#qhStage');
+  stageEl.addEventListener('click', function(e){
+    var btn = e.target && e.target.closest ? e.target.closest('button') : null;
+    if(!btn) return;
+    if(btn.id === 'qhNext') quizNextStep(quiz);
+    else if(btn.id === 'qhReveal') quizReveal(quiz);
+    else if(btn.id === 'qhFinish'){ if(quizLive.overlay) quizLive.overlay.close(); }
+  });
+
   quizLive.sig = null;
   quizLive.tick = setInterval(function(){ paintQuizHost(quiz); }, 250);
   paintQuizHost(quiz);
@@ -6736,11 +6759,13 @@ function quizAnsweredCount(s){
   }).length;
 }
 
-// Alles, was ein echtes Neuzeichnen rechtfertigt. Der Countdown steht bewusst
-// NICHT drin: früher wurde die ganze Bühne zweimal pro Sekunde neu gebaut, was
-// am Beamer flackerte und jede CSS-Animation neu startete.
+// Alles, was ein echtes Neuzeichnen rechtfertigt. Countdown und Antwortzaehler
+// stehen bewusst NICHT drin: waehrend einer Frage wird die Buehne dadurch gar
+// nicht mehr neu gebaut (kein Flackern, keine verlorenen Klicks) - beide Werte
+// zieht quizHostTick punktuell nach.
 function quizHostSig(s){
-  return [s.state, s.qIndex, s.correctIndex, (s.stats||[]).join(','), quizAnsweredCount(s),
+  if(s.state === 'frage') return 'frage|'+s.qIndex;
+  return [s.state, s.qIndex, s.correctIndex, (s.stats||[]).join(','),
           quizLive.players.map(function(p){ return p.uid+':'+(p.score||0)+':'+(p.name||''); }).join(',')].join('|');
 }
 
@@ -6750,9 +6775,13 @@ function paintQuizHost(quiz){
   if(!stage) return;
   var s = quizLive.session || {};
 
-  // Zeit abgelaufen -> von selbst auflösen. Vorher passierte beim Ablauf des
-  // Countdowns gar nichts, die Klasse sass vor einer 0 und wartete.
-  if(s.state === 'frage' && quizSecondsLeft(s) <= 0) quizAutoReveal(quiz);
+  // Von selbst auflösen, sobald die Frage durch ist: entweder ist die Zeit um
+  // (vorher passierte da gar nichts, die Klasse sass vor einer 0) oder alle
+  // Mitspielenden haben geantwortet - dann muss niemand auf den Rest warten.
+  if(s.state === 'frage'){
+    var alleDa = quizLive.players.length > 0 && quizAnsweredCount(s) >= quizLive.players.length;
+    if(quizSecondsLeft(s) <= 0 || alleDa) quizAutoReveal(quiz);
+  }
 
   var sig = quizHostSig(s);
   if(sig !== quizLive.sig || !stage.firstChild){
@@ -6762,14 +6791,17 @@ function paintQuizHost(quiz){
   quizHostTick(s);
 }
 
-// Zwischen zwei Neuzeichnungen wandert nur noch die Zahl im Timer.
+// Zwischen zwei Neuzeichnungen wandern nur Timer und Antwortzaehler.
 function quizHostTick(s){
   if(s.state !== 'frage') return;
   var t = document.querySelector('.qh-timer');
-  if(!t) return;
-  var left = quizSecondsLeft(s);
-  t.textContent = left;
-  t.classList.toggle('qh-timer-hot', left <= 5);
+  if(t){
+    var left = quizSecondsLeft(s);
+    t.textContent = left;
+    t.classList.toggle('qh-timer-hot', left <= 5);
+  }
+  var c = document.querySelector('.qh-q .qh-count');
+  if(c) c.textContent = quizAnsweredCount(s)+' von '+quizLive.players.length+' geantwortet';
 }
 
 function paintQuizHostFull(quiz, stage, s){
@@ -6819,55 +6851,45 @@ function paintQuizHostFull(quiz, stage, s){
     h += '<div class="qh-lobby"><div class="qh-big">…</div></div>';
   }
 
-  stage.innerHTML = h;
-  var nextBtn = stage.querySelector('#qhNext');
-  if(nextBtn) nextBtn.addEventListener('click', function(){ quizNextStep(quiz); });
-  var revealBtn = stage.querySelector('#qhReveal');
-  if(revealBtn) revealBtn.addEventListener('click', function(){ quizReveal(quiz); });
-  var finishBtn = stage.querySelector('#qhFinish');
-  if(finishBtn) finishBtn.addEventListener('click', function(){ if(quizLive.overlay) quizLive.overlay.close(); });
+  stage.innerHTML = h;   // Klicks laufen ueber die Delegation in openQuizHost
 }
 
 function quizNextStep(quiz){
   // Ohne diese Sperre sprang ein zweiter Klick (oder ein Doppeltipp am Beamer)
   // eine Frage weiter, bevor die erste Antwort von Firestore zurück war.
-  if(quizLive.stepping) return;
+  if(quizBusy('step')) return;
   var s = quizLive.session || {};
   var nextIndex = (typeof s.qIndex === 'number' ? s.qIndex : -1) + 1;
   var questions = quiz.questions || [];
-  quizLive.stepping = true;
-  var done = function(){ quizLive.stepping = false; };
   if(nextIndex >= questions.length){
     setDoc(quizSessionRef(), { state:'ende', question:null, updatedAt: serverTimestamp() }, {merge:true})
-      .then(done).catch(function(err){ done(); console.error(err); });
+      .catch(function(err){ console.error(err); });
     return;
   }
   var q = questions[nextIndex];
-  quizLive.revealing = false;
+  quizLive.busy.reveal = 0;   // fuer die neue Frage darf sofort wieder aufgeloest werden
   setDoc(quizSessionRef(), {
     state:'frage', qIndex: nextIndex,
     question: { text: q.q, answers: q.a },
     sec: q.sec || 25, startedAt: Date.now(),
     correctIndex: -1, stats: [], updatedAt: serverTimestamp()
-  }, {merge:true}).then(done).catch(function(err){ done(); console.error(err); toast('Frage konnte nicht gestartet werden.'); });
+  }, {merge:true}).catch(function(err){ console.error(err); toast('Frage konnte nicht gestartet werden.'); });
 }
 
 // Auflösen wird von zwei Seiten ausgelöst (Knopf und Zeitablauf) - die Sperre
 // sorgt dafür, dass daraus nicht zweimal gepunktet wird.
 function quizAutoReveal(quiz){
-  if(quizLive.revealing) return;
   quizReveal(quiz);
 }
 
 function quizReveal(quiz){
   var s = quizLive.session || {};
   if(s.state !== 'frage') return;
-  if(quizLive.revealing) return;
   var qIndex = (typeof s.qIndex === 'number') ? s.qIndex : 0;
   var q = (quiz.questions || [])[qIndex];
   if(!q) return;
+  if(quizBusy('reveal')) return;
   var sec = q.sec || 25;
-  quizLive.revealing = true;
 
   // ZUERST nur umschalten, sonst nichts. Vorher lief erst ein getDocs und dann
   // ein ganzer writeBatch, bevor die Session überhaupt auf 'aufloesung' ging -
@@ -6927,6 +6949,11 @@ var quizPlay = { choice:null, lastQIndex:-1, sig:null, tick:null };
 // zweimal pro Sekunde die ganze Kopfzeile neu - inklusive eines weiteren
 // document-Klicklisteners pro Durchgang und neu startender Animationen.
 function quizPlaySig(s){
+  // Waehrend einer Frage bleibt die Seite stehen: die eigene Auswahl, die
+  // Sperre und der Timer werden punktuell nachgezogen. Sonst hat ein
+  // Neuzeichnen (jemand anders tritt bei oder antwortet) den Knopf zwischen
+  // Antippen und Loslassen ersetzt - der Tipp ging verloren.
+  if(s.state === 'frage') return 'frage|'+s.qIndex;
   var uid = (state.user||{}).uid;
   var me = quizLive.players.filter(function(p){ return p.uid === uid; })[0];
   return [s.state, s.qIndex, s.correctIndex, quizPlay.choice,
@@ -6969,6 +6996,7 @@ function quizPlayTick(s){
   var over = left <= 0;
   Array.prototype.forEach.call(document.querySelectorAll('[data-choice]'), function(b){
     b.disabled = over || quizPlay.choice !== null;
+    b.classList.toggle('qp-a-picked', quizPlay.choice === parseInt(b.getAttribute('data-choice'),10));
   });
   var note = document.getElementById('qpNote');
   if(note){
@@ -7016,24 +7044,40 @@ function quizPlayFullRender(s){
   html += '</div>';
 
   renderChrome(html);
-  document.getElementById('qpLeave').addEventListener('click', function(){
-    clearTimeout(quizPlay.tick);
-    quizPlay.sig = null;
-    state.route = {name:'home'};
-    render();
-  });
-  Array.prototype.forEach.call(document.querySelectorAll('[data-choice]'), function(b){
-    b.addEventListener('click', function(){
-      if(quizPlay.choice !== null) return;   // eine Antwort pro Frage
-      if(quizSecondsLeft(quizLive.session) <= 0) return;   // nach Ablauf zählt nichts mehr
-      var c = parseInt(b.getAttribute('data-choice'),10);
-      quizPlay.choice = c;
-      playBlip();
-      setDoc(doc(quizAnswersCol(), state.user.uid), {
-        qIndex: s.qIndex, choice: c, at: Date.now(), ms: quizElapsedMs(), name: state.profile.displayName
-      }).catch(function(err){ console.error(err); toast('Antwort kam nicht an.'); });
-      renderQuizPlay();
-    });
+  ensureQuizPlayDelegation();
+}
+
+/* Die Antwortknoepfe haengen an #app statt an sich selbst: renderChrome ersetzt
+   den Inhalt von #app, nicht das Element - ein Neuzeichnen kann den Listener
+   also nicht mehr mitreissen. */
+var quizPlayDelegated = false;
+function ensureQuizPlayDelegation(){
+  if(quizPlayDelegated || !app) return;
+  quizPlayDelegated = true;
+  app.addEventListener('click', function(e){
+    if(state.route.name !== 'quizplay') return;
+    var t = e.target;
+    if(!t || !t.closest) return;
+    if(t.closest('#qpLeave')){
+      clearTimeout(quizPlay.tick);
+      quizPlay.sig = null;
+      state.route = {name:'home'};
+      render();
+      return;
+    }
+    var btn = t.closest('[data-choice]');
+    if(!btn) return;
+    if(quizPlay.choice !== null) return;                 // eine Antwort pro Frage
+    var s = quizLive.session;
+    if(!s || s.state !== 'frage') return;
+    if(quizSecondsLeft(s) <= 0) return;                  // nach Ablauf zählt nichts mehr
+    var c = parseInt(btn.getAttribute('data-choice'),10);
+    quizPlay.choice = c;
+    playBlip();
+    setDoc(doc(quizAnswersCol(), state.user.uid), {
+      qIndex: s.qIndex, choice: c, at: Date.now(), ms: quizElapsedMs(), name: state.profile.displayName
+    }).catch(function(err){ console.error(err); toast('Antwort kam nicht an.'); });
+    quizPlayTick(s);
   });
 }
 
