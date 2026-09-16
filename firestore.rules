@@ -28,6 +28,18 @@ rules_version = '2';
 //   pruefungKorrekturScans/{schuelerId}/pages/{pageIndex}     -> {b64, mime, bytes} (downscaled JPEG per scanned page,
 //                                                                 base64 in Firestore since there is no Firebase Storage)
 //
+//   klassenzimmer/{id}                              -> Werkzeuge der Lehrperson, aktuell "sitzplan"
+//                                                       {tables, seats, meta, rules, absent, genderMode, mirror}
+//   fragen/{fragenId}                               -> {text, subject, answer, published, createdAt} (anonyme Fragebox:
+//                                                       KEINE uid im Dokument; nur die Lehrperson liest ungefilterte
+//                                                       Fragen, veröffentlichte Antworten sieht die ganze Klasse)
+//   streaks/{uid}                                   -> {days:{'YYYY-MM-DD': Sekunden}, goalMin} (Lern-Serie)
+//   quizzes/{quizId}                                -> {title, subject, questions:[{q,a,c,sec}], createdAt} (NUR Lehrperson
+//                                                       lesbar - hier stehen die richtigen Antworten drin)
+//   quizSessions/aktiv                              -> laufende Quiz-Runde (feste Dokument-ID, es läuft immer nur eine)
+//   quizSessions/aktiv/antworten/{uid}              -> {qIndex, choice, at, name}   (jede:r schreibt nur die eigene)
+//   quizSessions/aktiv/spieler/{uid}                -> {name, score, correct}       (Punkte setzt nur die Lehrperson)
+//
 // Only the teacher account (helfenberger) carries the custom claim `teacher: true`,
 // set by admin/create-accounts.js. Everyone else is a student.
 
@@ -142,6 +154,74 @@ service cloud.firestore {
         allow read, write: if isTeacher();
       }
     }
+
+    // Werkzeuge der Lehrperson (Sitzplan). Teacher-only end to end; enthält
+    // Notizen zur Klasse und geht Schüler:innen nichts an. Keine
+    // Datenvalidierung angehängt, darum kann read/write kombiniert bleiben.
+    match /klassenzimmer/{toolId} {
+      allow read, write: if isTeacher();
+    }
+
+    // Anonyme Fragebox. Jede:r Angemeldete darf eine Frage anlegen - im
+    // Dokument steht bewusst keine uid, es ist also auch im Nachhinein nicht
+    // zuzuordnen. Gelesen wird es nur von der Lehrperson, ausser sie hat es
+    // beantwortet und veröffentlicht (published == true): dann sieht es die
+    // ganze Klasse über die Abfrage where('published','==',true).
+    match /fragen/{fragenId} {
+      allow read: if isTeacher() || resource.data.published == true;
+      allow create: if isSignedIn()
+        && request.resource.data.text is string
+        && request.resource.data.text.size() > 0
+        && request.resource.data.text.size() <= 600
+        && request.resource.data.published == false
+        && request.resource.data.answer == '';
+      allow update: if isTeacher();
+      // Separat von create/update: bei einem delete ist request.resource null.
+      allow delete: if isTeacher();
+    }
+
+    // Lern-Serie: geübte Minuten pro Tag. Jede:r schreibt nur die eigene,
+    // die Lehrperson darf sie lesen (Überblick, wer regelmässig übt).
+    match /streaks/{uid} {
+      allow read: if isOwner(uid) || isTeacher();
+      allow create, update: if isOwner(uid);
+      // Separat, siehe oben.
+      allow delete: if isTeacher();
+    }
+
+    // Quiz-Vorlagen. NUR für die Lehrperson lesbar - in questions[].c steht
+    // jeweils die richtige Antwort. In die laufende Sitzung wandert pro Frage
+    // nur der Text plus die Auswahl, der richtige Index erst beim Auflösen.
+    match /quizzes/{quizId} {
+      allow read, write: if isTeacher();
+    }
+
+    // Die laufende Quiz-Runde. Alle lesen mit (Frage, Auflösung, Rangliste),
+    // geschrieben wird die Runde selbst nur von der Lehrperson.
+    match /quizSessions/{sessionId} {
+      allow read: if isSignedIn();
+      allow create, update: if isTeacher();
+      // Separat, siehe oben.
+      allow delete: if isTeacher();
+
+      // Die eigene Antwort auf die aktuelle Frage.
+      match /antworten/{uid} {
+        allow read: if isOwner(uid) || isTeacher();
+        allow create, update: if isOwner(uid);
+        allow delete: if isTeacher();
+      }
+
+      // Punktestände. Beim Beitreten legt sich jede:r den eigenen Eintrag mit
+      // 0 Punkten an; danach darf der Punktestand nur noch von der Lehrperson
+      // geändert werden - sonst könnte man sich selbst an die Spitze schreiben.
+      match /spieler/{uid} {
+        allow read: if isSignedIn();
+        allow create: if isTeacher() || (isOwner(uid) && request.resource.data.score == 0);
+        allow update: if isTeacher() || (isOwner(uid) && request.resource.data.score == resource.data.score);
+        allow delete: if isTeacher();
+      }
+    }
+
     match /pruefungKorrekturScans/{schuelerId} {
       allow read, write: if isTeacher();
       match /pages/{pageIndex} {
