@@ -1654,6 +1654,109 @@ function savePencilEgg(patch){
   });
 }
 
+/* ===================== HOVER-PANELS (To-dos & Schulden) =====================
+   Die beiden Topbar-Fenster (To-do-Panel, Schulden-Fenster) gehen schon beim
+   Drüberfahren mit der Maus auf und wieder zu, sobald der Zeiger Knopf und
+   Fenster verlassen hat. Erst ein Klick "pinnt" das Fenster - dann bleibt es
+   offen, bis man es bewusst schliesst (x, Klick daneben, Esc, erneuter Klick
+   auf den Knopf).
+
+   Warum Zeiger-Koordinaten statt mouseenter/mouseleave: Das Schulden-Fenster
+   ist ein Modal, dessen abgedunkeltes Overlay den Topbar-Knopf im selben
+   Moment überdeckt, in dem es aufgeht - mit enter/leave würde es sich sofort
+   wieder schliessen. Die Rechteck-Prüfung kennt dieses Problem nicht. Der
+   mousemove-Handler hängt nur so lange am Dokument, wie tatsächlich ein per
+   Hover geöffnetes Fenster offen ist. */
+var HOVER_OPEN_MS = 140;   // kurze Absicht-Verzögerung: blosses Vorbeifahren öffnet nichts
+var HOVER_CLOSE_MS = 500;  // Karenz, um mit der Maus vom Knopf ins Fenster zu wechseln
+
+function pointInEl(x, y, el, pad){
+  if(!el || el.hidden) return false;
+  var r = el.getBoundingClientRect();
+  if(!r.width && !r.height) return false;
+  pad = pad || 0;
+  return x >= r.left - pad && x <= r.right + pad && y >= r.top - pad && y <= r.bottom + pad;
+}
+
+// cfg: { open(byClick), close(), isOpen(), isOver(x,y), trigger(), keepOpen() }
+function makeHoverPanel(cfg){
+  var openTimer = null, closeTimer = null, pinned = false, tracking = false, byHover = false;
+
+  function clearTimers(){
+    if(openTimer){ clearTimeout(openTimer); openTimer = null; }
+    if(closeTimer){ clearTimeout(closeTimer); closeTimer = null; }
+  }
+  function startTracking(){
+    if(tracking) return;
+    tracking = true;
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mousedown', onDocDown, true);
+  }
+  function stopTracking(){
+    if(!tracking) return;
+    tracking = false;
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mousedown', onDocDown, true);
+  }
+  function onDocDown(e){
+    if(pinned || !cfg.isOpen()) return;
+    // Der Topbar-Knopf hat seine eigene Klick-Logik (pinnen bzw. schliessen).
+    var trg = cfg.trigger && cfg.trigger();
+    if(trg && trg.contains(e.target)) return;
+    if(!cfg.isOver(e.clientX, e.clientY)) return;
+    pinned = true;
+    byHover = false;
+    clearTimers();
+    stopTracking();
+  }
+  function onMove(e){
+    if(pinned){ clearTimers(); stopTracking(); return; }
+    if(!cfg.isOpen()){ clearTimers(); stopTracking(); return; }
+    if(cfg.isOver(e.clientX, e.clientY)){
+      if(closeTimer){ clearTimeout(closeTimer); closeTimer = null; }
+      return;
+    }
+    if(closeTimer) return;
+    closeTimer = setTimeout(function(){
+      closeTimer = null;
+      if(pinned || !cfg.isOpen()) return;
+      if(cfg.keepOpen && cfg.keepOpen()) return;
+      api.close();
+    }, HOVER_CLOSE_MS);
+  }
+
+  var api = {
+    hoverIn: function(){
+      clearTimers();
+      if(pinned || cfg.isOpen()) return;
+      openTimer = setTimeout(function(){
+        openTimer = null;
+        cfg.open(false);
+        byHover = true;
+        startTracking();
+      }, HOVER_OPEN_MS);
+    },
+    hoverOut: function(){
+      if(openTimer){ clearTimeout(openTimer); openTimer = null; }
+      // Das Zumachen erledigt onMove anhand der Zeiger-Position.
+      if(byHover && !pinned && cfg.isOpen()) startTracking();
+    },
+    click: function(){
+      clearTimers();
+      if(pinned && cfg.isOpen()){ api.close(); return; }
+      cfg.open(true);
+      pinned = true;
+      byHover = false;
+      stopTracking();
+    },
+    close: function(){ cfg.close(); },
+    isPinned: function(){ return pinned; },
+    // Aufräumen, wenn das Fenster (auch von aussen) geschlossen wurde.
+    reset: function(){ pinned = false; byHover = false; clearTimers(); stopTracking(); }
+  };
+  return api;
+}
+
 /* ===================== SCHULDEN ("Geld-Symbol" oben links) =====================
    Kleine Beträge, die Schüler:innen Herrn Helfenberger schulden (Schoggibrötli
    & Co.). Datenmodell: debts/{uid} -> {entries:[{id, amount, what, createdAt}],
@@ -1669,6 +1772,40 @@ var myDebt = { entries:[], total:0 };
 var myDebtUnsub = null;
 var teacherDebtCount = 0;
 var coinAutoShownSig = '';
+// Ist gerade das Schulden-Fenster der Lehrperson offen? (Für die Hover-Logik:
+// nur dann zählt das Modal zum Geld-Symbol und darf per Maus zugehen.)
+var debtHoverActive = false;
+// Gegen ein Wettrennen: Das Fenster lädt asynchron. Wird es in der Zwischenzeit
+// per Maus wieder geschlossen, darf das nachgeladene Ergebnis es nicht erneut
+// aufreissen.
+var debtLoadToken = 0;
+
+function coinIsTeacher(){ return !!(state.profile && state.profile.role === 'teacher'); }
+
+var coinHover = makeHoverPanel({
+  trigger: function(){ return document.getElementById('coinBtn'); },
+  isOpen: function(){
+    if(coinIsTeacher()) return debtHoverActive && modalEl.classList.contains('show');
+    return !!document.getElementById('coinBubble');
+  },
+  isOver: function(x, y){
+    if(pointInEl(x, y, document.getElementById('coinBtn'), 14)) return true;
+    if(pointInEl(x, y, document.getElementById('coinBubble'), 14)) return true;
+    if(debtHoverActive && pointInEl(x, y, modalEl.querySelector('.modal'), 10)) return true;
+    return false;
+  },
+  open: function(){
+    if(coinIsTeacher()){
+      if(!(debtHoverActive && modalEl.classList.contains('show'))) openDebtManager();
+    } else if(!document.getElementById('coinBubble')){
+      openCoinBubble();
+    }
+  },
+  close: function(){
+    if(debtHoverActive) closeModal();
+    else closeCoinBubble();
+  }
+});
 
 function fmtChf(n){ return 'CHF ' + (Math.round(Number(n)*100)/100).toFixed(2); }
 function debtSum(entries){
@@ -1742,10 +1879,7 @@ function refreshMyDebtUi(){
   if(sig !== coinAutoShownSig){ coinAutoShownSig = sig; openCoinBubble(); return; }
   if(document.getElementById('coinBubble')) openCoinBubble();
 }
-function onCoinClick(){
-  if(state.profile && state.profile.role === 'teacher'){ openDebtManager(); return; }
-  if(document.getElementById('coinBubble')) closeCoinBubble(); else openCoinBubble();
-}
+function onCoinClick(){ coinHover.click(); }
 function openCoinBubble(){
   closeCoinBubble();
   var items = myDebt.entries.slice().sort(function(a,b){ return (b.createdAt||0)-(a.createdAt||0); }).map(function(e){
@@ -1765,6 +1899,7 @@ function closeCoinBubble(){
   var el = document.getElementById('coinBubble');
   if(el) el.remove();
   document.removeEventListener('click', onOutsideCoinClick);
+  coinHover.reset();
 }
 function onOutsideCoinClick(e){
   var el = document.getElementById('coinBubble');
@@ -1777,6 +1912,8 @@ function onOutsideCoinClick(e){
 /* --- Verwaltung (nur Lehrperson) --- */
 async function openDebtManager(){
   openModal('<h3>Schulden</h3><p>Wird geladen …</p>', 'modal-wide');
+  debtHoverActive = true;
+  var token = ++debtLoadToken;
   var rows;
   try{
     var roster = await loadStudentRoster();
@@ -1792,6 +1929,7 @@ async function openDebtManager(){
     // "permission-denied" heisst hier praktisch immer: die firestore.rules mit
     // dem debts-Block sind noch nicht deployt (firebase deploy --only firestore:rules).
     var denied = err && (err.code === 'permission-denied' || /permission/i.test(err.message||''));
+    if(token !== debtLoadToken) return;
     openModal('<h3>Schulden</h3><p>'+(denied
         ? 'Zugriff verweigert – die Firestore-Regeln für „debts“ sind noch nicht deployt. Einmal <b>firebase deploy --only firestore:rules</b> ausführen.'
         : 'Konnte nicht geladen werden.')+'</p>'+
@@ -1799,6 +1937,7 @@ async function openDebtManager(){
     document.getElementById('modalOk').addEventListener('click', closeModal);
     return;
   }
+  if(token !== debtLoadToken) return;
   renderDebtOverview(rows);
 }
 function debtRowHtml(r){
@@ -2134,12 +2273,18 @@ function renderChrome(innerHtml){
     // Das Panel wird bei jedem renderChrome neu aufgebaut, also immer zu starten;
     // der Firestore-Listener dahinter läuft unabhängig davon weiter.
     todoBtn.addEventListener('click', function(e){ e.stopPropagation(); toggleTodoPopover(); });
+    todoBtn.addEventListener('mouseenter', todoHover.hoverIn);
+    todoBtn.addEventListener('mouseleave', todoHover.hoverOut);
     ensureTeacherTodoWatcher();
     updateTodoButton();
   }
 
   var coinBtn = document.getElementById('coinBtn');
-  if(coinBtn){ coinBtn.addEventListener('click', function(e){ e.stopPropagation(); onCoinClick(); }); }
+  if(coinBtn){
+    coinBtn.addEventListener('click', function(e){ e.stopPropagation(); onCoinClick(); });
+    coinBtn.addEventListener('mouseenter', coinHover.hoverIn);
+    coinBtn.addEventListener('mouseleave', coinHover.hoverOut);
+  }
   updateCoinButton();
 
   document.getElementById('searchBtn').addEventListener('click', openSearchModal);
@@ -2368,7 +2513,10 @@ function sortByOrder(list, fallbackField){
 
 var modalEl = document.getElementById('modalOverlay');
 
-function closeModal(){ modalEl.classList.remove('show'); modalEl.innerHTML = ''; }
+function closeModal(){
+  modalEl.classList.remove('show'); modalEl.innerHTML = '';
+  if(debtHoverActive){ debtHoverActive = false; debtLoadToken++; coinHover.reset(); }
+}
 
 function openModal(innerHtml, extraClass){
   modalEl.innerHTML = '<div class="modal'+(extraClass?' '+extraClass:'')+'" role="dialog" aria-modal="true">'+innerHtml+'</div>';
@@ -2781,24 +2929,49 @@ function updateTodoButton(){
   if(btn) btn.title = n ? n+' offene To-do'+(n===1?'':'s') : 'Keine offenen To-dos';
 }
 
-function toggleTodoPopover(){
+var todoHover = makeHoverPanel({
+  trigger: function(){ return document.getElementById('todoBtn'); },
+  isOpen: function(){
+    var pop = document.getElementById('todoPopover');
+    return !!pop && !pop.hidden;
+  },
+  isOver: function(x, y){
+    if(pointInEl(x, y, document.getElementById('todoBtn'), 14)) return true;
+    if(pointInEl(x, y, document.getElementById('todoPopover'), 14)) return true;
+    return false;
+  },
+  open: openTodoPopover,
+  close: closeTodoPopover,
+  // Solange der Bearbeiten-Dialog darüber liegt, bleibt das Panel stehen.
+  keepOpen: function(){ return modalEl.classList.contains('show'); }
+});
+
+function toggleTodoPopover(){ todoHover.click(); }
+
+// byClick: nur dann ins Eingabefeld springen - beim blossen Drüberfahren wäre
+// ein Fokuswechsel störend.
+function openTodoPopover(byClick){
   var pop = document.getElementById('todoPopover');
   if(!pop) return;
-  if(!pop.hidden){ closeTodoPopover(); return; }
-  pop.innerHTML = todoPanelHtml();
-  pop.hidden = false;
-  document.getElementById('todoClose').addEventListener('click', closeTodoPopover);
-  wireTodoPanel();
-  renderTodoLists();
-  if(todoLoadFailed){
-    var openEl = document.getElementById('todoOpen');
-    if(openEl) openEl.innerHTML = '<div class="todo-empty">To-dos konnten nicht geladen werden.</div>';
+  if(pop.hidden){
+    pop.innerHTML = todoPanelHtml();
+    pop.hidden = false;
+    document.getElementById('todoClose').addEventListener('click', closeTodoPopover);
+    wireTodoPanel();
+    renderTodoLists();
+    if(todoLoadFailed){
+      var openEl = document.getElementById('todoOpen');
+      if(openEl) openEl.innerHTML = '<div class="todo-empty">To-dos konnten nicht geladen werden.</div>';
+    }
   }
-  var textEl = document.getElementById('todoText');
-  if(textEl) textEl.focus();
+  if(byClick){
+    var textEl = document.getElementById('todoText');
+    if(textEl) textEl.focus();
+  }
 }
 
 function closeTodoPopover(){
+  todoHover.reset();
   var pop = document.getElementById('todoPopover');
   if(!pop || pop.hidden) return;
   pop.hidden = true;
