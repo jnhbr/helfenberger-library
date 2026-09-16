@@ -2745,6 +2745,12 @@ onAuthStateChanged(auth, async function(user){
     startDebtWatch();
     startQuizWatcher();
     startUmfrageWatcher();
+    // Ämtliplan gleich nach dem Anmelden im Hintergrund holen. Er ist winzig,
+    // wird von Startseiten-Hinweis, Besen und Plan gleichermassen gebraucht —
+    // und ohne dieses Vorladen sah man beim ersten Öffnen des Plans erst ein
+    // paar Sekunden "Wird geladen ...", weil zwei Firestore-Abfragen nacheinander
+    // ueber die Leitung mussten.
+    aemtliLoad();
     if(state.profile.role === 'teacher'){
       refreshFrageboxBadge();
     } else {
@@ -7636,8 +7642,7 @@ function aemtliLoad(force){
     // kaputtes Feld (z.B. startDate) hat beim Zeichnen sonst eine Ausnahme
     // geworfen, und die Seite blieb leer.
     if(!/^\d{4}-\d{2}-\d{2}$/.test(cfg.startDate || '')) cfg.startDate = AEMTLI_DEFAULTS.startDate;
-    if(!Array.isArray(cfg.teams) || !cfg.teams.length) cfg.teams = aemtliSeedTeams(roster);
-    cfg.teams = cfg.teams.filter(Array.isArray);
+    cfg.teams = aemtliTeamsAusSpeicher(cfg.teams) || [];
     if(!cfg.teams.length) cfg.teams = aemtliSeedTeams(roster);
     if(!Array.isArray(cfg.aemtli) || !cfg.aemtli.length) cfg.aemtli = JSON.parse(JSON.stringify(AEMTLI_DEFAULTS.aemtli));
     cfg.aemtli = cfg.aemtli.filter(function(a){ return a && typeof a === 'object'; })
@@ -7676,13 +7681,41 @@ function aemtliSaveFlush(){
   aemtliSave();
 }
 
+/* Firestore kann KEINE verschachtelten Arrays speichern. teams ist aber genau
+   das — eine Liste von Zweierteams. Frueher ging der Wert unveraendert an
+   setDoc, und das SDK warf daraufhin SYNCHRON eine Ausnahme (nicht als
+   abgelehntes Promise, der .catch() lief also ins Leere). Die Ausnahme flog aus
+   aemtliSave() heraus und riss alles mit, was danach kam — insbesondere das
+   Neuzeichnen. Deshalb wirkte ein Streichen folgenlos und der Plan blieb beim
+   ersten Oeffnen im Ladezustand haengen. Gespeichert wird jetzt als Liste von
+   Maps: [{m:[uid,uid]}, ...]. Arrays INNERHALB einer Map sind erlaubt. */
+function aemtliTeamsSpeicherform(teams){
+  return (teams || []).map(function(t){ return { m: (t || []).slice() }; });
+}
+function aemtliTeamsAusSpeicher(roh){
+  if(!Array.isArray(roh)) return null;
+  return roh.map(function(t){
+    if(Array.isArray(t)) return t;                       // alte Form, falls doch mal eine ankommt
+    return (t && Array.isArray(t.m)) ? t.m : [];
+  }).filter(function(t){ return t.length; });
+}
+
 function aemtliSave(){
   var c = aemtliState.cfg;
+  if(!c) return Promise.resolve();
   aemtliState.exists = true;
-  return setDoc(klasseninfoRef('aemtli'), {
-    startDate: c.startDate, weekdays: c.weekdays, zeiten: c.zeiten, aemtli: c.aemtli,
-    teams: c.teams, skipWeeks: c.skipWeeks, updatedAt: serverTimestamp()
-  }).catch(function(err){ console.error(err); toast('Ämtliplan nicht gespeichert.'); });
+  // Zusaetzlich in try/catch: eine synchrone Ausnahme aus setDoc darf NIE mehr
+  // den Aufrufer mitreissen — das Zeichnen haengt nicht vom Speichern ab.
+  try{
+    return setDoc(klasseninfoRef('aemtli'), {
+      startDate: c.startDate, weekdays: c.weekdays, zeiten: c.zeiten, aemtli: c.aemtli,
+      teams: aemtliTeamsSpeicherform(c.teams), skipWeeks: c.skipWeeks, updatedAt: serverTimestamp()
+    }).catch(function(err){ console.error('Ämtliplan nicht gespeichert', err); toast('Ämtliplan nicht gespeichert.'); });
+  }catch(err){
+    console.error('Ämtliplan nicht gespeichert', err);
+    toast('Ämtliplan nicht gespeichert.');
+    return Promise.resolve();
+  }
 }
 
 // Wer heute dran ist — null, wenn heute kein Diensttag ist.
@@ -7859,7 +7892,7 @@ function renderAemtliplan(){
   var html = '';
   html += '<div class="back-row"><button class="btn btn-ghost btn-sm" id="backBtn" type="button">&larr; Klassenzimmer</button></div>';
   html += '<h2 class="page-welcome" style="margin-bottom:6px;">🧹 Ämtliplan</h2>';
-  html += '<div id="amBody"><div class="empty-state">Wird geladen …</div></div>';
+  html += '<div id="amBody"><div class="empty-state">🧹 Ämtliplan wird geladen …</div></div>';
   renderChrome(html);
   document.getElementById('backBtn').addEventListener('click', function(){
     aemtliSaveFlush();
@@ -7870,15 +7903,17 @@ function renderAemtliplan(){
   // Liegt der Plan schon vor, wird SOFORT gezeichnet statt ueber ein Promise.
   // Sonst blieb beim Oeffnen kurz - und bei einem Fehler dauerhaft - nur
   // "Wird geladen ..." stehen.
+  // Erst zeichnen, dann speichern. Vorher stand das Speichern davor — schlug es
+  // fehl, wurde nie gezeichnet.
   if(aemtliState.loaded){
-    if(!aemtliState.exists) aemtliSave();
     paintAemtliplan();
+    if(!aemtliState.exists) aemtliSave();
     return;
   }
   aemtliLoad().then(function(){
     if(!document.getElementById('amBody')) return;   // Seite inzwischen gewechselt
-    if(!aemtliState.exists) aemtliSave();
     paintAemtliplan();
+    if(!aemtliState.exists) aemtliSave();
   });
 }
 
@@ -8959,6 +8994,7 @@ function vgCsv(rows){
 
 function renderKlassenzimmer(){
   clearSubjectWatchers(); clearOverviewWatchers();
+  aemtliLoad();   // eine Kachel weiter wird er gebraucht — bis dahin ist er da
   var tiles = [
     { id:'beamer',  icon:'⏱',  name:'Ruhephase',           desc:'Countdown, Lärmampel und wer gerade sprechen darf — in einem Bild.' },
     { id:'dran',    icon:'🎲', name:'Wer ist dran?',       desc:'Faire Zufallsziehung — wer schon oft dran war, kommt seltener.' },
