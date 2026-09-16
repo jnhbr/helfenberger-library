@@ -346,6 +346,43 @@
   .pick-item:disabled{opacity:.45;cursor:default;}
   .pick-item .pick-here{margin-left:auto;font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;}
 
+  /* ---------- Lehrerbereich: To-do-Liste (nur Lehrperson) ---------- */
+  .todo-card{border-left:5px solid var(--brand);padding:20px 22px;margin-bottom:22px;}
+  .todo-card h3{margin:0 0 14px;font-size:20px;}
+  .todo-add{display:flex;gap:10px;flex-wrap:wrap;align-items:stretch;margin-bottom:18px;}
+  .todo-add input[type=text]{flex:1 1 280px;min-width:0;padding:13px 15px;border:1px solid var(--border);border-radius:12px;font:inherit;font-size:16px;background:var(--surface-2);color:var(--text);}
+  .todo-add select,.todo-add input[type=date]{flex:0 1 190px;padding:13px 12px;border:1px solid var(--border);border-radius:12px;font:inherit;font-size:15px;background:var(--surface-2);color:var(--text);}
+  .todo-add input:focus,.todo-add select:focus{outline:2px solid var(--brand);outline-offset:1px;}
+  .todo-add .btn{flex:0 0 auto;padding:13px 22px;font-size:15px;}
+  .todo-list{display:flex;flex-direction:column;gap:10px;}
+  .todo-item{display:flex;align-items:flex-start;gap:14px;background:var(--surface-2);border:1px solid var(--border);border-left:5px solid var(--todo-c,var(--border));border-radius:var(--radius-sm);padding:14px 16px;}
+  .todo-check{flex:none;width:30px;height:30px;margin-top:1px;border-radius:9px;border:2.5px solid var(--border);background:var(--surface);cursor:pointer;display:flex;align-items:center;justify-content:center;color:transparent;font-size:18px;font-weight:800;line-height:1;padding:0;transition:border-color .12s ease,background .12s ease,color .12s ease;}
+  .todo-check:hover{border-color:var(--good);}
+  .todo-check.on{background:var(--good);border-color:var(--good);color:#fff;}
+  .todo-body{flex:1;min-width:0;}
+  .todo-text{font-size:16.5px;font-weight:600;line-height:1.4;overflow-wrap:anywhere;}
+  .todo-meta{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:7px;font-size:13.5px;color:var(--text-muted);}
+  .todo-tag{padding:3px 11px;border-radius:999px;font-size:12.5px;font-weight:700;background:var(--todo-soft,var(--border));color:var(--todo-c,var(--text));}
+  .todo-due{font-weight:600;}
+  .todo-due.soon{color:var(--bad);font-weight:800;}
+  .todo-actions{flex:none;display:flex;gap:4px;}
+  .todo-actions .btn{padding:7px 11px;font-size:14px;}
+  .todo-item-done{opacity:.62;}
+  .todo-item-done .todo-text{text-decoration:line-through;font-weight:500;}
+  .todo-done-details{margin-top:18px;border-top:1px dashed var(--border);padding-top:10px;}
+  .todo-done-details summary{cursor:pointer;font-weight:700;font-size:16px;padding:8px 2px;list-style:none;}
+  .todo-done-details summary::-webkit-details-marker{display:none;}
+  .todo-done-details summary::before{content:'▶';display:inline-block;margin-right:9px;font-size:12px;transition:transform .15s;}
+  .todo-done-details[open] summary::before{transform:rotate(90deg);}
+  .todo-done-details .todo-list{margin-top:10px;}
+  .todo-hint{font-size:12.5px;color:var(--text-muted);margin:12px 2px 2px;}
+  .todo-empty{background:var(--surface-2);border:1px dashed var(--border);border-radius:var(--radius-sm);padding:22px 16px;text-align:center;color:var(--text-muted);font-size:15px;}
+  @media (max-width:600px){
+    .todo-add input[type=text]{flex:1 1 100%;}
+    .todo-add select,.todo-add input[type=date]{flex:1 1 calc(50% - 5px);}
+    .todo-add .btn{flex:1 1 100%;}
+  }
+
   /* ---------- Teacher upload zone ---------- */
   .dropzone{border:2.5px dashed var(--border);border-radius:var(--radius);padding:28px 20px;text-align:center;color:var(--text-muted);margin-bottom:22px;background:var(--surface);transition:border-color .15s ease, background .15s ease;}
   .dropzone.drag{border-color:var(--brand);background:var(--surface-2);color:var(--text);}
@@ -1503,6 +1540,7 @@ var state = {
   folders:[],         // alle Ordner des offenen Fachs (live)
   resourceUnsub:null,
   folderUnsub:null,
+  todoUnsub:null,     // Lehrerbereich-To-dos (nur Lehrperson)
   progressCache:{},   // resourceId -> {stats,total}
   progressUnsubs:{}
 };
@@ -2236,6 +2274,7 @@ var MAX_FOLDER_DEPTH = 6;   // Sicherheitsnetz gegen versehentlich tiefe Bäume
 function clearSubjectWatchers(){
   if(state.resourceUnsub){ try{ state.resourceUnsub(); }catch(e){} state.resourceUnsub = null; }
   if(state.folderUnsub){ try{ state.folderUnsub(); }catch(e){} state.folderUnsub = null; }
+  if(state.todoUnsub){ try{ state.todoUnsub(); }catch(e){} state.todoUnsub = null; }
 }
 
 function folderById(id){
@@ -2548,6 +2587,204 @@ function uiPickFolder(title, description, currentId, blockedIds, onPick){
   });
 }
 
+/* ===================== LEHRERBEREICH: TO-DO-LISTE =====================
+   Eigene Firestore-Collection `teacherTodos/{id}`:
+     {text, subject (''=kein Fach), dueDate ("YYYY-MM-DD" oder ''), done,
+      doneAt (ms, null solange offen), createdAt (ms), createdBy}
+   Nur für die Lehrperson lesbar/schreibbar (siehe firestore.rules) - das sind
+   private Notizen, die die Klasse nie sehen soll. Bewusst die ganze (kleine)
+   Collection ohne where()/orderBy() laden und client-seitig sortieren, damit
+   kein Composite Index nötig wird. Zeitstempel als Millisekunden-Zahl statt
+   serverTimestamp(), weil serverTimestamp() im lokalen Snapshot kurzzeitig
+   null ist - das würde Sortierung und Aufräumen durcheinanderbringen.
+   ===================================================================== */
+
+var TODO_KEEP_DAYS = 28;   // erledigte To-dos werden 4 Wochen nach dem Abhaken gelöscht
+var todoItems = [];
+var todoPruning = false;
+
+function todoSubjectOptionsHtml(selected){
+  var opts = ['<option value="">— Kein Fach —</option>'];
+  SUBJECTS.filter(function(s){ return !s.teacherOnly; }).forEach(function(s){
+    opts.push('<option value="'+esc(s.id)+'"'+(s.id===selected?' selected':'')+'>'+esc(s.name)+'</option>');
+  });
+  return opts.join('');
+}
+
+function todoCardHtml(){
+  var h = '<div class="card todo-card">';
+  h += '<h3>✅ Meine To-dos</h3>';
+  h += '<div class="todo-add">';
+  h += '<input type="text" id="todoText" maxlength="200" placeholder="Was ist zu tun? (z.B. Prüfungen korrigieren)">';
+  h += '<select id="todoSubject" title="Fach (optional)">'+todoSubjectOptionsHtml('')+'</select>';
+  h += '<input type="date" id="todoDate" title="Bis wann (optional)">';
+  h += '<button class="btn btn-primary" id="todoAddBtn" type="button">+ Hinzufügen</button>';
+  h += '</div>';
+  h += '<div id="todoOpen"><div class="todo-empty">Wird geladen …</div></div>';
+  h += '<details class="todo-done-details" id="todoDoneBox"><summary id="todoDoneSummary">Gemacht</summary><div id="todoDone"></div>';
+  h += '<div class="todo-hint">Abgehakte To-dos verschwinden automatisch 4 Wochen nach dem Abhaken.</div>';
+  h += '</details>';
+  h += '</div>';
+  return h;
+}
+
+function todoItemHtml(t){
+  var s = t.subject ? subjectById(t.subject) : null;
+  var style = s ? ' style="--todo-c:'+s.color+';--todo-soft:'+s.soft+';"' : '';
+  var h = '<div class="todo-item'+(t.done?' todo-item-done':'')+'"'+style+'>';
+  h += '<button class="todo-check'+(t.done?' on':'')+'" id="tchk-'+esc(t.id)+'" type="button" title="'+(t.done?'Wieder öffnen':'Als erledigt abhaken')+'">✓</button>';
+  h += '<div class="todo-body">';
+  h += '<div class="todo-text">'+esc(t.text)+'</div>';
+  var meta = '';
+  if(s) meta += '<span class="todo-tag">'+esc(s.name)+'</span>';
+  if(t.dueDate){
+    var soon = !t.done && t.dueDate <= todayStr();
+    meta += '<span class="todo-due'+(soon?' soon':'')+'">📅 bis '+esc(weekdayLabel(t.dueDate))+', '+esc(fmtDueDate(t.dueDate))+(soon?' — fällig!':'')+'</span>';
+  }
+  if(t.done && t.doneAt) meta += '<span>✔️ erledigt am '+esc(fmtDueDate(localDateStr(new Date(t.doneAt))))+'</span>';
+  if(meta) h += '<div class="todo-meta">'+meta+'</div>';
+  h += '</div>';
+  h += '<div class="todo-actions">';
+  h += '<button class="btn btn-ghost btn-sm" id="tedit-'+esc(t.id)+'" type="button" title="Bearbeiten">✏️</button>';
+  h += '<button class="btn btn-danger btn-sm" id="tdel-'+esc(t.id)+'" type="button" title="Löschen">🗑</button>';
+  h += '</div></div>';
+  return h;
+}
+
+function renderTodoLists(){
+  var openEl = document.getElementById('todoOpen');
+  var doneEl = document.getElementById('todoDone');
+  if(!openEl || !doneEl) return;
+
+  var open = todoItems.filter(function(t){ return !t.done; });
+  var done = todoItems.filter(function(t){ return t.done; });
+  // Offen: zuerst was ein Datum hat (das nächste zuoberst), danach der Rest
+  // nach Erstellzeit; Erledigt: zuletzt Abgehaktes zuoberst.
+  open.sort(function(a,b){
+    var ad = a.dueDate || '9999-12-31', bd = b.dueDate || '9999-12-31';
+    if(ad !== bd) return ad.localeCompare(bd);
+    return (a.createdAt||0) - (b.createdAt||0);
+  });
+  done.sort(function(a,b){ return (b.doneAt||0) - (a.doneAt||0); });
+
+  openEl.innerHTML = open.length
+    ? '<div class="todo-list">'+open.map(todoItemHtml).join('')+'</div>'
+    : '<div class="todo-empty">Nichts offen — alles erledigt! 🎉</div>';
+  doneEl.innerHTML = done.length
+    ? '<div class="todo-list">'+done.map(todoItemHtml).join('')+'</div>'
+    : '<div class="todo-empty">Noch nichts abgehakt.</div>';
+
+  var summary = document.getElementById('todoDoneSummary');
+  if(summary) summary.textContent = 'Gemacht ('+done.length+')';
+
+  todoItems.forEach(function(t){
+    var chk = document.getElementById('tchk-'+t.id);
+    if(chk) chk.addEventListener('click', function(){ toggleTodo(t); });
+    var edit = document.getElementById('tedit-'+t.id);
+    if(edit) edit.addEventListener('click', function(){ openTodoEditor(t); });
+    var del = document.getElementById('tdel-'+t.id);
+    if(del) del.addEventListener('click', function(){
+      uiConfirm('To-do löschen?', t.text, 'Löschen', function(){
+        deleteDoc(doc(db,'teacherTodos', t.id))
+          .then(function(){ toast('Gelöscht.'); })
+          .catch(function(err){ console.error(err); toast('Konnte nicht gelöscht werden.'); });
+      }, true);
+    });
+  });
+}
+
+// Räumt erledigte To-dos auf, die länger als TODO_KEEP_DAYS abgehakt sind.
+// Läuft bei jedem Snapshot; das Löschen löst einen neuen Snapshot aus, bei dem
+// dann nichts Altes mehr übrig ist — die Schleife endet also von selbst.
+function pruneOldDoneTodos(){
+  if(todoPruning) return;
+  var cutoff = Date.now() - TODO_KEEP_DAYS*86400000;
+  var old = todoItems.filter(function(t){ return t.done && t.doneAt && t.doneAt < cutoff; });
+  if(!old.length) return;
+  todoPruning = true;
+  var batch = writeBatch(db);
+  old.forEach(function(t){ batch.delete(doc(db,'teacherTodos', t.id)); });
+  batch.commit()
+    .catch(function(err){ console.error(err); })
+    .finally(function(){ todoPruning = false; });
+}
+
+function watchTeacherTodos(){
+  if(state.todoUnsub){ try{ state.todoUnsub(); }catch(e){} }
+  state.todoUnsub = onSnapshot(collection(db,'teacherTodos'), function(snap){
+    todoItems = [];
+    snap.forEach(function(d){ todoItems.push(Object.assign({id:d.id}, d.data())); });
+    renderTodoLists();
+    pruneOldDoneTodos();
+  }, function(err){
+    console.error(err);
+    var openEl = document.getElementById('todoOpen');
+    if(openEl) openEl.innerHTML = '<div class="todo-empty">To-dos konnten nicht geladen werden.</div>';
+  });
+}
+
+function wireTodoCard(){
+  var textEl = document.getElementById('todoText');
+  var subjectEl = document.getElementById('todoSubject');
+  var dateEl = document.getElementById('todoDate');
+  var addBtn = document.getElementById('todoAddBtn');
+  if(!textEl || !addBtn) return;
+
+  function add(){
+    var text = textEl.value.trim();
+    if(!text){ textEl.focus(); return; }
+    var data = {
+      text: text.slice(0,200),
+      subject: subjectEl.value || '',
+      dueDate: dateEl.value || '',
+      done: false,
+      doneAt: null,
+      createdAt: Date.now(),
+      createdBy: state.user.uid
+    };
+    textEl.value = ''; dateEl.value = ''; textEl.focus();
+    setDoc(doc(db,'teacherTodos', 'todo_'+Date.now()+'_'+Math.random().toString(36).slice(2,8)), data)
+      .catch(function(err){ console.error(err); toast('Konnte nicht gespeichert werden.'); });
+  }
+  addBtn.addEventListener('click', add);
+  textEl.addEventListener('keydown', function(e){ if(e.key === 'Enter') add(); });
+}
+
+function toggleTodo(t){
+  var nowDone = !t.done;
+  updateDoc(doc(db,'teacherTodos', t.id), {done:nowDone, doneAt: nowDone ? Date.now() : null})
+    .catch(function(err){ console.error(err); toast('Konnte nicht geändert werden.'); });
+}
+
+function openTodoEditor(t){
+  openModal(
+    '<h3>To-do bearbeiten</h3>'+
+    '<label class="modal-label">Aufgabe</label><input type="text" id="todoEditText" maxlength="200" value="'+esc(t.text)+'">'+
+    '<label class="modal-label">Fach (optional)</label><select id="todoEditSubject">'+todoSubjectOptionsHtml(t.subject||'')+'</select>'+
+    '<label class="modal-label">Bis wann (optional)</label><input type="date" id="todoEditDate" value="'+esc(t.dueDate||'')+'">'+
+    '<div class="modal-actions">'+
+      '<button class="btn btn-ghost btn-sm" id="modalCancel" type="button">Abbrechen</button>'+
+      '<button class="btn btn-primary btn-sm" id="modalOk" type="button">Speichern</button>'+
+    '</div>'
+  );
+  var textEl = document.getElementById('todoEditText');
+  textEl.focus(); textEl.select();
+  document.getElementById('modalCancel').addEventListener('click', closeModal);
+  document.getElementById('modalOk').addEventListener('click', function(){
+    var text = textEl.value.trim();
+    if(!text){ textEl.focus(); return; }
+    var updates = {
+      text: text.slice(0,200),
+      subject: document.getElementById('todoEditSubject').value || '',
+      dueDate: document.getElementById('todoEditDate').value || ''
+    };
+    closeModal();
+    updateDoc(doc(db,'teacherTodos', t.id), updates)
+      .then(function(){ toast('Gespeichert.'); })
+      .catch(function(err){ console.error(err); toast('Konnte nicht gespeichert werden.'); });
+  });
+}
+
 /* ===================== RENDER: FACH / ORDNER ===================== */
 
 function renderSubject(subjectId, folderId){
@@ -2564,6 +2801,11 @@ function renderSubject(subjectId, folderId){
   html += '<div class="back-row"><button class="btn btn-ghost btn-sm" id="backBtn">&larr; Alle Fächer</button></div>';
   html += '<div class="subject-head"><div class="subject-visual" style="background:'+s.soft+';">'+s.icon+'</div><h2>'+s.name+'</h2></div>';
   html += '<div class="crumbs" id="crumbs"></div>';
+
+  // Persönliche To-do-Liste - nur im Lehrerbereich und nur für die Lehrperson.
+  if(isTeacher && subjectId==='lehrerbereich'){
+    html += todoCardHtml();
+  }
 
   if(isTeacher && subjectId==='deutsch'){
     html += '<div class="back-row"><button class="btn btn-ghost btn-sm" id="diktatAnalyseBtn" type="button">📊 Fehleranalyse Diktate</button></div>';
@@ -2590,6 +2832,10 @@ function renderSubject(subjectId, folderId){
       state.route = {name:'diktatauswertung'};
       render();
     });
+  }
+  if(isTeacher && subjectId==='lehrerbereich'){
+    wireTodoCard();
+    watchTeacherTodos();
   }
   if(isTeacher){
     wireDropzone(subjectId);
