@@ -373,6 +373,9 @@
   .todo-tag{padding:3px 11px;border-radius:999px;font-size:12.5px;font-weight:700;background:var(--todo-soft,var(--border));color:var(--todo-c,var(--text));}
   .todo-due{font-weight:600;}
   .todo-due.soon{color:var(--bad);font-weight:800;}
+  /* Faellig heute oder ueberfaellig: nicht nur das Datum, die ganze Karte faellt auf. */
+  .todo-item-due{border-color:var(--bad);border-left-color:var(--bad);background:var(--bad-soft);}
+  .todo-item-due .todo-text{color:var(--bad);font-weight:800;}
   .todo-actions{flex:none;display:flex;gap:4px;}
   .todo-actions .btn{padding:7px 11px;font-size:14px;}
   .todo-item-done{opacity:.62;}
@@ -921,6 +924,19 @@
   .gr-role{font-family:system-ui,sans-serif;font-size:12px;font-weight:600;color:var(--text-muted);}
   @keyframes grPop{from{opacity:0;transform:translateY(10px) scale(.96);}to{opacity:1;transform:none;}}
   @media (prefers-reduced-motion: reduce){ .gr-card{animation:none;} }
+
+  /* ---------- 🧹 Besen in der Kopfzeile ---------- */
+  /* Leuchtet rot, sobald in DIESER Woche noch ein eigenes Ämtli ansteht.
+     Wie beim Quiz-Knopf bewusst ein Ring aus box-shadow statt transform:scale —
+     ein huepfendes Symbol in einer umbrechenden Flex-Zeile wirkt unruhig. */
+  .topbar-besen-an{background:var(--bad-soft);color:var(--bad);animation:besenGlow 2.2s ease-in-out infinite;}
+  @keyframes besenGlow{0%,100%{box-shadow:0 0 0 0 rgba(230,57,80,.5);}50%{box-shadow:0 0 0 7px rgba(230,57,80,0);}}
+  @media (prefers-reduced-motion: reduce){ .topbar-besen-an{animation:none;} }
+  .ae-pop{text-align:center;}
+  .ae-pop-icon{font-size:44px;line-height:1;}
+  .ae-pop h3{margin:8px 0 12px;}
+  .ae-pop-job{background:var(--surface-2);border-radius:var(--radius-sm);padding:11px 14px;margin-bottom:8px;font-size:15px;line-height:1.5;}
+  .ae-pop-job span{color:var(--text-muted);font-size:13.5px;}
 
   /* ---------- Eigenes Häkchen an einem Kalendereintrag ---------- */
   .cal-done{display:inline-flex;align-items:center;gap:7px;margin-top:8px;background:var(--surface-2);border:1px solid var(--border);border-radius:999px;padding:5px 13px 5px 10px;font-size:13px;font-weight:600;color:var(--text-muted);cursor:pointer;user-select:none;}
@@ -2688,6 +2704,9 @@ function doLogout(){
   stopQuizWatcher();
   stopUmfrageWatcher();
   erledigt = { ids:{}, loaded:false, uid:null };
+  // Auch den Ämtliplan vergessen: sonst sieht die naechste Person auf demselben
+  // Geraet noch den zwischengespeicherten Stand der vorherigen Sitzung.
+  aemtliState = { cfg:null, roster:[], loaded:false, exists:false };
   signOut(auth);
 }
 
@@ -2839,6 +2858,7 @@ function renderChrome(innerHtml){
   html += '<span>Hallo, <b>'+esc(state.profile.displayName)+'</b></span>';
   html += '<span class="topbar-offline" id="offlineBadge" hidden>📶 Offline</span>';
   if(!isTeacher){ html += '<button class="btn btn-ghost btn-sm topbar-bell" id="streakBtn" type="button">🔥 <b>0</b></button>'; }
+  if(!isTeacher){ html += '<button class="btn btn-ghost btn-sm topbar-bell topbar-besen" id="aemtliBtn" type="button" title="Ämtli">🧹</button>'; }
   html += '<button class="btn btn-ghost btn-sm topbar-bell" id="fragenBtn" type="button" title="Anonyme Fragebox">❓<span class="topbar-badge" id="fragenBadge" hidden>0</span></button>';
   html += '<button class="btn btn-ghost btn-sm topbar-bell" id="searchBtn" type="button" title="Suche">🔍</button>';
   html += '<button class="btn btn-ghost btn-sm topbar-bell" id="themeToggleBtn" type="button" title="Darstellung">'+(currentEffectiveTheme()==='dark'?'☀️':'🌙')+'</button>';
@@ -2889,6 +2909,11 @@ function renderChrome(innerHtml){
   if(streakBtn){
     streakBtn.addEventListener('click', openStreakModal);
     updateStreakButton();
+  }
+  var aemtliBtn = document.getElementById('aemtliBtn');
+  if(aemtliBtn){
+    aemtliBtn.addEventListener('click', aemtliMeineTermine);
+    updateAemtliButton();
   }
   document.getElementById('fragenBtn').addEventListener('click', openFragebox);
   if(isTeacher) refreshFrageboxBadge();
@@ -3417,7 +3442,8 @@ function todoPanelHtml(){
 function todoItemHtml(t){
   var s = t.subject ? subjectById(t.subject) : null;
   var style = s ? ' style="--todo-c:'+s.color+';--todo-soft:'+s.soft+';"' : '';
-  var h = '<div class="todo-item'+(t.done?' todo-item-done':'')+'"'+style+'>';
+  var faellig = !t.done && t.dueDate && t.dueDate <= todayStr();
+  var h = '<div class="todo-item'+(t.done?' todo-item-done':'')+(faellig?' todo-item-due':'')+'"'+style+'>';
   h += '<button class="todo-check'+(t.done?' on':'')+'" id="tchk-'+esc(t.id)+'" type="button" title="'+(t.done?'Wieder öffnen':'Als erledigt abhaken')+'">✓</button>';
   h += '<div class="todo-body">';
   h += '<div class="todo-text">'+esc(t.text)+'</div>';
@@ -7607,6 +7633,24 @@ function aemtliLoad(force){
   });
 }
 
+/* Beim Tippen wird NICHT neu gezeichnet. Frueher lief bei jedem change ein
+   voller Neuaufbau des Editors - und weil change erst beim Verlassen des Feldes
+   feuert, wurde der Klick, der das Feld verlassen hat (z.B. auf "Plan"), vom
+   Neuaufbau verschluckt: der Knopf war zwischen mousedown und mouseup weg, das
+   click-Ereignis kam nie an. Man musste alles zweimal klicken. Jetzt wandert
+   der Wert bei jedem Tastendruck nach cfg, gespeichert wird entprellt, und
+   neugezeichnet nur, wenn sich die Struktur aendert (hinzufuegen/loeschen). */
+var aemtliSaveTimer = null;
+function aemtliSaveSoon(){
+  clearTimeout(aemtliSaveTimer);
+  aemtliSaveTimer = setTimeout(function(){ aemtliSaveTimer = null; aemtliSave(); }, 500);
+}
+function aemtliSaveFlush(){
+  if(!aemtliSaveTimer) return;
+  clearTimeout(aemtliSaveTimer); aemtliSaveTimer = null;
+  aemtliSave();
+}
+
 function aemtliSave(){
   var c = aemtliState.cfg;
   aemtliState.exists = true;
@@ -7623,6 +7667,73 @@ function aemtliHeute(cfg, dateStr){
   if(!w) return null;
   return { week:w, datum:today, zeit: aemtliZeit(cfg, today),
            jobs: cfg.aemtli.map(function(a){ return { a:a, team: aemtliTeamFor(cfg, w, a) || [] }; }) };
+}
+
+/* Alle eigenen Ämtli-Termine ab heute, chronologisch. Grundlage fuer den Besen
+   in der Kopfzeile, die Terminliste und den Tageshinweis. Ein Termin, dessen
+   Uhrzeit heute schon vorbei ist, faellt raus — er ist erledigt. */
+function aemtliMeineTermine_(cfg, uid){
+  var today = todayStr(), jetzt = nowHHMM(), out = [];
+  aemtliWeeks(cfg).forEach(function(w){
+    if(w.skipped) return;
+    cfg.aemtli.forEach(function(a){
+      var team = aemtliTeamFor(cfg, w, a) || [];
+      if(team.indexOf(uid) < 0) return;
+      w.days.forEach(function(d){
+        if(d < today) return;
+        var zeit = aemtliZeit(cfg, d);
+        if(d === today && zeit && jetzt >= zeit) return;   // heute schon vorbei
+        out.push({ datum:d, zeit:zeit, aemtli:a, woche:w.monday,
+                   partner: aemtliShortNames(team.filter(function(u){ return u !== uid; })) });
+      });
+    });
+  });
+  out.sort(function(x,y){ return x.datum.localeCompare(y.datum) || (x.zeit||'').localeCompare(y.zeit||''); });
+  return out;
+}
+
+/* ---------- 🧹 Besen in der Kopfzeile (nur Klasse) ---------- */
+
+function updateAemtliButton(){
+  var btn = document.getElementById('aemtliBtn');
+  if(!btn || !state.profile || state.profile.role === 'teacher') return;
+  aemtliLoad().then(function(st){
+    btn = document.getElementById('aemtliBtn');
+    if(!btn) return;
+    var termine = aemtliMeineTermine_(st.cfg, state.user.uid);
+    var naechster = termine[0];
+    // Rot, sobald der naechste Termin noch in DIESER Woche liegt.
+    var dieseWoche = naechster && naechster.woche === aemtliMonday(todayStr());
+    btn.classList.toggle('topbar-besen-an', !!dieseWoche);
+    btn.title = naechster
+      ? ('Nächstes Ämtli: ' + naechster.aemtli.name + ' am ' + fmtDueDate(naechster.datum) + (naechster.zeit ? ', ' + naechster.zeit + ' Uhr' : ''))
+      : 'Bis zu den Sommerferien kein Ämtli mehr';
+    aemtliTagesHinweis(st.cfg);
+  }).catch(function(err){ console.error('Ämtli-Besen', err); });
+}
+
+/* Am Ämtli-Tag selbst geht der Hinweis einmal von allein auf — bis zur Uhrzeit
+   des Ämtlis. Danach nicht mehr, und pro Tag nur einmal, damit er beim
+   Herumklicken nicht dauernd wieder aufspringt. */
+function aemtliTagesHinweis(cfg){
+  if(!state.profile || state.profile.role === 'teacher') return;
+  var today = todayStr();
+  var heute = aemtliMeineTermine_(cfg, state.user.uid).filter(function(t){ return t.datum === today; });
+  if(!heute.length) return;
+  if(lsGet(LIB_PREFIX + 'aemtli_hinweis') === today) return;
+  lsSet(LIB_PREFIX + 'aemtli_hinweis', today);
+  var zeile = heute.map(function(t){
+    return '<div class="ae-pop-job">' + (t.aemtli.icon || '🧹') + ' <b>' + esc(t.aemtli.name) + '</b>'
+         + (t.zeit ? ' <span>um ' + esc(t.zeit) + ' Uhr</span>' : '')
+         + (t.partner.length ? '<br><span>zusammen mit ' + esc(t.partner.join(' + ')) + '</span>' : '')
+         + '</div>';
+  }).join('');
+  openModal(
+    '<div class="ae-pop"><div class="ae-pop-icon">🧹</div>'
+    + '<h3>Heute bist du mit dem Ämtli dran</h3>' + zeile + '</div>'
+    + '<div class="modal-actions"><button class="btn btn-primary btn-sm" id="modalOk" type="button">Alles klar</button></div>'
+  );
+  document.getElementById('modalOk').addEventListener('click', closeModal);
 }
 
 /* ---------- Hinweis auf der Startseite ----------
@@ -7694,32 +7805,24 @@ function aemtliScheduleHide(zeit){
 
 // Schüler-Sicht: die eigenen kommenden Ämtli-Tage.
 function aemtliMeineTermine(){
-  var cfg = aemtliState.cfg;
-  if(!cfg) return;
-  var me = state.user.uid, today = todayStr();
-  var rows = [];
-  aemtliWeeks(cfg).forEach(function(w){
-    if(w.skipped) return;
-    cfg.aemtli.forEach(function(a){
-      var team = aemtliTeamFor(cfg, w, a) || [];
-      if(team.indexOf(me) < 0) return;
-      w.days.forEach(function(d){
-        if(d < today) return;
-        var others = aemtliShortNames(team.filter(function(u){ return u !== me; }));
-        var zeit = aemtliZeit(cfg, d);
-        rows.push({ d:d, html:'<div class="vg-item"><b>'+esc(weekdayLabel(d))+', '+esc(fmtDueDate(d))+(zeit ? ' um '+esc(zeit)+' Uhr' : '')+'</b> <span>'+(a.icon||'🧹')+' '+esc(a.name)+'</span>'
-          + (others.length ? '<span class="vg-item-spacer"></span><span style="color:var(--text-muted);">mit '+esc(others.join(' + '))+'</span>' : '')+'</div>' });
-      });
-    });
-  });
-  rows.sort(function(a,b){ return a.d.localeCompare(b.d); });
-  openModal(
-    '<h3>🧹 Meine Ämtli-Termine</h3>'+
-    (rows.length ? '<div style="max-height:60vh;overflow:auto;">'+rows.slice(0,40).map(function(r){ return r.html; }).join('')+'</div>'
-                 : '<div class="empty-state">Bis zu den Sommerferien steht nichts an.</div>')+
-    '<div class="modal-actions"><button class="btn btn-primary btn-sm" id="modalOk" type="button">Schliessen</button></div>'
-  );
-  document.getElementById('modalOk').addEventListener('click', closeModal);
+  aemtliLoad().then(function(st){
+    var termine = aemtliMeineTermine_(st.cfg, state.user.uid);
+    var rows = termine.slice(0, 40).map(function(t){
+      return '<div class="vg-item"><b>' + esc(fmtDueDate(t.datum)) + '</b> '
+           + '<span>' + esc(weekdayLabel(t.datum)) + (t.zeit ? ', ' + esc(t.zeit) + ' Uhr' : '') + '</span> '
+           + '<span>' + (t.aemtli.icon || '🧹') + ' ' + esc(t.aemtli.name) + '</span>'
+           + (t.partner.length ? '<span class="vg-item-spacer"></span><span style="color:var(--text-muted);">mit ' + esc(t.partner.join(' + ')) + '</span>' : '')
+           + '</div>';
+    }).join('');
+    openModal(
+      '<h3>🧹 Meine Ämtli-Termine</h3>'
+      + '<p style="margin:0 0 12px;color:var(--text-muted);font-size:13px;">' + esc(aemtliZeitenText(st.cfg)) + '</p>'
+      + (rows ? '<div style="max-height:60vh;overflow:auto;">' + rows + '</div>'
+              : '<div class="empty-state">Bis zu den Sommerferien steht nichts an.</div>')
+      + '<div class="modal-actions"><button class="btn btn-primary btn-sm" id="modalOk" type="button">Schliessen</button></div>'
+    );
+    document.getElementById('modalOk').addEventListener('click', closeModal);
+  }).catch(function(err){ console.error(err); toast('Ämtliplan konnte nicht geladen werden.'); });
 }
 
 /* ---------- Lehrer-Seite ---------- */
@@ -7732,6 +7835,7 @@ function renderAemtliplan(){
   html += '<div id="amBody"><div class="empty-state">Wird geladen …</div></div>';
   renderChrome(html);
   document.getElementById('backBtn').addEventListener('click', function(){
+    aemtliSaveFlush();
     if(aemtliUi.view !== 'plan'){ aemtliUi.view = 'plan'; paintAemtliplan(); return; }
     state.route = {name:'klassenzimmer'}; render();
   });
@@ -7875,7 +7979,7 @@ function paintAemtliTeams(host){
   if(frei.length) h += '<p class="vg-hint">Noch ohne Team: '+esc(frei.map(function(s){ return s.displayName; }).join(', '))+'</p>';
   host.innerHTML = h;
 
-  document.getElementById('amBack').addEventListener('click', function(){ aemtliUi.view = 'plan'; paintAemtliplan(); });
+  document.getElementById('amBack').addEventListener('click', function(){ aemtliSaveFlush(); aemtliUi.view = 'plan'; paintAemtliplan(); });
   document.getElementById('amAddTeam').addEventListener('click', function(){ cfg.teams.push([]); aemtliSave(); paintAemtliplan(); });
   document.getElementById('amReseed').addEventListener('click', function(){
     uiConfirm('Vorbelegung wiederherstellen?', 'Die Teams werden wieder so gesetzt wie im Worddokument. Eigene Änderungen gehen verloren.', 'Wiederherstellen', function(){
@@ -7950,16 +8054,16 @@ function paintAemtliJobs(host){
   });
   host.innerHTML = h;
 
-  document.getElementById('amBack').addEventListener('click', function(){ aemtliUi.view = 'plan'; paintAemtliplan(); });
+  document.getElementById('amBack').addEventListener('click', function(){ aemtliSaveFlush(); aemtliUi.view = 'plan'; paintAemtliplan(); });
   document.getElementById('amAddJob').addEventListener('click', function(){
     cfg.aemtli.push({ icon:'🧹', name:'Neues Ämtli', offset:0 }); aemtliSave(); paintAemtliplan();
   });
   function bindField(attr, key, asNumber){
     Array.prototype.forEach.call(host.querySelectorAll('['+attr+']'), function(inp){
-      inp.addEventListener('change', function(){
+      inp.addEventListener('input', function(){
         var a = cfg.aemtli[+inp.getAttribute(attr)];
         a[key] = asNumber ? (parseInt(inp.value, 10) || 0) : inp.value;
-        aemtliSave(); paintAemtliplan();
+        aemtliSaveSoon();
       });
     });
   }
@@ -7973,10 +8077,10 @@ function paintAemtliJobs(host){
     });
   });
   Array.prototype.forEach.call(host.querySelectorAll('[data-zeit]'), function(inp){
-    inp.addEventListener('change', function(){
+    inp.addEventListener('input', function(){
       cfg.zeiten = cfg.zeiten || {};
       cfg.zeiten[inp.getAttribute('data-zeit')] = inp.value;
-      aemtliSave(); paintAemtliplan();
+      aemtliSaveSoon();
     });
   });
   Array.prototype.forEach.call(host.querySelectorAll('[data-wd]'), function(b){
