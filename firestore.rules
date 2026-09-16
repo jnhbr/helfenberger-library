@@ -31,9 +31,9 @@ rules_version = '2';
 //   klasseninfo/aemtli                              -> {startDate, weekdays, zeiten, aemtli:[{icon,name,offset}],
 //                                                       teams:[[uid,uid],...], skipWeeks:[...]}  Aemtliplan. Liegt bewusst
 //                                                       NICHT unter klassenzimmer/: die Klasse muss ihn lesen koennen.
-//   klasseninfo/wochenplan                          -> {plaene:[{id, titel, von, bis, hinweis, aufgaben:[...]}]}
-//   progress/{uid}/wochenplan/{planId}              -> {done:{taskId:true}, updatedAt}  Haekchen der Schueler:in am
-//                                                       Wochenplan; gleiche Logik wie der Uebungsfortschritt
+//   klassenzimmer/gruppen                           -> {rollen:[...]} Rollen des Gruppengenerators (teacher-only)
+//   progress/{uid}/erledigt/liste                   -> {ids:{entryId:true}, updatedAt}  was die Schueler:in fuer SICH
+//                                                       abgehakt hat; unabhaengig von submitted.{uid} der Lehrperson
 //   quizSessions/umfrage                            -> laufende Blitzumfrage (nutzt die bestehenden quizSessions-Regeln,
 //                                                       Stimmen liegen unter .../antworten/{uid})
 //   klassenzimmer/sitzplan                          -> aktueller Sitzplan {tables, seats, meta, rules, absent,
@@ -112,11 +112,13 @@ service cloud.firestore {
       allow write: if isOwner(uid);
     }
 
-    // Die abgehakten Aufgaben eines Wochenplans - dieselbe Zugriffslogik wie der
-    // Uebungsfortschritt daruber: jede:r schreibt nur die eigenen Haekchen, die
-    // Lehrperson liest sie fuer die Uebersicht. Keine Datenvalidierung angehaengt,
-    // darum kann write kombiniert bleiben (bei einem delete waere request.resource null).
-    match /progress/{uid}/wochenplan/{planId} {
+    // Die selbst abgehakten Kalendereintraege (Hausaufgaben/Abgaben/Unterschriften).
+    // Rein zur eigenen Uebersicht der Schueler:in - die Abgabe-Checkliste der
+    // Lehrperson steht unabhaengig davon auf dem Kalendereintrag selbst
+    // (submitted.{uid}) und wird hier nicht beruehrt. Nur die eigene Person
+    // schreibt. Keine Datenvalidierung angehaengt, darum kann write kombiniert
+    // bleiben (bei einem delete waere request.resource null).
+    match /progress/{uid}/erledigt/{docId} {
       allow read: if isOwner(uid) || isTeacher();
       allow write: if isOwner(uid);
     }
