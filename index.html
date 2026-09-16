@@ -2706,7 +2706,7 @@ function doLogout(){
   erledigt = { ids:{}, loaded:false, uid:null };
   // Auch den Ämtliplan vergessen: sonst sieht die naechste Person auf demselben
   // Geraet noch den zwischengespeicherten Stand der vorherigen Sitzung.
-  aemtliState = { cfg:null, roster:[], loaded:false, exists:false };
+  aemtliState = { cfg:null, roster:[], loaded:false, exists:false, inflight:null };
   signOut(auth);
 }
 
@@ -7500,7 +7500,7 @@ var AEMTLI_DEFAULTS = {
   skipWeeks: ['2026-08-24', '2026-09-28']   // Montag der Woche, die ausfällt
 };
 
-var aemtliState = { cfg:null, roster:[], loaded:false, exists:false };
+var aemtliState = { cfg:null, roster:[], loaded:false, exists:false, inflight:null };
 // scrollTo: 'now' heisst "beim nächsten Zeichnen zur laufenden Woche springen".
 // Sonst bleibt die Scrollposition stehen — sonst würde der Blick bei jedem
 // Streichen/Zurückholen zurückspringen und man sähe die eigene Änderung nicht.
@@ -7608,29 +7608,54 @@ function aemtliSeedTeams(roster){
 
 function aemtliLoad(force){
   if(aemtliState.loaded && !force) return Promise.resolve(aemtliState);
-  // Fällt der Lesezugriff aus (Regeln noch nicht deployt, offline), wird der
-  // Plan trotzdem aus den Vorgaben gerechnet — er ist deterministisch, also
-  // stimmt er auch dann. Nur das Speichern schlägt dann fehl.
-  var laden = getDoc(klasseninfoRef('aemtli')).catch(function(err){
+  // Einfach-Ladung: klickt man schnell hintereinander (oder laeuft noch der
+  // Aufruf vom Startseiten-Banner), wird DIESELBE Anfrage weiterverwendet
+  // statt einer zweiten. Vorher konnten sich zwei Ladevorgaenge ueberholen.
+  if(aemtliState.inflight && !force) return aemtliState.inflight;
+
+  // Beide Teilabfragen duerfen ausfallen, ohne das Ganze zu kippen: der Plan
+  // ist deterministisch und laesst sich auch ohne gespeichertes Dokument
+  // rechnen, und ohne Klassenliste zeigt er statt Namen eben "?". Damit kann
+  // aemtliLoad NICHT mehr ablehnen - genau daran scheiterte das Zeichnen
+  // vorher stillschweigend.
+  var doc_ = getDoc(klasseninfoRef('aemtli')).catch(function(err){
     console.error('Ämtliplan-Dokument nicht lesbar', err);
     return { exists: function(){ return false; }, data: function(){ return {}; } };
   });
-  return Promise.all([laden, klasseRosterLoad()]).then(function(r){
-    var snap = r[0], roster = r[1];
+  var roster_ = klasseRosterLoad().catch(function(err){
+    console.error('Klassenliste nicht lesbar', err);
+    return [];
+  });
+
+  aemtliState.inflight = Promise.all([doc_, roster_]).then(function(r){
+    var snap = r[0], roster = r[1] || [];
     // Tiefe Kopie der Vorgaben: sonst würden Bearbeitungen (Teams, Zeiten,
     // gestrichene Wochen) direkt in AEMTLI_DEFAULTS landen und dort hängen bleiben.
     var cfg = Object.assign(JSON.parse(JSON.stringify(AEMTLI_DEFAULTS)), snap.exists() ? snap.data() : {});
-    if(!cfg.teams || !cfg.teams.length) cfg.teams = aemtliSeedTeams(roster);
-    if(!cfg.aemtli || !cfg.aemtli.length) cfg.aemtli = AEMTLI_DEFAULTS.aemtli;
-    if(!cfg.weekdays || !cfg.weekdays.length) cfg.weekdays = AEMTLI_DEFAULTS.weekdays;
-    if(!cfg.zeiten) cfg.zeiten = Object.assign({}, AEMTLI_DEFAULTS.zeiten);
-    cfg.skipWeeks = cfg.skipWeeks || [];
+    // Gespeicherte Felder gegen Unsinn absichern: ein einziges fehlendes oder
+    // kaputtes Feld (z.B. startDate) hat beim Zeichnen sonst eine Ausnahme
+    // geworfen, und die Seite blieb leer.
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(cfg.startDate || '')) cfg.startDate = AEMTLI_DEFAULTS.startDate;
+    if(!Array.isArray(cfg.teams) || !cfg.teams.length) cfg.teams = aemtliSeedTeams(roster);
+    cfg.teams = cfg.teams.filter(Array.isArray);
+    if(!cfg.teams.length) cfg.teams = aemtliSeedTeams(roster);
+    if(!Array.isArray(cfg.aemtli) || !cfg.aemtli.length) cfg.aemtli = JSON.parse(JSON.stringify(AEMTLI_DEFAULTS.aemtli));
+    cfg.aemtli = cfg.aemtli.filter(function(a){ return a && typeof a === 'object'; })
+                           .map(function(a){ return { icon: a.icon || '🧹', name: a.name || 'Ämtli', offset: parseInt(a.offset, 10) || 0 }; });
+    if(!cfg.aemtli.length) cfg.aemtli = JSON.parse(JSON.stringify(AEMTLI_DEFAULTS.aemtli));
+    if(!Array.isArray(cfg.weekdays) || !cfg.weekdays.length) cfg.weekdays = AEMTLI_DEFAULTS.weekdays.slice();
+    cfg.weekdays = cfg.weekdays.map(Number).filter(function(n){ return n >= 0 && n <= 6; });
+    if(!cfg.weekdays.length) cfg.weekdays = AEMTLI_DEFAULTS.weekdays.slice();
+    if(!cfg.zeiten || typeof cfg.zeiten !== 'object') cfg.zeiten = Object.assign({}, AEMTLI_DEFAULTS.zeiten);
+    cfg.skipWeeks = Array.isArray(cfg.skipWeeks) ? cfg.skipWeeks : [];
     aemtliState.cfg = cfg;
     aemtliState.roster = roster;
     aemtliState.exists = snap.exists();
     aemtliState.loaded = true;
+    aemtliState.inflight = null;
     return aemtliState;
   });
+  return aemtliState.inflight;
 }
 
 /* Beim Tippen wird NICHT neu gezeichnet. Frueher lief bei jedem change ein
@@ -7772,7 +7797,7 @@ function renderAemtliBanner(){
       }).join('');
       h += '<div class="ae-banner"><div class="ae-banner-icon">🧹</div><div class="ae-banner-body">';
       h += '<h3>Heute bist du mit dem Ämtli dran'+(info.zeit ? ' – um '+esc(info.zeit)+' Uhr' : '')+'</h3><div>'+lines+'</div>';
-      h += '<div class="ae-banner-actions"><button class="btn btn-ghost btn-sm" id="amOpenPlan" type="button">Meine nächsten Termine</button></div>';
+      h += '<div class="ae-banner-actions"><button class="btn btn-ghost btn-sm" id="amOpenPlan" type="button">Meine nächsten Ämtli</button></div>';
       h += '</div></div>';
     }
     host.innerHTML = h;
@@ -7806,8 +7831,10 @@ function aemtliScheduleHide(zeit){
 // Schüler-Sicht: die eigenen kommenden Ämtli-Tage.
 function aemtliMeineTermine(){
   aemtliLoad().then(function(st){
-    var termine = aemtliMeineTermine_(st.cfg, state.user.uid);
-    var rows = termine.slice(0, 40).map(function(t){
+    // Bewusst nur die naechsten zwei: alles weitere ist fuer die Klasse Ballast
+    // und der Plan verschiebt sich ohnehin, sobald eine Woche gestrichen wird.
+    var termine = aemtliMeineTermine_(st.cfg, state.user.uid).slice(0, 2);
+    var rows = termine.map(function(t){
       return '<div class="vg-item"><b>' + esc(fmtDueDate(t.datum)) + '</b> '
            + '<span>' + esc(weekdayLabel(t.datum)) + (t.zeit ? ', ' + esc(t.zeit) + ' Uhr' : '') + '</span> '
            + '<span>' + (t.aemtli.icon || '🧹') + ' ' + esc(t.aemtli.name) + '</span>'
@@ -7815,9 +7842,9 @@ function aemtliMeineTermine(){
            + '</div>';
     }).join('');
     openModal(
-      '<h3>🧹 Meine Ämtli-Termine</h3>'
+      '<h3>🧹 Meine nächsten Ämtli</h3>'
       + '<p style="margin:0 0 12px;color:var(--text-muted);font-size:13px;">' + esc(aemtliZeitenText(st.cfg)) + '</p>'
-      + (rows ? '<div style="max-height:60vh;overflow:auto;">' + rows + '</div>'
+      + (rows ? '<div>' + rows + '</div>'
               : '<div class="empty-state">Bis zu den Sommerferien steht nichts an.</div>')
       + '<div class="modal-actions"><button class="btn btn-primary btn-sm" id="modalOk" type="button">Schliessen</button></div>'
     );
@@ -7839,18 +7866,49 @@ function renderAemtliplan(){
     if(aemtliUi.view !== 'plan'){ aemtliUi.view = 'plan'; paintAemtliplan(); return; }
     state.route = {name:'klassenzimmer'}; render();
   });
-  aemtliLoad().then(function(){
-    // Beim allerersten Öffnen die Vorbelegung festschreiben, damit die Klasse
-    // denselben Plan sieht (und er sich nicht verschiebt, sobald ein Konto
-    // dazukommt).
+
+  // Liegt der Plan schon vor, wird SOFORT gezeichnet statt ueber ein Promise.
+  // Sonst blieb beim Oeffnen kurz - und bei einem Fehler dauerhaft - nur
+  // "Wird geladen ..." stehen.
+  if(aemtliState.loaded){
     if(!aemtliState.exists) aemtliSave();
     paintAemtliplan();
-  }).catch(function(err){ console.error(err); toast('Ämtliplan konnte nicht geladen werden.'); });
+    return;
+  }
+  aemtliLoad().then(function(){
+    if(!document.getElementById('amBody')) return;   // Seite inzwischen gewechselt
+    if(!aemtliState.exists) aemtliSave();
+    paintAemtliplan();
+  });
+}
+
+/* Jede Ausnahme beim Zeichnen wird sichtbar gemacht statt verschluckt. Vorher
+   blieb bei einem Fehler der Ladehinweis stehen, und ein Streichen sah
+   wirkungslos aus, obwohl es laengst gespeichert war. */
+function aemtliFehlerbox(host, err){
+  console.error('Ämtliplan', err);
+  host.innerHTML = '<div class="empty-state">Der Ämtliplan konnte nicht gezeichnet werden.'
+    + '<br><small style="opacity:.75;">' + esc(String((err && err.message) || err)) + '</small>'
+    + '<br><br><button class="btn btn-primary btn-sm" id="amRetry" type="button">Neu laden</button></div>';
+  var b = document.getElementById('amRetry');
+  if(b) b.addEventListener('click', function(){
+    aemtliState.loaded = false; aemtliState.inflight = null;
+    aemtliLoad(true).then(function(){ paintAemtliplan(); });
+  });
 }
 
 function paintAemtliplan(){
   var host = document.getElementById('amBody');
   if(!host) return;
+  if(!aemtliState.cfg){ aemtliLoad().then(function(){ paintAemtliplan(); }); return; }
+  try{
+    paintAemtliplanInner(host);
+  }catch(err){
+    aemtliFehlerbox(host, err);
+  }
+}
+
+function paintAemtliplanInner(host){
   if(aemtliUi.view === 'teams'){ paintAemtliTeams(host); return; }
   if(aemtliUi.view === 'jobs'){ paintAemtliJobs(host); return; }
 
