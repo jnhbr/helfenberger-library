@@ -1740,7 +1740,12 @@ async function openDebtManager(){
     });
   }catch(err){
     console.error(err);
-    openModal('<h3>Schulden</h3><p>Konnte nicht geladen werden.</p>'+
+    // "permission-denied" heisst hier praktisch immer: die firestore.rules mit
+    // dem debts-Block sind noch nicht deployt (firebase deploy --only firestore:rules).
+    var denied = err && (err.code === 'permission-denied' || /permission/i.test(err.message||''));
+    openModal('<h3>Schulden</h3><p>'+(denied
+        ? 'Zugriff verweigert – die Firestore-Regeln für „debts“ sind noch nicht deployt. Einmal <b>firebase deploy --only firestore:rules</b> ausführen.'
+        : 'Konnte nicht geladen werden.')+'</p>'+
       '<div class="modal-actions"><button class="btn btn-primary btn-sm" id="modalOk" type="button">Ok</button></div>');
     document.getElementById('modalOk').addEventListener('click', closeModal);
     return;
