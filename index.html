@@ -599,8 +599,14 @@
      kommen aus SILL_W, damit CSS und Vorlagen nicht auseinanderlaufen. */
   .sp-sill{position:absolute;top:0;bottom:0;background:#C9CDD4;border-right:1px solid #9AA0AA;display:flex;align-items:center;justify-content:center;}
   .sp-sill-mirror{border-right:none;border-left:1px solid #9AA0AA;}
-  .sp-sill-label{writing-mode:vertical-rl;text-orientation:mixed;transform:rotate(180deg);font-size:10px;font-weight:700;letter-spacing:.22em;text-transform:uppercase;color:#4A5059;}
-  .sp-door{position:absolute;bottom:0;height:3.2%;background:#C99B6A;border:1px solid #8B6944;border-radius:6px 6px 0 0;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#3A2A18;letter-spacing:.05em;}
+  /* "Fenstersims" steht auf der grauen Fläche, "Fenster" gleich daneben an der
+     Wand. Beide liegen unter den Tischen (DOM-Reihenfolge), damit ein Möbel sie
+     im Zweifel überdeckt statt umgekehrt. */
+  .sp-sill-label{writing-mode:vertical-rl;text-orientation:mixed;transform:rotate(180deg);font-size:10px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:#4A5059;pointer-events:none;}
+  .sp-window-label{position:absolute;top:0;bottom:0;display:flex;align-items:center;justify-content:center;writing-mode:vertical-rl;text-orientation:mixed;transform:rotate(180deg);font-size:10px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--text-muted);pointer-events:none;}
+  /* Tür: hochkant an der rechten Wand, 20 cm von der hinteren Ecke. */
+  .sp-door{position:absolute;background:#C99B6A;border:1px solid #8B6944;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#3A2A18;letter-spacing:.05em;}
+  .sp-door span{writing-mode:vertical-rl;text-orientation:mixed;}
   .sp-room-size{position:absolute;right:6px;top:4px;font-size:10.5px;color:var(--text-muted);}
   .sp-table{position:absolute;display:flex;background:#C99B6A;border:1px solid #8B6944;border-radius:4px;overflow:visible;cursor:grab;box-shadow:0 2px 5px rgba(0,0,0,.18);touch-action:none;}
   .sp-dragging{opacity:.85;cursor:grabbing;z-index:6;}
@@ -5160,8 +5166,9 @@ function paintLiveKlasse(root){
    rechnen mit TABLE_W/TABLE_H und passen sich an, wenn man die Masse ändert.
 
    Links am Fenster läuft ein durchgehendes Fenstersims von 0,5 m Tiefe — dort
-   stellen die Vorlagen keine Tische hin. Die Tür liegt hinten rechts, 20 cm
-   von der Ecke entfernt.
+   stellen die Vorlagen keine Tische hin, und auch von Hand lässt sich dort
+   nichts hinschieben (spClampTable). Die Tür liegt hinten an der rechten Wand,
+   20 cm von der Ecke entfernt.
 
    Der Arbeitsstand liegt in EINEM Firestore-Dokument (klassenzimmer/sitzplan),
    die gespeicherten Varianten in klassenzimmer/sitzplaene. Beide sind klein,
@@ -5173,7 +5180,8 @@ var ROOM_W = 9, ROOM_D = 8;          // Meter
 var TABLE_W = 1.5, TABLE_H = 0.75;   // Zweiertisch (vergrössert gezeichnet)
 var PULT_W = 1.5, PULT_H = 0.75;     // Lehrerpult — gleich gross wie ein Tisch
 var SILL_W = 0.5;                    // Fenstersims links, durchgehend
-var DOOR_W = 0.9, DOOR_GAP = 0.2;    // Tür hinten rechts, 20 cm von der Ecke
+var DOOR_W = 0.9, DOOR_D = 0.25;     // Türbreite und -tiefe
+var DOOR_GAP = 0.2;                  // Abstand zur hinteren Ecke, rechte Wand
 var SP_DEFAULT_TABLES = 11;          // so viele Zweiertische stehen im Zimmer
 var SNAP = 0.1;
 
@@ -5201,8 +5209,21 @@ function spKind(t){ return t.kind || 'tisch'; }
 // das nächste Vielfache von 90 Grad gerundet.
 function spNormRot(r){ return ((Math.round((r||0)/90)*90) % 360 + 360) % 360; }
 function spNormTables(tables){
-  (tables||[]).forEach(function(t){ t.rot = spNormRot(t.rot); });
+  (tables||[]).forEach(function(t){ t.rot = spNormRot(t.rot); spClampTable(t); });
   return tables;
+}
+// Grundriss im Zimmer: um 90/270 Grad gedreht tauschen Länge und Tiefe die Achsen.
+function spFootprint(t){
+  var size = spTableSize(t);
+  return (spNormRot(t.rot) % 180 === 90) ? {w:size.h, h:size.w} : {w:size.w, h:size.h};
+}
+// Kein Möbel steht auf dem Fenstersims oder ragt aus dem Zimmer. Erst snappen,
+// dann begrenzen — sonst könnte das Raster ein Möbel wieder aufs Sims schieben.
+function spClampTable(t){
+  var f = spFootprint(t);
+  t.x = spClamp(spSnap(t.x), SILL_W + f.w/2, ROOM_W - f.w/2);
+  t.y = spClamp(spSnap(t.y), f.h/2, ROOM_D - f.h/2);
+  return t;
 }
 function spHasSeats(t){ return spKind(t) === 'tisch'; }
 function spTableSize(t){
@@ -5457,8 +5478,11 @@ function paintSitzplan(){
   // sonst stimmte auf dem Ausdruck links/rechts nicht mehr.
   var mir = !!sp.doc.mirror;
   html += '<div class="sp-sill'+(mir?' sp-sill-mirror':'')+'" style="'+(mir?'right':'left')+':0;width:'+(SILL_W/ROOM_W*100)+'%;">'
-        + '<span class="sp-sill-label">Fenster</span></div>';
-  html += '<div class="sp-door" style="'+(mir?'left':'right')+':'+(DOOR_GAP/ROOM_W*100)+'%;width:'+(DOOR_W/ROOM_W*100)+'%;">Tür</div>';
+        + '<span class="sp-sill-label">Fenstersims</span></div>';
+  html += '<div class="sp-window-label" style="'+(mir?'right':'left')+':'+(SILL_W/ROOM_W*100)+'%;width:'+(0.45/ROOM_W*100)+'%;">Fenster</div>';
+  html += '<div class="sp-door" style="'+(mir?'left':'right')+':0;width:'+(DOOR_D/ROOM_W*100)+'%;'
+        + 'bottom:'+(DOOR_GAP/ROOM_D*100)+'%;height:'+(DOOR_W/ROOM_D*100)+'%;'
+        + 'border-radius:'+(mir?'0 6px 6px 0':'6px 0 0 6px')+';"><span>Tür</span></div>';
   html += '<div class="sp-room-size">9 m × 8 m</div>';
   sp.doc.tables.forEach(function(t){
     var kind = spKind(t);
@@ -5547,8 +5571,9 @@ function wireSitzplan(){
       var n = sp.doc.tables.length;
       var pos = kind === 'pult'
         ? { x: ROOM_W-1.4, y: 1.2 }
-        : { x: spClamp(1.5 + (n%6)*1.2, 0.8, ROOM_W-0.8), y: spClamp(2.4 + Math.floor(n/6)*1.0, 1.4, ROOM_D-0.6) };
-      sp.doc.tables.push({ id: spNewTableId(), kind: kind, x: spSnap(pos.x), y: spSnap(pos.y), rot: 0 });
+        : { x: SILL_W + 1.0 + (n%5)*1.7, y: 2.4 + Math.floor(n/5)*1.0 };
+      var neu = { id: spNewTableId(), kind: kind, x: pos.x, y: pos.y, rot: 0 };
+      sp.doc.tables.push(spClampTable(neu));
       spSave(); paintSitzplan();
     });
   });
@@ -5655,6 +5680,7 @@ function wireSitzplan(){
       var t = spTableById(btn.getAttribute('data-rot'));
       if(!t) return;
       t.rot = ((t.rot||0) + 90) % 360;   // nur waagrecht/senkrecht
+      spClampTable(t);                   // gedreht könnte er sonst aufs Sims ragen
       spSave(); paintSitzplan();
     });
   });
@@ -5695,8 +5721,8 @@ function wireSitzplan(){
         var mx = (ev.clientX - rect.left) / rect.width * ROOM_W;
         var my = (ev.clientY - rect.top) / rect.height * ROOM_D;
         if(sp.doc.mirror) mx = ROOM_W - mx;
-        t.x = spClamp(spSnap(mx), 0.3, ROOM_W-0.3);
-        t.y = spClamp(spSnap(my), 0.3, ROOM_D-0.3);
+        t.x = mx; t.y = my;
+        spClampTable(t);
         var showX = sp.doc.mirror ? (ROOM_W - t.x) : t.x;
         el.style.left = (showX/ROOM_W*100)+'%';
         el.style.top  = (t.y/ROOM_D*100)+'%';
