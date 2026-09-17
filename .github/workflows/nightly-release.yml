@@ -1,0 +1,108 @@
+name: Testseite live schalten
+
+# Änderungen werden auf der Testseite gemacht (jnhbr/helfenberger-library-test,
+# https://jnhbr.github.io/helfenberger-library-test/). Dieser Workflow kopiert
+# deren Stand jede Nacht hierher (= Live-Seite), damit die Schüler:innen nicht
+# mitten im Lernen von halbfertigen Deploys getroffen werden.
+#
+# - Läuft nur, wenn sich etwas geändert hat und der JavaScript-Code die
+#   Syntaxprüfung besteht.
+# - Pause: eine Datei namens PAUSE im Test-Repo anlegen -> nachts passiert
+#   nichts, bis sie wieder gelöscht ist.
+# - Sofort live: Actions -> "Testseite live schalten" -> "Run workflow"
+#   (ignoriert Uhrzeit und PAUSE).
+# - .github/ wird nie kopiert: Workflows (auch die täglichen Erinnerungen)
+#   leben nur hier im Live-Repo.
+
+on:
+  schedule:
+    # Mitternacht Schweizer Zeit in Sommer- UND Winterzeit, plus ein späterer
+    # Lauf als Absicherung, falls GitHub einen Lauf verspätet startet. Das
+    # Skript lässt nur Läufe zwischen 00:00 und 05:59 Uhr lokal durch; ein
+    # zweiter Lauf in derselben Nacht findet keine Änderungen mehr.
+    - cron: '0 22 * * *'   # 00:00 MESZ (Sommerzeit, UTC+2)
+    - cron: '0 23 * * *'   # 00:00 MEZ (Winterzeit, UTC+1)
+    - cron: '0 1 * * *'    # 02:00 / 03:00 Fallback
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+
+concurrency:
+  group: nightly-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Uhrzeit prüfen
+        id: gate
+        run: |
+          hour=$(TZ=Europe/Zurich date +%H)
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] || [ "$hour" -lt 6 ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Lokal ist es $hour Uhr - kein Nachtlauf, nichts zu tun."
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.gate.outputs.run == 'true'
+        with:
+          path: live
+
+      - uses: actions/checkout@v4
+        if: steps.gate.outputs.run == 'true'
+        with:
+          repository: jnhbr/helfenberger-library-test
+          path: test
+
+      - name: Pause prüfen
+        id: pause
+        if: steps.gate.outputs.run == 'true'
+        run: |
+          if [ -f test/PAUSE ] && [ "${{ github.event_name }}" != "workflow_dispatch" ]; then
+            echo "PAUSE-Datei im Test-Repo gefunden - heute Nacht wird nichts live geschaltet."
+            echo "go=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "go=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Syntax der Testseite prüfen
+        if: steps.pause.outputs.go == 'true'
+        run: |
+          node -e '
+            const fs = require("fs");
+            const html = fs.readFileSync("test/index.html", "utf8");
+            const parts = [...html.matchAll(/<script type="module">([\s\S]*?)<\/script>/g)].map(m => m[1]);
+            if (!parts.length) { console.error("Kein <script type=module> gefunden"); process.exit(1); }
+            parts.forEach((js, i) => fs.writeFileSync(`/tmp/check-${i}.mjs`, js));
+          '
+          for f in /tmp/check-*.mjs; do node --check "$f"; done
+
+      - name: Stand übernehmen
+        id: sync
+        if: steps.pause.outputs.go == 'true'
+        run: |
+          rsync -a --delete --exclude .git --exclude .github --exclude PAUSE test/ live/
+          cd live
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "Keine Änderungen gegenüber der Live-Seite."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          src=$(git -C ../test log -1 --format='%h %s')
+          git commit -m "Testseite live geschaltet (Stand: $src)"
+          git push origin HEAD:main
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+      - name: GitHub Pages neu bauen
+        if: steps.sync.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api -X POST "repos/${{ github.repository }}/pages/builds" || true

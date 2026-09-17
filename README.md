@@ -22,6 +22,22 @@ darum nicht kümmern. Das reicht auch, falls du später einmal Bilder in eine Ü
 (als eingebettetes Base64-Bild; ein „normales" Foto ist damit zwar meist zu gross, ein Icon, ein
 Diagramm oder ein leicht komprimiertes Bild aber kein Problem).
 
+## Testseite & nächtliche Freigabe
+
+- **Live (Schüler:innen):** https://jnhbr.github.io/helfenberger-library/ — Repo `jnhbr/helfenberger-library`
+- **Test:** https://jnhbr.github.io/helfenberger-library-test/ — Repo `jnhbr/helfenberger-library-test`
+
+Änderungen immer nur ins **Test-Repo** pushen. Der Workflow `.github/workflows/nightly-release.yml`
+im Live-Repo kopiert den Stand der Testseite jede Nacht um 00:00 (Schweizer Zeit) auf die Live-Seite —
+nur wenn sich etwas geändert hat und die Syntaxprüfung besteht. Läuft komplett bei GitHub.
+
+- **Sofort live:** Live-Repo → *Actions* → „Testseite live schalten" → *Run workflow*.
+- **Heute Nacht nicht:** im Test-Repo eine Datei `PAUSE` anlegen (wieder löschen, um fortzufahren).
+- Beide Seiten nutzen **dieselbe Firebase-Datenbank** — Daten, die du auf der Testseite anlegst/löschst, sind echt.
+  `firestore.rules` gelten sofort für beide; Regeländerungen, die neuen Code voraussetzen, erst nach der Freigabe publizieren.
+- Auf der Testseite steht oben „🧪 Testseite"; Push-Erinnerungen sind dort ausgeschaltet.
+- Direkte Pushes aufs Live-Repo werden in der nächsten Nacht vom Stand der Testseite überschrieben (ausser `.github/`).
+
 ---
 
 ## Was du bekommst

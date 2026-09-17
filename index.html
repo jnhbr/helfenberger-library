@@ -7,6 +7,16 @@
 <link rel="icon" href="assets/icon-192.png">
 <link rel="apple-touch-icon" href="assets/icon-180.png">
 <link rel="manifest" href="manifest.json">
+<script>
+// Testseite (…/helfenberger-library-test/): eigenes Icon mit ⚙️ und eigenes Manifest,
+// damit sie im Dock/Homescreen von der Live-Seite unterscheidbar ist.
+(function(){
+  if(!/-test\//.test(location.pathname)) return;
+  document.querySelector('link[rel="icon"]').href = 'assets/test-icon-192.png';
+  document.querySelector('link[rel="apple-touch-icon"]').href = 'assets/test-icon-180.png';
+  document.querySelector('link[rel="manifest"]').href = 'manifest-test.json';
+})();
+</script>
 <meta name="theme-color" content="#3A3F73">
 <script>
 // Gespeicherte Dark-/Light-Mode-Wahl VOR dem ersten Rendern setzen, sonst blitzt
@@ -1664,6 +1674,9 @@ async function sha1Hex(str){
   return Array.prototype.map.call(new Uint8Array(buf), function(b){ return b.toString(16).padStart(2,'0'); }).join('');
 }
 
+// Testseite (jnhbr/helfenberger-library-test): gleicher Code, wird jede Nacht live geschaltet.
+const IS_TEST_SITE = /-test\//.test(location.pathname);
+
 function pushSupported(){
   return typeof navigator !== 'undefined' && 'serviceWorker' in navigator && 'PushManager' in window && window.isSecureContext;
 }
@@ -1713,6 +1726,11 @@ async function disablePushReminders(){
 function renderPushPopover(){
   var host = document.getElementById('pushPopover');
   if(!host) return;
+  if(IS_TEST_SITE){
+    host.innerHTML = '<h4>🔔 Erinnerungen</h4>'+
+      '<div class="push-hint">Auf der Testseite sind Erinnerungen ausgeschaltet, damit sie nicht doppelt ankommen. Bitte auf der normalen Seite aktivieren.</div>';
+    return;
+  }
   if(!pushSupported()){
     host.innerHTML = '<h4>🔔 Erinnerungen</h4>'+
       '<div class="push-hint">Dieser Browser unterstützt keine Erinnerungen. Auf dem iPhone: Safari öffnen, dann über "Teilen" &rarr; "Zum Home-Bildschirm" hinzufügen und von dort erneut öffnen.</div>';
@@ -2923,6 +2941,7 @@ function renderChrome(innerHtml){
   if(isTeacher){ html += '<span class="badge-teacher">Lehrperson</span>'; }
   html += '<span>Hallo, <b>'+esc(state.profile.displayName)+'</b></span>';
   html += '<span class="topbar-offline" id="offlineBadge" hidden>📶 Offline</span>';
+  if(IS_TEST_SITE){ html += '<span class="topbar-offline">🧪 Testseite</span>'; }
   if(!isTeacher){ html += '<button class="btn btn-ghost btn-sm topbar-bell" id="streakBtn" type="button">🔥 <b>0</b></button>'; }
   if(!isTeacher){ html += '<button class="btn btn-ghost btn-sm topbar-bell topbar-besen" id="aemtliBtn" type="button" title="Ämtli">🧹</button>'; }
   if(!isTeacher){ html += '<button class="btn btn-ghost btn-sm topbar-bell" id="notenBtn" type="button" title="Notenrechner">🎶</button>'; }
@@ -9313,6 +9332,7 @@ function render(){
 }
 
 // App-Hülle offline verfügbar machen (siehe sw-push.js).
+if(IS_TEST_SITE){ document.title = '🧪 TEST · ' + document.title; }
 registerAppServiceWorker();
 </script>
 </body>
