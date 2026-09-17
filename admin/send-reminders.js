@@ -82,23 +82,35 @@ async function main(){
     process.env.VAPID_PRIVATE_KEY
   );
 
-  var entriesSnap = await db.collection('calendarEntries').where('dueDate', '==', dueDate).get();
-  if(!force){
-    await logRef.set({ hour: z.hour, checkedAt: admin.firestore.FieldValue.serverTimestamp(), entryCount: entriesSnap.size });
+  // Seit Herbst 2026 hat jede Klasse ihren eigenen Kalender
+  // (klassen/{klasse}/calendarEntries). Jedes Gerät bekommt nur die Einträge
+  // der Klasse seiner Besitzerin/seines Besitzers (students/{uid}.klasse).
+  var KLASSEN = ['G3b', 'G3a', 'E1c'];
+  var bodyByKlasse = {}, entryCount = 0;
+  for(const klasse of KLASSEN){
+    var snap = await db.collection('klassen').doc(klasse).collection('calendarEntries').where('dueDate', '==', dueDate).get();
+    entryCount += snap.size;
+    if(snap.empty) continue;
+    var lines = [];
+    snap.forEach(function(doc){
+      var e = doc.data();
+      lines.push('• ' + (TYPE_LABELS[e.type] || e.type) + ': ' + e.title);
+    });
+    bodyByKlasse[klasse] = lines.join('\n');
+    console.log('Erinnerung ' + klasse + ' für ' + dueDate + ':\n' + bodyByKlasse[klasse]);
   }
-  if(entriesSnap.empty){
+  if(!force){
+    await logRef.set({ hour: z.hour, checkedAt: admin.firestore.FieldValue.serverTimestamp(), entryCount: entryCount });
+  }
+  if(!entryCount){
     console.log('Keine Einträge fällig am ' + dueDate + ' - keine Erinnerungen zu verschicken.');
     return;
   }
-
-  var lines = [];
-  entriesSnap.forEach(function(doc){
-    var e = doc.data();
-    lines.push('• ' + (TYPE_LABELS[e.type] || e.type) + ': ' + e.title);
-  });
   var title = 'Morgen fällig';
-  var body = lines.join('\n');
-  console.log('Verschicke Erinnerung für ' + dueDate + ':\n' + body);
+
+  var studentsSnap = await db.collection('students').get();
+  var klasseByUid = {};
+  studentsSnap.forEach(function(d){ klasseByUid[d.id] = d.data().klasse || 'G3b'; });
 
   var devicesSnap = await db.collectionGroup('devices').get();
   console.log('Registrierte Geräte: ' + devicesSnap.size);
@@ -107,6 +119,9 @@ async function main(){
   for(const deviceDoc of devicesSnap.docs){
     var sub = deviceDoc.data();
     if(!sub || !sub.endpoint || !sub.keys){ continue; }
+    var ownerUid = deviceDoc.ref.parent.parent ? deviceDoc.ref.parent.parent.id : null;
+    var body = bodyByKlasse[klasseByUid[ownerUid]];
+    if(!body){ continue; }
     try{
       await webpush.sendNotification(
         { endpoint: sub.endpoint, keys: sub.keys },
