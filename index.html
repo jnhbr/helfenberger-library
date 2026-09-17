@@ -2932,6 +2932,7 @@ function renderChrome(innerHtml){
   html += '<span>Hallo, <b>'+esc(state.profile.displayName)+'</b></span>';
   html += '<span class="topbar-offline" id="offlineBadge" hidden>📶 Offline</span>';
   if(IS_TEST_SITE){ html += '<span class="topbar-offline">🧪 Testseite</span>'; }
+  if(IS_TEST_SITE && isTeacher){ html += '<button class="btn btn-primary btn-sm" id="goLiveBtn" type="button" title="Stand der Testseite sofort auf die Live-Seite übernehmen">🚀 Jetzt live</button>'; }
   if(!isTeacher){ html += '<button class="btn btn-ghost btn-sm topbar-bell" id="streakBtn" type="button">🔥 <b>0</b></button>'; }
   if(!isTeacher){ html += '<button class="btn btn-ghost btn-sm topbar-bell topbar-besen" id="aemtliBtn" type="button" title="Ämtli">🧹</button>'; }
   if(!isTeacher){ html += '<button class="btn btn-ghost btn-sm topbar-bell" id="notenBtn" type="button" title="Notenrechner">🎶</button>'; }
@@ -2994,6 +2995,8 @@ function renderChrome(innerHtml){
   var notenBtn = document.getElementById('notenBtn');
   if(notenBtn){ notenBtn.addEventListener('click', openNotenrechner); }
   document.getElementById('fragenBtn').addEventListener('click', openFragebox);
+  var goLiveBtn = document.getElementById('goLiveBtn');
+  if(goLiveBtn){ goLiveBtn.addEventListener('click', confirmGoLive); }
   if(isTeacher) refreshFrageboxBadge();
   updateOnlineBadge();
 
@@ -3298,6 +3301,96 @@ function uiInfo(title, description){
     '<div class="modal-actions"><button class="btn btn-primary btn-sm" id="modalOk" type="button">Verstanden</button></div>'
   );
   document.getElementById('modalOk').addEventListener('click', closeModal);
+}
+
+/* ===================== TESTSEITE: SOFORT LIVE =====================
+   Nur auf der Testseite (IS_TEST_SITE) für die Lehrperson. Startet im Live-Repo
+   den Workflow "Testseite live schalten" (sonst läuft er nachts um 00:00).
+   Braucht einen fein begrenzten GitHub-Token (nur Repo helfenberger-library,
+   nur "Actions: Read and write"), der nur in diesem Browser liegt - nie im Code.
+   Key bewusst ohne hl_-Präfix (gehört der Shell-Logik nicht). */
+
+const GO_LIVE_TOKEN_KEY = 'libtest_ghToken';
+const GO_LIVE_DISPATCH_URL = 'https://api.github.com/repos/jnhbr/helfenberger-library/actions/workflows/nightly-release.yml/dispatches';
+
+function goLiveToken(){
+  try{ return localStorage.getItem(GO_LIVE_TOKEN_KEY) || ''; }catch(e){ return ''; }
+}
+
+function confirmGoLive(){
+  if(!goLiveToken()){ askGoLiveToken(); return; }
+  uiConfirm('🚀 Jetzt live schalten?',
+    'Der zuletzt gepushte Stand der Testseite wird sofort auf die Live-Seite übernommen. Nach ca. 1–2 Minuten sehen ihn die Schüler:innen (nach dem Neuladen).',
+    'Live schalten', runGoLive);
+}
+
+function askGoLiveToken(message){
+  openModal(
+    '<h3>🔑 GitHub-Zugang für „Jetzt live"</h3>'+
+    (message ? '<p><b>'+esc(message)+'</b></p>' : '')+
+    '<p>Einmalig nötig, wird nur in diesem Browser gespeichert. So erstellst du ihn:</p>'+
+    '<ol style="margin:0 0 12px 18px;padding:0;line-height:1.5">'+
+      '<li><a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">Neuen fein begrenzten Token erstellen</a> (Name z. B. „Library live schalten", Ablauf nach Wunsch)</li>'+
+      '<li><i>Repository access</i>: <b>Only select repositories</b> → <b>helfenberger-library</b></li>'+
+      '<li><i>Permissions → Actions</i>: <b>Read and write</b> (sonst nichts)</li>'+
+      '<li>Token kopieren und hier einfügen</li>'+
+    '</ol>'+
+    '<input type="password" id="goLiveTokenInput" autocomplete="off" placeholder="github_pat_…">'+
+    '<div class="modal-actions">'+
+      '<button class="btn btn-ghost btn-sm" id="modalCancel" type="button">Abbrechen</button>'+
+      '<button class="btn btn-primary btn-sm" id="modalOk" type="button">Speichern & live schalten</button>'+
+    '</div>'
+  );
+  var input = document.getElementById('goLiveTokenInput');
+  input.focus();
+  function submit(){
+    var v = input.value.trim();
+    if(!v){ input.focus(); return; }
+    try{ localStorage.setItem(GO_LIVE_TOKEN_KEY, v); }catch(e){}
+    closeModal();
+    runGoLive();
+  }
+  document.getElementById('modalOk').addEventListener('click', submit);
+  document.getElementById('modalCancel').addEventListener('click', closeModal);
+  input.addEventListener('keydown', function(e){ if(e.key === 'Enter') submit(); });
+}
+
+async function runGoLive(){
+  var token = goLiveToken();
+  if(!token){ askGoLiveToken(); return; }
+  var btn = document.getElementById('goLiveBtn');
+  if(btn) btn.disabled = true;
+  try{
+    var res = await fetch(GO_LIVE_DISPATCH_URL, {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + token,
+        'Accept': 'application/vnd.github+json',
+        'X-GitHub-Api-Version': '2022-11-28'
+      },
+      body: JSON.stringify({ref: 'main'})
+    });
+    if(res.status === 204){
+      toast('🚀 Freigabe gestartet — in ca. 1–2 Minuten ist die Live-Seite aktuell.');
+    } else if(res.status === 401 || res.status === 403 || res.status === 404){
+      var ghMsg = '';
+      try{ ghMsg = (await res.json()).message || ''; }catch(e){}
+      try{ localStorage.removeItem(GO_LIVE_TOKEN_KEY); }catch(e){}
+      var hint = res.status === 403
+        ? 'Der Token hat nicht genug Rechte — unter Permissions muss bei „Actions" „Read and write" stehen (nicht Read-only).'
+        : res.status === 404
+          ? 'Der Token hat keinen Zugriff auf das Repo helfenberger-library (unter Repository access auswählen) oder bei „Actions" fehlt „Read and write".'
+          : 'Der Token ist ungültig oder abgelaufen — bitte neu kopieren (ganzer Wert, beginnt mit github_pat_).';
+      askGoLiveToken(hint + ' (GitHub: ' + res.status + (ghMsg ? ' – ' + ghMsg : '') + ')');
+    } else {
+      uiInfo('Live schalten fehlgeschlagen', 'GitHub antwortete mit Status ' + res.status + '. Alternativ im Live-Repo unter Actions → „Testseite live schalten" → Run workflow.');
+    }
+  }catch(err){
+    console.error(err);
+    uiInfo('Live schalten fehlgeschlagen', 'GitHub war nicht erreichbar. Bitte Internetverbindung prüfen und nochmals versuchen.');
+  }finally{
+    if(btn) btn.disabled = false;
+  }
 }
 
 /* ===================== NOTENRECHNER (Schüler:innen) =====================
