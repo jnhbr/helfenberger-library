@@ -551,6 +551,36 @@
   .am-sliders label{display:flex;align-items:center;gap:7px;justify-content:space-between;}
   .am-sliders input{width:130px;}
 
+  /* ---------- Würfel ---------- */
+  .wu-wrap{display:flex;flex-direction:column;align-items:center;gap:22px;width:100%;}
+  .wu-dice{display:flex;flex-wrap:wrap;gap:clamp(14px,3vw,34px);justify-content:center;max-width:1100px;}
+  .wu-die{width:clamp(90px,18vh,170px);aspect-ratio:1;border-radius:22%;background:var(--surface);border:3px solid var(--border);box-shadow:var(--shadow);display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,1fr);padding:13%;cursor:pointer;color:var(--text);font:inherit;transition:border-color .2s;}
+  .wu-pip{width:76%;aspect-ratio:1;border-radius:50%;background:var(--brand);place-self:center;}
+  .wu-num{grid-column:1 / -1;grid-row:1 / -1;place-self:center;font-family:'Baloo 2',system-ui,sans-serif;font-weight:800;font-size:clamp(38px,7.5vh,76px);font-variant-numeric:tabular-nums;line-height:1;}
+  .wu-rolling .wu-die{animation:wuShake .16s linear infinite;}
+  .wu-hit .wu-die{border-color:var(--brand);}
+  @keyframes wuShake{0%{transform:rotate(0);}25%{transform:rotate(-9deg) translateY(-4px);}75%{transform:rotate(9deg) translateY(3px);}100%{transform:rotate(0);}}
+  @media (prefers-reduced-motion: reduce){ .wu-rolling .wu-die{animation:none;} }
+  .wu-sum{font-family:'Baloo 2',system-ui,sans-serif;font-weight:800;font-size:clamp(26px,5vh,44px);min-height:1.3em;line-height:1.3;}
+  .wu-settings{display:flex;gap:10px 18px;flex-wrap:wrap;justify-content:center;align-items:center;font-size:13px;color:var(--text-muted);}
+  .wu-seg{display:inline-flex;gap:4px;flex-wrap:wrap;justify-content:center;}
+  .wu-opt{border:1px solid var(--border);background:var(--surface-2);color:var(--text);border-radius:999px;padding:6px 13px;font:inherit;font-weight:700;font-size:13px;cursor:pointer;}
+  .wu-opt-on{background:var(--brand);color:var(--brand-contrast);border-color:transparent;}
+  .wu-history,.wu-hint{font-size:13px;color:var(--text-muted);text-align:center;}
+  .wu-hint{font-size:12px;opacity:.8;}
+
+  /* ---------- Glücksrad ---------- */
+  .gl-wrap{display:flex;gap:28px 40px;align-items:center;justify-content:center;width:100%;flex-wrap:wrap;}
+  .gl-wheel-box{position:relative;width:min(74vh,88vw,640px);aspect-ratio:1;flex-shrink:0;}
+  .gl-wheel-box canvas{width:100%;height:100%;display:block;}
+  .gl-pointer{position:absolute;top:-8px;left:50%;transform:translateX(-50%);width:0;height:0;border-left:19px solid transparent;border-right:19px solid transparent;border-top:36px solid var(--text);z-index:2;filter:drop-shadow(0 2px 3px rgba(0,0,0,.35));}
+  .gl-hub{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:20%;aspect-ratio:1;border-radius:50%;background:var(--surface);border:4px solid var(--text);color:var(--text);font-family:'Baloo 2',system-ui,sans-serif;font-weight:800;font-size:clamp(12px,2.2vh,19px);cursor:pointer;box-shadow:var(--shadow);}
+  .gl-hub:disabled{cursor:default;opacity:.85;}
+  .gl-side{display:flex;flex-direction:column;gap:14px;align-items:center;width:min(340px,100%);}
+  .gl-result{font-family:'Baloo 2',system-ui,sans-serif;font-weight:800;font-size:clamp(30px,6vh,64px);text-align:center;min-height:1.2em;line-height:1.05;overflow-wrap:anywhere;transition:transform .2s;}
+  .gl-hit .gl-result{color:var(--brand);transform:scale(1.06);}
+  .gl-info{font-size:13px;color:var(--text-muted);text-align:center;}
+
   /* ---------- Wer ist dran ---------- */
   .wd-wrap{display:flex;flex-direction:column;align-items:center;gap:22px;width:100%;}
   .wd-name{font-family:'Baloo 2',system-ui,sans-serif;font-weight:800;font-size:clamp(38px,10vw,110px);text-align:center;line-height:1.05;transition:transform .2s;}
@@ -5154,8 +5184,8 @@ function playGong(){
 }
 function playBlip(){ playTone(880, 0.12, 'triangle', 0.18); }
 
-/* ===================== BEAMER-WERKZEUGE (Ruhephase · Wer ist dran) =====================
-   Zwei Werkzeuge in einem Vollbild-Overlay. "Ruhephase" fasst Countdown,
+/* ===================== BEAMER-WERKZEUGE (Ruhephase · Wer ist dran · Würfel · Glücksrad) =====================
+   Mehrere Werkzeuge in einem Vollbild-Overlay. "Ruhephase" fasst Countdown,
    Lärmampel und die Liste der Kinder, die gerade sprechen dürfen, in EIN Bild
    zusammen — genau das steht im Unterricht gleichzeitig am Beamer. */
 
@@ -5168,6 +5198,8 @@ function openBeamerTools(initialTab){
   html += '<div class="kz-bar">';
   html += '<button class="kz-tab" data-tab="ruhe" type="button">⏱ Ruhephase</button>';
   html += '<button class="kz-tab" data-tab="dran" type="button">🎲 Wer ist dran?</button>';
+  html += '<button class="kz-tab" data-tab="wuerfel" type="button">🎲 Würfel</button>';
+  html += '<button class="kz-tab" data-tab="rad" type="button">🎡 Glücksrad</button>';
   html += '<div class="kz-bar-spacer"></div>';
   html += '<button class="kz-close" id="kzClose" type="button" title="Schliessen (Esc)">✕</button>';
   html += '</div>';
@@ -5204,6 +5236,8 @@ function switchBeamerTab(tab){
   });
   var stage = root.querySelector('#kzStage');
   if(tab === 'dran'){ mountWerIstDran(stage); return; }
+  if(tab === 'wuerfel'){ mountWuerfel(stage); return; }
+  if(tab === 'rad'){ mountGlueck(stage); return; }
 
   stage.innerHTML = '<div class="rp-grid">'
     + '<div class="rp-col rp-col-timer" id="rpTimer"></div>'
@@ -5577,6 +5611,448 @@ function mountWerIstDran(stage){
     console.error(err);
     stage.innerHTML = '<div class="wd-wrap"><div class="wd-name">Klassenliste konnte nicht geladen werden.</div></div>';
   });
+}
+
+/* ---------- 🎲 Würfel ----------
+   1–6 Würfel gleichzeitig. W6 mit Augen, grössere Würfel als Zahl.
+   Einstellungen bleiben lokal auf dem Gerät der Lehrperson (hl_-Präfix). */
+
+var WUERFEL_SEITEN = [6, 10, 12, 20, 100];
+// Augen-Positionen im 3×3-Raster, zeilenweise nummeriert 1–9
+var WUERFEL_PIPS = {1:[5], 2:[3,7], 3:[3,5,7], 4:[1,3,7,9], 5:[1,3,5,7,9], 6:[1,3,4,6,7,9]};
+
+function zufallInt(n){
+  try{
+    if(window.crypto && crypto.getRandomValues){
+      var a = new Uint32Array(1); crypto.getRandomValues(a);
+      return a[0] % n;
+    }
+  }catch(e){}
+  return Math.floor(Math.random() * n);
+}
+function reduzierteBewegung(){
+  try{ return window.matchMedia('(prefers-reduced-motion: reduce)').matches; }catch(e){ return false; }
+}
+
+// Leertaste startet Würfel/Rad. Auch auf einem fokussierten Knopf — dort wird
+// die native Knopf-Aktion beim Loslassen unterdrückt, sonst löste die Taste
+// zusätzlich den zuletzt geklickten Knopf (z. B. „Anzahl 3") aus.
+function beamerSpaceKey(action){
+  function isSpace(e){ return e.key === ' ' || e.code === 'Space'; }
+  function skip(e){
+    if(modalEl.classList.contains('show')) return true;
+    var tag = (e.target && e.target.tagName) || '';
+    return /^(INPUT|TEXTAREA|SELECT)$/.test(tag);
+  }
+  function down(e){
+    if(!isSpace(e) || skip(e)) return;
+    e.preventDefault();
+    if(!e.repeat) action();
+  }
+  function up(e){ if(isSpace(e) && !skip(e)) e.preventDefault(); }
+  document.addEventListener('keydown', down);
+  document.addEventListener('keyup', up);
+  beamer.cleanups.push(function(){
+    document.removeEventListener('keydown', down);
+    document.removeEventListener('keyup', up);
+  });
+}
+
+function wuerfelFaceHtml(val, seiten){
+  if(seiten !== 6) return '<span class="wu-num">'+val+'</span>';
+  return WUERFEL_PIPS[val].map(function(p){
+    var r = Math.floor((p-1)/3) + 1, c = (p-1) % 3 + 1;
+    return '<span class="wu-pip" style="grid-row:'+r+';grid-column:'+c+'"></span>';
+  }).join('');
+}
+
+function mountWuerfel(stage){
+  var anzahl = parseInt(lsGet(LIB_PREFIX+'wuerfel_n') || '1', 10);
+  if(!(anzahl >= 1 && anzahl <= 6)) anzahl = 1;
+  var seiten = parseInt(lsGet(LIB_PREFIX+'wuerfel_seiten') || '6', 10);
+  if(WUERFEL_SEITEN.indexOf(seiten) < 0) seiten = 6;
+  var werte = [], verlauf = [], rolling = false, timer = null;
+
+  function zufallsWerte(){
+    werte = [];
+    for(var i=0;i<anzahl;i++) werte.push(zufallInt(seiten) + 1);
+  }
+
+  var html = '<div class="wu-wrap" id="wuWrap">';
+  html += '<div class="wu-dice" id="wuDice"></div>';
+  html += '<div class="wu-sum" id="wuSum"></div>';
+  html += '<button class="btn btn-primary tm-big" id="wuRoll" type="button">🎲 Würfeln</button>';
+  html += '<div class="wu-settings">';
+  html += '<span>Anzahl</span><span class="wu-seg">';
+  for(var n=1;n<=6;n++) html += '<button class="wu-opt" data-n="'+n+'" type="button">'+n+'</button>';
+  html += '</span>';
+  html += '<span>Würfel</span><span class="wu-seg">';
+  WUERFEL_SEITEN.forEach(function(s){ html += '<button class="wu-opt" data-s="'+s+'" type="button">W'+s+'</button>'; });
+  html += '</span>';
+  html += '</div>';
+  html += '<div class="wu-history" id="wuHist"></div>';
+  html += '<div class="wu-hint">Leertaste oder Klick auf einen Würfel würfelt ebenfalls.</div>';
+  html += '</div>';
+  stage.innerHTML = html;
+
+  var wrapEl = stage.querySelector('#wuWrap');
+  var diceEl = stage.querySelector('#wuDice');
+  var sumEl = stage.querySelector('#wuSum');
+  var histEl = stage.querySelector('#wuHist');
+  var rollBtn = stage.querySelector('#wuRoll');
+
+  function summe(){ return werte.reduce(function(a,b){ return a+b; }, 0); }
+  function paintDice(){
+    diceEl.innerHTML = werte.map(function(v){
+      return '<button class="wu-die" type="button" aria-label="Würfel zeigt '+v+'">'+wuerfelFaceHtml(v, seiten)+'</button>';
+    }).join('');
+  }
+  function paintInfo(){
+    sumEl.textContent = (!rolling && anzahl > 1) ? 'Summe: ' + summe() : '';
+    histEl.textContent = verlauf.length ? 'Zuletzt: ' + verlauf.join(' · ') : '';
+    rollBtn.disabled = rolling;
+    Array.prototype.forEach.call(stage.querySelectorAll('[data-n]'), function(b){
+      b.classList.toggle('wu-opt-on', parseInt(b.getAttribute('data-n'),10) === anzahl);
+    });
+    Array.prototype.forEach.call(stage.querySelectorAll('[data-s]'), function(b){
+      b.classList.toggle('wu-opt-on', parseInt(b.getAttribute('data-s'),10) === seiten);
+    });
+  }
+  function roll(){
+    if(rolling) return;
+    rolling = true;
+    wrapEl.classList.remove('wu-hit');
+    wrapEl.classList.add('wu-rolling');
+    paintInfo();
+    var t0 = Date.now(), dur = reduzierteBewegung() ? 250 : 950, step = 0;
+    timer = setInterval(function(){
+      zufallsWerte(); paintDice();
+      if(step++ % 2 === 0) playBlip();
+      if(Date.now() - t0 < dur) return;
+      clearInterval(timer); timer = null;
+      rolling = false;
+      wrapEl.classList.remove('wu-rolling');
+      wrapEl.classList.add('wu-hit');
+      playTone(660, 0.3, 'triangle', 0.22);
+      verlauf.unshift(anzahl > 1 ? String(summe()) : String(werte[0]));
+      if(verlauf.length > 10) verlauf.length = 10;
+      paintInfo();
+    }, 70);
+  }
+
+  diceEl.addEventListener('click', function(e){ if(e.target.closest('.wu-die')) roll(); });
+  rollBtn.addEventListener('click', roll);
+  Array.prototype.forEach.call(stage.querySelectorAll('[data-n]'), function(b){
+    b.addEventListener('click', function(){
+      if(rolling) return;
+      anzahl = parseInt(b.getAttribute('data-n'),10);
+      lsSet(LIB_PREFIX+'wuerfel_n', String(anzahl));
+      verlauf = []; wrapEl.classList.remove('wu-hit');
+      zufallsWerte(); paintDice(); paintInfo();
+    });
+  });
+  Array.prototype.forEach.call(stage.querySelectorAll('[data-s]'), function(b){
+    b.addEventListener('click', function(){
+      if(rolling) return;
+      seiten = parseInt(b.getAttribute('data-s'),10);
+      lsSet(LIB_PREFIX+'wuerfel_seiten', String(seiten));
+      verlauf = []; wrapEl.classList.remove('wu-hit');
+      zufallsWerte(); paintDice(); paintInfo();
+    });
+  });
+  beamerSpaceKey(roll);
+  beamer.cleanups.push(function(){ if(timer) clearInterval(timer); timer = null; });
+
+  zufallsWerte(); paintDice(); paintInfo();
+}
+
+/* ---------- 🎡 Glücksrad ----------
+   Quelle ist entweder die Klasse (ohne die im Sitzplan als abwesend
+   markierten Kinder) oder eine eigene Liste (lokal, hl_rad_eigene).
+   „Gezogene rausnehmen" nimmt den Treffer erst beim NÄCHSTEN Drehen vom Rad —
+   so bleibt er stehen, solange er am Beamer besprochen wird. Was schon
+   gezogen wurde, merkt sich nur die laufende Sitzung. */
+
+var GLUECK_FARBEN = [
+  ['#3A3F73','#FFFFFF'], ['#E63950','#FFFFFF'], ['#2E9E5B','#FFFFFF'], ['#E8B72C','#1C2033'],
+  ['#4A7FD9','#FFFFFF'], ['#8E5BC8','#FFFFFF'], ['#F08A3C','#1C2033'], ['#1FA3A3','#FFFFFF']
+];
+var GLUECK_EIGENE_DEFAULT = ['Aufgabe 1', 'Aufgabe 2', 'Aufgabe 3', 'Aufgabe 4'];
+var glueck = { quelle:null, weg:{}, rot:0, klasse:null, abwesend:{}, letzter:null };
+
+function glueckEigene(){
+  try{
+    var a = JSON.parse(lsGet(LIB_PREFIX+'rad_eigene') || 'null');
+    if(Array.isArray(a)){
+      a = a.filter(function(x){ return typeof x === 'string' && x.trim(); });
+      if(a.length) return a;
+    }
+  }catch(e){}
+  return GLUECK_EIGENE_DEFAULT.slice();
+}
+
+// null = Klassenliste noch nicht geladen
+function glueckAlle(){
+  if(glueck.quelle === 'eigene'){
+    return glueckEigene().map(function(t, i){ return { key:'e'+i+'|'+t, label:t }; });
+  }
+  if(!glueck.klasse) return null;
+  var list = glueck.klasse.filter(function(s){ return !glueck.abwesend[s.uid]; });
+  var vornamen = {};
+  function voll(s){ return s.displayName || s.username || '?'; }
+  list.forEach(function(s){ var f = voll(s).split(' ')[0]; vornamen[f] = (vornamen[f] || 0) + 1; });
+  return list.map(function(s){
+    var f = voll(s).split(' ')[0];
+    return { key:s.uid, label: vornamen[f] > 1 ? voll(s) : f };
+  });
+}
+
+function glueckFarbe(i, n){
+  var idx = i % GLUECK_FARBEN.length;
+  // Letztes Feld darf nicht gleich aussehen wie das erste (Nachbarn im Kreis)
+  if(n > 1 && i === n-1 && idx === 0){
+    idx = 1;
+    if((n-2) % GLUECK_FARBEN.length === 1) idx = 2;
+  }
+  return GLUECK_FARBEN[idx];
+}
+
+function glueckMod(a, m){ return ((a % m) + m) % m; }
+
+function mountGlueck(stage){
+  var TAU = Math.PI * 2;
+  if(!glueck.quelle) glueck.quelle = lsGet(LIB_PREFIX+'rad_quelle') === 'eigene' ? 'eigene' : 'klasse';
+  var wegNehmen = lsGet(LIB_PREFIX+'rad_weg') === '1';
+  var spinning = false, raf = null, stopped = false, wheel = null;
+
+  var html = '<div class="gl-wrap" id="glWrap">';
+  html += '<div class="gl-wheel-box"><div class="gl-pointer"></div><canvas id="glCanvas"></canvas>';
+  html += '<button class="gl-hub" id="glHub" type="button" aria-label="Drehen">Los!</button></div>';
+  html += '<div class="gl-side">';
+  html += '<div class="gl-result" id="glResult">&nbsp;</div>';
+  html += '<button class="btn btn-primary tm-big" id="glSpin" type="button">🎡 Drehen</button>';
+  html += '<span class="wu-seg"><button class="wu-opt" data-q="klasse" type="button">👥 Klasse</button>';
+  html += '<button class="wu-opt" data-q="eigene" type="button">✏️ Eigene Liste</button></span>';
+  html += '<button class="btn btn-ghost btn-sm" id="glEdit" type="button" style="display:none">Liste bearbeiten</button>';
+  html += '<label class="wd-check"><input type="checkbox" id="glWeg"'+(wegNehmen?' checked':'')+'> Gezogene rausnehmen</label>';
+  html += '<div class="gl-info" id="glInfo"></div>';
+  html += '<button class="btn btn-ghost btn-sm" id="glBack" type="button" style="display:none">Alle wieder aufs Rad</button>';
+  html += '</div></div>';
+  stage.innerHTML = html;
+
+  var wrapEl = stage.querySelector('#glWrap');
+  var canvas = stage.querySelector('#glCanvas');
+  var resultEl = stage.querySelector('#glResult');
+  var infoEl = stage.querySelector('#glInfo');
+  var spinBtn = stage.querySelector('#glSpin');
+  var hubBtn = stage.querySelector('#glHub');
+  var editBtn = stage.querySelector('#glEdit');
+  var backBtn = stage.querySelector('#glBack');
+
+  function draw(){
+    var size = canvas.parentNode.clientWidth;
+    if(!size) return;
+    var dpr = window.devicePixelRatio || 1;
+    var px = Math.round(size * dpr);
+    if(canvas.width !== px){ canvas.width = px; canvas.height = px; }
+    var ctx = canvas.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, size, size);
+    var css = getComputedStyle(document.documentElement);
+    var surface = css.getPropertyValue('--surface').trim() || '#FFFFFF';
+    var ring = css.getPropertyValue('--text').trim() || '#1C2033';
+    var c = size / 2, r = c - 6;
+    var list = wheel || [];
+    if(!list.length){
+      ctx.beginPath(); ctx.arc(c, c, r, 0, TAU);
+      ctx.fillStyle = css.getPropertyValue('--surface-2').trim() || '#EEF0F8'; ctx.fill();
+    } else {
+      var n = list.length, seg = TAU / n;
+      var fontPx = Math.max(11, Math.min(34, r * 0.13, r * seg * 0.45));
+      var maxW = r * 0.8 - 26;   // Platz bis zur Nabe (20 % des Durchmessers)
+      for(var i=0;i<n;i++){
+        var start = glueck.rot - Math.PI/2 + i*seg;
+        var farbe = glueckFarbe(i, n);
+        ctx.beginPath(); ctx.moveTo(c, c); ctx.arc(c, c, r, start, start + seg); ctx.closePath();
+        ctx.fillStyle = farbe[0]; ctx.fill();
+        if(n > 1){ ctx.lineWidth = 2; ctx.strokeStyle = surface; ctx.stroke(); }
+        ctx.save();
+        ctx.translate(c, c); ctx.rotate(start + seg/2);
+        ctx.fillStyle = farbe[1];
+        ctx.font = '700 ' + fontPx + "px 'Baloo 2', system-ui, sans-serif";
+        ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+        var t = list[i].label;
+        if(ctx.measureText(t).width > maxW){
+          while(t.length > 1 && ctx.measureText(t + '…').width > maxW) t = t.slice(0, -1);
+          t += '…';
+        }
+        ctx.fillText(t, r - 16, 0);
+        ctx.restore();
+      }
+    }
+    ctx.beginPath(); ctx.arc(c, c, r, 0, TAU);
+    ctx.lineWidth = 5; ctx.strokeStyle = ring; ctx.stroke();
+  }
+
+  function paint(){
+    var alle = glueckAlle();
+    Array.prototype.forEach.call(stage.querySelectorAll('[data-q]'), function(b){
+      b.classList.toggle('wu-opt-on', b.getAttribute('data-q') === glueck.quelle);
+      b.disabled = spinning;
+    });
+    editBtn.style.display = glueck.quelle === 'eigene' ? '' : 'none';
+    editBtn.disabled = spinning;
+    if(!alle){
+      wheel = null;
+      infoEl.textContent = 'Klassenliste wird geladen …';
+      backBtn.style.display = 'none';
+      spinBtn.disabled = hubBtn.disabled = true;
+      draw();
+      return;
+    }
+    wheel = alle.filter(function(e){ return !glueck.weg[e.key]; });
+    var gezogen = alle.length - wheel.length;
+    var info = wheel.length + (wheel.length === 1 ? ' Eintrag' : ' Einträge') + ' auf dem Rad';
+    if(gezogen) info += ' · ' + gezogen + ' schon gezogen';
+    if(glueck.quelle === 'klasse'){
+      var ab = glueck.klasse.filter(function(s){ return glueck.abwesend[s.uid]; }).length;
+      if(ab) info += ' · ' + ab + ' abwesend (laut Sitzplan)';
+    }
+    infoEl.textContent = info;
+    backBtn.style.display = gezogen ? '' : 'none';
+    backBtn.disabled = spinning;
+    if(!wheel.length && !spinning){ resultEl.textContent = 'Alle gezogen 🎉'; wrapEl.classList.remove('gl-hit'); }
+    spinBtn.disabled = hubBtn.disabled = spinning || !wheel.length;
+    draw();
+  }
+
+  function spin(){
+    if(spinning) return;
+    if(wegNehmen && glueck.letzter) glueck.weg[glueck.letzter] = true;
+    glueck.letzter = null;
+    paint();
+    if(!wheel || !wheel.length) return;
+    var list = wheel, n = list.length, seg = TAU / n;
+    function idxAt(rot){ return Math.floor(glueckMod(-rot, TAU) / seg) % n; }
+    var w = zufallInt(n);
+    // Zielwinkel irgendwo im inneren Bereich des Gewinnerfelds, nie auf der Kante
+    var a = (w + 0.15 + Math.random() * 0.7) * seg;
+    var start = glueck.rot;
+    var reduce = reduzierteBewegung();
+    var end = start + (reduce ? 0 : (5 + zufallInt(3)) * TAU) + glueckMod(-a - start, TAU);
+    var dur = reduce ? 600 : 5200 + Math.random() * 1200;
+    var t0 = performance.now(), lastIdx = idxAt(start), lastTick = 0;
+    spinning = true;
+    wrapEl.classList.remove('gl-hit');
+    resultEl.textContent = '…';
+    paint();
+
+    function frame(now){
+      if(stopped) return;
+      var p = Math.min(1, (now - t0) / dur);
+      glueck.rot = start + (end - start) * (1 - Math.pow(1 - p, 4));
+      draw();
+      var idx = idxAt(glueck.rot);
+      if(idx !== lastIdx && now - lastTick > 45){ playBlip(); lastTick = now; }
+      lastIdx = idx;
+      if(p < 1){ raf = requestAnimationFrame(frame); return; }
+      raf = null;
+      glueck.rot = glueckMod(end, TAU);
+      spinning = false;
+      glueck.letzter = list[w].key;
+      resultEl.textContent = list[w].label;
+      wrapEl.classList.add('gl-hit');
+      playGong();
+      paint();
+    }
+    raf = requestAnimationFrame(frame);
+  }
+
+  function ladeKlasse(){
+    Promise.all([
+      klasseRosterLoad(),
+      getDoc(doc(db, 'klassenzimmer', 'sitzplan')).catch(function(){ return null; })
+    ]).then(function(r){
+      glueck.klasse = r[0];
+      glueck.abwesend = {};
+      var sitz = (r[1] && r[1].exists()) ? r[1].data() : {};
+      (sitz.absent || []).forEach(function(uid){ glueck.abwesend[uid] = true; });
+      if(!stopped) paint();
+    }).catch(function(err){
+      console.error(err);
+      if(!stopped) infoEl.textContent = 'Klassenliste konnte nicht geladen werden.';
+    });
+  }
+
+  function bearbeiten(){
+    openModal(
+      '<h3>Eigene Liste</h3>'+
+      '<p>Ein Eintrag pro Zeile (höchstens 60 Einträge).</p>'+
+      '<textarea id="glListe" rows="10">'+esc(glueckEigene().join('\n'))+'</textarea>'+
+      '<div class="modal-actions">'+
+        '<button class="btn btn-ghost btn-sm" id="modalCancel" type="button">Abbrechen</button>'+
+        '<button class="btn btn-primary btn-sm" id="modalOk" type="button">Speichern</button>'+
+      '</div>'
+    );
+    var ta = document.getElementById('glListe');
+    ta.focus();
+    document.getElementById('modalCancel').addEventListener('click', closeModal);
+    document.getElementById('modalOk').addEventListener('click', function(){
+      var zeilen = ta.value.split('\n')
+        .map(function(s){ return s.trim().slice(0, 40); })
+        .filter(Boolean)
+        .slice(0, 60);
+      if(!zeilen.length){ toast('Mindestens ein Eintrag.'); ta.focus(); return; }
+      lsSet(LIB_PREFIX+'rad_eigene', JSON.stringify(zeilen));
+      closeModal();
+      glueck.letzter = null;
+      resultEl.innerHTML = '&nbsp;'; wrapEl.classList.remove('gl-hit');
+      paint();
+    });
+  }
+
+  spinBtn.addEventListener('click', spin);
+  hubBtn.addEventListener('click', spin);
+  editBtn.addEventListener('click', bearbeiten);
+  Array.prototype.forEach.call(stage.querySelectorAll('[data-q]'), function(b){
+    b.addEventListener('click', function(){
+      if(spinning) return;
+      var q = b.getAttribute('data-q');
+      if(q === glueck.quelle) return;
+      glueck.quelle = q;
+      lsSet(LIB_PREFIX+'rad_quelle', q);
+      glueck.letzter = null;
+      resultEl.innerHTML = '&nbsp;'; wrapEl.classList.remove('gl-hit');
+      paint();
+    });
+  });
+  stage.querySelector('#glWeg').addEventListener('change', function(e){
+    wegNehmen = e.target.checked;
+    lsSet(LIB_PREFIX+'rad_weg', wegNehmen ? '1' : '0');
+  });
+  backBtn.addEventListener('click', function(){
+    glueck.weg = {}; glueck.letzter = null;
+    resultEl.innerHTML = '&nbsp;'; wrapEl.classList.remove('gl-hit');
+    paint();
+  });
+
+  function onResize(){ if(!spinning) draw(); }
+  window.addEventListener('resize', onResize);
+  document.addEventListener('fullscreenchange', onResize);
+  beamerSpaceKey(spin);
+  beamer.cleanups.push(function(){
+    stopped = true;
+    if(raf) cancelAnimationFrame(raf);
+    raf = null; spinning = false;
+    window.removeEventListener('resize', onResize);
+    document.removeEventListener('fullscreenchange', onResize);
+  });
+
+  paint();
+  // Abwesenheiten bei jedem Öffnen frisch holen — sie ändern sich täglich.
+  ladeKlasse();
+  // Das Overlay ist evtl. noch nicht fertig ausgelegt — einmal nachzeichnen.
+  requestAnimationFrame(function(){ if(!stopped && !spinning) draw(); });
 }
 
 /* ===================== 📡 LIVE-KLASSENRAUM (nur Lehrperson) =====================
@@ -9322,6 +9798,8 @@ function renderKlassenzimmer(){
   var tiles = [
     { id:'beamer',  icon:'⏱',  name:'Ruhephase',           desc:'Countdown, Lärmampel und wer gerade sprechen darf — in einem Bild.' },
     { id:'dran',    icon:'🎲', name:'Wer ist dran?',       desc:'Faire Zufallsziehung — wer schon oft dran war, kommt seltener.' },
+    { id:'wuerfel', icon:'🎲', name:'Würfel',              desc:'1–6 Würfel am Beamer — mit Augen oder als W10, W12, W20, W100.' },
+    { id:'rad',     icon:'🎡', name:'Glücksrad',           desc:'Klasse oder eigene Liste aufs Rad — Gezogene auf Wunsch raus.' },
     { id:'sitzplan',icon:'🪑', name:'Sitzplan',            desc:'Möbel stellen, Plätze verteilen, Regeln, Zufall und gespeicherte Varianten.' },
     { id:'quiz',    icon:'🎮', name:'Klassen-Quiz',        desc:'Live-Quiz auf den Geräten der Klasse, Rangliste am Beamer.' },
     { id:'fragen',  icon:'❓', name:'Fragebox',            desc:'Anonyme Fragen der Klasse lesen und beantworten.' },
@@ -9350,6 +9828,8 @@ function renderKlassenzimmer(){
       var id = b.getAttribute('data-tool');
       if(id === 'beamer') openBeamerTools('ruhe');
       else if(id === 'dran') openBeamerTools('dran');
+      else if(id === 'wuerfel') openBeamerTools('wuerfel');
+      else if(id === 'rad') openBeamerTools('rad');
       else if(id === 'sitzplan'){ state.route = {name:'sitzplan'}; render(); }
       else if(id === 'quiz'){ state.route = {name:'quiz'}; render(); }
       else if(id === 'fragen') openFragebox();
