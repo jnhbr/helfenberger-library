@@ -13,6 +13,9 @@ name: Testseite live schalten
 #   (ignoriert Uhrzeit und PAUSE).
 # - .github/ wird nie kopiert: Workflows (auch die täglichen Erinnerungen)
 #   leben nur hier im Live-Repo.
+# - manifest.json und assets/icon-*.png werden nie kopiert: die Testseite hat
+#   dort eigene Versionen (Name "Library Test", Icon mit Zahnrad), weil Safari
+#   beim "Zum Dock hinzufügen" nur die statischen Dateien liest.
 
 on:
   schedule:
@@ -86,7 +89,8 @@ jobs:
         id: sync
         if: steps.pause.outputs.go == 'true'
         run: |
-          rsync -a --delete --exclude .git --exclude .github --exclude PAUSE test/ live/
+          rsync -a --delete --exclude .git --exclude .github --exclude PAUSE \
+            --exclude /manifest.json --exclude '/assets/icon-*.png' test/ live/
           cd live
           if [ -z "$(git status --porcelain)" ]; then
             echo "Keine Änderungen gegenüber der Live-Seite."

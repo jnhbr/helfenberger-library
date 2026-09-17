@@ -36,6 +36,7 @@ nur wenn sich etwas geändert hat und die Syntaxprüfung besteht. Läuft komplet
 - Beide Seiten nutzen **dieselbe Firebase-Datenbank** — Daten, die du auf der Testseite anlegst/löschst, sind echt.
   `firestore.rules` gelten sofort für beide; Regeländerungen, die neuen Code voraussetzen, erst nach der Freigabe publizieren.
 - Auf der Testseite steht oben „🧪 Testseite"; Push-Erinnerungen sind dort ausgeschaltet.
+- `manifest.json` und `assets/icon-*.png` sind im Test-Repo absichtlich anders (Name „Library Test", Icon mit ⚙️) und werden nie live kopiert. Icon-/Manifest-Änderungen für die Live-Seite also direkt im Live-Repo machen.
 - Direkte Pushes aufs Live-Repo werden in der nächsten Nacht vom Stand der Testseite überschrieben (ausser `.github/`).
 
 ---
