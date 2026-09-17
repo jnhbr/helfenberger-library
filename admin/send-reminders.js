@@ -3,13 +3,14 @@
  * Tägliche Erinnerungen (Helfenberger's Library).
  *
  * Läuft via GitHub Actions (.github/workflows/daily-reminders.yml), pro Tag
- * mehrfach angestossen (UTC-Crons, die je nach Sommer-/Winterzeit auf 18 Uhr
- * und - als Absicherung, falls GitHub Actions einen Lauf mal verspätet -
- * 19 Uhr Schweizer Zeit fallen) - prüft selbst, ob es gerade wirklich 18 oder
- * 19 Uhr Schweizer Zeit ist, und tut sonst nichts. So ist keine manuelle
- * Zeitumstellung nötig. Ein Firestore-Log (siehe logRef unten) verhindert,
- * dass der 19-Uhr-Fallback nochmal verschickt, falls der 18-Uhr-Lauf schon
- * durchkam.
+ * mehrfach ab dem frühen Nachmittag angestossen. Grund: GitHub startet
+ * geplante Läufe teils Stunden zu spät (Sept. 2026: 3-5 h, der 18-Uhr-Lauf
+ * kam erst um 21-22 Uhr und wurde vom alten 18/19-Uhr-Fenster verworfen).
+ *   - Lauf vor 18 Uhr (ab 13 Uhr) Schweizer Zeit: wartet bis 18:00, dann Versand.
+ *   - Lauf zwischen 18 und 24 Uhr: Versand sofort (verspätet, aber nicht verloren).
+ *   - sonst: nichts.
+ * Keine manuelle Zeitumstellung nötig. Ein Firestore-Log (siehe logRef unten)
+ * sorgt dafür, dass pro Tag nur einmal verschickt wird.
  *
  * Braucht als Umgebungsvariablen (GitHub-Actions-Secrets, siehe Workflow-Datei):
  *   FIREBASE_SERVICE_ACCOUNT_KEY  - kompletter Inhalt der serviceAccountKey.json
@@ -23,11 +24,12 @@ const webpush = require('web-push');
 function nowInZurich(){
   var fmt = new Intl.DateTimeFormat('en-US', {
     timeZone: 'Europe/Zurich', hour: 'numeric', hour12: false,
+    minute: 'numeric', second: 'numeric',
     year: 'numeric', month: '2-digit', day: '2-digit'
   });
   var parts = {};
   fmt.formatToParts(new Date()).forEach(function(p){ parts[p.type] = p.value; });
-  return { hour: Number(parts.hour) % 24, year: parts.year, month: parts.month, day: parts.day };
+  return { hour: Number(parts.hour) % 24, minute: Number(parts.minute), second: Number(parts.second), year: parts.year, month: parts.month, day: parts.day };
 }
 
 function tomorrowDateStrZurich(){
@@ -45,9 +47,15 @@ var TYPE_LABELS = { hausaufgabe: 'Hausaufgabe', abgabe: 'Abgabe', pruefung: 'Pr�
 async function main(){
   var z = nowInZurich();
   var force = process.env.FORCE_SEND === 'true'; // für manuellen Testlauf via workflow_dispatch
-  if(!force && z.hour !== 18 && z.hour !== 19){
-    console.log('Aktuell ' + z.hour + ' Uhr in Zürich, nicht 18 oder 19 Uhr - nichts zu tun.');
+  if(!force && z.hour < 13){
+    console.log('Aktuell ' + z.hour + ' Uhr in Zürich - Erinnerungen laufen erst ab 18 Uhr, nichts zu tun.');
     return;
+  }
+  if(!force && z.hour < 18){
+    var waitMs = ((18 - z.hour) * 3600 - z.minute * 60 - z.second) * 1000;
+    console.log('Aktuell ' + z.hour + ':' + String(z.minute).padStart(2, '0') + ' Uhr in Zürich - warte ' + Math.round(waitMs / 60000) + ' Min. bis 18:00.');
+    await new Promise(function(r){ setTimeout(r, waitMs + 5000); });
+    z = nowInZurich();
   }
 
   var keyJson = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
@@ -58,16 +66,18 @@ async function main(){
 
   var dueDate = tomorrowDateStrZurich();
 
-  // Absicherung gegen Doppelversand: normale (nicht erzwungene) Läufe
-  // markieren hier, dass für dueDate schon geprüft/verschickt wurde. Kommt
-  // der 18-Uhr-Lauf verspätet oder fällt aus, greift der 19-Uhr-Fallback -
-  // lief 18 Uhr aber schon durch, überspringt der 19-Uhr-Lauf dank dieser
-  // Markierung. Bei FORCE_SEND (manueller Testlauf) wird weder geprüft noch
-  // markiert, damit Tests den automatischen Versand nicht blockieren.
+  // Absicherung gegen Doppelversand: der erste nicht erzwungene Lauf legt
+  // das Log-Dokument für dueDate atomar an (create schlägt fehl, wenn es schon
+  // existiert) - alle weiteren Läufe desselben Tages tun dann nichts mehr.
+  // Bei FORCE_SEND (manueller Testlauf) wird weder geprüft noch markiert,
+  // damit Tests den automatischen Versand nicht blockieren.
   var logRef = db.collection('reminderLog').doc(dueDate);
   if(!force){
-    var logSnap = await logRef.get();
-    if(logSnap.exists){
+    try{
+      await logRef.create({ hour: z.hour, minute: z.minute, checkedAt: admin.firestore.FieldValue.serverTimestamp() });
+    }catch(err){
+      if(err.code !== 6) throw err; // 6 = ALREADY_EXISTS
+      var logSnap = await logRef.get();
       console.log('Für ' + dueDate + ' wurde bereits verschickt (Lauf um ' + logSnap.data().hour + ' Uhr) - nichts zu tun.');
       return;
     }
@@ -100,7 +110,7 @@ async function main(){
     console.log('Erinnerung ' + klasse + ' für ' + dueDate + ':\n' + bodyByKlasse[klasse]);
   }
   if(!force){
-    await logRef.set({ hour: z.hour, checkedAt: admin.firestore.FieldValue.serverTimestamp(), entryCount: entryCount });
+    await logRef.update({ entryCount: entryCount });
   }
   if(!entryCount){
     console.log('Keine Einträge fällig am ' + dueDate + ' - keine Erinnerungen zu verschicken.');

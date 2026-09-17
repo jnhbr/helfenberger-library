@@ -1051,6 +1051,20 @@
   .topbar-besen-an{background:var(--bad-soft);color:var(--bad);animation:besenGlow 2.2s ease-in-out infinite;}
   @keyframes besenGlow{0%,100%{box-shadow:0 0 0 0 rgba(230,57,80,.5);}50%{box-shadow:0 0 0 7px rgba(230,57,80,0);}}
   @media (prefers-reduced-motion: reduce){ .topbar-besen-an{animation:none;} }
+  /* ---------- 🆕 Neuigkeiten ---------- */
+  .topbar-neu-an{background:var(--bad-soft);color:var(--bad);animation:besenGlow 2.2s ease-in-out infinite;}
+  @media (prefers-reduced-motion: reduce){ .topbar-neu-an{animation:none;} }
+  .neu-list{display:flex;flex-direction:column;gap:8px;}
+  .neu-item{display:flex;gap:12px;align-items:flex-start;background:var(--surface-2);border-radius:var(--radius-sm);padding:10px 14px;line-height:1.5;}
+  .neu-date{flex:0 0 auto;font-size:13px;color:var(--text-muted);min-width:78px;padding-top:2px;}
+  .neu-text{flex:1;min-width:0;}
+  .neu-tag{display:inline-block;font-size:11.5px;font-weight:700;border-radius:999px;padding:1px 8px;margin-left:6px;background:var(--brand);color:var(--brand-contrast);vertical-align:1px;}
+  .neu-unseen{box-shadow:inset 3px 0 0 var(--bad);}
+  .neu-old-details{margin-top:18px;}
+  .neu-old-details summary{cursor:pointer;font-weight:700;font-size:15px;padding:8px 0;list-style:none;}
+  .neu-old-details summary::-webkit-details-marker{display:none;}
+  .neu-old-details summary::before{content:'▸ ';}
+  .neu-old-details[open] summary::before{content:'▾ ';}
   .ae-pop{text-align:center;}
   .ae-pop-icon{font-size:44px;line-height:1;}
   .ae-pop h3{margin:8px 0 12px;}
@@ -3139,6 +3153,7 @@ function renderChrome(innerHtml){
   if(!isTeacher){ html += '<button class="btn btn-ghost btn-sm topbar-bell" id="streakBtn" type="button">🔥 <b>0</b></button>'; }
   if(!isTeacher){ html += '<button class="btn btn-ghost btn-sm topbar-bell topbar-besen" id="aemtliBtn" type="button" title="Ämtli">🧹</button>'; }
   if(!isTeacher){ html += '<button class="btn btn-ghost btn-sm topbar-bell" id="notenBtn" type="button" title="Notenrechner">🎶</button>'; }
+  html += '<button class="btn btn-ghost btn-sm topbar-bell" id="neuBtn" type="button" title="Neuigkeiten">🆕</button>';
   html += '<button class="btn btn-ghost btn-sm topbar-bell" id="fragenBtn" type="button" title="Anonyme Fragebox">❓<span class="topbar-badge" id="fragenBadge" hidden>0</span></button>';
   html += '<button class="btn btn-ghost btn-sm topbar-bell" id="searchBtn" type="button" title="Suche">🔍</button>';
   html += '<button class="btn btn-ghost btn-sm topbar-bell" id="themeToggleBtn" type="button" title="Darstellung">'+(currentEffectiveTheme()==='dark'?'☀️':'🌙')+'</button>';
@@ -3209,6 +3224,8 @@ function renderChrome(innerHtml){
   var notenBtn = document.getElementById('notenBtn');
   if(notenBtn){ notenBtn.addEventListener('click', openNotenrechner); }
   document.getElementById('fragenBtn').addEventListener('click', openFragebox);
+  document.getElementById('neuBtn').addEventListener('click', function(){ state.route = {name:'neu'}; render(); });
+  updateNeuButton();
   var goLiveBtn = document.getElementById('goLiveBtn');
   if(goLiveBtn){ goLiveBtn.addEventListener('click', confirmGoLive); }
   if(isTeacher) refreshFrageboxBadge();
@@ -9759,6 +9776,129 @@ function aemtliMeineTermine_(cfg, uid){
   return out;
 }
 
+/* ---------- 🆕 Neuigkeiten ---------- */
+/* Änderungsprotokoll. Bei JEDER Änderung an der App oben einen Eintrag
+   ergänzen (neueste zuerst, id eindeutig und nie wiederverwenden).
+   fuer: 'alle' = auch Schüler:innen sehen es, 'lehrer' = nur Lehrpersonen.
+   Ein Eintrag gilt als neu, bis die Lehrperson der Klasse den Reiter zum
+   ersten Mal geöffnet hat, und danach noch NEU_TAGE Tage; dann rutscht er in
+   «Nüme so neu». Dieser Zeitpunkt liegt pro Klasse unter
+   klassen/{klasse}/appMeta/neuigkeiten.seen.{id} (ms), damit die Klasse ihn
+   lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
+   Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
+const NEUIGKEITEN = [
+  {id:'2026-09-17-neuigkeiten', datum:'2026-09-17', fuer:'alle', text:'Neuer Reiter 🆕: Hier siehst du, was sich an der Library geändert hat. Leuchtet das Symbol rot, gibt es etwas Neues.'},
+  {id:'2026-09-17-erinnerungen', datum:'2026-09-17', fuer:'alle', text:'Erinnerungen kommen zuverlässiger an, auch wenn der Versand sich verspätet.'},
+  {id:'2026-09-17-klassen', datum:'2026-09-17', fuer:'alle', text:'Jede und jeder hat jetzt ein persönliches Login (Vorname + eigenes Passwort).'},
+  {id:'2026-09-17-klassen-lp', datum:'2026-09-17', fuer:'lehrer', text:'Mehrere Klassen (G3b, G3a, E1c): Klassenwechsel über den 🏫-Knopf oben, Einstellungen mit Übungs-Vorschlägen und Aktualisierungen.'},
+  {id:'2026-09-17-pflanzen', datum:'2026-09-17', fuer:'lehrer', text:'🪴 Pflanzen-Giesserinnerung mit rotem Band bis abgehakt; Giessplan berücksichtigt Wochenenden und Ferien.'},
+  {id:'2026-09-17-slf', datum:'2026-09-17', fuer:'lehrer', text:'Klassenzimmer: Stadt Land Fluss mit Drehscheibe, Kategorien, Sanduhr und STOPP.'},
+  {id:'2026-09-17-datei-ersetzen', datum:'2026-09-17', fuer:'lehrer', text:'«Datei ersetzen» für hochgeladene HTML-Übungen: Inhalt tauschen, Titel, Ort und Lernstände bleiben.'},
+  {id:'2026-09-17-wuerfel-rad', datum:'2026-09-17', fuer:'lehrer', text:'Klassenzimmer: Würfel und Glücksrad als Beamer-Werkzeuge.'}
+];
+const NEU_TAGE = 3;
+const NEU_GESEHEN_KEY = 'libNeu_gesehen';
+var neuState = { klasse:null, seen:null, loading:null };
+
+function neuSichtbar(){
+  var isTeacher = state.profile && state.profile.role === 'teacher';
+  return NEUIGKEITEN.filter(function(n){ return isTeacher || n.fuer === 'alle'; });
+}
+function neuLoadSeen(force){
+  if(!force && neuState.klasse === state.klasse && neuState.seen) return Promise.resolve(neuState.seen);
+  if(!force && neuState.klasse === state.klasse && neuState.loading) return neuState.loading;
+  var klasse = state.klasse;
+  neuState.klasse = klasse;
+  neuState.loading = getDoc(kdoc('appMeta', 'neuigkeiten')).then(function(snap){
+    var seen = (snap.exists() && snap.data().seen) || {};
+    if(neuState.klasse === klasse){ neuState.seen = seen; neuState.loading = null; }
+    return seen;
+  }).catch(function(err){
+    console.error('Neuigkeiten', err);
+    neuState.loading = null;
+    return neuState.seen || {};
+  });
+  return neuState.loading;
+}
+function neuIstNeu(n, seen){
+  var t = seen && seen[n.id];
+  return !t || (Date.now() - t) < NEU_TAGE * 86400000;
+}
+function neuGesehenLesen(){
+  try { return JSON.parse(localStorage.getItem(NEU_GESEHEN_KEY) || '[]') || []; } catch(e){ return []; }
+}
+function neuGesehenSchreiben(ids){
+  try { localStorage.setItem(NEU_GESEHEN_KEY, JSON.stringify(ids)); } catch(e){}
+}
+
+function updateNeuButton(){
+  if(!document.getElementById('neuBtn') || !state.profile) return;
+  neuLoadSeen().then(function(seen){
+    var btn = document.getElementById('neuBtn');
+    if(!btn) return;
+    var gesehen = neuGesehenLesen();
+    var offen = neuSichtbar().filter(function(n){ return neuIstNeu(n, seen) && gesehen.indexOf(n.id) < 0; });
+    btn.classList.toggle('topbar-neu-an', offen.length > 0);
+    btn.title = offen.length ? ('Neuigkeiten: ' + offen.length + ' neu') : 'Neuigkeiten';
+  });
+}
+
+function renderNeuigkeiten(){
+  clearSubjectWatchers(); clearOverviewWatchers();
+  var html = '<div class="back-row"><button class="btn btn-ghost btn-sm" id="backBtn" type="button">&larr; Zurück</button></div>';
+  html += '<h2 class="page-welcome" style="margin-bottom:6px;">🆕 Neuigkeiten</h2>';
+  html += '<div id="neuBody"><div class="empty-state">Wird geladen …</div></div>';
+  renderChrome(html);
+  document.getElementById('backBtn').addEventListener('click', goHome);
+  var isTeacher = state.profile.role === 'teacher';
+  neuLoadSeen(true).then(function(seen){
+    var liste = neuSichtbar();
+    var vorher = neuGesehenLesen();
+    // Lehrperson in der eigenen Klasse: Uhr für noch nicht gestartete Einträge starten.
+    if(isTeacher && !isFremdeKlasse()){
+      var patch = {}, jetzt = Date.now(), neuGestartet = false;
+      NEUIGKEITEN.forEach(function(n){ if(!seen[n.id]){ patch[n.id] = jetzt; neuGestartet = true; } });
+      if(neuGestartet){
+        setDoc(kdoc('appMeta', 'neuigkeiten'), { seen: patch }, {merge:true})
+          .catch(function(err){ console.error('Neuigkeiten speichern', err); });
+        Object.keys(patch).forEach(function(id){ seen[id] = patch[id]; });
+      }
+    }
+    paintNeuigkeiten(liste, seen, vorher, isTeacher);
+    var ids = vorher.slice();
+    liste.forEach(function(n){ if(ids.indexOf(n.id) < 0) ids.push(n.id); });
+    neuGesehenSchreiben(ids);
+    updateNeuButton();
+  });
+}
+
+function paintNeuigkeiten(liste, seen, vorher, isTeacher){
+  var host = document.getElementById('neuBody');
+  if(!host) return;
+  var neu = liste.filter(function(n){ return neuIstNeu(n, seen); });
+  var alt = liste.filter(function(n){ return !neuIstNeu(n, seen); });
+  alt.sort(function(a, b){ return b.datum.localeCompare(a.datum); });
+  function itemHtml(n, markUnseen){
+    var h = '<div class="neu-item'+(markUnseen && vorher.indexOf(n.id) < 0 ? ' neu-unseen' : '')+'">';
+    h += '<div class="neu-date">'+esc(fmtDueDate(n.datum))+'</div>';
+    h += '<div class="neu-text">'+esc(n.text);
+    if(isTeacher && n.fuer === 'lehrer') h += '<span class="neu-tag">nur LP</span>';
+    h += '</div></div>';
+    return h;
+  }
+  var h = '<div class="card">';
+  h += neu.length
+    ? '<div class="neu-list">'+neu.map(function(n){ return itemHtml(n, true); }).join('')+'</div>'
+    : '<div class="empty-state">Gerade nichts Neues.</div>';
+  if(alt.length){
+    h += '<details class="neu-old-details"><summary>Nüme so neu ('+alt.length+')</summary>';
+    h += '<div class="neu-list">'+alt.map(function(n){ return itemHtml(n, false); }).join('')+'</div>';
+    h += '</details>';
+  }
+  h += '</div>';
+  host.innerHTML = h;
+}
+
 /* ---------- 🧹 Besen in der Kopfzeile (nur Klasse) ---------- */
 
 function updateAemtliButton(){
@@ -11103,6 +11243,7 @@ function render(){
   if(state.route.name === 'quizplay'){ renderQuizPlay(); return; }
   if(state.route.name === 'aemtliplan'){ renderAemtliplan(); return; }
   if(state.route.name === 'vergessen'){ renderVergessen(); return; }
+  if(state.route.name === 'neu'){ renderNeuigkeiten(); return; }
 }
 
 // App-Hülle offline verfügbar machen (siehe sw-push.js).
