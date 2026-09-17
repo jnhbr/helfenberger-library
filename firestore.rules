@@ -34,6 +34,10 @@ rules_version = '2';
 //   klassenzimmer/gruppen                           -> {rollen:[...]} Rollen des Gruppengenerators (teacher-only)
 //   progress/{uid}/erledigt/liste                   -> {ids:{entryId:true}, updatedAt}  was die Schueler:in fuer SICH
 //                                                       abgehakt hat; unabhaengig von submitted.{uid} der Lehrperson
+//   progress/{uid}/eigeneEintraege/{id}             -> selbst eingetragene Kalendereintraege (gleiche Felder wie
+//                                                       calendarEntries), nur fuer die Person selbst sichtbar
+//   progress/{uid}/noten/liste                      -> {faecher:{fachId:[{id,name,note,gewicht}]}, updatedAt}
+//                                                       privater Notenrechner, nur die Person selbst
 //   quizSessions/umfrage                            -> laufende Blitzumfrage (nutzt die bestehenden quizSessions-Regeln,
 //                                                       Stimmen liegen unter .../antworten/{uid})
 //   klassenzimmer/sitzplan                          -> aktueller Sitzplan {tables, seats, meta, rules, absent,
@@ -121,6 +125,20 @@ service cloud.firestore {
     match /progress/{uid}/erledigt/{docId} {
       allow read: if isOwner(uid) || isTeacher();
       allow write: if isOwner(uid);
+    }
+
+    // Eigene Kalendereintraege der Schueler:in (selbst eingetragene
+    // Hausaufgaben etc.). Nur die Person selbst sieht und schreibt sie - auch
+    // die Lehrperson nicht. Keine Datenvalidierung, darum kann write
+    // kombiniert bleiben (bei einem delete waere request.resource null).
+    match /progress/{uid}/eigeneEintraege/{entryId} {
+      allow read, write: if isOwner(uid);
+    }
+
+    // Privater Notenrechner (progress/{uid}/noten/liste). Nur die Person
+    // selbst. Keine Datenvalidierung, write darf kombiniert bleiben.
+    match /progress/{uid}/noten/{docId} {
+      allow read, write: if isOwner(uid);
     }
 
     // Per-subject folder tree (same access pattern as resources: everyone

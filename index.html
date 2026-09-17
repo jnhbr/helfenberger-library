@@ -318,6 +318,27 @@
   @media (max-width:480px){ .submission-list{gap:2px 10px;} .submission-row{font-size:13.5px;} }
   .reset-history-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:6px 0;font-size:13.5px;}
   .reset-history-select{max-width:280px;padding:4px 8px;border:1px solid var(--border);border-radius:8px;font:inherit;background:var(--surface-2);color:var(--text);}
+  .cal-private-tag{display:inline-block;font-size:11.5px;font-weight:600;color:var(--text-muted);background:var(--surface-2);border:1px solid var(--border);border-radius:999px;padding:1px 8px;margin-left:4px;}
+  .noten-add{display:grid;grid-template-columns:1fr 1fr;gap:0 10px;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 12px 0;margin-bottom:16px;}
+  .noten-add .modal-label{margin-top:0;}
+  .noten-add .noten-add-wide{grid-column:1 / -1;}
+  .noten-add select,.noten-add input[type=text],.noten-add input[type=number]{background:var(--surface);margin-bottom:12px;}
+  .noten-add .btn{grid-column:1 / -1;margin-bottom:12px;}
+  .noten-fach{border:1px solid var(--border);border-left:5px solid var(--nf-c,var(--brand));border-radius:var(--radius-sm);margin-bottom:10px;background:var(--surface);}
+  .noten-fach summary{cursor:pointer;list-style:none;display:flex;align-items:center;gap:10px;padding:10px 12px;font-weight:700;}
+  .noten-fach summary::-webkit-details-marker{display:none;}
+  .noten-fach summary::before{content:'▶';font-size:10px;color:var(--text-muted);transition:transform .15s;}
+  .noten-fach[open] summary::before{transform:rotate(90deg);}
+  .noten-fach-name{flex:1;min-width:0;}
+  .noten-fach-count{font-weight:500;font-size:12px;color:var(--text-muted);}
+  .noten-schnitt{font-size:14px;white-space:nowrap;}
+  .noten-schnitt small{font-weight:500;color:var(--text-muted);margin-left:4px;}
+  .noten-rows{padding:0 12px 10px;}
+  .noten-row{display:grid;grid-template-columns:1fr 74px 74px 32px;gap:8px;align-items:center;margin-bottom:6px;}
+  .noten-row-head{font-size:11px;color:var(--text-muted);font-weight:600;margin-bottom:2px;}
+  .modal .noten-row input{margin:0;padding:7px 9px;}
+  .noten-hint{font-size:12px;color:var(--text-muted);margin:14px 0 0;line-height:1.45;}
+  .noten-empty{font-size:13.5px;color:var(--text-muted);text-align:center;padding:14px 0 4px;}
   .cal-entry-actions{flex:none;display:flex;flex-direction:column;gap:4px;}
   .cal-list-past{opacity:.6;}
   .cal-past-details summary{cursor:pointer;font-weight:700;font-size:15px;padding:8px 0;list-style:none;}
@@ -1252,6 +1273,38 @@ async function loadCalendarEntries(){
   return out;
 }
 
+/* ===================== EIGENE KALENDEREINTRÄGE (Schüler:innen) =====================
+   Schüler:innen können sich selbst Hausaufgaben/Abgaben/... eintragen - im
+   selben Formular wie die Lehrperson, aber gespeichert unter
+   progress/{uid}/eigeneEintraege/{id}. Diese Einträge sieht nur die Person
+   selbst (auch die Lehrperson nicht). Im Kalender werden sie mit den
+   Klassen-Einträgen zusammengemischt und mit private:true markiert. */
+
+function eigeneEintraegeCol(){ return collection(db, 'progress', state.user.uid, 'eigeneEintraege'); }
+
+function calendarEntryRef(entry){
+  return entry.private ? doc(eigeneEintraegeCol(), entry.id) : doc(db,'calendarEntries', entry.id);
+}
+
+// Klassen-Einträge + (für Schüler:innen) die eigenen, gemeinsam sortiert.
+async function loadMyCalendarEntries(){
+  var jobs = [loadCalendarEntries()];
+  if(state.profile.role !== 'teacher'){
+    jobs.push(getDocs(eigeneEintraegeCol()).then(function(snap){
+      var out = [];
+      snap.forEach(function(d){ out.push(Object.assign({id:d.id}, d.data(), {private:true})); });
+      return out;
+    }).catch(function(err){ console.error('Eigene Einträge nicht lesbar', err); return []; }));
+  }
+  var res = await Promise.all(jobs);
+  var all = res[0].concat(res[1] || []);
+  all.sort(function(a,b){
+    if(a.dueDate !== b.dueDate) return (a.dueDate||'').localeCompare(b.dueDate||'');
+    return (a.createdAt && a.createdAt.toMillis ? a.createdAt.toMillis() : 0) - (b.createdAt && b.createdAt.toMillis ? b.createdAt.toMillis() : 0);
+  });
+  return all;
+}
+
 /* ===================== EIGENES ABHAKEN VON KALENDEREINTRÄGEN =====================
    Schüler:innen können Hausaufgaben/Abgaben/Unterschriften für SICH SELBST
    abhaken — nur damit sie sehen, was sie erledigt haben. Das ist strikt
@@ -1298,7 +1351,8 @@ function calendarEntryLineHtml(e, isTeacher, roster){
   var html = '<div class="cal-entry" style="--cal-c:'+meta.color+'">';
   html += '<div class="cal-entry-date">'+fmtDueDate(e.dueDate)+'<span class="cal-entry-weekday">'+esc(weekdayLabel(e.dueDate))+'</span></div>';
   html += '<div class="cal-entry-body">';
-  html += '<div class="cal-entry-title"><span class="cal-entry-type">'+meta.icon+' '+esc(meta.label)+'</span>'+(s?' · '+esc(s.name):'')+'</div>';
+  html += '<div class="cal-entry-title"><span class="cal-entry-type">'+meta.icon+' '+esc(meta.label)+'</span>'+(s?' · '+esc(s.name):'')+
+    (e.private ? ' <span class="cal-private-tag" title="Diesen Eintrag siehst nur du">🔒 nur für dich</span>' : '')+'</div>';
   html += '<div class="cal-entry-text">'+esc(e.title)+'</div>';
   if(e.description){ html += '<div class="cal-entry-desc">'+esc(e.description)+'</div>'; }
   if(e.resourceId){
@@ -1316,7 +1370,12 @@ function calendarEntryLineHtml(e, isTeacher, roster){
          +  '<span>'+(an ? 'erledigt' : 'erledigt?')+'</span></label>';
   }
   html += '</div>';
-  if(isTeacher){
+  if(!isTeacher && e.private){
+    html += '<div class="cal-entry-actions">'+
+      '<button class="btn btn-ghost btn-sm cal-edit-btn" type="button" data-id="'+esc(e.id)+'">Bearbeiten</button>'+
+      '<button class="btn btn-ghost btn-sm cal-del-btn" type="button" data-id="'+esc(e.id)+'">Löschen</button>'+
+      '</div>';
+  } else if(isTeacher){
     var isPast = e.dueDate < todayStr();
     html += '<div class="cal-entry-actions">'+
       '<button class="btn btn-ghost btn-sm cal-edit-btn" type="button" data-id="'+esc(e.id)+'">Bearbeiten</button>'+
@@ -1378,8 +1437,10 @@ function uiCalendarEntryForm(existing, onSaved){
       return '<option value="'+s.id+'"'+(existing && existing.subject===s.id ? ' selected':'')+'>'+s.name+'</option>';
     }).join('');
 
+  var isPrivate = existing ? !!existing.private : state.profile.role !== 'teacher';
   openModal(
-    '<h3>'+(existing ? 'Eintrag bearbeiten' : 'Neuer Kalender-Eintrag')+'</h3>'+
+    '<h3>'+(existing ? 'Eintrag bearbeiten' : (isPrivate ? 'Eigener Eintrag' : 'Neuer Kalender-Eintrag'))+'</h3>'+
+    (isPrivate ? '<p>🔒 Diesen Eintrag siehst nur du.</p>' : '')+
     '<label class="modal-label">Art</label><select id="calType">'+typeOptions+'</select>'+
     '<label class="modal-label">Fach</label><select id="calSubject">'+subjectOptions+'</select>'+
     '<label class="modal-label">Titel</label><input type="text" id="calTitle" maxlength="120" value="'+esc(existing?existing.title:'')+'" placeholder="z.B. Seite 42, Aufgabe 3–5">'+
@@ -1443,11 +1504,12 @@ function uiCalendarEntryForm(existing, onSaved){
     var data = { type:type, subject:subject, title:title.slice(0,120), description:description.slice(0,500), dueDate:dueDate, resourceId:resourceId, resourceTitle:resourceTitle };
     try{
       if(existing){
-        await setDoc(doc(db,'calendarEntries', existing.id), data, {merge:true});
+        await setDoc(calendarEntryRef(existing), data, {merge:true});
       } else {
         data.createdAt = serverTimestamp();
         data.createdBy = state.user.uid;
-        await setDoc(doc(db,'calendarEntries', 'cal_'+Date.now()+'_'+Math.random().toString(36).slice(2,8)), data);
+        var newId = (isPrivate ? 'mine_' : 'cal_')+Date.now()+'_'+Math.random().toString(36).slice(2,8);
+        await setDoc(isPrivate ? doc(eigeneEintraegeCol(), newId) : doc(db,'calendarEntries', newId), data);
       }
       closeModal();
       toast(existing ? 'Eintrag aktualisiert.' : 'Eintrag hinzugefügt.');
@@ -1701,7 +1763,6 @@ function wireCalendarEntryActions(container, entries, isTeacher, onChanged, rost
       erledigtSetzen(cb.getAttribute('data-id'), cb.checked);
     });
   });
-  if(!isTeacher) return;
   Array.prototype.forEach.call(container.querySelectorAll('.cal-edit-btn'), function(btn){
     btn.addEventListener('click', function(){
       var entry = entries.find(function(e){ return e.id===btn.getAttribute('data-id'); });
@@ -1710,9 +1771,10 @@ function wireCalendarEntryActions(container, entries, isTeacher, onChanged, rost
   });
   Array.prototype.forEach.call(container.querySelectorAll('.cal-del-btn'), function(btn){
     btn.addEventListener('click', function(){
-      var id = btn.getAttribute('data-id');
+      var entry = entries.find(function(e){ return e.id===btn.getAttribute('data-id'); });
+      if(!entry) return;
       uiConfirm('Eintrag löschen?', 'Das kann nicht rückgängig gemacht werden.', 'Löschen', async function(){
-        try{ await deleteDoc(doc(db,'calendarEntries', id)); toast('Gelöscht.'); onChanged(); }
+        try{ await deleteDoc(calendarEntryRef(entry)); toast('Gelöscht.'); onChanged(); }
         catch(err){ console.error(err); toast('Löschen fehlgeschlagen.'); }
       }, true);
     });
@@ -1739,16 +1801,14 @@ function renderKalender(){
   var isTeacher = state.profile.role === 'teacher';
   var html = '<div class="back-row"><button class="btn btn-ghost btn-sm" id="backBtn">&larr; Start</button></div>';
   html += '<h2>📅 Kalender</h2>';
-  if(isTeacher){
-    html += '<div class="back-row"><button class="btn btn-primary btn-sm" id="calNewBtn" type="button">+ Neuer Eintrag</button></div>';
-  }
+  html += '<div class="back-row"><button class="btn btn-primary btn-sm" id="calNewBtn" type="button">'+(isTeacher ? '+ Neuer Eintrag' : '+ Eigene Hausaufgabe eintragen')+'</button></div>';
   html += '<div id="kalenderBody"><div class="empty-state">Wird geladen …</div></div>';
   renderChrome(html);
   document.getElementById('backBtn').addEventListener('click', goHome);
   var newBtn = document.getElementById('calNewBtn');
   if(newBtn){ newBtn.addEventListener('click', function(){ uiCalendarEntryForm(null, renderKalender); }); }
 
-  Promise.all([loadCalendarEntries(), isTeacher ? loadStudentRoster() : Promise.resolve(null), erledigtLoad()]).then(function(res){
+  Promise.all([loadMyCalendarEntries(), isTeacher ? loadStudentRoster() : Promise.resolve(null), erledigtLoad()]).then(function(res){
     var entries = res[0], roster = res[1];
     var body = document.getElementById('kalenderBody');
     if(!body) return;
@@ -1759,7 +1819,7 @@ function renderKalender(){
     var ferienPast = [];
     var h = '';
     if(!upcoming.length && !past.length && !ferienUpcoming.length && !ferienPast.length){
-      h += '<div class="empty-state">Noch keine Einträge.'+(isTeacher?' Leg oben den ersten an.':'')+'</div>';
+      h += '<div class="empty-state">Noch keine Einträge. Leg oben den ersten an.</div>';
     }
     if(upcoming.length || ferienUpcoming.length){
       h += '<div class="cal-list">'+calendarWithFerienHtml(upcoming, ferienUpcoming, isTeacher, roster, false)+'</div>';
@@ -2865,6 +2925,7 @@ function renderChrome(innerHtml){
   html += '<span class="topbar-offline" id="offlineBadge" hidden>📶 Offline</span>';
   if(!isTeacher){ html += '<button class="btn btn-ghost btn-sm topbar-bell" id="streakBtn" type="button">🔥 <b>0</b></button>'; }
   if(!isTeacher){ html += '<button class="btn btn-ghost btn-sm topbar-bell topbar-besen" id="aemtliBtn" type="button" title="Ämtli">🧹</button>'; }
+  if(!isTeacher){ html += '<button class="btn btn-ghost btn-sm topbar-bell" id="notenBtn" type="button" title="Notenrechner">🎶</button>'; }
   html += '<button class="btn btn-ghost btn-sm topbar-bell" id="fragenBtn" type="button" title="Anonyme Fragebox">❓<span class="topbar-badge" id="fragenBadge" hidden>0</span></button>';
   html += '<button class="btn btn-ghost btn-sm topbar-bell" id="searchBtn" type="button" title="Suche">🔍</button>';
   html += '<button class="btn btn-ghost btn-sm topbar-bell" id="themeToggleBtn" type="button" title="Darstellung">'+(currentEffectiveTheme()==='dark'?'☀️':'🌙')+'</button>';
@@ -2921,6 +2982,8 @@ function renderChrome(innerHtml){
     aemtliBtn.addEventListener('click', aemtliMeineTermine);
     updateAemtliButton();
   }
+  var notenBtn = document.getElementById('notenBtn');
+  if(notenBtn){ notenBtn.addEventListener('click', openNotenrechner); }
   document.getElementById('fragenBtn').addEventListener('click', openFragebox);
   if(isTeacher) refreshFrageboxBadge();
   updateOnlineBadge();
@@ -2997,7 +3060,7 @@ function renderHomeworkWidget(){
   var host = document.getElementById('homeworkWidget');
   if(!host) return;
   var isTeacher = state.profile.role === 'teacher';
-  Promise.all([loadCalendarEntries(), isTeacher ? loadStudentRoster() : Promise.resolve(null), erledigtLoad()]).then(function(res){
+  Promise.all([loadMyCalendarEntries(), isTeacher ? loadStudentRoster() : Promise.resolve(null), erledigtLoad()]).then(function(res){
     var entries = res[0], roster = res[1];
     if(!document.getElementById('homeworkWidget')) return; // Seite inzwischen gewechselt
     var today = todayStr(), horizon = addDaysStr(7);
@@ -3226,6 +3289,165 @@ function uiInfo(title, description){
     '<div class="modal-actions"><button class="btn btn-primary btn-sm" id="modalOk" type="button">Verstanden</button></div>'
   );
   document.getElementById('modalOk').addEventListener('click', closeModal);
+}
+
+/* ===================== NOTENRECHNER (Schüler:innen) =====================
+   Privater Rechner hinter dem 🎶-Knopf oben. Alles in EINEM Dokument
+   progress/{uid}/noten/liste -> {faecher:{fachId:[{id,name,note,gewicht}]}}.
+   Nur die Person selbst liest/schreibt es (siehe firestore.rules).
+   Gespeichert wird immer das ganze Dokument per setDoc OHNE merge - mit
+   merge:true würde ein gelöschtes Fach/eine gelöschte Note stehen bleiben. */
+
+var NOTEN_EXTRA_FAECHER = [
+  {id:'englisch', name:'Englisch', color:'#2B59C3'},
+  {id:'franzoesisch', name:'Französisch', color:'#3867D6'},
+  {id:'textiles-werken', name:'Textiles Werken', color:'#C2507A'},
+  {id:'zeichnen', name:'Zeichnen', color:'#E0A800'}
+];
+function notenFaecher(){
+  return SUBJECTS.filter(function(s){ return !s.teacherOnly && s.id !== 'berufswahl'; })
+    .map(function(s){ return {id:s.id, name:s.name, color:s.color}; })
+    .concat(NOTEN_EXTRA_FAECHER)
+    .sort(function(a,b){ return a.name.localeCompare(b.name, 'de'); });
+}
+function notenFachById(id){
+  return notenFaecher().find(function(f){ return f.id === id; }) || {id:id, name:id, color:'#556270'};
+}
+
+var noten = { faecher:{}, uid:null, offen:{} };
+
+function notenRef(){ return doc(db, 'progress', state.user.uid, 'noten', 'liste'); }
+
+function notenLoad(){
+  if(noten.uid === state.user.uid) return Promise.resolve(noten.faecher);
+  return getDoc(notenRef()).then(function(snap){
+    noten.faecher = (snap.exists() && snap.data().faecher) || {};
+    noten.uid = state.user.uid;
+    return noten.faecher;
+  });
+}
+function notenSave(){
+  return setDoc(notenRef(), { faecher: noten.faecher, updatedAt: serverTimestamp() })
+    .catch(function(err){ console.error(err); toast('Noten konnten nicht gespeichert werden.'); });
+}
+function parseNote(v){
+  var n = parseFloat(String(v||'').replace(',', '.'));
+  return isFinite(n) ? n : NaN;
+}
+function notenSchnitt(liste){
+  var sum = 0, w = 0;
+  liste.forEach(function(n){
+    var g = Number(n.gewicht), v = Number(n.note);
+    if(!(g > 0) || !isFinite(v)) return;
+    sum += v * g; w += g;
+  });
+  return w > 0 ? sum / w : null;
+}
+function fmtNote(n){ return String(Math.round(n * 100) / 100); }
+
+function openNotenrechner(){
+  openModal('<h3>🎶 Notenrechner</h3><div id="notenBody"><div class="noten-empty">Wird geladen …</div></div>', 'modal-wide');
+  notenLoad().then(paintNotenrechner).catch(function(err){
+    console.error(err);
+    var b = document.getElementById('notenBody');
+    if(b) b.innerHTML = '<div class="noten-empty">Noten konnten nicht geladen werden.</div>';
+  });
+}
+
+function paintNotenrechner(){
+  var body = document.getElementById('notenBody');
+  if(!body) return;
+  var faecher = notenFaecher();
+  var h = '<div class="noten-add">'+
+    '<div class="noten-add-wide"><label class="modal-label">Fach</label><select id="notenFach">'+
+      faecher.map(function(f){ return '<option value="'+esc(f.id)+'">'+esc(f.name)+'</option>'; }).join('')+
+    '</select></div>'+
+    '<div class="noten-add-wide"><label class="modal-label">Prüfung</label><input type="text" id="notenName" maxlength="60" placeholder="z.B. Prüfung Bruchrechnen"></div>'+
+    '<div><label class="modal-label">Note</label><input type="number" id="notenWert" min="1" max="6" step="0.25" placeholder="z.B. 4.5"></div>'+
+    '<div><label class="modal-label">Gewichtung</label><input type="number" id="notenGewicht" min="0" max="10" step="0.5" value="1"></div>'+
+    '<div class="login-err noten-add-wide" id="notenErr"></div>'+
+    '<button class="btn btn-primary btn-sm" id="notenAddBtn" type="button">+ Note hinzufügen</button>'+
+  '</div>';
+
+  var ids = Object.keys(noten.faecher).filter(function(id){ return (noten.faecher[id]||[]).length; });
+  ids.sort(function(a,b){ return notenFachById(a).name.localeCompare(notenFachById(b).name, 'de'); });
+  if(!ids.length){
+    h += '<div class="noten-empty">Noch keine Noten eingetragen.</div>';
+  }
+  ids.forEach(function(id){
+    var f = notenFachById(id), liste = noten.faecher[id];
+    var avg = notenSchnitt(liste);
+    h += '<details class="noten-fach" data-fach="'+esc(id)+'" style="--nf-c:'+esc(f.color)+'"'+(noten.offen[id] === false ? '' : ' open')+'>'+
+      '<summary><span class="noten-fach-name">'+esc(f.name)+' <span class="noten-fach-count">('+liste.length+')</span></span>'+
+      '<span class="noten-schnitt">Ø '+(avg === null ? '–' : esc(fmtNote(avg))+'<small>≈ '+esc((Math.round(avg*2)/2).toFixed(1))+'</small>')+'</span></summary>'+
+      '<div class="noten-rows">'+
+      '<div class="noten-row noten-row-head"><span>Prüfung</span><span>Note</span><span>Gewicht</span><span></span></div>'+
+      liste.map(function(n){
+        return '<div class="noten-row" data-id="'+esc(n.id)+'">'+
+          '<input type="text" class="noten-in" data-k="name" maxlength="60" value="'+esc(n.name||'')+'" placeholder="Prüfung">'+
+          '<input type="number" class="noten-in" data-k="note" min="1" max="6" step="0.25" value="'+esc(String(n.note))+'">'+
+          '<input type="number" class="noten-in" data-k="gewicht" min="0" max="10" step="0.5" value="'+esc(String(n.gewicht))+'">'+
+          '<button class="btn btn-ghost btn-sm noten-del" type="button" title="Note entfernen">✕</button>'+
+        '</div>';
+      }).join('')+
+      '</div></details>';
+  });
+  h += '<p class="noten-hint">ℹ️ Das ist nur eine Hilfe für dich. Deine Lehrperson kann bei der Zeugnisnote auch dein Verhalten und deine Mitarbeit im Unterricht einbeziehen – die hier berechnete Note ist also nicht verbindlich.</p>';
+  h += '<div class="modal-actions"><button class="btn btn-primary btn-sm" id="notenClose" type="button">Schliessen</button></div>';
+  body.innerHTML = h;
+
+  document.getElementById('notenClose').addEventListener('click', closeModal);
+  var nameEl = document.getElementById('notenName');
+  var wertEl = document.getElementById('notenWert');
+  var gewEl = document.getElementById('notenGewicht');
+  function add(){
+    var errEl = document.getElementById('notenErr');
+    errEl.classList.remove('show');
+    var fach = document.getElementById('notenFach').value;
+    var note = parseNote(wertEl.value), gewicht = parseNote(gewEl.value);
+    if(!(note >= 1 && note <= 6)){ errEl.textContent = 'Bitte eine Note zwischen 1 und 6 eingeben.'; errEl.classList.add('show'); wertEl.focus(); return; }
+    if(!(gewicht > 0 && gewicht <= 10)){ errEl.textContent = 'Bitte eine Gewichtung grösser als 0 eingeben.'; errEl.classList.add('show'); gewEl.focus(); return; }
+    if(!noten.faecher[fach]) noten.faecher[fach] = [];
+    noten.faecher[fach].push({ id:'n_'+Date.now()+'_'+Math.random().toString(36).slice(2,6), name:nameEl.value.trim().slice(0,60), note:note, gewicht:gewicht });
+    noten.offen[fach] = true;
+    notenSave();
+    var keepFach = fach;
+    paintNotenrechner();
+    var sel = document.getElementById('notenFach');
+    if(sel) sel.value = keepFach;
+  }
+  document.getElementById('notenAddBtn').addEventListener('click', add);
+  [nameEl, wertEl, gewEl].forEach(function(el){ el.addEventListener('keydown', function(e){ if(e.key === 'Enter') add(); }); });
+
+  Array.prototype.forEach.call(body.querySelectorAll('.noten-fach'), function(det){
+    var fach = det.getAttribute('data-fach');
+    det.addEventListener('toggle', function(){ noten.offen[fach] = det.open; });
+    Array.prototype.forEach.call(det.querySelectorAll('.noten-row[data-id]'), function(row){
+      var id = row.getAttribute('data-id');
+      function item(){ return (noten.faecher[fach]||[]).find(function(n){ return n.id === id; }); }
+      Array.prototype.forEach.call(row.querySelectorAll('.noten-in'), function(inp){
+        inp.addEventListener('change', function(){
+          var n = item(); if(!n) return;
+          var k = inp.getAttribute('data-k');
+          if(k === 'name'){ n.name = inp.value.trim().slice(0,60); notenSave(); return; }
+          var v = parseNote(inp.value);
+          var ok = k === 'note' ? (v >= 1 && v <= 6) : (v > 0 && v <= 10);
+          if(!ok){ inp.value = String(n[k]); toast(k === 'note' ? 'Note muss zwischen 1 und 6 liegen.' : 'Gewichtung muss grösser als 0 sein.'); return; }
+          n[k] = v;
+          notenSave();
+          var avg = notenSchnitt(noten.faecher[fach]);
+          var el = det.querySelector('.noten-schnitt');
+          if(el) el.innerHTML = 'Ø '+(avg === null ? '–' : esc(fmtNote(avg))+'<small>≈ '+esc((Math.round(avg*2)/2).toFixed(1))+'</small>');
+        });
+      });
+      row.querySelector('.noten-del').addEventListener('click', function(){
+        noten.faecher[fach] = (noten.faecher[fach]||[]).filter(function(n){ return n.id !== id; });
+        if(!noten.faecher[fach].length) delete noten.faecher[fach];
+        notenSave();
+        paintNotenrechner();
+      });
+    });
+  });
 }
 
 /* ===================== SUCHE ===================== */
