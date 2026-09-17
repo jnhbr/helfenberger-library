@@ -2,16 +2,19 @@ name: Tägliche Erinnerungen
 
 on:
   schedule:
-    # 18:00 Uhr Schweizer Zeit abdecken (Sommer- UND Winterzeit), plus 19:00
-    # als Absicherung, falls GitHub Actions einen Lauf mal verspätet startet
-    # (schon vorgekommen - dann lief das Skript erst nach 18 Uhr lokal und hat
-    # bewusst nichts verschickt). Das Skript selbst prüft, welcher der Läufe
-    # gerade wirklich 18 oder 19 Uhr lokal ist, und tut sonst nichts; ein
-    # Firestore-Log verhindert Doppelversand, falls sowohl der 18-Uhr- als
-    # auch der 19-Uhr-Lauf durchkommen.
-    - cron: '0 16 * * *'   # 18:00 MESZ (Sommerzeit, UTC+2)
-    - cron: '0 17 * * *'   # 18:00 MEZ (Winterzeit) / 19:00 MESZ-Fallback (UTC+1/+2 je nach Jahreszeit)
-    - cron: '0 18 * * *'   # 19:00 MEZ-Fallback (Winterzeit, UTC+1)
+    # GitHub startet geplante Läufe teils Stunden zu spät (Sept. 2026: der
+    # 18-Uhr-Lauf kam erst um 21-22 Uhr). Deshalb mehrere Läufe ab Mittag:
+    # das Skript wartet bei einem Lauf vor 18 Uhr (Schweizer Zeit) bis 18:00
+    # und verschickt dann; kommt ein Lauf erst nach 18 Uhr, verschickt es
+    # sofort. Ein Firestore-Log sorgt dafür, dass nur einmal pro Tag
+    # verschickt wird. Sommer-/Winterzeit regelt das Skript selbst.
+    - cron: '0 11 * * *'
+    - cron: '0 12 * * *'
+    - cron: '0 13 * * *'
+    - cron: '0 14 * * *'
+    - cron: '0 15 * * *'
+    - cron: '0 16 * * *'
+    - cron: '0 17 * * *'
   workflow_dispatch:
     inputs:
       force:
@@ -19,9 +22,14 @@ on:
         required: false
         default: 'false'
 
+concurrency:
+  group: daily-reminders
+  cancel-in-progress: false
+
 jobs:
   send-reminders:
     runs-on: ubuntu-latest
+    timeout-minutes: 340
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
