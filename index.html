@@ -1294,7 +1294,7 @@ import {
 import {
   initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
   getFirestore, doc, getDoc, getDocs, collection, query, where, onSnapshot, serverTimestamp, increment,
-  setDoc as fsSetDoc, updateDoc as fsUpdateDoc, deleteDoc as fsDeleteDoc, writeBatch as fsWriteBatch
+  setDoc as fsSetDoc, updateDoc as fsUpdateDoc, deleteDoc as fsDeleteDoc, writeBatch as fsWriteBatch, Bytes
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 
 /* =====================================================================
@@ -1889,15 +1889,15 @@ function uiCalendarEntryForm(existing, onSaved){
   var currentResourceId = existing ? (existing.resourceId || '') : '';
   var currentResourceTitle = existing ? (existing.resourceTitle || '') : '';
   function loadResourceOptionsFor(subjectId){
-    resourceEl.innerHTML = '<option value="">— Keine Übung verlinken —</option>';
+    resourceEl.innerHTML = '<option value="">— Keine Übung / kein PDF verlinken —</option>';
     if(!subjectId) return;
     var q = query(kcol('resources'), where('subject','==',subjectId));
     getDocs(q).then(function(snap){
-      var opts = ['<option value="">— Keine Übung verlinken —</option>'];
+      var opts = ['<option value="">— Keine Übung / kein PDF verlinken —</option>'];
       var found = false;
       snap.forEach(function(d){
         var res = d.data();
-        var label = res.title || res.fileName || d.id;
+        var label = (res.pdf ? '📄 ' : res.externalUrl ? '🔗 ' : '') + (res.title || res.fileName || d.id);
         if(d.id === currentResourceId){ found = true; currentResourceTitle = label; }
         opts.push('<option value="'+esc(d.id)+'"'+(d.id===currentResourceId?' selected':'')+'>'+esc(label)+'</option>');
       });
@@ -4102,6 +4102,7 @@ function paintSettingsAbgleich(force){
         originVersion: r.version || 0
       };
       if(r.externalUrl) copy.externalUrl = r.externalUrl;
+      if(r.pdf) copy.pdf = true;
       return setDoc(kdoc('resources', r.id), copy).then(function(){
         toast('«'+copy.title+'» ist jetzt in '+subjectName(r.subject)+' ('+state.klasse+').');
       });
@@ -4894,10 +4895,11 @@ function renderSubject(subjectId, folderId){
 
   if(isTeacher){
     html += '<div class="dropzone" id="dropzone">';
-    html += '<div class="dz-title">Neue Übungsseite hinzufügen</div>';
-    html += '<div>HTML-Datei hierher ziehen oder <label for="fileInput" style="color:var(--brand);text-decoration:underline;cursor:pointer;">Datei auswählen</label></div>';
+    html += '<div class="dz-title">Neue Übungsseite oder PDF hinzufügen</div>';
+    html += '<div>HTML- oder PDF-Datei hierher ziehen oder <label for="fileInput" style="color:var(--brand);text-decoration:underline;cursor:pointer;">Datei auswählen</label></div>';
+    html += '<div style="margin-top:10px;"><button class="btn btn-ghost btn-sm" id="dzLinkBtn" type="button">🔗 Link hinzufügen</button></div>';
     html += '<div id="dzTarget" style="font-size:12.5px;margin-top:8px;"></div>';
-    html += '<input type="file" id="fileInput" accept=".html,text/html">';
+    html += '<input type="file" id="fileInput" accept=".html,.htm,.pdf,text/html,application/pdf">';
     html += '<div class="upload-progress" id="uploadProgress"></div>';
     html += '</div>';
     html += '<div class="back-row"><button class="btn btn-ghost btn-sm" id="newFolderBtn" type="button">+ Neuer Ordner</button></div>';
@@ -5051,7 +5053,7 @@ function renderFolderContents(){
   });
 
   resources.forEach(function(r){
-    if(!r.virtual) watchProgress(r.id, function(p){ updateResourceBar(r.id, p); });
+    if(!r.virtual && !r.pdf && !r.externalUrl) watchProgress(r.id, function(p){ updateResourceBar(r.id, p); });
     var openBtn = document.getElementById('open-'+r.id);
     if(openBtn) openBtn.addEventListener('click', function(){ goResource(r); });
     if(!isTeacher || r.virtual) return;
@@ -5277,7 +5279,8 @@ function resourceCardHtml(r, index, total, isTeacher){
   }
   html += '<div class="resource-info"><h4>'+esc(r.title || r.fileName)+(r.current?' <span class="chip-current">Aktuell</span>':'')+'</h4>';
   html += '<div class="resource-bar"><span id="pbar-'+r.id+'" style="width:0%;background:var(--brand)"></span></div>';
-  html += '<div class="resource-meta" id="pmeta-'+r.id+'">Noch nicht geübt'+(uploaded?' · hinzugefügt am '+uploaded:'')+'</div>';
+  var metaStart = r.pdf ? '📄 PDF' : r.externalUrl ? '🔗 Link · öffnet in neuem Tab' : 'Noch nicht geübt';
+  html += '<div class="resource-meta" id="pmeta-'+r.id+'">'+metaStart+(uploaded?' · hinzugefügt am '+uploaded:'')+'</div>';
   html += '</div>';
   html += '<div class="resource-actions">';
   html += '<button class="btn btn-primary btn-sm" id="open-'+r.id+'">Öffnen</button>';
@@ -5287,8 +5290,8 @@ function resourceCardHtml(r, index, total, isTeacher){
     }
     html += '<button class="btn btn-ghost btn-sm" id="rrename-'+r.id+'" type="button">Umbenennen</button>';
     if(!r.externalUrl){
-      html += '<button class="btn btn-ghost btn-sm" id="uedit-'+r.id+'" type="button" title="Texte, Lösungen oder Code direkt in der App anpassen">✏️ Bearbeiten</button>';
-      html += '<button class="btn btn-ghost btn-sm" id="repl-'+r.id+'" type="button" title="Neue Version der HTML-Datei hochladen – Titel, Ort und Übungsstände bleiben">Datei ersetzen</button>';
+      if(!r.pdf) html += '<button class="btn btn-ghost btn-sm" id="uedit-'+r.id+'" type="button" title="Texte, Lösungen oder Code direkt in der App anpassen">✏️ Bearbeiten</button>';
+      html += '<button class="btn btn-ghost btn-sm" id="repl-'+r.id+'" type="button" title="'+(r.pdf ? 'Neue Version des PDFs hochladen – Titel und Ort bleiben' : 'Neue Version der HTML-Datei hochladen – Titel, Ort und Übungsstände bleiben')+'">Datei ersetzen</button>';
     }
     html += '<button class="btn btn-ghost btn-sm" id="mv-'+r.id+'" type="button">Verschieben</button>';
     html += '<button class="btn btn-danger btn-sm" id="del-'+r.id+'">Löschen</button>';
@@ -5320,12 +5323,12 @@ function renameResource(r, title){
 function pickReplacementFile(r){
   var input = document.createElement('input');
   input.type = 'file';
-  input.accept = '.html,.htm,text/html';
+  input.accept = r.pdf ? '.pdf,application/pdf' : '.html,.htm,text/html';
   input.addEventListener('change', function(){
     var file = input.files && input.files[0];
     if(!file) return;
-    if(!/\.html?$/i.test(file.name) && file.type !== 'text/html'){
-      toast('Bitte eine HTML-Datei wählen (.html).');
+    if(r.pdf ? !isPdfFile(file) : !isHtmlFile(file)){
+      toast(r.pdf ? 'Bitte eine PDF-Datei wählen (.pdf).' : 'Bitte eine HTML-Datei wählen (.html).');
       return;
     }
     if(file.size > MAX_RESOURCE_BYTES){
@@ -5341,8 +5344,8 @@ function pickReplacementFile(r){
 
 async function replaceResource(r, file){
   try{
-    var htmlText = await readFileAsText(file);
-    await publishResourceContent(r, htmlText, file.name);
+    var content = r.pdf ? await readFileAsBytes(file) : await readFileAsText(file);
+    await publishResourceContent(r, content, file.name);
     toast('«'+(r.title||file.name)+'» wurde ersetzt.');
   }catch(err){
     console.error(err);
@@ -5388,10 +5391,8 @@ function repointEntries(batch, sync, newContentId, prevContentId, fileName){
 }
 
 async function publishResourceContent(r, htmlText, fileName){
-  if(new Blob([htmlText]).size > MAX_RESOURCE_BYTES){
-    throw new Error('Datei ist zu gross (max. '+Math.round(MAX_RESOURCE_BYTES/1024/1024)+' MB).');
-  }
-  var chunks = chunkStringByBytes(htmlText, MAX_CHUNK_BYTES);
+  // htmlText: String (HTML-Übung) oder Uint8Array (PDF)
+  var chunks = contentChunkDocs(htmlText);
   var sync = await syncedResourceEntries(r);
   // Nie einen Inhalt überschreiben (er kann geteilt sein), sondern neu ablegen
   // und die Übung(en) umhängen.
@@ -5399,7 +5400,7 @@ async function publishResourceContent(r, htmlText, fileName){
   var batch = writeBatch(db);
   batch.set(doc(db,'resourceContent', newContentId), { chunkCount: chunks.length });
   chunks.forEach(function(chunk, i){
-    batch.set(doc(db,'resourceContent', newContentId, 'chunks', String(i)), { html: chunk });
+    batch.set(doc(db,'resourceContent', newContentId, 'chunks', String(i)), chunk);
   });
   var dropped = repointEntries(batch, sync, newContentId, sync.contentId, fileName);
   await batch.commit();
@@ -5418,6 +5419,46 @@ async function restorePreviousContent(r){
   var dropped = repointEntries(batch, sync, prev, sync.contentId, null);
   await batch.commit();
   dropped.forEach(deleteContentIfUnused);
+}
+
+// PDFs liegen als rohe Bytes (Firestore-Typ Bytes, Feld `bin`) in denselben
+// Chunks wie HTML-Übungen — ohne Base64-Aufschlag, also so gross wie die Datei.
+// Die Übung trägt `pdf:true`; der Inhalt wird nur beim Öffnen gelesen.
+function isPdfFile(file){
+  return /\.pdf$/i.test(file.name) || file.type === 'application/pdf';
+}
+function isHtmlFile(file){
+  return /\.html?$/i.test(file.name) || file.type === 'text/html';
+}
+function readFileAsBytes(file){
+  return new Promise(function(resolve, reject){
+    var reader = new FileReader();
+    reader.onload = function(){ resolve(new Uint8Array(reader.result)); };
+    reader.onerror = function(){ reject(reader.error); };
+    reader.readAsArrayBuffer(file);
+  });
+}
+// Chunk-Dokumente für einen Inhalt: String (HTML) → {html}, Uint8Array (PDF) → {bin}.
+function contentChunkDocs(content){
+  if(typeof content === 'string'){
+    if(new Blob([content]).size > MAX_RESOURCE_BYTES) throw new Error('Datei ist zu gross (max. '+Math.round(MAX_RESOURCE_BYTES/1024/1024)+' MB).');
+    return chunkStringByBytes(content, MAX_CHUNK_BYTES).map(function(c){ return {html:c}; });
+  }
+  if(content.length > MAX_RESOURCE_BYTES) throw new Error('Datei ist zu gross (max. '+Math.round(MAX_RESOURCE_BYTES/1024/1024)+' MB).');
+  var out = [];
+  for(var i=0;i<content.length;i+=MAX_CHUNK_BYTES){
+    out.push({bin: Bytes.fromUint8Array(content.slice(i, i+MAX_CHUNK_BYTES))});
+  }
+  return out.length ? out : [{bin: Bytes.fromUint8Array(new Uint8Array(0))}];
+}
+async function loadResourcePdfBlob(contentId){
+  var snap = await getDoc(doc(db,'resourceContent', contentId));
+  if(!snap.exists()) throw new Error('Inhalt nicht gefunden.');
+  var n = snap.data().chunkCount || 0, idx = [];
+  for(var i=0;i<n;i++) idx.push(i);
+  var chunkSnaps = await Promise.all(idx.map(function(i){ return getDoc(doc(db,'resourceContent', contentId, 'chunks', String(i))); }));
+  var parts = chunkSnaps.map(function(c){ var b = c.exists() && c.data().bin; return b ? b.toUint8Array() : new Uint8Array(0); });
+  return new Blob(parts, {type:'application/pdf'});
 }
 
 async function loadResourceHtml(contentId){
@@ -5995,6 +6036,45 @@ function wireDropzone(subjectId){
   input.addEventListener('change', function(){
     if(input.files && input.files.length){ handleUpload(subjectId, state.route.folderId || null, input.files[0]); input.value=''; }
   });
+  document.getElementById('dzLinkBtn').addEventListener('click', function(){ askAddLink(subjectId, state.route.folderId || null); });
+}
+
+// Link-Eintrag (z.B. PDF in iCloud/OneDrive/Google Drive): in Firestore liegt
+// nur die Adresse; «Öffnen» öffnet sie in einem neuen Tab (goResource/externalUrl).
+function askAddLink(subjectId, folderId){
+  openModal(
+    '<h3>🔗 Link hinzufügen</h3>'+
+    '<p>Z.B. ein PDF in iCloud, OneDrive oder Google Drive – dort beim Teilen «Jeder mit dem Link» und «Nur ansehen» einstellen. Der Link öffnet sich für die Klasse in einem neuen Tab.</p>'+
+    '<input type="url" id="linkUrlInput" placeholder="https://…" style="margin-bottom:8px;">'+
+    '<input type="text" id="linkTitleInput" placeholder="Titel" maxlength="120">'+
+    '<div class="modal-actions">'+
+      '<button class="btn btn-ghost btn-sm" id="modalCancel" type="button">Abbrechen</button>'+
+      '<button class="btn btn-primary btn-sm" id="modalOk" type="button">Hinzufügen</button>'+
+    '</div>'
+  );
+  var urlIn = document.getElementById('linkUrlInput'), titleIn = document.getElementById('linkTitleInput');
+  urlIn.focus();
+  function submit(){
+    var url = urlIn.value.trim(), title = titleIn.value.trim();
+    if(!/^https?:\/\/\S+$/i.test(url)){ toast('Bitte einen Link mit https:// einfügen.'); urlIn.focus(); return; }
+    if(!title){ titleIn.focus(); return; }
+    closeModal();
+    var resId = subjectId+'_'+Date.now();
+    setDoc(kdoc('resources', resId), {
+      subject: subjectId,
+      folderId: folderId || null,
+      title: title.slice(0,120),
+      fileName: '',
+      externalUrl: url,
+      uploadedAt: serverTimestamp(),
+      uploadedBy: state.user.uid,
+      version: 0
+    }).then(function(){ toast('«'+title+'» wurde hinzugefügt.'); })
+      .catch(function(err){ console.error(err); toast('Hinzufügen fehlgeschlagen.'); });
+  }
+  document.getElementById('modalOk').addEventListener('click', submit);
+  document.getElementById('modalCancel').addEventListener('click', closeModal);
+  [urlIn, titleIn].forEach(function(el){ el.addEventListener('keydown', function(e){ if(e.key === 'Enter') submit(); }); });
 }
 
 function readFileAsText(file){
@@ -6007,17 +6087,17 @@ function readFileAsText(file){
 }
 
 function handleUpload(subjectId, folderId, file){
-  if(!/\.html?$/i.test(file.name) && file.type !== 'text/html'){
-    toast('Bitte eine HTML-Datei hochladen (.html).');
+  if(!isHtmlFile(file) && !isPdfFile(file)){
+    toast('Bitte eine HTML- oder PDF-Datei hochladen (.html / .pdf).');
     return;
   }
   if(file.size > MAX_RESOURCE_BYTES){
     toast('Datei ist zu gross (max. '+Math.round(MAX_RESOURCE_BYTES/1024/1024)+' MB).');
     return;
   }
-  var suggested = file.name.replace(/\.html?$/i,'').replace(/[_-]+/g,' ');
+  var suggested = file.name.replace(/\.(html?|pdf)$/i,'').replace(/[_-]+/g,' ');
   var where_ = folderId ? ('Ordner «'+(folderById(folderId) ? folderById(folderId).name : '')+'»') : 'Fach-Hauptebene';
-  uiPrompt('Titel für diese Übung', 'Die Datei wird in der '+where_+' abgelegt.', suggested, 'Hochladen', function(title){
+  uiPrompt(isPdfFile(file) ? 'Titel für dieses PDF' : 'Titel für diese Übung', 'Die Datei wird in der '+where_+' abgelegt.', suggested, 'Hochladen', function(title){
     doUpload(subjectId, folderId, file, title);
   });
 }
@@ -6028,15 +6108,11 @@ async function doUpload(subjectId, folderId, file, title){
   progEl.textContent = 'Lade «'+file.name+'» hoch …';
   progEl.classList.add('show');
   try{
-    var htmlText = await readFileAsText(file);
-    if(new Blob([htmlText]).size > MAX_RESOURCE_BYTES){
-      toast('Datei ist zu gross (max. '+Math.round(MAX_RESOURCE_BYTES/1024/1024)+' MB).');
-      return;
-    }
-    var chunks = chunkStringByBytes(htmlText, MAX_CHUNK_BYTES);
+    var pdf = isPdfFile(file);
+    var chunks = contentChunkDocs(pdf ? await readFileAsBytes(file) : await readFileAsText(file));
     var resId = subjectId+'_'+Date.now();
     var batch = writeBatch(db);
-    batch.set(kdoc('resources', resId), {
+    var meta = {
       subject: subjectId,
       folderId: folderId || null,
       title: title,
@@ -6045,10 +6121,12 @@ async function doUpload(subjectId, folderId, file, title){
       uploadedBy: state.user.uid,
       contentId: resId,
       version: 0
-    });
+    };
+    if(pdf) meta.pdf = true;
+    batch.set(kdoc('resources', resId), meta);
     batch.set(doc(db,'resourceContent', resId), { chunkCount: chunks.length });
     chunks.forEach(function(chunk, i){
-      batch.set(doc(db,'resourceContent', resId, 'chunks', String(i)), { html: chunk });
+      batch.set(doc(db,'resourceContent', resId, 'chunks', String(i)), chunk);
     });
     await batch.commit();
     toast('«'+title+'» wurde veröffentlicht.');
@@ -6469,6 +6547,7 @@ function renderResource(r){
   unwatchAllProgress();
   currentViewerResourceId = r.id;
   if(r.linkUrl){ renderLinkResource(r); return; }
+  if(r.pdf){ renderPdfResource(r); return; }
   startTimeTracking(r.id);
   var s = subjectById(r.subject);
 
@@ -6535,6 +6614,38 @@ function renderLinkResource(r){
   renderChrome(html);
   document.getElementById('backBtn').addEventListener('click', function(){ goSubject(r.subject, r.folderId || null); });
   wireFullscreen();
+}
+
+// PDF aus Firestore: als Blob-URL im gleichen Viewer (inkl. Vollbild), dazu
+// «Neuer Tab» — iPad/iPhone zeigen PDFs im iframe teils nur eingeschränkt.
+var pdfViewerUrl = null;
+function renderPdfResource(r){
+  if(pdfViewerUrl){ URL.revokeObjectURL(pdfViewerUrl); pdfViewerUrl = null; }
+  var s = subjectById(r.subject);
+  var html = '<div class="viewer-wrap">';
+  html += '<div class="back-row"><button class="btn btn-ghost btn-sm" id="backBtn">&larr; '+esc(s ? s.name : 'Fach')+'</button></div>';
+  html += '<div class="viewer-head"><h2>'+esc(r.title || r.fileName)+'</h2><span class="viewer-progress">📄 PDF</span>';
+  html += '<a class="btn btn-ghost btn-sm" id="pdfTabBtn" target="_blank" rel="noopener" style="display:none;">↗ Neuer Tab</a>';
+  html += '<button class="btn btn-ghost btn-sm btn-fs" id="fsBtn" type="button">'+FS_ICON_ENTER+'</button>';
+  html += '</div>';
+  html += '<div class="viewer-frame-wrap" id="frameWrap">';
+  html += '<button class="btn-fs-overlay-exit" id="fsExitBtn" type="button" title="Vollbild verlassen" aria-label="Vollbild verlassen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3v3a2 2 0 0 1-2 2H4M15 3v3a2 2 0 0 0 2 2h3M9 21v-3a2 2 0 0 0-2-2H4M15 21v-3a2 2 0 0 1 2-2h3"/></svg></button>';
+  html += '<iframe id="resourceFrame" title="'+esc(r.title || r.fileName)+'" allow="fullscreen" allowfullscreen></iframe>';
+  html += '</div></div>';
+  renderChrome(html);
+  document.getElementById('backBtn').addEventListener('click', function(){ goSubject(r.subject, r.folderId || null); });
+  wireFullscreen();
+  loadResourcePdfBlob(resourceContentId(r)).then(function(blob){
+    if(currentViewerResourceId !== r.id) return;
+    pdfViewerUrl = URL.createObjectURL(blob);
+    var frame = document.getElementById('resourceFrame'), tab = document.getElementById('pdfTabBtn');
+    if(frame) frame.src = pdfViewerUrl;
+    if(tab){ tab.href = pdfViewerUrl; tab.style.display = ''; }
+  }).catch(function(err){
+    console.error(err);
+    var wrap = document.querySelector('.viewer-frame-wrap');
+    if(wrap) wrap.innerHTML = '<div class="empty-state">Dieses PDF konnte nicht geladen werden.</div>';
+  });
 }
 
 var FS_ICON_ENTER = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3"/></svg> Vollbild';
@@ -10966,6 +11077,8 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-09-18-pdf-link', datum:'2026-09-18', fuer:'lehrer', text:'📄 PDFs: Einfach ins gleiche Feld wie die Übungsseiten ziehen (max. 8 MB, gespeichert ohne Aufschlag). Neu auch «🔗 Link hinzufügen» – z.B. für ein PDF aus iCloud/OneDrive: es wird nur der Link gespeichert, öffnet in neuem Tab. Beides lässt sich wie Übungen bei Hausaufgaben verlinken.'},
+  {id:'2026-09-18-gaeste-pruefung', datum:'2026-09-18', fuer:'lehrer', text:'Fach-Gäste (z.B. Elena und Letizia) erscheinen bei Prüfungen nur noch in Mathe-Prüfungen — in der Live-Übersicht und bei ihnen selbst.'},
   {id:'2026-09-18-pruefung-formate', datum:'2026-09-18', fuer:'lehrer', text:'📝 Prüfungen: Beim Erstellen wählst du jetzt die Aufgabenformate — ✍️ Frei formulieren, 🔤 Selbst hinschreiben (ohne Auswahl), ☑️ Auswählen, 🔗 Zuordnen & Ordnen. Standard 30/40/20/10 %, frei änderbar. Hat die Übung zu wenig Kurzantwort-Fragen, werden Auswahlfragen mit kurzer Antwort und Zuordnungs-Paare automatisch zu Fragen ohne Auswahl umgewandelt (kleine Tippfehler zählen als richtig).'},
   {id:'2026-09-18-fluestern-alle', datum:'2026-09-18', fuer:'lehrer', text:'🗣 Flüstern: Mit «Alle hinzufügen» darf die ganze Klasse auf einmal flüstern.'},
   {id:'2026-09-18-pruefung-massstab-bloom', datum:'2026-09-18', fuer:'lehrer', text:'📝 Prüfungen: Notenmassstab pro Prüfung wählbar — DBK linear (Standard), DBK mit reduzierter 6, Bestehensgrenze (Note 4 bei x %), Fehlerabzug (mit «Fehler für eine 6») oder eigene Punktetabelle. Beim Erstellen Niveau G/E wählen: Die Fragen werden nach Bloom verteilt (G 50/35/15, E 30/40/30 % Erinnern/Verstehen/Anwenden, anpassbar) und nach Bereichen und Aufgabentypen gemischt. Jede Aufgabe bekommt einen Punktevorschlag (halbe Punkte möglich), unter «🧮 Aufgaben & Punkte» änderbar. Karteikarten der Übung werden zu offenen Fragen, vorkorrigiert über Stichwörter der Musterlösung. In den Details gibst du volle, keine oder Teilpunkte.'},
@@ -12523,6 +12636,8 @@ function pruefArt(p){ return p.art || 'nativ'; }
 function pruefAnzahl(p){ return pruefArt(p) === 'bank' ? (p.fragen || []).length : ((p.cfg && p.cfg.anzahl) || 0); }
 function pruefMs(ts){ return ts && ts.toMillis ? ts.toMillis() : (typeof ts === 'number' ? ts : 0); }
 function pruefById(id){ return pruef.list.find(function(p){ return p.id === id; }) || null; }
+// Fach der Prüfung (Fach der Übung, sonst Fach im Notenrechner) — für Fach-Gäste.
+function pruefFach(p){ return (p && (p.subject || p.fach)) || ''; }
 // Eigene Teilnahme sofort lokal nachführen: die Prüfungsliste und die eigene
 // Teilnahme sind zwei getrennte Listener — ohne das sähe ein dazwischen
 // feuernder Listen-Snapshot noch den alten Stand («läuft, aktiv») und würde
@@ -12723,6 +12838,9 @@ function startPruefungWatcher(){
     var list = [];
     snap.forEach(function(d){ list.push(Object.assign({id:d.id}, d.data())); });
     list.sort(function(a,b){ return pruefMs(b.createdAt) - pruefMs(a.createdAt); });
+    // Fach-Gäste (z.B. nur Mathe) sehen nur Prüfungen ihres Fachs.
+    var nurFach = state.profile.role !== 'teacher' && state.profile.nurFach;
+    if(nurFach) list = list.filter(function(p){ return pruefFach(p) === nurFach; });
     pruef.list = list;
     syncPruefTeilWatchers();
     updatePruefungBanner();
@@ -13880,7 +13998,7 @@ async function pruefEditor(p){
       snap.forEach(function(d){
         var r = Object.assign({id:d.id}, d.data()), s = subjectById(r.subject);
         // Lehrerbereich und Berufswahl: nie Prüfungsstoff
-        if(r.linkUrl || r.externalUrl || (s && (s.teacherOnly || s.id === 'berufswahl'))) return;
+        if(r.linkUrl || r.externalUrl || r.pdf || (s && (s.teacherOnly || s.id === 'berufswahl'))) return;
         uebungen.push(r);
       });
       // Nur Übungen anbieten, aus denen sich wirklich eine Prüfung machen lässt.
@@ -14173,7 +14291,7 @@ async function pruefEditor(p){
         data.art = info.art;
         data.diktat = !!info.diktat;
         if(info.diktat && info.fragen[0]) data.woerterInfo = info.fragen[0].woerter || null;
-        data.resourceId = resource.id; data.resourceTitel = resource.title || resource.fileName || ''; data.contentId = resourceContentId(resource);
+        data.resourceId = resource.id; data.subject = resource.subject || ''; data.resourceTitel = resource.title || resource.fileName || ''; data.contentId = resourceContentId(resource);
         data.cfg = {kats:kats, katNamen:katEls.map(function(i){ return i.parentNode.textContent.replace(/\s*\(\d+\)\s*$/, '').trim(); }),
           optionen:optionen, optNamen:optNamen, anzahl:anzahl, mischen:mischenEl.checked};
         var nivEl = document.getElementById('prNiveau');
@@ -14312,7 +14430,7 @@ function pruefMonitorZeichnen(){
     pruef.loesLaedt = true;
     pruefLoesungLaden(p.id).then(function(){ pruef.loesLaedt = false; pruefMonitorZeichnen(); }, function(err){ pruef.loesLaedt = false; console.error(err); });
   }
-  var teil = pruef.teil[p.id], roster = pruefRosterCache.list, anzahl = pruefAnzahl(p);
+  var teil = pruef.teil[p.id], roster = pruefRosterCache.list && rosterFuerFach(pruefRosterCache.list, pruefFach(p)), anzahl = pruefAnzahl(p);
   var h = '<h2 class="page-welcome" style="margin-bottom:6px;">📝 '+esc(p.titel)+' '+pruefStatusBadge(p)+'</h2>';
   h += '<p class="kz-intro">'+esc(pruefBeschreibung(p, true))+'</p>';
   h += '<div class="back-row" style="flex-wrap:wrap;">';

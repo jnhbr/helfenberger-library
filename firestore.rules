@@ -7,7 +7,7 @@ rules_version = '2';
 //   students/{uid}                        -> {username, displayName, role}   (written only by the admin script, read-only for clients)
 //   resources/{resourceId}                          -> {subject, title, fileName, uploadedAt, uploadedBy}  (lightweight metadata, listed per subject)
 //   resourceContent/{resourceId}                    -> {chunkCount}                                        (fetched only when a resource is opened)
-//   resourceContent/{resourceId}/chunks/{chunkId}    -> {html}   (<=~900KB each; a large upload is split into several of these and
+//   resourceContent/{resourceId}/chunks/{chunkId}    -> {html} or {bin: bytes, PDFs}   (<=~900KB each; a large upload is split into several of these and
 //                                                                 rejoined on read — see chunkStringByBytes() in index.html)
 //   progress/{uid}/resources/{resourceId}           -> {stats, total, updatedAt}                           (each student's own practice progress)
 //   folders/{folderId}                              -> {subject, parentId, name, order, createdAt, createdBy} (per-subject folder tree)
@@ -267,9 +267,12 @@ service cloud.firestore {
 
       match /chunks/{chunkId} {
         allow read: if isSignedIn();
+        // HTML-Übungen: {html: string}; PDFs: {bin: bytes} (rohe Bytes, kein Base64)
         allow create, update: if isTeacher()
-          && request.resource.data.html is string
-          && request.resource.data.html.size() < 950000; // ~950KB, under Firestore's 1MiB document cap
+          && ((request.resource.data.html is string
+               && request.resource.data.html.size() < 950000) // ~950KB, under Firestore's 1MiB document cap
+           || (request.resource.data.bin is bytes
+               && request.resource.data.bin.size() < 950000));
         allow delete: if isTeacher();
       }
     }
