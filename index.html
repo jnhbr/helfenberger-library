@@ -262,6 +262,8 @@
   .move-btn svg{width:13px;height:13px;}
   .btn-current{background:var(--bad-soft);color:var(--bad);}
   .btn-current.active{background:var(--bad);color:#fff;}
+  .btn-empfohlen{background:var(--surface-2);color:var(--text);}
+  .btn-empfohlen.active{background:#f5c518;color:#3a2e00;}
 
   .empty-state{background:var(--surface);border:1px dashed var(--border);border-radius:var(--radius);padding:36px 20px;text-align:center;color:var(--text-muted);}
 
@@ -1506,7 +1508,9 @@ function wechsleLeitungAnsicht(ansicht){
    offener Bearbeiten-Dialog stehen bleibt). Nach einem "Ja" gilt die Freigabe
    ein paar Sekunden — eine einzelne Aktion schreibt oft mehrere Dokumente. */
 var klasseGuard = { okUntil:0, pending:null };
-function refInKlasse(ref){ return !!(ref && typeof ref.path === 'string' && ref.path.indexOf('klassen/') === 0); }
+// Nur Pfade der gerade offenen (fremden) Klasse — «Duplizieren»/«Aktualisieren»
+// schreibt bewusst in die eigene Klasse und braucht keine Rückfrage.
+function refInKlasse(ref){ return !!(ref && typeof ref.path === 'string' && ref.path.indexOf('klassen/'+state.klasse+'/') === 0); }
 function klasseWriteGuard(refs){
   if(!isFremdeKlasse() || !refs.some(refInKlasse)) return Promise.resolve();
   if(Date.now() < klasseGuard.okUntil) return Promise.resolve();
@@ -4011,24 +4015,34 @@ function wechsleKlasse(id){
 }
 
 /* ===================== ⚙️ EINSTELLUNGEN =====================
-   Für alle: Passwort ändern, Abmelden. Für Lehrpersonen zusätzlich:
-   - Vorschläge: Übungen, die eine andere Lehrperson in IHRER Klasse neu
-     hochgeladen hat (Originale ohne originKlasse) und die es in der offenen
-     Klasse noch nicht gibt. "Aktivieren" legt eine Kopie an: gleiche ID,
-     gleicher Inhalt (contentId), originKlasse/originVersion merken die Herkunft.
-   - Aktualisierungen: Kopien, deren Original inzwischen ersetzt wurde
-     (version > originVersion). "Übernehmen" hängt die Kopie an den neuen
-     Inhalt, "Ignorieren" merkt sich nur die Version.
-   Ausgeblendete Vorschläge: klassen/{klasse}/appMeta/vorschlaege.hidden. */
+   Für alle: Passwort ändern, Abmelden. Für Lehrpersonen zusätzlich
+   «⭐ Von Lehrern empfohlen»: Übungen, die eine andere Lehrperson bewusst
+   empfohlen hat (resources.empfohlen) und die es in der EIGENEN Klasse noch
+   nicht (bzw. nicht in dieser Fassung) gibt. Alles andere holt man aktiv:
+   in die Klasse der LP wechseln → bei der Übung «📥 Duplizieren» oder
+   «🔄 Aktualisieren». Eine Kopie hat dieselbe ID und denselben Inhalt
+   (contentId); originKlasse/originVersion merken die Herkunft.
+   Ausgeblendet: klassen/{eigene}/appMeta/vorschlaege.hidden[id] = contentId
+   (true = für immer) — eine neue Fassung taucht also wieder auf. */
 var settingsCache = { at:0, klasse:null, data:null };
 
+function heimKlasse(){ return (state.profile && state.profile.role === 'teacher' && !isLeitung() && state.profile.klasse) || null; }
+
+// 'neu' = gibt es bei mir nicht, 'anders' = andere Fassung, null = gleich.
+function heimAbgleich(r, heim){
+  if(!heim) return 'neu';
+  if(r.externalUrl || heim.externalUrl) return (r.externalUrl || '') === (heim.externalUrl || '') ? null : 'anders';
+  return resourceContentId(r) === resourceContentId(heim) ? null : 'anders';
+}
+
 async function loadKlassenAbgleich(force){
-  if(!force && settingsCache.data && settingsCache.klasse === state.klasse && Date.now() - settingsCache.at < 60000){
+  var home = heimKlasse();
+  if(!home) return { liste:[], own:{} };
+  if(!force && settingsCache.data && settingsCache.klasse === home && Date.now() - settingsCache.at < 60000){
     return settingsCache.data;
   }
-  var klasse = state.klasse;
   var snaps = await Promise.all(KLASSEN.map(function(k){ return getDocs(kcolFor(k.id, 'resources')); }));
-  var hiddenSnap = await getDoc(kdoc('appMeta', 'vorschlaege')).catch(function(){ return null; });
+  var hiddenSnap = await getDoc(kdocFor(home, 'appMeta', 'vorschlaege')).catch(function(){ return null; });
   var hidden = (hiddenSnap && hiddenSnap.exists() && hiddenSnap.data().hidden) || {};
   var byKlasse = {};
   KLASSEN.forEach(function(k, i){
@@ -4036,40 +4050,113 @@ async function loadKlassenAbgleich(force){
     snaps[i].forEach(function(d){ map[d.id] = Object.assign({id:d.id}, d.data()); });
     byKlasse[k.id] = map;
   });
-  var own = byKlasse[klasse] || {};
-  var vorschlaege = [], seen = {};
+  var own = byKlasse[home] || {};
+  var liste = [], seen = {};
   KLASSEN.forEach(function(k){
-    if(k.id === klasse) return;
+    if(k.id === home) return;
     Object.keys(byKlasse[k.id]).forEach(function(id){
       var r = byKlasse[k.id][id];
-      if(r.originKlasse || own[id] || hidden[id] || seen[id]) return;
+      if(!r.empfohlen || seen[id]) return;
+      var art = heimAbgleich(r, own[id]);
+      if(!art || hidden[id] === true || hidden[id] === resourceContentId(r)) return;
       seen[id] = true;
-      vorschlaege.push(Object.assign({quelle:k.id}, r));
+      liste.push({ r:Object.assign({quelle:k.id}, r), heim:own[id] || null, art:art });
     });
   });
-  var updates = [];
-  Object.keys(own).forEach(function(id){
-    var c = own[id];
-    if(!c.originKlasse || !byKlasse[c.originKlasse]) return;
-    var o = byKlasse[c.originKlasse][id];
-    if(o && (o.version || 0) > (c.originVersion || 0)) updates.push({copy:c, origin:o});
-  });
   function ts(r){ var t = r.replacedAt || r.uploadedAt; return t && t.toDate ? t.toDate().getTime() : 0; }
-  vorschlaege.sort(function(a,b){ return ts(b) - ts(a); });
-  var data = { vorschlaege:vorschlaege, updates:updates };
-  settingsCache = { at:Date.now(), klasse:klasse, data:data };
+  liste.sort(function(a,b){ return ts(b.r) - ts(a.r); });
+  var data = { liste:liste, own:own };
+  settingsCache = { at:Date.now(), klasse:home, data:data };
   return data;
 }
 
+// Übung r aus Klasse `quelle` in die eigene Klasse holen: neu als Kopie
+// (Fach-Hauptebene) oder die eigene Fassung auf diesen Inhalt umhängen
+// (die bisherige bleibt als prevContentId → «Vorherige Version»).
+async function uebungZuMir(r, quelle, heim){
+  var home = heimKlasse();
+  var ref = kdocFor(home, 'resources', r.id);
+  if(!heim){
+    var copy = {
+      subject: r.subject,
+      folderId: null,
+      title: r.title || r.fileName || 'Übung',
+      fileName: r.fileName || '',
+      uploadedAt: serverTimestamp(),
+      uploadedBy: r.uploadedBy || null,
+      contentId: resourceContentId(r),
+      originKlasse: quelle,
+      originVersion: r.version || 0
+    };
+    if(r.externalUrl) copy.externalUrl = r.externalUrl;
+    if(r.pdf) copy.pdf = true;
+    await setDoc(ref, copy);
+    toast('«'+copy.title+'» ist jetzt bei dir in '+subjectName(r.subject)+' ('+home+').');
+  } else {
+    var alt = resourceContentId(heim);
+    var patch = { contentId:resourceContentId(r), prevContentId:alt, fileName:r.fileName || heim.fileName || '', replacedAt:serverTimestamp() };
+    if(r.externalUrl) patch.externalUrl = r.externalUrl;
+    if(heim.originKlasse === quelle) patch.originVersion = r.version || 0;
+    await updateDoc(ref, patch);
+    if(heim.prevContentId && heim.prevContentId !== alt && heim.prevContentId !== patch.contentId) deleteContentIfUnused(heim.prevContentId);
+    toast('«'+(heim.title || heim.fileName)+'» ist in '+home+' jetzt auf dem neuen Stand.');
+  }
+  settingsCache.at = 0;
+}
+
+// Fremde Klasse: Knopf nur bei Übungen, die bei mir fehlen oder anders sind.
+function paintHeimButtons(list){
+  var home = heimKlasse();
+  if(!home || !isFremdeKlasse()) return;
+  loadKlassenAbgleich(false).then(function(d){
+    list.forEach(function(r){
+      var card = document.getElementById('card-'+r.id);
+      var box = card && card.querySelector('.resource-actions');
+      if(!box) return;
+      var old = box.querySelector('[data-heim]');
+      if(old) old.remove();
+      var heim = d.own[r.id] || null;
+      var art = heimAbgleich(r, heim);
+      if(!art) return; // bei mir gleich → kein Knopf
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.setAttribute('data-heim', '1');
+      {
+        b.className = 'btn btn-primary btn-sm';
+        b.textContent = art === 'neu' ? '📥 Duplizieren' : '🔄 Aktualisieren';
+        b.title = art === 'neu' ? 'Kopie in deiner Klasse '+home+' anlegen' : 'Deine Fassung in '+home+' durch diese ersetzen';
+        b.addEventListener('click', function(){
+          function los(){
+            b.disabled = true;
+            uebungZuMir(r, state.klasse, heim).then(function(){
+              refreshSettingsBadge(true);
+              paintHeimButtons(list);
+            }, function(err){
+              console.error(err);
+              b.disabled = false;
+              toast('Hat nicht geklappt.');
+            });
+          }
+          if(art === 'neu') los();
+          else uiConfirm('🔄 Aktualisieren?',
+            'Deine Fassung von «'+(heim.title || heim.fileName)+'» in der '+home+' wird durch die Fassung aus der '+state.klasse+' ('+klasseInfo().lp+') ersetzt. Titel, Ort und Übungsstände bleiben, die bisherige Fassung bleibt als «Vorherige Version» erhalten.',
+            'Aktualisieren', los);
+        });
+      }
+      box.insertBefore(b, box.children[1] || null);
+    });
+  }).catch(function(err){ console.error('Abgleich mit eigener Klasse', err); });
+}
+
 function refreshSettingsBadge(force){
-  if(!state.profile || state.profile.role !== 'teacher') return;
+  if(!heimKlasse()) return;
   loadKlassenAbgleich(force).then(setSettingsBadge)
     .catch(function(err){ console.error('Einstellungen-Abgleich', err); });
 }
 function setSettingsBadge(d){
   var badge = document.getElementById('settingsBadge');
   if(!badge) return;
-  var n = d.vorschlaege.length + d.updates.length;
+  var n = d.liste.length;
   badge.textContent = n > 99 ? '99+' : String(n);
   badge.hidden = !n;
 }
@@ -4089,36 +4176,29 @@ function openSettings(){
        '<button class="btn btn-danger btn-sm" id="setLogoutBtn" type="button">Abmelden</button></div></div>';
   if(isTeacher){
     h += '<div class="settings-section"><h4>💾 Mein Speicher</h4><div id="setQuota"><div class="empty-state" style="padding:10px;">Wird geladen …</div></div></div>';
-    h += '<div class="settings-section"><h4>🔄 Aktualisierungen für '+esc(state.klasse)+'</h4><div class="settings-list" id="setUpdates"><div class="empty-state" style="padding:10px;">Wird geladen …</div></div></div>';
-    h += '<div class="settings-section"><h4>✨ Neue Übungen anderer Lehrpersonen</h4><div class="settings-list" id="setVorschlaege"><div class="empty-state" style="padding:10px;">Wird geladen …</div></div></div>';
+    if(heimKlasse()) h += '<div class="settings-section"><h4>⭐ Von Lehrern empfohlen</h4><div class="settings-list" id="setVorschlaege"><div class="empty-state" style="padding:10px;">Wird geladen …</div></div></div>';
   }
   h += '<div class="modal-actions"><button class="btn btn-primary btn-sm" id="modalOk" type="button">Schliessen</button></div>';
   openModal(h);
   document.getElementById('modalOk').addEventListener('click', closeModal);
   document.getElementById('setPwBtn').addEventListener('click', uiChangePassword);
   document.getElementById('setLogoutBtn').addEventListener('click', function(){ closeModal(); doLogout(); });
-  if(isTeacher){ paintSettingsAbgleich(false); showQuotaUsage(); }
+  if(isTeacher){ if(heimKlasse()) paintSettingsAbgleich(false); showQuotaUsage(); }
 }
 
 function paintSettingsAbgleich(force){
   loadKlassenAbgleich(force).then(function(d){
     setSettingsBadge(d);
-    var upEl = document.getElementById('setUpdates');
     var vEl = document.getElementById('setVorschlaege');
-    if(!upEl || !vEl) return;
-    upEl.innerHTML = d.updates.length ? d.updates.map(function(u, i){
-      return '<div class="settings-row"><div class="grow"><b>'+esc(u.copy.title || u.copy.fileName)+'</b>'+
-        '<small>'+esc(subjectName(u.copy.subject))+' · '+esc(klasseInfo(u.copy.originKlasse).lp)+' ('+esc(u.copy.originKlasse)+') hat die Datei geändert</small></div>'+
-        '<button class="btn btn-ghost btn-sm" type="button" data-up-ignore="'+i+'">Ignorieren</button>'+
-        '<button class="btn btn-primary btn-sm" type="button" data-up-take="'+i+'">Übernehmen</button></div>';
-    }).join('') : '<div class="empty-state" style="padding:10px;">Alle Kopien sind aktuell.</div>';
-    vEl.innerHTML = d.vorschlaege.length ? d.vorschlaege.map(function(r, i){
+    if(!vEl) return;
+    vEl.innerHTML = d.liste.length ? d.liste.map(function(e, i){
+      var r = e.r;
       return '<div class="settings-row"><div class="grow"><b>'+esc(r.title || r.fileName)+'</b>'+
-        '<small>'+esc(subjectName(r.subject))+' · von '+esc(klasseInfo(r.quelle).lp)+' ('+esc(r.quelle)+')</small></div>'+
+        '<small>'+esc(subjectName(r.subject))+' · von '+esc(klasseInfo(r.quelle).lp)+' ('+esc(r.quelle)+')'+(e.art === 'anders' ? ' · neue Fassung' : '')+'</small></div>'+
         '<button class="btn btn-ghost btn-sm" type="button" data-v-open="'+i+'" title="Ansehen">👁️</button>'+
         '<button class="btn btn-ghost btn-sm" type="button" data-v-hide="'+i+'">Ausblenden</button>'+
-        '<button class="btn btn-primary btn-sm" type="button" data-v-add="'+i+'">Aktivieren</button></div>';
-    }).join('') : '<div class="empty-state" style="padding:10px;">Keine neuen Übungen.</div>';
+        '<button class="btn btn-primary btn-sm" type="button" data-v-add="'+i+'">'+(e.art === 'neu' ? '📥 Duplizieren' : '🔄 Aktualisieren')+'</button></div>';
+    }).join('') : '<div class="empty-state" style="padding:10px;">Keine neuen Empfehlungen.</div>';
 
     function wire(sel, fn){
       modalEl.querySelectorAll('['+sel+']').forEach(function(btn){
@@ -4134,59 +4214,26 @@ function paintSettingsAbgleich(force){
         });
       });
     }
-    wire('data-up-take', function(i){
-      var u = d.updates[i];
-      var alt = resourceContentId(u.copy);
-      return updateDoc(kdoc('resources', u.copy.id), {
-        contentId: resourceContentId(u.origin),
-        fileName: u.origin.fileName || u.copy.fileName || '',
-        originVersion: u.origin.version || 0,
-        replacedAt: serverTimestamp()
-      }).then(function(){
-        toast('Neue Fassung übernommen.');
-        deleteContentIfUnused(alt);
-      });
-    });
-    wire('data-up-ignore', function(i){
-      var u = d.updates[i];
-      return updateDoc(kdoc('resources', u.copy.id), { originVersion: u.origin.version || 0 });
-    });
     wire('data-v-hide', function(i){
-      var patch = {}; patch[d.vorschlaege[i].id] = true;
-      return setDoc(kdoc('appMeta', 'vorschlaege'), { hidden: patch }, {merge:true});
+      var r = d.liste[i].r;
+      var patch = {}; patch[r.id] = resourceContentId(r);
+      return setDoc(kdocFor(heimKlasse(), 'appMeta', 'vorschlaege'), { hidden: patch }, {merge:true});
     });
     wire('data-v-add', function(i){
-      var r = d.vorschlaege[i];
-      var copy = {
-        subject: r.subject,
-        folderId: null,
-        title: r.title || r.fileName || 'Übung',
-        fileName: r.fileName || '',
-        uploadedAt: serverTimestamp(),
-        uploadedBy: r.uploadedBy || null,
-        contentId: resourceContentId(r),
-        originKlasse: r.quelle,
-        originVersion: r.version || 0
-      };
-      if(r.externalUrl) copy.externalUrl = r.externalUrl;
-      if(r.pdf) copy.pdf = true;
-      return setDoc(kdoc('resources', r.id), copy).then(function(){
-        toast('«'+copy.title+'» ist jetzt in '+subjectName(r.subject)+' ('+state.klasse+').');
-      });
+      var e = d.liste[i];
+      return uebungZuMir(e.r, e.r.quelle, e.heim);
     });
     modalEl.querySelectorAll('[data-v-open]').forEach(function(btn){
       btn.addEventListener('click', function(){
-        var r = d.vorschlaege[parseInt(btn.getAttribute('data-v-open'), 10)];
+        var r = d.liste[parseInt(btn.getAttribute('data-v-open'), 10)].r;
         closeModal();
         goResource(Object.assign({}, r, {vorschau:true, folderId:null}));
       });
     });
   }).catch(function(err){
     console.error(err);
-    var upEl = document.getElementById('setUpdates');
-    if(upEl) upEl.innerHTML = '<div class="empty-state" style="padding:10px;">Konnte nicht geladen werden.</div>';
     var vEl = document.getElementById('setVorschlaege');
-    if(vEl) vEl.innerHTML = '';
+    if(vEl) vEl.innerHTML = '<div class="empty-state" style="padding:10px;">Konnte nicht geladen werden.</div>';
   });
 }
 
@@ -5138,7 +5185,15 @@ function renderFolderContents(){
     if(replBtn) replBtn.addEventListener('click', function(){ pickReplacementFile(r); });
     var ueditBtn = document.getElementById('uedit-'+r.id);
     if(ueditBtn) ueditBtn.addEventListener('click', function(){ openUebungEditor(r); });
+    var empBtn = document.getElementById('emp-'+r.id);
+    if(empBtn) empBtn.addEventListener('click', function(){
+      empBtn.disabled = true;
+      updateDoc(kdoc('resources', r.id), { empfohlen: !r.empfohlen })
+        .then(function(){ toast(r.empfohlen ? 'Empfehlung zurückgenommen.' : '«'+(r.title || r.fileName)+'» wird den anderen Lehrpersonen empfohlen.'); })
+        .catch(function(err){ console.error(err); empBtn.disabled = false; toast('Hat nicht geklappt.'); });
+    });
   });
+  if(isTeacher) paintHeimButtons(realResources);
 }
 
 function folderCardHtml(f, index, total, isTeacher){
@@ -5349,6 +5404,9 @@ function resourceCardHtml(r, index, total, isTeacher){
   if(isTeacher){
     if(!r.externalUrl){
       html += '<button class="btn btn-sm btn-current'+(r.current?' active':'')+'" id="cur-'+r.id+'">'+(r.current?'Nicht mehr aktuell':'Als aktuell markieren')+'</button>';
+    }
+    if(heimKlasse() && !isFremdeKlasse()){
+      html += '<button class="btn btn-sm btn-empfohlen'+(r.empfohlen?' active':'')+'" id="emp-'+r.id+'" type="button" title="'+(r.empfohlen?'Wird anderen Lehrpersonen unter ⚙️ empfohlen – antippen, um die Empfehlung zurückzunehmen':'Anderen Lehrpersonen unter ⚙️ «Von Lehrern empfohlen» vorschlagen')+'">'+(r.empfohlen?'⭐ Empfohlen':'☆ Empfehlen')+'</button>';
     }
     html += '<button class="btn btn-ghost btn-sm" id="rrename-'+r.id+'" type="button">Umbenennen</button>';
     if(!r.externalUrl){
@@ -11162,6 +11220,7 @@ const NEUIGKEITEN = [
   {id:'2026-09-18-pruefung-offen', datum:'2026-09-18', fuer:'alle', text:'In Online-Prüfungen gibt es jetzt auch offene Fragen: Schreib deine Antwort in ganzen Sätzen. Bei jeder Frage steht, wie viele Punkte sie gibt.'},
   {id:'2026-09-18-aemtli-stuhl', datum:'2026-09-18', fuer:'lehrer', text:'🧹 Ämtliplan: Unter jedem Diensttag gibt es jetzt einen Schieber, ob vor dem Ämtli «🪑 AUFSTUHLEN» oder «🚫 NICHT aufstuhlen» angezeigt wird.'},
   {id:'2026-09-18-pruefung-diktat', datum:'2026-09-18', fuer:'lehrer', text:'📝 Prüfungen: Bei «Neue Prüfung» stehen nur noch Übungen zur Auswahl, aus denen sich wirklich eine Prüfung machen lässt (ohne Lehrerbereich und Berufswahl). Neu gehen auch ✍️ Diktate: Du diktierst vorne, die Klasse tippt im gesperrten Vollbild mit (Rechtschreibprüfung/Autokorrektur aus, Einfügen gesperrt). Korrigiert wird Wort für Wort gegen den Text der Diktat-Übung — Gross/Klein und Satzzeichen zählen. Note = 6 − Fehler × Abzug pro Fehler; in den Details kannst du jeden Fehler von Hand streichen.'},
+  {id:'2026-09-18-empfohlen', datum:'2026-09-18', fuer:'lehrer', text:'Übungen teilen neu: Mit «☆ Empfehlen» bei einer Übung schlägst du sie den anderen Lehrpersonen vor — sie erscheint bei ihnen unter ⚙️ «⭐ Von Lehrern empfohlen». Alles andere holst du aktiv: in die Klasse der Lehrperson wechseln (🏫) und bei der Übung «📥 Duplizieren» (fehlt bei dir) oder «🔄 Aktualisieren» (bei dir andere Fassung) tippen.'},
   {id:'2026-09-18-pruefungsmodus-lp', datum:'2026-09-18', fuer:'lehrer', text:'Neu im Klassenzimmer: 📝 Prüfungen. Übung wählen — die Library liest die Bereiche selbst aus der Übung (Themen der Prüfungsvorbereitungen, Themenkarten der Mathe-Übungen, bei Pöstlergeografie Bereiche/Gebiet/Antwortart) und zieht daraus die Fragen. Freigeben und live zuschauen: Wer die Prüfung verlässt (Tab, Fenster, Esc, neu laden), ist gesperrt, bis du entsperrst. Optional mit Zeitlimit: Die Zeit läuft pro Person ab dem Start, danach wird automatisch abgegeben. Automatisch korrigiert, von Hand umwertbar. Mit «📣 Resultate freigeben» kommt die Note mit der gewählten Gewichtung in den Notenrechner der Klasse — verbergen oder löschen nimmt sie wieder heraus.'},
   {id:'2026-09-18-pruefungsmodus', datum:'2026-09-18', fuer:'alle', text:'Online-Prüfungen: Wenn oben «📝 Prüfung verfügbar» steht, kannst du die Prüfung starten. Achtung: Verlässt du sie (anderer Tab, anderes Fenster, Esc, neu laden), wirst du gesperrt und musst warten, bis die Lehrperson dich entsperrt. Sobald die Lehrperson die Resultate freigibt, steht deine Note automatisch im 🎶 Notenrechner.'},
   {id:'2026-09-18-mathe-tastatur-weiter', datum:'2026-09-18', fuer:'alle', text:'Mathe-Übungen: Den Taschenrechner 🧮 kannst du jetzt auch mit der Tastatur bedienen (Ziffern, + − * /, Enter). Und wenn du eine Übung wieder öffnest, landest du direkt bei der Aufgabe, bei der du aufgehört hast — auch auf einem anderen Gerät.'},
