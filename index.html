@@ -571,6 +571,7 @@
   .sk-pool-item{background:var(--surface-2);border:1px solid var(--border);color:var(--text);border-radius:999px;padding:5px 11px;font:inherit;font-size:12.5px;cursor:pointer;}
   .sk-pool-item:hover{border-color:var(--good);background:var(--good-soft);}
   .sk-clear{align-self:center;}
+  .sk-bulk{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;}
 
   /* ---------- Lärmampel ---------- */
   .am-wrap{display:flex;gap:18px;align-items:center;justify-content:center;}
@@ -1220,6 +1221,8 @@
   .pr-h4{margin:18px 0 4px;}
   .pr-bloom{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
   .pr-bloom label{display:flex;flex-direction:column;gap:4px;font-size:13px;font-weight:600;}
+  .pr-formen{grid-template-columns:repeat(4,1fr);}
+  .pr-formen small{font-weight:400;color:var(--text-muted);font-size:11.5px;line-height:1.25;min-height:2.5em;}
   .pr-tab{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:6px 12px;}
   .pr-tab label{display:flex;align-items:center;gap:6px;font-size:13.5px;}
   .pr-tab label span:first-child{min-width:78px;}
@@ -1231,7 +1234,7 @@
   .pr-ap-bloom{width:auto;padding:3px 6px;font-size:13px;}
   .pr-ap-p{display:flex;align-items:center;gap:4px;}
   .pr-ap-p input{width:64px;}
-  @media (max-width:560px){ .pr-bloom{grid-template-columns:1fr;} .pr-ap-row{grid-template-columns:24px 1fr;} .pr-ap-p{grid-column:2;} }
+  @media (max-width:560px){ .pr-bloom, .pr-formen{grid-template-columns:1fr 1fr;} .pr-ap-row{grid-template-columns:24px 1fr;} .pr-ap-p{grid-column:2;} }
   .pr-det.info{background:var(--surface-2, #F4F5F7);}
   .pr-det-f small{color:var(--text-muted);}
   .pr-det-a{color:var(--text-muted);margin-top:2px;}
@@ -7060,7 +7063,12 @@ function mountSprecher(host){
       h += '<div class="sk-pool">'+rest.map(function(s){
         return '<button class="sk-pool-item" type="button" data-add="'+esc(s.uid)+'">'+esc(s.displayName)+'</button>';
       }).join('')+'</div>';
-      if(chosen.length) h += '<button class="btn btn-ghost btn-sm sk-clear" id="skClear" type="button">Alle entfernen</button>';
+      if(rest.length || chosen.length){
+        h += '<div class="sk-bulk">';
+        if(rest.length) h += '<button class="btn btn-ghost btn-sm" id="skAll" type="button">Alle hinzufügen</button>';
+        if(chosen.length) h += '<button class="btn btn-ghost btn-sm" id="skClear" type="button">Alle entfernen</button>';
+        h += '</div>';
+      }
     }
     host.innerHTML = h;
 
@@ -7076,6 +7084,10 @@ function mountSprecher(host){
         sprecherState.uids = sprecherState.uids.filter(function(u){ return u !== uid; });
         saveSprecher(); paint();
       });
+    });
+    var allBtn = host.querySelector('#skAll');
+    if(allBtn) allBtn.addEventListener('click', function(){
+      sprecherState.uids = chosen.concat(rest.map(function(s){ return s.uid; })); saveSprecher(); paint();
     });
     var clearBtn = host.querySelector('#skClear');
     if(clearBtn) clearBtn.addEventListener('click', function(){
@@ -10954,6 +10966,8 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-09-18-pruefung-formate', datum:'2026-09-18', fuer:'lehrer', text:'📝 Prüfungen: Beim Erstellen wählst du jetzt die Aufgabenformate — ✍️ Frei formulieren, 🔤 Selbst hinschreiben (ohne Auswahl), ☑️ Auswählen, 🔗 Zuordnen & Ordnen. Standard 30/40/20/10 %, frei änderbar. Hat die Übung zu wenig Kurzantwort-Fragen, werden Auswahlfragen mit kurzer Antwort und Zuordnungs-Paare automatisch zu Fragen ohne Auswahl umgewandelt (kleine Tippfehler zählen als richtig).'},
+  {id:'2026-09-18-fluestern-alle', datum:'2026-09-18', fuer:'lehrer', text:'🗣 Flüstern: Mit «Alle hinzufügen» darf die ganze Klasse auf einmal flüstern.'},
   {id:'2026-09-18-pruefung-massstab-bloom', datum:'2026-09-18', fuer:'lehrer', text:'📝 Prüfungen: Notenmassstab pro Prüfung wählbar — DBK linear (Standard), DBK mit reduzierter 6, Bestehensgrenze (Note 4 bei x %), Fehlerabzug (mit «Fehler für eine 6») oder eigene Punktetabelle. Beim Erstellen Niveau G/E wählen: Die Fragen werden nach Bloom verteilt (G 50/35/15, E 30/40/30 % Erinnern/Verstehen/Anwenden, anpassbar) und nach Bereichen und Aufgabentypen gemischt. Jede Aufgabe bekommt einen Punktevorschlag (halbe Punkte möglich), unter «🧮 Aufgaben & Punkte» änderbar. Karteikarten der Übung werden zu offenen Fragen, vorkorrigiert über Stichwörter der Musterlösung. In den Details gibst du volle, keine oder Teilpunkte.'},
   {id:'2026-09-18-pruefung-offen', datum:'2026-09-18', fuer:'alle', text:'In Online-Prüfungen gibt es jetzt auch offene Fragen: Schreib deine Antwort in ganzen Sätzen. Bei jeder Frage steht, wie viele Punkte sie gibt.'},
   {id:'2026-09-18-aemtli-stuhl', datum:'2026-09-18', fuer:'lehrer', text:'🧹 Ämtliplan: Unter jedem Diensttag gibt es jetzt einen Schieber, ob vor dem Ämtli «🪑 AUFSTUHLEN» oder «🚫 NICHT aufstuhlen» angezeigt wird.'},
@@ -12578,7 +12592,63 @@ var PRUEF_BLOOM = [
   {id:'erinnern', name:'Erinnern', icon:'🧠'}, {id:'verstehen', name:'Verstehen', icon:'💡'}, {id:'anwenden', name:'Anwenden', icon:'🛠️'}
 ];
 var PRUEF_BLOOM_STD = {G:[50, 35, 15], E:[30, 40, 30]};
-var PRUEF_TYPEN = {mc:'Auswahl', tf:'Wahr/Falsch', text:'Lücke', zahl:'Rechnen', zuordnen:'Zuordnen', reihenfolge:'Reihenfolge', offen:'Offen', diktat:'Diktat'};
+var PRUEF_TYPEN = {mc:'Auswahl', tf:'Wahr/Falsch', text:'Kurzantwort', zahl:'Rechnen', zuordnen:'Zuordnen', reihenfolge:'Reihenfolge', offen:'Offen', diktat:'Diktat'};
+/* Aufgabenformate: wie die Antwort gegeben wird. Standard 30/40/20/10 — gut
+   zwei Drittel der Fragen verlangen, dass man die Antwort selbst weiss und
+   hinschreibt. Fehlen der Übung Kurzantwort-Fragen, werden Auswahlfragen mit
+   kurzer richtiger Antwort und Zuordnungs-Paare zu Kurzantworten umgewandelt
+   (pruefUmwandeln); korrigiert wird dann tolerant (pruefKurzOk). */
+var PRUEF_FORMEN = [
+  {id:'frei', name:'Frei formulieren', icon:'✍️', typen:['offen'], info:'Antwort in ganzen Sätzen'},
+  {id:'kurz', name:'Selbst hinschreiben', icon:'🔤', typen:['text', 'zahl'], info:'Begriff, Name, Jahr, Zahl — ohne Auswahl'},
+  {id:'auswahl', name:'Auswählen', icon:'☑️', typen:['mc', 'tf'], info:'Multiple Choice, Wahr/Falsch'},
+  {id:'zuordnen', name:'Zuordnen & Ordnen', icon:'🔗', typen:['zuordnen', 'reihenfolge'], info:'Paare, Reihenfolge'}
+];
+var PRUEF_FORMEN_STD = [30, 40, 20, 10];
+function pruefForm(typ){
+  for(var i=0;i<PRUEF_FORMEN.length;i++) if(PRUEF_FORMEN[i].typen.indexOf(typ) >= 0) return PRUEF_FORMEN[i].id;
+  return 'kurz';
+}
+// Anteile (%) auf n Fragen verteilen, grösster Rest zuerst — Summe stimmt immer.
+function pruefVerteilen(n, pct){
+  var summe = pct.reduce(function(s, x){ return s + (+x || 0); }, 0) || 1;
+  var roh = pct.map(function(x){ return n * (+x || 0) / summe; }), out = roh.map(Math.floor);
+  var rest = n - out.reduce(function(s, x){ return s + x; }, 0);
+  roh.map(function(x, i){ return [x - out[i], i]; }).sort(function(a, b){ return b[0] - a[0] || a[1] - b[1]; })
+    .forEach(function(r){ if(rest > 0){ out[r[1]]++; rest--; } });
+  return out;
+}
+function pruefKurzeAntwort(t){ t = String(t || '').trim(); return t && t.length <= 40 && t.split(/\s+/).length <= 4; }
+function pruefVarianten(t){
+  t = String(t || '').trim();
+  var v = [t], ohne = t.replace(/\s*\([^)]*\)\s*/g, ' ').trim();
+  if(ohne && ohne !== t) v.push(ohne);
+  return v;
+}
+// Mögliche Kurzantwort-Fassungen einer Frage (ohne Auswahlmöglichkeiten).
+function pruefUmwandeln(f){
+  var out = [], basis = {typ:'text', kat:f.kat, locker:true};
+  if(f.kontext) basis.kontext = f.kontext;
+  if(f.bild) basis.bild = f.bild;
+  if(f.bloom) basis.bloom = f.bloom;
+  if(f.typ === 'mc'){
+    var r = (f.optionen || [])[f.loesung];
+    if(!pruefKurzeAntwort(r) || !f.frage) return out;
+    if(/(aussage|satz|behauptung|stimmt|trifft|richtig|falsch|nicht|kein|folgend|genannt|oben|unten|antwort|möglichkeit|moeglichkeit|option|welche.{0,20}(passt|gehört|gehoert)\s*$)/i.test(f.frage)) return out;
+    if((f.optionen || []).some(function(o){ return /^(alle|keine|beide|weder)\b|oben/i.test(o); })) return out;
+    out.push(Object.assign({}, basis, {frage:f.frage, loesung:pruefVarianten(r)}));
+  } else if(f.typ === 'zuordnen'){
+    (f.links || []).forEach(function(l, i){
+      var r = (f.rechts || [])[i], frage, antw;
+      if(pruefKurzeAntwort(r) && String(l).length >= String(r).length){ frage = l; antw = r; }
+      else if(pruefKurzeAntwort(l)){ frage = r; antw = l; }
+      else if(pruefKurzeAntwort(r)){ frage = l; antw = r; }
+      if(!frage || !antw) return;
+      out.push(Object.assign({}, basis, {frage:(f.frage ? f.frage + ' — ' : '') + 'Was gehört zu «' + frage + '»?', loesung:pruefVarianten(antw)}));
+    });
+  }
+  return out;
+}
 function pruefBloomNorm(v){
   var s = String(v == null ? '' : v).toLowerCase();
   if(/^(1|k1|erinn|wissen|remember|reprod)/.test(s)) return 'erinnern';
@@ -13319,40 +13389,74 @@ function pruefBildSauber(s){
   return String(s || '').replace(/<script[\s\S]*?<\/script>/gi, '').replace(/\son[a-z]+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '');
 }
 
-// Zieht aus der Bank die Prüfungsfragen. Pro Bloom-Stufe (Anteile bloomPct)
-// reihum aus Töpfen «Bereich × Aufgabentyp» — so mischen sich Bereiche und
-// Typen gleichmässig. Reicht eine Stufe nicht, wird mit dem Rest aufgefüllt.
+// Zieht aus der Bank die Prüfungsfragen. Zuerst pro Aufgabenformat (Anteile
+// formPct), darin pro Bloom-Stufe (bloomPct), jeweils reihum aus Töpfen
+// «Bereich × Aufgabentyp» — so mischen sich Bereiche und Typen gleichmässig.
+// Für «Selbst hinschreiben» zuerst echte Kurzantwort-/Rechenfragen, dann
+// umgewandelte Auswahl-/Zuordnungsfragen (je Originalfrage höchstens eine
+// Fassung). Was einem Format fehlt, wird nach Bloom mit dem Rest aufgefüllt.
 // Sortiert: Erinnern → Verstehen → Anwenden, darin nach Bereich und Original.
 // Liefert die öffentlichen Fragen (ohne Lösung), die Lösungen und die Bilder getrennt.
-function pruefBankZiehen(info, kats, anzahl, seed, bloomPct){
+var PRUEF_LV = ['erinnern', 'verstehen', 'anwenden'];
+function pruefBankPool(info, kats, mitUmwandeln){
+  var pool = [];
+  info.fragen.forEach(function(f, i){
+    if(kats.indexOf(f.kat) < 0) return;
+    var g = {};
+    pool.push({f:f, i:i, g:g, um:false, fo:pruefForm(f.typ), lv:f.typ === 'diktat' ? 'erinnern' : pruefBloom(f)});
+    if(mitUmwandeln && f.typ !== 'diktat') pruefUmwandeln(f).forEach(function(u){ pool.push({f:u, i:i, g:g, um:true, fo:'kurz', lv:pruefBloom(u)}); });
+  });
+  return pool;
+}
+function pruefBankZiehen(info, kats, anzahl, seed, bloomPct, formPct){
   var rnd = pruefRng(seed), katIdx = {}, lvIdx = {erinnern:0, verstehen:1, anwenden:2};
   kats.forEach(function(k, i){ katIdx[k] = i; });
-  var pool = info.fragen.map(function(f, i){ return {f:f, i:i, lv:f.typ === 'diktat' ? 'erinnern' : pruefBloom(f)}; })
-    .filter(function(x){ return katIdx.hasOwnProperty(x.f.kat); });
-  var pct = bloomPct && bloomPct.length === 3 ? bloomPct.map(Number) : [34, 33, 33];
-  var summe = (pct[0] + pct[1] + pct[2]) || 1;
-  var ziel = [Math.round(anzahl * pct[0] / summe), Math.round(anzahl * pct[1] / summe)];
-  ziel.push(Math.max(0, anzahl - ziel[0] - ziel[1]));
-  function toepfe(schluessel){
+  var formen = formPct && formPct.length === PRUEF_FORMEN.length;
+  var pool = pruefBankPool(info, kats, formen);
+  var bp = bloomPct && bloomPct.length === 3 ? bloomPct.map(Number) : [34, 33, 33];
+  function toepfe(passt){
     var t = {};
-    pool.forEach(function(x){ if(x.weg) return; var k = schluessel(x); if(k == null) return; (t[k] = t[k] || []).push(x); });
+    pool.forEach(function(x){ if(x.g.weg || !passt(x)) return; var k = x.f.kat + '|' + x.f.typ; (t[k] = t[k] || []).push(x); });
     return pruefMischen(Object.keys(t).sort(), rnd).map(function(k){ return pruefMischen(t[k], rnd); });
   }
   var gezogen = [];
-  function ziehe(tp, n){
-    var z = 0;
+  function ziehe(passt, n){
+    var tp = toepfe(passt), z = 0;
     while(n > 0 && tp.some(function(t){ return t.length; })){
       var t = tp[z++ % tp.length];
-      if(t.length){ var x = t.shift(); x.weg = true; gezogen.push(x); n--; }
+      while(t.length && t[0].g.weg) t.shift();   // andere Fassung derselben Frage schon gezogen
+      if(t.length){ var x = t.shift(); x.g.weg = true; gezogen.push(x); n--; }
     }
     return n;
   }
-  var rest = 0;
-  ['erinnern', 'verstehen', 'anwenden'].forEach(function(lv, i){
-    rest += ziehe(toepfe(function(x){ return x.lv === lv ? x.f.kat + '|' + x.f.typ : null; }), ziel[i]);
-  });
-  if(rest > 0) ziehe(toepfe(function(x){ return x.lv + '|' + x.f.kat + '|' + x.f.typ; }), rest);
-  gezogen.sort(function(a, b){ return (lvIdx[a.lv] - lvIdx[b.lv]) || (katIdx[a.f.kat] - katIdx[b.f.kat]) || (a.i - b.i); });
+  // erst Originale, dann umgewandelte Fassungen
+  function zieheBeide(passt, n){
+    n = ziehe(function(x){ return !x.um && passt(x); }, n);
+    return ziehe(function(x){ return x.um && passt(x); }, n);
+  }
+  if(formen){
+    var zielF = pruefVerteilen(anzahl, formPct.map(Number));
+    ['frei', 'zuordnen', 'kurz', 'auswahl'].forEach(function(fo){
+      var n = zielF[PRUEF_FORMEN.findIndex(function(x){ return x.id === fo; })], zielB = pruefVerteilen(n, bp), fehlt = 0;
+      PRUEF_LV.forEach(function(lv, i){ fehlt += zieheBeide(function(x){ return x.fo === fo && x.lv === lv; }, zielB[i]); });
+      zieheBeide(function(x){ return x.fo === fo; }, fehlt);
+    });
+  } else {
+    var zb = pruefVerteilen(anzahl, bp);
+    PRUEF_LV.forEach(function(lv, i){ ziehe(function(x){ return !x.um && x.lv === lv; }, zb[i]); });
+  }
+  // Auffüllen: zuerst die Bloom-Stufen, denen noch Fragen fehlen
+  var offen = anzahl - gezogen.length;
+  if(offen > 0){
+    var soll = pruefVerteilen(anzahl, bp), ist = [0, 0, 0];
+    gezogen.forEach(function(x){ ist[lvIdx[x.lv]]++; });
+    PRUEF_LV.forEach(function(lv, i){
+      var k = Math.min(offen, Math.max(0, soll[i] - ist[i]));
+      offen -= k - zieheBeide(function(x){ return x.lv === lv; }, k);
+    });
+    zieheBeide(function(){ return true; }, offen);
+  }
+  gezogen.sort(function(a, b){ return (lvIdx[a.lv] - lvIdx[b.lv]) || (katIdx[a.f.kat] - katIdx[b.f.kat]) || (a.i - b.i) || (a.um - b.um); });
   var katName = {};
   info.kategorien.forEach(function(k){ katName[k.id] = k.name; });
   var bilder = [], bildNr = {}, fragen = [], loesungen = {};
@@ -13368,7 +13472,7 @@ function pruefBankZiehen(info, kats, anzahl, seed, bloomPct){
     var L = {punkte:pruefPunkteVorschlag(f)};
     if(f.typ === 'mc'){ q.optionen = f.optionen; L.loesung = f.loesung; L.anzeige = f.optionen[f.loesung] || ''; }
     else if(f.typ === 'tf'){ L.loesung = f.loesung; L.anzeige = f.loesung ? 'Wahr' : 'Falsch'; }
-    else if(f.typ === 'text'){ L.loesung = f.loesung; L.anzeige = f.loesung[0] || ''; }
+    else if(f.typ === 'text'){ L.loesung = f.loesung; L.anzeige = f.loesung[0] || ''; if(f.locker) L.locker = true; }
     else if(f.typ === 'offen'){ L.loesung = f.loesung; L.stichworte = pruefStichworte(f.loesung, f.begriff); L.anzeige = f.loesung; }
     else if(f.typ === 'diktat'){ L.text = f.text; L.alt = f.alt || []; L.punkte = pruefDiktatTokens(f.text.join(' ')).length || 1; L.anzeige = ''; }
     else if(f.typ === 'zahl'){ q.einheit = f.einheit || ''; L.loesung = f.loesung; L.anzeige = String(f.loesung.wert).replace('.', ',') + (f.einheit ? ' ' + f.einheit : ''); }
@@ -13406,6 +13510,30 @@ function pruefNorm(s){
     .replace(/ä/g,'ae').replace(/ö/g,'oe').replace(/ü/g,'ue').replace(/ß/g,'ss')
     .replace(/[.,!?;:]/g,'').replace(/\s+/g,' ');
 }
+// Kurzantwort (umgewandelt): ohne Artikel/Klammern/Anführungszeichen, kleine
+// Tippfehler erlaubt (1 Zeichen ab 5, 2 ab 10 Buchstaben). true | 'fast' | false
+function pruefKurzNorm(s){
+  return pruefNorm(String(s || '').replace(/[()"«»„“'’]/g, ' ')).replace(/^(der|die|das|den|dem|des|ein|eine|einen|einem|einer|im|in der|am) /, '').trim();
+}
+function pruefDistanz(a, b){
+  var m = a.length, n = b.length, d = [];
+  for(var j=0;j<=n;j++) d[j] = j;
+  for(var i=1;i<=m;i++){
+    var prev = d[0]; d[0] = i;
+    for(var k=1;k<=n;k++){ var t = d[k]; d[k] = Math.min(d[k] + 1, d[k-1] + 1, prev + (a[i-1] === b[k-1] ? 0 : 1)); prev = t; }
+  }
+  return d[n];
+}
+function pruefKurzOk(v, loesungen){
+  var a = pruefKurzNorm(v); if(!a) return false;
+  var fast = false;
+  (loesungen || []).forEach(function(x){
+    var r = pruefKurzNorm(x); if(!r) return;
+    if(r === a) fast = fast || 'ok';
+    else if(r.length >= 5 && pruefDistanz(a, r) <= (r.length >= 10 ? 2 : 1)) fast = fast || 'fast';
+  });
+  return fast === 'ok' ? true : fast;
+}
 function pruefZahl(s){
   var m = String(s == null ? '' : s).replace(/[’'\s]/g, '').replace(',', '.').match(/-?\d+(\.\d+)?/);
   return m ? parseFloat(m[0]) : NaN;
@@ -13421,7 +13549,11 @@ function pruefBankBewerten(p, loes, antworten, korrektur){
     var v = antworten[q.id], max = +q.punkte > 0 ? +q.punkte : (L.punkte || 1), pkt = 0, a = '–', hinweis = '';
     if(q.typ === 'mc'){ if(v != null && q.optionen[v] != null) a = q.optionen[v]; pkt = v === L.loesung ? max : 0; }
     else if(q.typ === 'tf'){ a = v === true ? 'Wahr' : v === false ? 'Falsch' : '–'; pkt = v === L.loesung ? max : 0; }
-    else if(q.typ === 'text'){ if(v) a = v; var nv = pruefNorm(v); pkt = nv && (L.loesung || []).some(function(x){ return pruefNorm(x) === nv; }) ? max : 0; }
+    else if(q.typ === 'text'){
+      if(v) a = v;
+      if(L.locker){ var ko = pruefKurzOk(v, L.loesung); pkt = ko ? max : 0; if(ko === 'fast') hinweis = 'Kleiner Schreibfehler — als richtig gezählt.'; }
+      else { var nv = pruefNorm(v); pkt = nv && (L.loesung || []).some(function(x){ return pruefNorm(x) === nv; }) ? max : 0; }
+    }
     else if(q.typ === 'zahl'){ if(v) a = v + (q.einheit ? ' ' + q.einheit : ''); var z = pruefZahl(v); pkt = !isNaN(z) && Math.abs(z - L.loesung.wert) <= L.loesung.tol + 1e-9 ? max : 0; }
     else if(q.typ === 'offen'){ if(v) a = v; var o = pruefOffenBewerten(v, L, max); pkt = o.pkt; hinweis = o.hinweis; }
     else if(q.typ === 'zuordnen'){
@@ -13716,6 +13848,7 @@ function pruefBeschreibung(p, lang){
     if(c.katNamen && c.katNamen.length && !p.diktat) teile.push(c.katNamen.join(', '));
     Object.keys(c.optNamen || {}).forEach(function(k){ teile.push(c.optNamen[k]); });
     if(c.bloom && c.bloom.length === 3) teile.push('Bloom ' + c.bloom.join('/'));
+    if(c.formen && c.formen.length === PRUEF_FORMEN.length) teile.push('Formate ' + PRUEF_FORMEN.map(function(x, i){ return x.icon + c.formen[i]; }).join('/'));
   }
   teile.push('Massstab: ' + pruefSkalaText(p));
   return teile.filter(Boolean).join(' · ');
@@ -13806,12 +13939,14 @@ async function pruefEditor(p){
     if(!box || !info || info.art !== 'bank') return null;
     var kats = Array.prototype.map.call(box.querySelectorAll('.pr-kats input:checked'), function(i){ return i.value; });
     var bl = Array.prototype.map.call(box.querySelectorAll('[data-bloom]'), function(i){ return Math.max(0, +i.value || 0); });
-    return {kats:kats, anzahl:Math.min(100, Math.max(1, +(document.getElementById('prAnzahl') || {}).value || 20)), bloom:bl.length === 3 ? bl : null};
+    var fm = Array.prototype.map.call(box.querySelectorAll('[data-form]'), function(i){ return Math.max(0, +i.value || 0); });
+    return {kats:kats, anzahl:Math.min(100, Math.max(1, +(document.getElementById('prAnzahl') || {}).value || 20)), bloom:bl.length === 3 ? bl : null,
+      formen:fm.length === PRUEF_FORMEN.length ? fm : null};
   }
   function vorschauZug(){
     var e = zugEinstellungen();
     if(!e || !e.kats.length) return null;
-    return pruefBankZiehen(info, e.kats, e.anzahl, seed, e.bloom);
+    return pruefBankZiehen(info, e.kats, e.anzahl, seed, e.bloom, e.formen);
   }
   function maxPunkte(){
     if(fragenFix || (!neuZiehen && p && p.maxPunkte && pruefArt(p) === 'bank')) return p.maxPunkte || null;
@@ -13921,6 +14056,10 @@ async function pruefEditor(p){
       b += '<label class="modal-label">Aufteilung nach Bloom (Anteil der Fragen in %)</label><div class="pr-bloom">' + PRUEF_BLOOM.map(function(x, i){
         return '<label><span>'+x.icon+' '+x.name+'</span><input type="number" class="modal-input" data-bloom="'+i+'" min="0" max="100" step="5" value="'+bl[i]+'"></label>';
       }).join('') + '</div><p class="pr-hinweis" id="prBloomInfo"></p>';
+      var fm = gleich && c.formen && c.formen.length === PRUEF_FORMEN.length ? c.formen : PRUEF_FORMEN_STD;
+      b += '<label class="modal-label">Aufgabenformate (Anteil der Fragen in %) <button class="btn btn-ghost btn-sm" id="prFormStd" type="button">Standard</button></label><div class="pr-bloom pr-formen">' + PRUEF_FORMEN.map(function(x, i){
+        return '<label title="'+esc(x.info)+'"><span>'+x.icon+' '+x.name+'</span><small>'+esc(x.info)+'</small><input type="number" class="modal-input" data-form="'+i+'" min="0" max="100" step="5" value="'+fm[i]+'"></label>';
+      }).join('') + '</div><p class="pr-hinweis" id="prFormInfo"></p>';
     }
     b += '<label class="pr-check"><input type="checkbox" id="prMischen"'+(gleich && c.mischen === false ? '' : ' checked')+'> Reihenfolge der Fragen pro Person mischen (alle haben dieselben Fragen)</label>';
     if(info.art === 'bank') b += '<p class="pr-hinweis" id="prZiehHint"></p>';
@@ -13943,12 +14082,31 @@ async function pruefEditor(p){
           (z ? '<br>Gezogen: ' + PRUEF_BLOOM.map(function(x){ return x.icon + ' ' + gz[x.id]; }).join(' · ') + ' — ' +
             Object.keys(typen).map(function(t){ return typen[t] + '× ' + (PRUEF_TYPEN[t] || t); }).join(', ') : '');
       }
+      var fi = document.getElementById('prFormInfo');
+      if(fi && e && e.formen){
+        var pool = pruefBankPool(info, e.kats, true), da2 = {}, um = {}, zf = {}, zum = 0, zg = vorschauZug();
+        pool.forEach(function(x){ if(x.um){ if(!um[x.i]){ um[x.i] = 1; da2.um = (da2.um || 0) + 1; } } else da2[x.fo] = (da2[x.fo] || 0) + 1; });
+        if(zg) zg.fragen.forEach(function(q){ var fo = pruefForm(q.typ); zf[fo] = (zf[fo] || 0) + 1; if(zg.loesungen[q.id] && zg.loesungen[q.id].locker) zum++; });
+        var sf = e.formen.reduce(function(s, x){ return s + x; }, 0), soll = pruefVerteilen(e.anzahl, e.formen);
+        var knapp = PRUEF_FORMEN.filter(function(x, i){ return zg && (zf[x.id] || 0) < soll[i]; });
+        fi.innerHTML = (sf !== 100 ? '<b class="pr-warn">Summe ' + sf + ' % — wird anteilig umgerechnet.</b> ' : '') +
+          'In der Übung: ' + PRUEF_FORMEN.map(function(x){ return x.icon + ' ' + (da2[x.id] || 0); }).join(' · ') +
+          (da2.um ? ' (+ ' + da2.um + ' Auswahl-/Zuordnungsfragen als 🔤 umwandelbar)' : '') +
+          (zg ? '<br>Gezogen: ' + PRUEF_FORMEN.map(function(x){ return x.icon + ' ' + (zf[x.id] || 0); }).join(' · ') +
+            (zum ? ' — davon ' + zum + '× 🔤 aus Auswahl/Zuordnen umgewandelt (Tippfehler werden toleriert, du kannst von Hand umwerten)' : '') : '') +
+          (knapp.length ? '<br><span class="pr-warn">Zu wenig Fragen für ' + knapp.map(function(x){ return x.icon + ' ' + x.name; }).join(', ') + ' — mit anderen Formaten aufgefüllt.</span>' : '');
+      }
       var zh = document.getElementById('prZiehHint');
       if(zh) zh.textContent = neuZiehen
         ? 'Die Fragen werden beim Speichern so gezogen (Erinnern → Verstehen → Anwenden). Punkte und Bloom-Stufe jeder Frage kannst du danach unter «🧮 Aufgaben & Punkte» ändern.'
         : 'Die bisher gezogenen Fragen und deine Punkte bleiben. Änderst du oben etwas, wird beim Speichern neu gezogen.';
       maxInfoZeichnen();
     }
+    var fsBtn = document.getElementById('prFormStd');
+    if(fsBtn) fsBtn.addEventListener('click', function(){
+      Array.prototype.forEach.call(box.querySelectorAll('[data-form]'), function(i){ i.value = PRUEF_FORMEN_STD[+i.getAttribute('data-form')]; });
+      neuZiehen = true; aktualisieren();
+    });
     box.onchange = function(e){
       if(e.target.id === 'prNiveau'){
         var std = PRUEF_BLOOM_STD[e.target.value] || PRUEF_BLOOM_STD.G;
@@ -14020,9 +14178,10 @@ async function pruefEditor(p){
           optionen:optionen, optNamen:optNamen, anzahl:anzahl, mischen:mischenEl.checked};
         var nivEl = document.getElementById('prNiveau');
         if(nivEl && e && e.bloom){ data.cfg.niveau = nivEl.value; data.cfg.bloom = e.bloom; }
+        if(e && e.formen) data.cfg.formen = e.formen;
         data.seed = seed;
         if(info.art === 'bank'){
-          var zug = pruefBankZiehen(info, kats, anzahl, seed, e && e.bloom);
+          var zug = pruefBankZiehen(info, kats, anzahl, seed, e && e.bloom, e && e.formen);
           data.fragen = zug.fragen; data.bilder = zug.bilder; data.cfg.anzahl = zug.fragen.length;
           data.maxPunkte = Object.keys(zug.loesungen).reduce(function(s, k){ return s + (zug.loesungen[k].punkte || 1); }, 0);
           loesung = zug.loesungen;
