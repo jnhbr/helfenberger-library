@@ -1290,7 +1290,49 @@ function kdocFor(klasse, name, id){ return doc(db, 'klassen', klasse, name, id);
 // Private To-dos gehören der Lehrperson, nicht der Klasse.
 function teacherTodosCol(){ return collection(db, 'lehrer', state.user.uid, 'todos'); }
 function isFremdeKlasse(){
-  return !!(state.profile && state.profile.role === 'teacher' && state.klasse !== state.profile.klasse);
+  return !!(state.profile && state.profile.role === 'teacher' && !isLeitung() && state.klasse !== state.profile.klasse);
+}
+
+/* ===================== SCHULLEITUNG (nur Ansicht) =====================
+   Konto mit Custom Claim `leitung: true` und students/{uid}.role = 'leitung'.
+   Sieht alle Klassen, wahlweise als Lehrperson oder als Schüler:in
+   (state.profile.role wird beim Anmelden auf 'teacher' bzw. 'student' gesetzt,
+   damit die ganze App die passende Ansicht zeigt; state.profile.leitung bleibt
+   true). Gespeichert wird nichts: die Schreib-Wrapper unten lassen nur Pfade
+   der eigenen Person durch (Lernstand/Serie/Push beim Ausprobieren als
+   Schüler:in), alles andere wird still verworfen. Die firestore.rules geben
+   der Schulleitung ohnehin nur Leserechte. */
+const LEITUNG_ANSICHT_KEY = 'hl_leitungAnsicht'; // sessionStorage: 'lehrer' | 'schueler'
+function isLeitung(){ return !!(state.profile && state.profile.leitung); }
+var leitungHinweis = { at:0, input:0 };
+['pointerdown','keydown'].forEach(function(ev){
+  document.addEventListener(ev, function(){ leitungHinweis.input = Date.now(); }, true);
+});
+function leitungBlockiert(refs){
+  if(!isLeitung() || !state.user) return false;
+  var eigene = ['progress/','streaks/','pushSubscriptions/'].map(function(p){ return p + state.user.uid; });
+  return refs.some(function(r){
+    var path = r && typeof r.path === 'string' ? r.path : '';
+    return !eigene.some(function(o){ return path === o || path.indexOf(o + '/') === 0; });
+  });
+}
+function leitungNurAnsicht(){
+  // Nur nach einer echten Bedienung melden, nicht bei Hintergrund-Schreibvorgängen;
+  // leicht verzögert, damit es eine allfällige "Gespeichert"-Meldung überschreibt.
+  if(Date.now() - leitungHinweis.input < 3000 && Date.now() - leitungHinweis.at > 1500){
+    leitungHinweis.at = Date.now();
+    setTimeout(function(){ toast('👀 Schulleitung: nur Ansicht – nichts gespeichert.'); }, 400);
+  }
+  return Promise.resolve();
+}
+function wechsleLeitungAnsicht(ansicht){
+  if(!isLeitung()) return;
+  try{ sessionStorage.setItem(LEITUNG_ANSICHT_KEY, ansicht); }catch(e){ toast('Wechsel ist in diesem Browser nicht möglich.'); return; }
+  stopResourceSync();
+  stopTimeTracking();
+  app.innerHTML = '<div class="spinner-wrap">Wechsle die Ansicht …</div>';
+  closeModal();
+  location.reload();
 }
 
 /* Schreibschutz-Nachfrage für Lehrpersonen in einer fremden Klasse. Alle
@@ -1333,16 +1375,16 @@ function klasseWriteGuard(refs){
   });
   return klasseGuard.pending;
 }
-function setDoc(ref){ var a = arguments; return klasseWriteGuard([ref]).then(function(){ return fsSetDoc.apply(null, a); }); }
-function updateDoc(ref){ var a = arguments; return klasseWriteGuard([ref]).then(function(){ return fsUpdateDoc.apply(null, a); }); }
-function deleteDoc(ref){ var a = arguments; return klasseWriteGuard([ref]).then(function(){ return fsDeleteDoc.apply(null, a); }); }
+function setDoc(ref){ var a = arguments; if(leitungBlockiert([ref])) return leitungNurAnsicht(); return klasseWriteGuard([ref]).then(function(){ return fsSetDoc.apply(null, a); }); }
+function updateDoc(ref){ var a = arguments; if(leitungBlockiert([ref])) return leitungNurAnsicht(); return klasseWriteGuard([ref]).then(function(){ return fsUpdateDoc.apply(null, a); }); }
+function deleteDoc(ref){ var a = arguments; if(leitungBlockiert([ref])) return leitungNurAnsicht(); return klasseWriteGuard([ref]).then(function(){ return fsDeleteDoc.apply(null, a); }); }
 function writeBatch(){
   var b = fsWriteBatch(db), refs = [];
   var w = {
     set: function(r){ refs.push(r); b.set.apply(b, arguments); return w; },
     update: function(r){ refs.push(r); b.update.apply(b, arguments); return w; },
     delete: function(r){ refs.push(r); b.delete.apply(b, arguments); return w; },
-    commit: function(){ return klasseWriteGuard(refs).then(function(){ return b.commit(); }); }
+    commit: function(){ if(leitungBlockiert(refs)) return leitungNurAnsicht(); return klasseWriteGuard(refs).then(function(){ return b.commit(); }); }
   };
   return w;
 }
@@ -3062,7 +3104,7 @@ async function doLogin(rawName, password){
   var slug = slugName(rawName);
   if(!slug){ throw new Error('leer'); }
   // Nach jedem Login landet die Lehrperson wieder in der eigenen Klasse.
-  try{ sessionStorage.removeItem(KLASSE_ANSICHT_KEY); }catch(e){}
+  try{ sessionStorage.removeItem(KLASSE_ANSICHT_KEY); sessionStorage.removeItem(LEITUNG_ANSICHT_KEY); }catch(e){}
   await setPersistence(auth, browserLocalPersistence);
   var kandidaten = LOGIN_ALIASES[slug] || [slug];
   var lastErr = null;
@@ -3092,7 +3134,7 @@ function doLogout(){
   // Auch den Ämtliplan vergessen: sonst sieht die naechste Person auf demselben
   // Geraet noch den zwischengespeicherten Stand der vorherigen Sitzung.
   aemtliState = { cfg:null, roster:[], loaded:false, exists:false, inflight:null };
-  try{ sessionStorage.removeItem(KLASSE_ANSICHT_KEY); }catch(e){}
+  try{ sessionStorage.removeItem(KLASSE_ANSICHT_KEY); sessionStorage.removeItem(LEITUNG_ANSICHT_KEY); }catch(e){}
   // Nach dem Abmelden neu laden: Klassenliste, Werkzeuge und Zwischenspeicher
   // gehören zur Klasse der bisherigen Person und dürfen nicht stehen bleiben,
   // wenn sich auf demselben Gerät jemand aus einer anderen Klasse anmeldet.
@@ -3131,7 +3173,13 @@ onAuthStateChanged(auth, async function(user){
     state.profile = snap.data();
     if(!state.profile.klasse) state.profile.klasse = 'G3b';
     state.klasse = state.profile.klasse;
-    if(state.profile.role === 'teacher'){
+    if(state.profile.role === 'leitung'){
+      var ansicht = null;
+      try{ ansicht = sessionStorage.getItem(LEITUNG_ANSICHT_KEY); }catch(e){}
+      state.profile.leitung = true;
+      state.profile.role = ansicht === 'schueler' ? 'student' : 'teacher';
+    }
+    if(state.profile.role === 'teacher' || isLeitung()){
       var gewaehlt = null;
       try{ gewaehlt = sessionStorage.getItem(KLASSE_ANSICHT_KEY); }catch(e){}
       if(gewaehlt && KLASSEN.some(function(k){ return k.id === gewaehlt; })) state.klasse = gewaehlt;
@@ -3149,7 +3197,7 @@ onAuthStateChanged(auth, async function(user){
     // ueber die Leitung mussten.
     aemtliLoad();
     if(state.profile.role === 'teacher'){
-      aemtliGrossStart();
+      if(!isLeitung()) aemtliGrossStart();
       refreshFrageboxBadge();
     } else {
       loadStreak().then(updateStreakButton);
@@ -3240,7 +3288,7 @@ function renderChrome(innerHtml){
   html += '<div class="topbar-title" id="titleBtn">Helfenberger\'s Library</div>';
   html += '<button class="btn btn-ghost btn-sm topbar-coin" id="coinBtn" type="button" title="Schulden" hidden>💸<span class="topbar-coin-badge" id="coinBadge" hidden></span></button>';
   html += topbarFerienCountdownHtml();
-  if(isTeacher){
+  if(isTeacher && !isLeitung()){
     html += '<button class="btn btn-ghost btn-sm topbar-todo" id="todoBtn" type="button" title="To-dos">📝 To-dos <span class="topbar-todo-badge" id="todoBadge">0</span></button>';
     html += '<button class="btn btn-ghost btn-sm topbar-todo" id="pflanzenBtn" type="button" title="Pflanzen">🪴 <span class="topbar-todo-badge due" hidden>0</span></button>';
   }
@@ -3248,11 +3296,11 @@ function renderChrome(innerHtml){
   html += '<button class="topbar-quiz topbar-umfrage" id="umfrageJoinBtn" type="button" hidden>⚡ Umfrage läuft — abstimmen</button>';
   html += '<div class="topbar-spacer"></div>';
   html += '<div class="topbar-user">';
-  if(isTeacher){ html += '<button class="btn btn-ghost btn-sm topbar-klasse'+(isFremdeKlasse()?' fremd':'')+'" id="klasseBtn" type="button" title="Klasse wechseln">🏫 '+esc(state.klasse)+' ▾</button>'; }
+  if(isTeacher || isLeitung()){ html += '<button class="btn btn-ghost btn-sm topbar-klasse'+(isFremdeKlasse()?' fremd':'')+'" id="klasseBtn" type="button" title="Klasse wechseln">🏫 '+esc(state.klasse)+' ▾</button>'; }
   html += '<span>Hallo, <b>'+esc(state.profile.displayName)+'</b></span>';
   html += '<span class="topbar-offline" id="offlineBadge" hidden>📶 Offline</span>';
   if(IS_TEST_SITE){ html += '<span class="topbar-offline">🧪 Testseite</span>'; }
-  if(IS_TEST_SITE && isTeacher){ html += '<button class="btn btn-primary btn-sm" id="goLiveBtn" type="button" title="Stand der Testseite sofort auf die Live-Seite übernehmen">🚀 Jetzt live</button>'; }
+  if(IS_TEST_SITE && isTeacher && !isLeitung()){ html += '<button class="btn btn-primary btn-sm" id="goLiveBtn" type="button" title="Stand der Testseite sofort auf die Live-Seite übernehmen">🚀 Jetzt live</button>'; }
   if(!isTeacher){ html += '<button class="btn btn-ghost btn-sm topbar-bell" id="streakBtn" type="button">🔥 <b>0</b></button>'; }
   if(!isTeacher){ html += '<button class="btn btn-ghost btn-sm topbar-bell topbar-besen" id="aemtliBtn" type="button" title="Ämtli">🧹</button>'; }
   if(!isTeacher){ html += '<button class="btn btn-ghost btn-sm topbar-bell" id="notenBtn" type="button" title="Notenrechner">🎶</button>'; }
@@ -3264,12 +3312,16 @@ function renderChrome(innerHtml){
   html += '<button class="btn btn-ghost btn-sm topbar-bell" id="settingsBtn" type="button" title="Einstellungen">⚙️<span class="topbar-badge" id="settingsBadge" hidden>0</span></button>';
   html += '</div></div>';
   html += '<div class="push-popover" id="pushPopover" hidden></div>';
-  if(isTeacher){ html += '<div class="todo-popover" id="todoPopover" hidden></div>'; }
-  var fremdBanner = isFremdeKlasse()
+  if(isTeacher && !isLeitung()){ html += '<div class="todo-popover" id="todoPopover" hidden></div>'; }
+  var fremdBanner = isLeitung()
+    ? '<div class="klasse-fremd-banner"><span>👀 <b>Schulleitung – nur Ansicht.</b> Klasse <b>'+esc(state.klasse)+'</b> ('+esc(klasseInfo().lp)+'), '+(isTeacher?'Ansicht der Lehrperson':'Ansicht der Schüler:innen')+'. Es wird nichts gespeichert.</span><button class="btn btn-sm btn-primary" id="leitungAnsichtBtn" type="button">'+(isTeacher?'🎒 Zur Schüleransicht':'🧑‍🏫 Zur Lehreransicht')+'</button></div>'
+    : isFremdeKlasse()
     ? '<div class="klasse-fremd-banner"><span>👀 Du bist in der Klasse <b>'+esc(state.klasse)+'</b> ('+esc(klasseInfo().lp)+'). Änderungen werden hier gespeichert.</span><button class="btn btn-sm btn-primary" id="klasseHeimBtn" type="button">Zurück zur '+esc(state.profile.klasse)+'</button></div>'
     : '';
-  html += '<div class="content">'+fremdBanner+(isTeacher ? '<div id="pflanzenBanner"></div>' : '')+innerHtml+'</div>';
+  html += '<div class="content">'+fremdBanner+(isTeacher && !isLeitung() ? '<div id="pflanzenBanner"></div>' : '')+innerHtml+'</div>';
   app.innerHTML = html;
+  var leitungAnsichtBtn = document.getElementById('leitungAnsichtBtn');
+  if(leitungAnsichtBtn){ leitungAnsichtBtn.addEventListener('click', function(){ wechsleLeitungAnsicht(isTeacher ? 'schueler' : 'lehrer'); }); }
 
   document.getElementById('logoBtn').addEventListener('click', goHome);
   document.getElementById('titleBtn').addEventListener('click', goHome);
@@ -3737,7 +3789,7 @@ function openKlassenWahl(){
   var h = '<h3>🏫 Klasse wechseln</h3><div class="klassen-wahl">';
   KLASSEN.forEach(function(k){
     var aktiv = k.id === state.klasse;
-    var eigene = k.id === state.profile.klasse;
+    var eigene = k.id === state.profile.klasse && !isLeitung();
     h += '<button class="btn '+(aktiv?'btn-primary':'btn-ghost')+'" type="button" data-klasse="'+esc(k.id)+'">'+
          '<span><b>'+esc(k.id)+'</b> · '+esc(k.lp)+(eigene?' (deine Klasse)':'')+(aktiv?' ✓':'')+'</span></button>';
   });
@@ -3749,10 +3801,10 @@ function openKlassenWahl(){
   });
 }
 function wechsleKlasse(id){
-  if(!state.profile || state.profile.role !== 'teacher') return;
+  if(!state.profile || (state.profile.role !== 'teacher' && !isLeitung())) return;
   if(id === state.klasse){ closeModal(); return; }
   try{
-    if(id === state.profile.klasse) sessionStorage.removeItem(KLASSE_ANSICHT_KEY);
+    if(id === state.profile.klasse && !isLeitung()) sessionStorage.removeItem(KLASSE_ANSICHT_KEY);
     else sessionStorage.setItem(KLASSE_ANSICHT_KEY, id);
   }catch(e){
     toast('Klassenwechsel ist in diesem Browser nicht möglich.');
@@ -3838,7 +3890,7 @@ function openSettings(){
   var isTeacher = state.profile.role === 'teacher';
   var h = '<h3>⚙️ Einstellungen</h3>';
   h += '<p style="margin:0;color:var(--text-muted);font-size:13px;">Angemeldet als <b>'+esc(state.profile.displayName)+'</b>'+
-       (isTeacher ? ' (Lehrperson, '+esc(state.profile.klasse)+')' : ' · Klasse '+esc(state.klasse))+'</p>';
+       (isLeitung() ? ' (Schulleitung, nur Ansicht) · Klasse '+esc(state.klasse) : isTeacher ? ' (Lehrperson, '+esc(state.profile.klasse)+')' : ' · Klasse '+esc(state.klasse))+'</p>';
   h += '<div class="settings-section"><h4>Konto</h4><div class="settings-actions">'+
        '<button class="btn btn-ghost btn-sm" id="setPwBtn" type="button">🔑 Passwort ändern</button>'+
        '<button class="btn btn-danger btn-sm" id="setLogoutBtn" type="button">Abmelden</button></div></div>';
@@ -6155,7 +6207,7 @@ document.addEventListener('visibilitychange', function(){
    zu überschreiben. */
 
 var timeTrack = { resourceId:null, startedAt:null, flushTimer:null };
-var TIME_FLUSH_MS = 60000;      // bei langen Sitzungen zwischendurch sichern, nicht erst beim Verlassen
+var TIME_FLUSH_MS = 180000;     // bei langen Sitzungen alle 3 Min. zwischendurch sichern (Rest beim Verlassen/Wegwechseln)
 var TIME_MIN_FLUSH_SEC = 3;     // Mini-Blips (versehentlich geöffnet, sofort wieder zu) nicht mitzählen
 
 function startTimeTracking(rid){
@@ -9402,10 +9454,11 @@ function bumpStreak(seconds){
   if(!state.user || !state.profile || state.profile.role === 'teacher') return;
   if(!(seconds > 0)) return;
   var today = todayStr();
-  var patch = {};
-  patch['days.' + today] = increment(seconds);
-  setDoc(doc(db,'streaks', state.user.uid), { days: {} }, {merge:true})
-    .then(function(){ return updateDoc(doc(db,'streaks', state.user.uid), patch); })
+  // Ein einziger Schreibvorgang: merge:true fasst nur days[heute] an und legt
+  // das Dokument bei Bedarf an (spart Firestore-Schreibkontingent im Spark-Plan).
+  var days = {};
+  days[today] = increment(seconds);
+  setDoc(doc(db,'streaks', state.user.uid), { days: days }, {merge:true})
     .then(function(){
       if(!streakState.days) streakState.days = {};
       streakState.days[today] = (streakState.days[today] || 0) + seconds;
@@ -10687,6 +10740,7 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-09-18-schulleitung', datum:'2026-09-18', fuer:'lehrer', text:'Neues Login «Schulleitung»: sieht alle Klassen, wahlweise als Lehrperson oder als Schüler:in (Knopf im gelben Band), kann aber nichts verändern.'},
   {id:'2026-09-18-lmvz-mathe', datum:'2026-09-18', fuer:'alle', text:'Mathe: Alle Online-Übungen aus den Lehrmitteln Mathematik 1, 2 und 3 sind jetzt drin — sortiert nach Kapitel und Unterkapitel, unter «Onlineübungen» nach Niveau I, II und III. Auch im Vollbild.'},
   {id:'2026-09-18-aemtli-stuhl', datum:'2026-09-18', fuer:'lehrer', text:'Ämtli-Erinnerung: am Dienstag steht zusätzlich gross «AUFSTUHLEN», am Freitag «NICHT aufstuhlen».'},
   {id:'2026-09-18-aemtli-gross', datum:'2026-09-18', fuer:'lehrer', text:'Ämtli-Erinnerung: 5 Minuten vor jeder Ämtli-Zeit poppt der Hinweis gross und pulsierend über allem auf (auch im Vollbild). Antippen = weg, zur Ämtli-Zeit verschwindet er sowieso.'},

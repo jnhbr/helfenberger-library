@@ -67,6 +67,7 @@ rules_version = '2';
 //   students/{uid}.nurFach                          -> optional, z.B. 'mathe': Fach-Gast aus einer anderen
 //                                                       Klasse, nur in diesem Fach dabei (siehe index.html)
 //
+// Schulleitung (schulleitung) trägt `leitung: true` und `klasse`: nur Lesen, siehe isLeitung().
 // Lehrpersonen (helfenberger, schlaepfer, schoch) tragen die Custom Claims
 // `teacher: true` und `klasse`, Schüler:innen nur `klasse` — gesetzt von
 // admin/klassen-accounts.js. Schüler:innen lesen nur ihre eigene Klasse,
@@ -92,6 +93,23 @@ function inKlasse(klasse) {
   return isSignedIn() && (isTeacher() || request.auth.token.klasse == klasse);
 }
 
+// Schulleitung: Custom Claim `leitung: true` (admin/klassen-accounts.js).
+// Darf ALLES LESEN, was eine Lehrperson lesen darf, aber nirgends schreiben
+// ausser in den eigenen Pfaden (isOwner). Darum steht isLeitung() nur in
+// read-Regeln; inKlasse() bleibt unverändert, weil es auch in create-Regeln
+// (Fragebox, Quiz-Antworten) vorkommt.
+function isLeitung() {
+  return isSignedIn() && request.auth.token.leitung == true;
+}
+
+function canReadAll() {
+  return isTeacher() || isLeitung();
+}
+
+function inKlasseLesen(klasse) {
+  return inKlasse(klasse) || isLeitung();
+}
+
 service cloud.firestore {
   match /databases/{database}/documents {
 
@@ -99,25 +117,25 @@ service cloud.firestore {
     match /klassen/{klasse} {
 
       match /resources/{resourceId} {
-        allow read: if inKlasse(klasse);
+        allow read: if inKlasseLesen(klasse);
         allow create, update: if isTeacher();
         allow delete: if isTeacher();
       }
 
       match /folders/{folderId} {
-        allow read: if inKlasse(klasse);
+        allow read: if inKlasseLesen(klasse);
         allow create, update: if isTeacher();
         allow delete: if isTeacher();
       }
 
       match /calendarEntries/{entryId} {
-        allow read: if inKlasse(klasse);
+        allow read: if inKlasseLesen(klasse);
         allow create, update: if isTeacher();
         allow delete: if isTeacher();
       }
 
       match /debts/{uid} {
-        allow read: if isTeacher() || (isOwner(uid) && inKlasse(klasse));
+        allow read: if canReadAll() || (isOwner(uid) && inKlasse(klasse));
         allow create, update: if isTeacher()
           && request.resource.data.entries is list
           && request.resource.data.entries.size() <= 100;
@@ -127,21 +145,22 @@ service cloud.firestore {
 
       // Keine Datenvalidierung, write darf kombiniert bleiben.
       match /appMeta/{id} {
-        allow read: if inKlasse(klasse);
+        allow read: if inKlasseLesen(klasse);
         allow write: if isTeacher();
       }
 
       match /klassenzimmer/{toolId} {
-        allow read, write: if isTeacher();
+        allow read: if canReadAll();
+        allow write: if isTeacher();
       }
 
       match /klasseninfo/{toolId} {
-        allow read: if inKlasse(klasse);
+        allow read: if inKlasseLesen(klasse);
         allow write: if isTeacher();
       }
 
       match /fragen/{fragenId} {
-        allow read: if isTeacher() || (inKlasse(klasse) && resource.data.published == true);
+        allow read: if canReadAll() || (inKlasse(klasse) && resource.data.published == true);
         allow create: if inKlasse(klasse)
           && request.resource.data.text is string
           && request.resource.data.text.size() > 0
@@ -153,22 +172,23 @@ service cloud.firestore {
       }
 
       match /quizzes/{quizId} {
-        allow read, write: if isTeacher();
+        allow read: if canReadAll();
+        allow write: if isTeacher();
       }
 
       match /quizSessions/{sessionId} {
-        allow read: if inKlasse(klasse);
+        allow read: if inKlasseLesen(klasse);
         allow create, update: if isTeacher();
         allow delete: if isTeacher();
 
         match /antworten/{uid} {
-          allow read: if (isOwner(uid) && inKlasse(klasse)) || isTeacher();
+          allow read: if (isOwner(uid) && inKlasse(klasse)) || canReadAll();
           allow create, update: if isOwner(uid) && inKlasse(klasse);
           allow delete: if isTeacher();
         }
 
         match /spieler/{uid} {
-          allow read: if inKlasse(klasse);
+          allow read: if inKlasseLesen(klasse);
           allow create: if isTeacher() || (isOwner(uid) && inKlasse(klasse) && request.resource.data.score == 0);
           allow update: if isTeacher() || (isOwner(uid) && inKlasse(klasse) && request.resource.data.score == resource.data.score);
           allow delete: if isTeacher();
@@ -178,13 +198,14 @@ service cloud.firestore {
 
     // Private To-dos jeder Lehrperson. Keine Datenvalidierung, darum kombiniert.
     match /lehrer/{uid}/todos/{todoId} {
-      allow read, write: if isTeacher() && isOwner(uid);
+      allow read: if canReadAll() && isOwner(uid);
+      allow write: if isTeacher() && isOwner(uid);
     }
 
     // Roster info. Only the admin script (Admin SDK, bypasses rules) writes this.
     // Schüler:innen lesen nur die eigene Klasse (Abfrage where('klasse','==',...)).
     match /students/{uid} {
-      allow read: if isTeacher() || isOwner(uid)
+      allow read: if canReadAll() || isOwner(uid)
         || (isSignedIn() && resource.data.klasse == request.auth.token.klasse);
       allow write: if false;
     }
@@ -215,7 +236,7 @@ service cloud.firestore {
 
     // Each student's own progress, one doc per resource. Teacher can read (not write) for an overview.
     match /progress/{uid}/resources/{resourceId} {
-      allow read: if isOwner(uid) || isTeacher();
+      allow read: if isOwner(uid) || canReadAll();
       allow write: if isOwner(uid);
     }
 
@@ -226,7 +247,7 @@ service cloud.firestore {
     // schreibt. Keine Datenvalidierung angehaengt, darum kann write kombiniert
     // bleiben (bei einem delete waere request.resource null).
     match /progress/{uid}/erledigt/{docId} {
-      allow read: if isOwner(uid) || isTeacher();
+      allow read: if isOwner(uid) || canReadAll();
       allow write: if isOwner(uid);
     }
 
@@ -252,25 +273,29 @@ service cloud.firestore {
     // Rotstift: exam correction tool. Teacher-only end to end — this holds
     // exam scores, so unlike resources/folders it is never student-readable.
     match /pruefungKorrektur/{pruefungId} {
-      allow read, write: if isTeacher();
+      allow read: if canReadAll();
+      allow write: if isTeacher();
       match /schueler/{schuelerId} {
-        allow read, write: if isTeacher();
+        allow read: if canReadAll();
+        allow write: if isTeacher();
       }
     }
 
     // Lern-Serie: geübte Minuten pro Tag. Jede:r schreibt nur die eigene,
     // die Lehrperson darf sie lesen (Überblick, wer regelmässig übt).
     match /streaks/{uid} {
-      allow read: if isOwner(uid) || isTeacher();
+      allow read: if isOwner(uid) || canReadAll();
       allow create, update: if isOwner(uid);
       // Separat, siehe oben.
       allow delete: if isTeacher();
     }
 
     match /pruefungKorrekturScans/{schuelerId} {
-      allow read, write: if isTeacher();
+      allow read: if canReadAll();
+      allow write: if isTeacher();
       match /pages/{pageIndex} {
-        allow read, write: if isTeacher();
+        allow read: if canReadAll();
+        allow write: if isTeacher();
       }
     }
 
