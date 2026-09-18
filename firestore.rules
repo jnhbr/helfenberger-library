@@ -38,6 +38,9 @@ rules_version = '2';
 //                                                       calendarEntries), nur fuer die Person selbst sichtbar
 //   progress/{uid}/noten/liste                      -> {faecher:{fachId:[{id,name,note,gewicht}]}, updatedAt}
 //                                                       privater Notenrechner, nur die Person selbst
+//   progress/{uid}/pruefungsnoten/{klasse}_{pruefId} -> {fach, name, note, gewicht, pruefungId, klasse, datum}
+//                                                       Note aus einer Online-Prüfung; schreibt nur die Lehrperson
+//                                                       (beim Freigeben der Resultate), die Person liest sie im Notenrechner
 //   quizSessions/umfrage                            -> laufende Blitzumfrage (nutzt die bestehenden quizSessions-Regeln,
 //                                                       Stimmen liegen unter .../antworten/{uid})
 //   klassenzimmer/sitzplan                          -> aktueller Sitzplan {tables, seats, meta, rules, absent,
@@ -56,8 +59,10 @@ rules_version = '2';
 //   quizSessions/aktiv                              -> laufende Quiz-Runde (feste Dokument-ID, es läuft immer nur eine)
 //   quizSessions/aktiv/antworten/{uid}              -> {qIndex, choice, at, name}   (jede:r schreibt nur die eigene)
 //   quizSessions/aktiv/spieler/{uid}                -> {name, score, correct}       (Punkte setzt nur die Lehrperson)
-//   pruefungen/{id}                                 -> {titel, resourceId, contentId, cfg, seed, status: entwurf|offen|beendet,
-//                                                       resultateFrei, punkteFuer6, rundung} Online-Prüfung (Prüfungsmodus)
+//   pruefungen/{id}                                 -> {titel, art: nativ|bank, resourceId, contentId, cfg, seed, fragen (OHNE
+//                                                       Lösungen), bilder, status: entwurf|offen|beendet, resultateFrei,
+//                                                       punkteFuer6, rundung, fach, gewicht} Online-Prüfung (Prüfungsmodus)
+//   pruefungen/{id}/intern/loesung                  -> {loesungen:{frageId:{typ, loesung, anzeige, punkte}}} NUR Lehrperson
 //   pruefungen/{id}/teilnahmen/{uid}                -> {status: laeuft|gesperrt|abgegeben, aktiv, antworten, verstoesse,
 //                                                       punkte, max, details}. Die Person schreibt nur, solange
 //                                                       status == 'laeuft' — entsperren kann nur die Lehrperson.
@@ -221,6 +226,13 @@ service cloud.firestore {
           // Separat, siehe oben: bei einem delete ist request.resource null.
           allow delete: if isTeacher();
         }
+
+        // Lösungen der Bank-Prüfungen: nie für Schüler:innen lesbar.
+        // Keine Datenvalidierung, write darf kombiniert bleiben.
+        match /intern/{docId} {
+          allow read: if canReadAll();
+          allow write: if isTeacher();
+        }
       }
     }
 
@@ -291,6 +303,19 @@ service cloud.firestore {
     // selbst. Keine Datenvalidierung, write darf kombiniert bleiben.
     match /progress/{uid}/noten/{docId} {
       allow read, write: if isOwner(uid);
+    }
+
+    // Noten aus Online-Prüfungen: nur die Lehrperson trägt ein/entfernt, die
+    // Person selbst liest sie (Notenrechner).
+    match /progress/{uid}/pruefungsnoten/{notenId} {
+      allow read: if isOwner(uid) || canReadAll();
+      allow create, update: if isTeacher()
+        && request.resource.data.note is number
+        && request.resource.data.note >= 1 && request.resource.data.note <= 6
+        && request.resource.data.gewicht is number
+        && request.resource.data.gewicht > 0 && request.resource.data.gewicht <= 10;
+      // Separat: bei einem delete ist request.resource null.
+      allow delete: if isTeacher();
     }
 
     // Each signed-in user's own push-notification device registrations.

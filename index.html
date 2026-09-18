@@ -1204,6 +1204,40 @@
   span.pr-det-ok{cursor:default;}
   .pr-det-f small{color:var(--text-muted);}
   .pr-det-a{color:var(--text-muted);margin-top:2px;}
+
+  .noten-row-fix span{padding:7px 9px;border-radius:8px;background:var(--surface-2);font-size:14px;}
+  .noten-row-fix span:last-child{background:none;text-align:center;padding:0;}
+  .pr-warn{color:var(--bad);}
+  .pr-bank-wrap{flex:1;overflow:auto;padding:18px 16px 40px;}
+  .pr-bank{max-width:760px;margin:0 auto;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;box-shadow:var(--shadow);}
+  .pr-q-kopf{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center;font-size:13px;color:var(--text-muted);}
+  .pr-q-bar{height:6px;background:var(--surface-2);border-radius:99px;margin:10px 0 14px;overflow:hidden;}
+  .pr-q-bar div{height:100%;background:var(--brand);transition:width .2s;}
+  .pr-q-kontext{color:var(--text-muted);font-size:14px;line-height:1.45;margin:0 0 10px;}
+  .pr-q-bild{--accent:#3A3F73;--klick:#E8752C;--m:#7048e8;--normal:#2E9E5B;color:var(--text);max-width:420px;margin:0 auto 12px;}
+  .pr-q-bild svg{max-width:100%;height:auto;}
+  .pr-q-frage{font-size:18px;font-weight:700;line-height:1.4;margin:0 0 14px;}
+  .pr-q-opts{display:flex;flex-direction:column;gap:8px;}
+  .pr-q-tf{flex-direction:row;}
+  .pr-q-tf .pr-q-opt{flex:1;text-align:center;}
+  .pr-q-opt{text-align:left;font:inherit;font-size:15px;padding:12px 14px;border-radius:12px;border:2px solid var(--border);background:var(--surface);color:var(--text);cursor:pointer;}
+  .pr-q-opt.sel{border-color:var(--brand);background:var(--brand);color:var(--brand-contrast);}
+  .pr-q-in{font-size:16px;}
+  .pr-q-zahl{display:flex;gap:10px;align-items:center;}
+  .pr-q-zahl span{font-weight:700;}
+  .pr-q-match{display:flex;flex-direction:column;gap:8px;}
+  .pr-q-match label{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.2fr);gap:10px;align-items:center;font-size:14px;}
+  .pr-q-order{display:flex;flex-direction:column;gap:6px;}
+  .pr-q-orow{display:flex;gap:8px;align-items:center;background:var(--surface-2);border-radius:10px;padding:6px 10px;}
+  .pr-q-orow span{flex:1;}
+  .pr-q-nav{display:flex;justify-content:space-between;gap:10px;margin-top:18px;flex-wrap:wrap;}
+  .pr-q-dots{display:flex;flex-wrap:wrap;gap:5px;justify-content:center;margin-top:14px;}
+  .pr-q-dots button{width:28px;height:28px;border-radius:8px;border:2px solid var(--border);background:var(--surface);color:var(--text-muted);font-size:12px;font-weight:700;cursor:pointer;padding:0;}
+  .pr-q-dots button.done{background:var(--surface-2);color:var(--text);}
+  .pr-q-dots button.cur{border-color:var(--brand);color:var(--text);}
+  .pr-q-confirm{margin-top:16px;padding:14px;border-radius:var(--radius-sm);background:var(--bad-soft);}
+  .pr-q-confirm p{margin:0 0 10px;}
+  @media (max-width:560px){ .pr-q-match label{grid-template-columns:1fr;gap:4px;} }
 </style>
 <script>if(/-test\//.test(location.pathname))document.documentElement.classList.add('test-site');</script>
 </head>
@@ -4157,7 +4191,10 @@ async function runGoLive(){
    progress/{uid}/noten/liste -> {faecher:{fachId:[{id,name,note,gewicht}]}}.
    Nur die Person selbst liest/schreibt es (siehe firestore.rules).
    Gespeichert wird immer das ganze Dokument per setDoc OHNE merge - mit
-   merge:true würde ein gelöschtes Fach/eine gelöschte Note stehen bleiben. */
+   merge:true würde ein gelöschtes Fach/eine gelöschte Note stehen bleiben.
+   Dazu kommen die Noten aus Online-Prüfungen (progress/{uid}/pruefungsnoten/*,
+   schreibt nur die Lehrperson beim «Resultate freigeben», siehe
+   pruefNotenEintragen): fest angezeigt, zählen im Schnitt mit. */
 
 var NOTEN_EXTRA_FAECHER = [
   {id:'englisch', name:'Englisch', color:'#2B59C3'},
@@ -4175,18 +4212,24 @@ function notenFachById(id){
   return notenFaecher().find(function(f){ return f.id === id; }) || {id:id, name:id, color:'#556270'};
 }
 
-var noten = { faecher:{}, uid:null, offen:{} };
+var noten = { faecher:{}, uid:null, offen:{}, pruef:[] };
 
 function notenRef(){ return doc(db, 'progress', state.user.uid, 'noten', 'liste'); }
 
 function notenLoad(){
-  if(noten.uid === state.user.uid) return Promise.resolve(noten.faecher);
-  return getDoc(notenRef()).then(function(snap){
+  var eigene = noten.uid === state.user.uid ? Promise.resolve() : getDoc(notenRef()).then(function(snap){
     noten.faecher = (snap.exists() && snap.data().faecher) || {};
     noten.uid = state.user.uid;
-    return noten.faecher;
   });
+  // Prüfungsnoten jedes Mal frisch: die Lehrperson kann sie inzwischen eingetragen oder entfernt haben.
+  var pruefNoten = getDocs(collection(db, 'progress', state.user.uid, 'pruefungsnoten')).then(function(snap){
+    var l = [];
+    snap.forEach(function(d){ var x = d.data(); if(x && typeof x.note === 'number' && x.fach) l.push(Object.assign({id:d.id}, x)); });
+    noten.pruef = l;
+  }).catch(function(err){ console.error('Prüfungsnoten', err); });
+  return Promise.all([eigene, pruefNoten]).then(function(){ return noten.faecher; });
 }
+function notenPruefVon(fach){ return (noten.pruef || []).filter(function(n){ return n.fach === fach; }); }
 function notenSave(){
   return setDoc(notenRef(), { faecher: noten.faecher, updatedAt: serverTimestamp() })
     .catch(function(err){ console.error(err); toast('Noten konnten nicht gespeichert werden.'); });
@@ -4231,18 +4274,23 @@ function paintNotenrechner(){
   '</div>';
 
   var ids = Object.keys(noten.faecher).filter(function(id){ return (noten.faecher[id]||[]).length; });
+  (noten.pruef || []).forEach(function(n){ if(ids.indexOf(n.fach) < 0) ids.push(n.fach); });
   ids.sort(function(a,b){ return notenFachById(a).name.localeCompare(notenFachById(b).name, 'de'); });
   if(!ids.length){
     h += '<div class="noten-empty">Noch keine Noten eingetragen.</div>';
   }
   ids.forEach(function(id){
-    var f = notenFachById(id), liste = noten.faecher[id];
-    var avg = notenSchnitt(liste);
+    var f = notenFachById(id), liste = noten.faecher[id] || [], fix = notenPruefVon(id);
+    var avg = notenSchnitt(liste.concat(fix));
     h += '<details class="noten-fach" data-fach="'+esc(id)+'" style="--nf-c:'+esc(f.color)+'"'+(noten.offen[id] === false ? '' : ' open')+'>'+
-      '<summary><span class="noten-fach-name">'+esc(f.name)+' <span class="noten-fach-count">('+liste.length+')</span></span>'+
+      '<summary><span class="noten-fach-name">'+esc(f.name)+' <span class="noten-fach-count">('+(liste.length + fix.length)+')</span></span>'+
       '<span class="noten-schnitt">Ø '+(avg === null ? '–' : esc(fmtNote(avg))+'<small>≈ '+esc((Math.round(avg*2)/2).toFixed(1))+'</small>')+'</span></summary>'+
       '<div class="noten-rows">'+
       '<div class="noten-row noten-row-head"><span>Prüfung</span><span>Note</span><span>Gewicht</span><span></span></div>'+
+      fix.map(function(n){
+        return '<div class="noten-row noten-row-fix" title="Von der Lehrperson aus der Online-Prüfung eingetragen">'+
+          '<span>📝 '+esc(n.name || 'Prüfung')+'</span><span>'+esc(fmtNote(n.note))+'</span><span>'+esc(String(n.gewicht))+'</span><span>🔒</span></div>';
+      }).join('')+
       liste.map(function(n){
         return '<div class="noten-row" data-id="'+esc(n.id)+'">'+
           '<input type="text" class="noten-in" data-k="name" maxlength="60" value="'+esc(n.name||'')+'" placeholder="Prüfung">'+
@@ -4296,7 +4344,7 @@ function paintNotenrechner(){
           if(!ok){ inp.value = String(n[k]); toast(k === 'note' ? 'Note muss zwischen 1 und 6 liegen.' : 'Gewichtung muss grösser als 0 sein.'); return; }
           n[k] = v;
           notenSave();
-          var avg = notenSchnitt(noten.faecher[fach]);
+          var avg = notenSchnitt((noten.faecher[fach] || []).concat(notenPruefVon(fach)));
           var el = det.querySelector('.noten-schnitt');
           if(el) el.innerHTML = 'Ø '+(avg === null ? '–' : esc(fmtNote(avg))+'<small>≈ '+esc((Math.round(avg*2)/2).toFixed(1))+'</small>');
         });
@@ -10869,8 +10917,8 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
-  {id:'2026-09-18-pruefungsmodus-lp', datum:'2026-09-18', fuer:'lehrer', text:'Neu im Klassenzimmer: 📝 Prüfungen. Prüfung aus Pöstlergeografie zusammenstellen (Bereiche, Gebiet, Antwortart, Anzahl, Notenskala), freigeben und live zuschauen. Wer die Prüfung verlässt (Tab, Fenster, Esc, neu laden), ist gesperrt, bis du entsperrst. Korrigiert und benotet wird automatisch, einzelne Antworten kannst du von Hand umwerten. Resultate siehst nur du, bis du sie freigibst. Vorher Pöstlergeografie mit der neuen Fassung ersetzen.'},
-  {id:'2026-09-18-pruefungsmodus', datum:'2026-09-18', fuer:'alle', text:'Online-Prüfungen: Wenn oben «📝 Prüfung verfügbar» steht, kannst du die Prüfung starten. Achtung: Verlässt du sie (anderer Tab, anderes Fenster, Esc, neu laden), wirst du gesperrt und musst warten, bis die Lehrperson dich entsperrt.'},
+  {id:'2026-09-18-pruefungsmodus-lp', datum:'2026-09-18', fuer:'lehrer', text:'Neu im Klassenzimmer: 📝 Prüfungen. Übung wählen — die Library liest die Bereiche selbst aus der Übung (Themen der Prüfungsvorbereitungen, Themenkarten der Mathe-Übungen, bei Pöstlergeografie Bereiche/Gebiet/Antwortart) und zieht daraus die Fragen. Freigeben und live zuschauen: Wer die Prüfung verlässt (Tab, Fenster, Esc, neu laden), ist gesperrt, bis du entsperrst. Automatisch korrigiert, von Hand umwertbar. Mit «📣 Resultate freigeben» kommt die Note mit der gewählten Gewichtung in den Notenrechner der Klasse — verbergen oder löschen nimmt sie wieder heraus.'},
+  {id:'2026-09-18-pruefungsmodus', datum:'2026-09-18', fuer:'alle', text:'Online-Prüfungen: Wenn oben «📝 Prüfung verfügbar» steht, kannst du die Prüfung starten. Achtung: Verlässt du sie (anderer Tab, anderes Fenster, Esc, neu laden), wirst du gesperrt und musst warten, bis die Lehrperson dich entsperrt. Sobald die Lehrperson die Resultate freigibt, steht deine Note automatisch im 🎶 Notenrechner.'},
   {id:'2026-09-18-mathe-tastatur-weiter', datum:'2026-09-18', fuer:'alle', text:'Mathe-Übungen: Den Taschenrechner 🧮 kannst du jetzt auch mit der Tastatur bedienen (Ziffern, + − * /, Enter). Und wenn du eine Übung wieder öffnest, landest du direkt bei der Aufgabe, bei der du aufgehört hast — auch auf einem anderen Gerät.'},
   {id:'2026-09-18-schulleitung', datum:'2026-09-18', fuer:'lehrer', text:'Neues Login «Schulleitung»: sieht alle Klassen, wahlweise als Lehrperson oder als Schüler:in (Knopf im gelben Band), kann aber nichts verändern.'},
   {id:'2026-09-18-lmvz-mathe', datum:'2026-09-18', fuer:'alle', text:'Mathe: Alle Online-Übungen aus den Lehrmitteln Mathematik 1, 2 und 3 sind jetzt drin — sortiert nach Kapitel und Unterkapitel, unter «Onlineübungen» nach Niveau I, II und III. Auch im Vollbild.'},
@@ -12350,11 +12398,21 @@ function renderKlassenzimmer(){
 }
 
 /* ===================== 📝 PRÜFUNGSMODUS =====================
-   Die Lehrperson erstellt im Klassenzimmer eine Prüfung aus einer Übung, die
-   einen Prüfungsmodus kennt (bisher: Pöstlergeografie — die Seite liest
-   window.__GEO_PRUEFUNG und meldet Stand/Abgabe per postMessage
-   {type:'geoPruefung'}). Gibt sie die Prüfung frei, erscheint bei den
-   Schüler:innen oben «📝 Prüfung verfügbar».
+   Die Lehrperson erstellt im Klassenzimmer eine Prüfung aus einer Übung. Beim
+   Auswählen wird die Übung in einem unsichtbaren, abgeschotteten iframe
+   geladen und «befragt» (pruefProbe), welche Bereiche sie hat:
+   - art 'nativ': die Seite hat einen eigenen Prüfungsmodus und meldet ihre
+     Bereiche/Einstellungen selbst (Pöstlergeografie: liest window.__GEO_PRUEFUNG,
+     meldet Stand/Abgabe per postMessage {type:'geoPruefung'}).
+   - art 'bank': die Library liest die Fragen aus der Seite aus (Quiz-
+     Prüfungsvorbereitungen: TOPICS + Q; Mathe-Übungen: THEMES) und stellt die
+     Prüfung selbst dar (pruefBank*). Bereiche = Themen der Übung. Die Fragen
+     liegen ohne Lösungen im Prüfungsdokument, die Lösungen in
+     pruefungen/{id}/intern/loesung (nur Lehrperson); korrigiert wird darum auf
+     dem Gerät der Lehrperson, beim «Resultate freigeben» werden Punkte und
+     Details in die Teilnahmen geschrieben.
+   Gibt die Lehrperson die Prüfung frei, erscheint bei den Schüler:innen oben
+   «📝 Prüfung verfügbar».
 
    Wer startet, schreibt die Prüfung im Vollbild über allem (#pruefLock hängt
    an <body>, nicht in #app, damit kein render() sie wegräumt). Verlässt man
@@ -12370,10 +12428,15 @@ function renderKlassenzimmer(){
    Die Note wird nicht gespeichert, sondern aus Punkten + Notenskala der
    Prüfung berechnet — so wirkt eine geänderte Skala auch rückwirkend. */
 
-var PRUEF_KATS = {cont:'🧭 Kontinente', land:'🗺️ Länder', cap:'🏛️ Hauptstädte', flag:'🚩 Flaggen', river:'🌊 Flüsse'};
-var PRUEF_REG = {ALL:'🌍 Welt', EU:'Europa', AS:'Asien', AF:'Afrika', NA:'Nord-/Mittelamerika', SA:'Südamerika', OC:'Ozeanien'};
-var PRUEF_LVL = {1:'⭐ Grundwissen', 2:'⭐⭐ Erweitert', 3:'⭐⭐⭐ Alle Länder'};
-var PRUEF_DIFF = {1:'🟢 Auswahl (leicht)', 2:'🟡 Auswahl mit Nachbarländern', 3:'🔴 Eintippen (kleine Tippfehler ok)', 4:'🟣 Eintippen (exakt)'};
+// Fallback für eine Pöstlergeografie-Fassung, die den Prüfungsmodus schon
+// kennt, aber noch nicht auf die Befragung antwortet.
+var PRUEF_GEO_INFO = {art:'nativ', standardKats:['land','cap','flag'],
+  kategorien:[{id:'cont',name:'🧭 Kontinente'},{id:'land',name:'🗺️ Länder'},{id:'cap',name:'🏛️ Hauptstädte'},{id:'flag',name:'🚩 Flaggen'},{id:'river',name:'🌊 Flüsse'}],
+  optionen:[
+    {id:'reg', name:'Gebiet', standard:'EU', werte:[['ALL','🌍 Welt'],['EU','Europa'],['AS','Asien'],['AF','Afrika'],['NA','Nord-/Mittelamerika'],['SA','Südamerika'],['OC','Ozeanien']]},
+    {id:'lvl', name:'Umfang', standard:'1', werte:[['1','⭐ Grundwissen'],['2','⭐⭐ Erweitert'],['3','⭐⭐⭐ Alle Länder']]},
+    {id:'diff', name:'Antwortart', standard:'1', werte:[['1','🟢 Auswahl (leicht)'],['2','🟡 Auswahl, Nachbarländer als Falle'],['3','🔴 Eintippen (kleine Tippfehler ok)'],['4','🟣 Eintippen (exakt)']]}
+  ]};
 var PRUEF_STALE_MS = 90000;   // so lange ohne Lebenszeichen = «keine Verbindung»
 
 var pruef = {
@@ -12381,13 +12444,17 @@ var pruef = {
   mineUnsubs:{}, mine:{},     // Schüler:in: eigene Teilnahme je Prüfung
   teilUnsubs:{}, teil:{},     // Lehrperson: alle Teilnahmen je Prüfung
   sess:null,                  // laufende Prüfung auf DIESEM Gerät
-  monTimer:null, lockSig:''
+  monTimer:null, lockSig:'',
+  loes:{}                     // Lehrperson: Lösungen je Bank-Prüfung (intern/loesung)
 };
 
 function pruefCol(){ return kcol('pruefungen'); }
 function pruefRef(id){ return kdoc('pruefungen', id); }
 function teilCol(pid){ return kcol('pruefungen', pid, 'teilnahmen'); }
 function teilRef(pid, uid){ return kdoc('pruefungen', pid, 'teilnahmen', uid); }
+function loesRef(pid){ return kdoc('pruefungen', pid, 'intern', 'loesung'); }
+function pruefArt(p){ return p.art || 'nativ'; }
+function pruefAnzahl(p){ return pruefArt(p) === 'bank' ? (p.fragen || []).length : ((p.cfg && p.cfg.anzahl) || 0); }
 function pruefMs(ts){ return ts && ts.toMillis ? ts.toMillis() : (typeof ts === 'number' ? ts : 0); }
 function pruefById(id){ return pruef.list.find(function(p){ return p.id === id; }) || null; }
 // Eigene Teilnahme sofort lokal nachführen: die Prüfungsliste und die eigene
@@ -12574,27 +12641,23 @@ async function pruefStarten(p, weiter, vorschau){
         await setDoc(teilRef(p.id, uid), {
           uid:uid, name:state.profile.displayName || '', status:'laeuft', aktiv:true,
           gestartetAm:serverTimestamp(), lebt:serverTimestamp(),
-          antworten:{}, beantwortet:0, max:(p.cfg && p.cfg.anzahl) || 0, verstoesse:[]
+          antworten:{}, beantwortet:0, max:pruefAnzahl(p), verstoesse:[]
         });
       }
       docOk = true;
       // Wächter nach einer kurzen Schonfrist (Vollbild braucht einen Moment) — schon während die Seite lädt.
       setTimeout(function(){ if(pruef.sess === sess) pruefWaechterAn(); }, 1500);
     }
+    var saved = (!vorschau && pruef.mine[p.id] && pruef.mine[p.id].antworten) || {};
+    if(pruefArt(p) === 'bank'){ pruefBankStart(p, sess, ov, saved); return; }
     var html = await loadResourceHtml(p.contentId);
     if(pruef.sess !== sess) return;
-    var saved = (!vorschau && pruef.mine[p.id] && pruef.mine[p.id].antworten) || {};
-    var cfg = Object.assign({}, p.cfg || {}, {titel:p.titel, seed:p.seed, personSeed:pruefPersonSeed(uid), antworten:saved});
+    var cfg = Object.assign({}, p.cfg || {}, (p.cfg && p.cfg.optionen) || {}, {titel:p.titel, seed:p.seed, personSeed:pruefPersonSeed(uid), antworten:saved});
     var inject = '<script>window.__GEO_PRUEFUNG=' + JSON.stringify(cfg).replace(/</g, '\\u003c') + ';<\/script>';
     var headRe = /<head(\s[^>]*)?>/i;
     html = headRe.test(html) ? html.replace(headRe, function(m){ return m + inject; }) : inject + html;
-    ov.innerHTML =
-      '<div class="pr-lock-bar"><b>📝 '+esc(p.titel)+'</b><span>'+esc(state.profile.displayName || '')+'</span>'+
-      (vorschau ? '<span class="pr-lock-hint">Vorschau — nichts wird gespeichert</span><button class="btn btn-sm btn-ghost" id="pruefVorschauZu" type="button">Schliessen</button>'
-                : '<span class="pr-lock-hint">🔒 Nicht verlassen, sonst wirst du gesperrt</span>')+'</div>'+
-      '<iframe id="pruefFrame" title="'+esc(p.titel)+'" allow="clipboard-read; clipboard-write"></iframe>';
-    var zu = document.getElementById('pruefVorschauZu');
-    if(zu) zu.addEventListener('click', function(){ pruefSessionStopp(); pruefFullscreenAus(); pruefLockHide(); });
+    ov.innerHTML = pruefLockBar(p, vorschau) + '<iframe id="pruefFrame" title="'+esc(p.titel)+'" allow="clipboard-read; clipboard-write"></iframe>';
+    pruefLockBarVerdrahten();
     sess.frame = document.getElementById('pruefFrame');
     sess.frame.srcdoc = html;
   }catch(err){
@@ -12612,6 +12675,15 @@ async function pruefStarten(p, weiter, vorschau){
     if(!vorschau) pruef.mine[p.id] = vorher;
     uiInfo('Prüfung konnte nicht gestartet werden', 'Bitte melde dich bei der Lehrperson. ('+(err && err.code || err && err.message || 'Fehler')+')');
   }
+}
+function pruefLockBar(p, vorschau){
+  return '<div class="pr-lock-bar"><b>📝 '+esc(p.titel)+'</b><span>'+esc(state.profile.displayName || '')+'</span>'+
+    (vorschau ? '<span class="pr-lock-hint">Vorschau — nichts wird gespeichert</span><button class="btn btn-sm btn-ghost" id="pruefVorschauZu" type="button">Schliessen</button>'
+              : '<span class="pr-lock-hint">🔒 Nicht verlassen, sonst wirst du gesperrt</span>')+'</div>';
+}
+function pruefLockBarVerdrahten(){
+  var zu = document.getElementById('pruefVorschauZu');
+  if(zu) zu.addEventListener('click', function(){ pruefSessionStopp(); pruefFullscreenAus(); pruefLockHide(); });
 }
 function pruefPersonSeed(uid){
   var h = 2166136261;
@@ -12686,41 +12758,48 @@ window.addEventListener('message', function(e){
     if(p && p.status === 'beendet') pruefErzwingeAbgabe();
     return;
   }
-  if(d.action === 'stand'){
-    s.antworten = d.antworten || {}; s.beantwortet = d.beantwortet || 0;
-    if(s.vorschau) return;
-    clearTimeout(s.saveTimer);
-    s.saveTimer = setTimeout(function(){
-      if(pruef.sess !== s || s.ending) return;
-      updateDoc(teilRef(s.pid, state.user.uid), {antworten:s.antworten, beantwortet:s.beantwortet, lebt:serverTimestamp()}).catch(function(err){ console.error('Prüfungsstand speichern', err); });
-    }, 1200);
+  if(d.action === 'stand'){ pruefStand(s, d.antworten, d.beantwortet); return; }
+  if(d.action === 'abgabe') pruefAbgabe(s, d);
+});
+// Laufender Stand: gebündelt speichern (höchstens alle 1.2 s).
+function pruefStand(s, antworten, beantwortet){
+  s.antworten = antworten || {}; s.beantwortet = beantwortet || 0;
+  if(s.vorschau) return;
+  clearTimeout(s.saveTimer);
+  s.saveTimer = setTimeout(function(){
+    if(pruef.sess !== s || s.ending) return;
+    updateDoc(teilRef(s.pid, state.user.uid), {antworten:s.antworten, beantwortet:s.beantwortet, lebt:serverTimestamp()}).catch(function(err){ console.error('Prüfungsstand speichern', err); });
+  }, 1200);
+}
+// Abgabe. d = {antworten, punkte?, max?, details?} — Punkte/Details bringt nur
+// eine Seite mit eigenem Prüfungsmodus mit; Bank-Prüfungen korrigiert die Lehrperson.
+function pruefAbgabe(s, d){
+  if(s.ending) return;
+  s.ending = true;
+  var pid = s.pid, vorschau = s.vorschau, p = pruefById(pid);
+  pruefSessionStopp();
+  pruefFullscreenAus();
+  pruefLockHide();
+  if(vorschau){
+    var r = typeof d.punkte === 'number' ? Promise.resolve({punkte:d.punkte, max:d.max}) : pruefLoesungLaden(pid).then(function(loes){ return pruefBankBewerten(p, loes, d.antworten || {}, {}); });
+    r.then(function(x){
+      uiInfo('Vorschau abgegeben', x.punkte+' von '+x.max+' Punkten'+(p ? ' · Note '+pruefNoteText(pruefNote(p, x.punkte, x.max)) : '')+'. Gespeichert wurde nichts.');
+    }).catch(pruefFehler);
     return;
   }
-  if(d.action === 'abgabe'){
-    s.ending = true;
-    var pid = s.pid, vorschau = s.vorschau;
-    var punkte = +d.punkte || 0, max = +d.max || 0;
-    pruefSessionStopp();
-    pruefFullscreenAus();
-    pruefLockHide();
-    if(!vorschau) pruefLokal(pid, {status:'abgegeben', aktiv:false});
-    if(vorschau){
-      uiInfo('Vorschau abgegeben', punkte+' von '+max+' Punkten'+(p ? ' · Note '+pruefNoteText(pruefNote(p, punkte, max)) : '')+'. Gespeichert wurde nichts.');
-      return;
-    }
-    updateDoc(teilRef(pid, state.user.uid), {
-      status:'abgegeben', aktiv:false, antworten:d.antworten || {}, beantwortet:Object.keys(d.antworten || {}).length,
-      punkte:punkte, max:max, details:Array.isArray(d.details) ? d.details.slice(0, 100) : [], abgegebenAm:serverTimestamp()
-    }).then(function(){
-      uiInfo('✉️ Abgegeben', 'Deine Prüfung ist bei der Lehrperson. Das Resultat siehst du, sobald sie es freigibt.');
-    }).catch(function(err){
-      console.error('Abgabe speichern', err);
-      uiInfo('Abgabe nicht gespeichert', 'Bitte sofort der Lehrperson Bescheid geben. ('+(err.code || err.message)+')');
-    });
-  }
-});
+  pruefLokal(pid, {status:'abgegeben', aktiv:false});
+  var upd = {status:'abgegeben', aktiv:false, antworten:d.antworten || {}, beantwortet:Object.keys(d.antworten || {}).length, abgegebenAm:serverTimestamp()};
+  if(typeof d.punkte === 'number'){ upd.punkte = +d.punkte || 0; upd.max = +d.max || 0; upd.details = Array.isArray(d.details) ? d.details.slice(0, 100) : []; }
+  updateDoc(teilRef(pid, state.user.uid), upd).then(function(){
+    uiInfo('✉️ Abgegeben', 'Deine Prüfung ist bei der Lehrperson. Das Resultat siehst du, sobald sie es freigibt.');
+  }).catch(function(err){
+    console.error('Abgabe speichern', err);
+    uiInfo('Abgabe nicht gespeichert', 'Bitte sofort der Lehrperson Bescheid geben. ('+(err.code || err.message)+')');
+  });
+}
 function pruefErzwingeAbgabe(){
   var s = pruef.sess;
+  if(s && s.bank && !s.abgebenGesendet){ s.abgebenGesendet = true; pruefBankAbgeben(true); return; }
   if(!s || !s.frame || s.abgebenGesendet) return;
   s.abgebenGesendet = true;
   try{ s.frame.contentWindow.postMessage({type:'geoPruefung', action:'abgeben'}, '*'); }catch(e){}
@@ -12788,6 +12867,386 @@ function pruefZeigeEntsperrt(p){
   document.getElementById('pruefWeiterBtn').addEventListener('click', function(){ pruef.lockSig = ''; pruefStarten(p, true); });
 }
 
+function pruefDetailsHtml(details, editierbar){
+  if(!details.length) return '<p class="kz-intro">Keine Einzelheiten gespeichert.</p>';
+  var h = '<div class="pr-details">';
+  details.forEach(function(d, i){
+    var teil = d.max > 1 ? ' <small>('+d.pkt+' / '+d.max+' Pkt.)</small>' : '';
+    h += '<div class="pr-det '+(d.ok ? 'ok' : 'bad')+'">'+
+      (editierbar ? '<button class="pr-det-ok" data-i="'+i+'" type="button" title="Richtig/falsch umschalten">'+(d.ok ? '✅' : '❌')+'</button>' : '<span class="pr-det-ok">'+(d.ok ? '✅' : '❌')+'</span>')+
+      '<div><div class="pr-det-f">'+(i+1)+'. '+esc(d.f || '')+' <small>'+esc(d.kat || '')+'</small>'+teil+'</div>'+
+      '<div class="pr-det-a">Antwort: <b>'+esc(d.a || '–')+'</b>'+(d.ok ? '' : ' · richtig: <b>'+esc(d.r || '')+'</b>')+'</div></div></div>';
+  });
+  return h + '</div>';
+}
+
+/* ---------- Übung befragen: welche Bereiche/Fragen hat sie? ---------- */
+
+// Läuft IN der abgeschotteten Übungsseite (per toString eingespritzt) und
+// wandelt deren Fragen in ein einheitliches Format um — inklusive Lösungen.
+// Die Übungsseiten legen ihre Daten in einer Closure ab; pruefProbe biegt
+// darum vorher «var Q/TOPICS/THEMES = …» auf window.__lib… um.
+function pruefExtractImpl(){
+  function plain(h){
+    if(h == null) return '';
+    var d = document.createElement('div');
+    d.innerHTML = String(h).replace(/<br\s*\/?>/gi, ' ');
+    return (d.textContent || '').replace(/\s+/g, ' ').trim();
+  }
+  function bild(x){
+    var s = typeof x === 'string' ? x : (x && typeof x.svg === 'string' ? x.svg : '');
+    return s && s.length < 80000 ? s : '';
+  }
+  var out = {art:'bank', kategorien:[], fragen:[]};
+  function kat(id, name){ if(!out.kategorien.some(function(k){ return k.id === id; })) out.kategorien.push({id:id, name:name, anzahl:0}); }
+  function add(k, f){ f.kat = k; out.fragen.push(f); out.kategorien.forEach(function(x){ if(x.id === k) x.anzahl++; }); }
+  var Q = window.__libQ, T = window.__libTOPICS || {}, TH = window.__libTHEMES;
+  if(Q && Q.length){
+    Object.keys(T).forEach(function(k){ kat(k, plain(T[k] && T[k].name) || k); });
+    Q.forEach(function(q){
+      if(!q) return;
+      var k = q.topic || 'alle';
+      if(!T[k]) kat(k, k === 'alle' ? 'Alle Fragen' : k);
+      if(q.type === 'mc' && q.options) add(k, {typ:'mc', frage:plain(q.q), optionen:q.options.map(plain), loesung:+q.correct});
+      else if(q.type === 'tf') add(k, {typ:'tf', frage:plain(q.statement || q.q), loesung:!!q.correct});
+      else if(q.type === 'fill' && q.accept) add(k, {typ:'text', frage:plain(q.q), loesung:q.accept.map(String)});
+      else if(q.type === 'calc' && typeof q.answer === 'number') add(k, {typ:'zahl', frage:plain(q.q), einheit:plain(q.unit), loesung:{wert:q.answer, tol:q.tolerance || 0.001}});
+      else if(q.type === 'match' && q.pairs) add(k, {typ:'zuordnen', frage:plain(q.title || q.q), links:q.pairs.map(function(p){ return plain(p[0]); }), rechts:q.pairs.map(function(p){ return plain(p[1]); })});
+      else if(q.type === 'order' && q.items) add(k, {typ:'reihenfolge', frage:plain(q.title || q.q), items:q.items.map(plain)});
+    });
+  } else if(TH && TH.length){
+    var tol = function(a){ return Math.max(0.15, Math.abs(a) * 0.02); };
+    // Wie shortAsk() der Mathe-Engine: «c = √(…) = ?» → «Berechne c.» (verrät den Rechenweg nicht)
+    var frage = function(c){
+      if(c.ask) return plain(c.ask);
+      var g = plain(c.given || ''), l = g.split('=')[0].trim();
+      return l && l !== g ? 'Berechne ' + l + '.' : 'Berechne das Resultat.';
+    };
+    var lab = function(c){ return c.label ? plain(c.label) + ' — ' : ''; };
+    TH.forEach(function(th){
+      if(!th) return;
+      var k = String(th.key || th.title);
+      kat(k, plain((th.icon ? th.icon + ' ' : '') + (th.title || k)));
+      (th.steps || []).forEach(function(s){
+        if(!s) return;
+        var ctx = plain(s.title) + (s.text ? ': ' + plain(s.text) : ''), b = bild(s.diagram);
+        if(s.type === 'truefalse') (s.items || []).forEach(function(it){ add(k, {typ:'tf', kontext:ctx, bild:b, frage:plain(it.text), loesung:!!it.answer}); });
+        else if(s.type === 'classify') (s.items || []).forEach(function(it){ add(k, {typ:'mc', kontext:ctx, bild:bild(it.diagram), frage:plain(s.title), optionen:(it.options || []).map(plain), loesung:+it.correct}); });
+        else if(s.type === 'calc' || s.type === 'table'){
+          (s.cases || []).forEach(function(c){
+            if(!c || c.reflect) return;
+            if(c.mcOptions) add(k, {typ:'mc', kontext:ctx, bild:bild(c.diagram) || b, frage:lab(c) + plain(c.given), optionen:c.mcOptions.map(plain), loesung:+c.mcCorrect});
+            else if(typeof c.answer === 'number') add(k, {typ:'zahl', kontext:ctx, bild:bild(c.diagram) || b, frage:lab(c) + frage(c), einheit:plain(c.unit), loesung:{wert:c.answer, tol:tol(c.answer)}});
+          });
+          var tb = s.type === 'table' ? s : s.extraTable;
+          if(tb && tb.rows) tb.rows.forEach(function(r){
+            if(typeof r.answer !== 'number') return;
+            var h = tb.colHead || [];
+            add(k, {typ:'zahl', kontext:ctx + (tb.title ? ' (' + plain(tb.title) + ')' : ''), bild:b,
+              frage:(h[0] ? plain(h[0]) + ' = ' : '') + plain(r.a) + (r.b != null ? ', ' + (h[1] ? plain(h[1]) + ' = ' : '') + plain(r.b) : '') + ' → ' + (h[2] ? plain(h[2]) : 'Resultat') + ' = ?',
+              einheit:plain(r.unit), loesung:{wert:r.answer, tol:tol(r.answer)}});
+          });
+        }
+        else if(s.type === 'verify') (s.cases || []).forEach(function(c){
+          [[c.given1, c.answer1], [c.given2, c.answer2]].forEach(function(g){
+            if(typeof g[1] === 'number') add(k, {typ:'zahl', kontext:ctx, bild:bild(c.diagram) || b, frage:lab(c) + frage({given:g[0]}), einheit:plain(c.unit), loesung:{wert:g[1], tol:tol(g[1])}});
+          });
+        });
+        else if(s.type === 'multitable') (s.rows || []).forEach(function(r){
+          var gv = Object.keys(r.given || {}).map(function(x){ return x + ' = ' + plain(r.given[x]); }).join(', ');
+          (r.solve || []).forEach(function(sv){
+            if(typeof sv[1] === 'number') add(k, {typ:'zahl', kontext:ctx, bild:b, frage:'Gegeben: ' + gv + '. Berechne ' + plain(sv[0]) + '.', einheit:plain(sv[2]), loesung:{wert:sv[1], tol:Math.max(0.2, Math.abs(sv[1]) * 0.03)}});
+          });
+        });
+      });
+    });
+  } else {
+    return {art:'keine'};
+  }
+  out.kategorien = out.kategorien.filter(function(k){ return k.anzahl > 0; });
+  return out.fragen.length ? out : {art:'keine'};
+}
+
+var pruefProbeCache = {};
+function pruefProbe(contentId){
+  if(pruefProbeCache[contentId]) return Promise.resolve(pruefProbeCache[contentId]);
+  return loadResourceHtml(contentId).then(function(html){
+    // Daten aus der Closure der Übung auf window legen (auch const/let).
+    var pat = html
+      .replace(/\b(?:var|let|const)\s+Q\s*=\s*\[/, 'var Q = window.__libQ = [')
+      .replace(/\b(?:var|let|const)\s+TOPICS\s*=\s*\{/, 'var TOPICS = window.__libTOPICS = {')
+      .replace(/\b(?:var|let|const)\s+THEMES\s*=\s*\[/, 'var THEMES = window.__libTHEMES = [');
+    var inject = '<script>window.__LIB_PRUEFUNG_PROBE = true;' +
+      'window.addEventListener("load", function(){ setTimeout(function(){' +
+      ' if(window.__libPruefInfoGesendet) return; var r;' +
+      ' try{ r = (' + pruefExtractImpl.toString() + ')(); }catch(e){ r = {art:"keine", fehler:String(e)}; }' +
+      ' r.type = "libPruefung"; r.action = "info"; parent.postMessage(r, "*");' +
+      ' }, 50); });<\/script>';
+    var headRe = /<head(\s[^>]*)?>/i;
+    pat = headRe.test(pat) ? pat.replace(headRe, function(m){ return m + inject; }) : inject + pat;
+    return new Promise(function(resolve){
+      var fr = document.createElement('iframe');
+      // Nur Skripte, kein gleicher Ursprung: die Seite kann weder localStorage
+      // noch die Library anfassen, nur ihre Antwort schicken.
+      fr.setAttribute('sandbox', 'allow-scripts');
+      fr.setAttribute('aria-hidden', 'true');
+      fr.style.cssText = 'position:absolute;left:-9999px;top:0;width:800px;height:600px;border:0;visibility:hidden;';
+      var fertig = false;
+      function ende(r){
+        if(fertig) return; fertig = true;
+        window.removeEventListener('message', onMsg); clearTimeout(timer);
+        try{ fr.remove(); }catch(e){}
+        // Ältere Pöstlergeografie: kennt den Prüfungsmodus, antwortet aber noch nicht.
+        if((!r || r.art === 'keine') && html.indexOf('__GEO_PRUEFUNG') >= 0) r = PRUEF_GEO_INFO;
+        r = r || {art:'keine'};
+        if(r.art !== 'keine') pruefProbeCache[contentId] = r;
+        resolve(r);
+      }
+      function onMsg(e){
+        var d = e.data;
+        if(e.source === fr.contentWindow && d && d.type === 'libPruefung' && d.action === 'info') ende(d);
+      }
+      window.addEventListener('message', onMsg);
+      var timer = setTimeout(function(){ ende(null); }, 20000);
+      document.body.appendChild(fr);
+      fr.srcdoc = pat;
+    });
+  });
+}
+
+/* ---------- Zufall mit Seed (gleiche Prüfung für alle) ---------- */
+
+function pruefRng(seed){
+  var a = seed >>> 0;
+  return function(){ a = (a + 0x6D2B79F5) >>> 0; var t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+}
+function pruefMischen(arr, rnd){
+  var a = arr.slice();
+  for(var i=a.length-1;i>0;i--){ var j = Math.floor(rnd() * (i+1)); var t = a[i]; a[i] = a[j]; a[j] = t; }
+  return a;
+}
+// SVG aus der eigenen Übung, aber sicherheitshalber ohne Skripte/Event-Handler.
+function pruefBildSauber(s){
+  return String(s || '').replace(/<script[\s\S]*?<\/script>/gi, '').replace(/\son[a-z]+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '');
+}
+
+// Zieht aus der Bank die Prüfungsfragen: pro Bereich gemischt, reihum
+// verteilt, dann nach Bereich und Originalreihenfolge sortiert. Liefert die
+// öffentlichen Fragen (ohne Lösung), die Lösungen und die Bilder getrennt.
+function pruefBankZiehen(info, kats, anzahl, seed){
+  var rnd = pruefRng(seed), katIdx = {};
+  kats.forEach(function(k, i){ katIdx[k] = i; });
+  var toepfe = kats.map(function(k){
+    return pruefMischen(info.fragen.map(function(f, i){ return {f:f, i:i}; }).filter(function(x){ return x.f.kat === k; }), rnd);
+  });
+  var gezogen = [], n = 0;
+  while(gezogen.length < anzahl && toepfe.some(function(t){ return t.length; })){
+    var t = toepfe[n++ % toepfe.length];
+    if(t.length) gezogen.push(t.shift());
+  }
+  gezogen.sort(function(a, b){ return (katIdx[a.f.kat] - katIdx[b.f.kat]) || (a.i - b.i); });
+  var katName = {};
+  info.kategorien.forEach(function(k){ katName[k.id] = k.name; });
+  var bilder = [], bildNr = {}, fragen = [], loesungen = {};
+  gezogen.forEach(function(x, i){
+    var f = x.f, id = 'q' + i;
+    var q = {id:id, typ:f.typ, kat:katName[f.kat] || f.kat, frage:f.frage || ''};
+    if(f.kontext) q.kontext = f.kontext;
+    if(f.bild){
+      if(!bildNr.hasOwnProperty(f.bild)){ bildNr[f.bild] = bilder.length; bilder.push(pruefBildSauber(f.bild)); }
+      q.bild = bildNr[f.bild];
+    }
+    var L = {punkte:1};
+    if(f.typ === 'mc'){ q.optionen = f.optionen; L.loesung = f.loesung; L.anzeige = f.optionen[f.loesung] || ''; }
+    else if(f.typ === 'tf'){ L.loesung = f.loesung; L.anzeige = f.loesung ? 'Wahr' : 'Falsch'; }
+    else if(f.typ === 'text'){ L.loesung = f.loesung; L.anzeige = f.loesung[0] || ''; }
+    else if(f.typ === 'zahl'){ q.einheit = f.einheit || ''; L.loesung = f.loesung; L.anzeige = String(f.loesung.wert).replace('.', ',') + (f.einheit ? ' ' + f.einheit : ''); }
+    else if(f.typ === 'zuordnen'){
+      var perm = pruefMischen(f.rechts.map(function(r, j){ return j; }), rnd);
+      q.links = f.links; q.rechts = perm.map(function(j){ return f.rechts[j]; });
+      L.loesung = f.links.map(function(l, li){ return perm.indexOf(li); });
+      L.punkte = f.links.length;
+      L.anzeige = f.links.map(function(l, li){ return l + ' → ' + f.rechts[li]; }).join('; ');
+    }
+    else if(f.typ === 'reihenfolge'){
+      var pm = pruefMischen(f.items.map(function(r, j){ return j; }), rnd);
+      q.items = pm.map(function(j){ return f.items[j]; });
+      L.loesung = f.items.map(function(it, j){ return pm.indexOf(j); });
+      L.anzeige = f.items.join(' → ');
+    }
+    L.typ = f.typ;
+    fragen.push(q); loesungen[id] = L;
+  });
+  return {fragen:fragen, loesungen:loesungen, bilder:bilder};
+}
+
+/* ---------- Bank-Prüfung korrigieren (Gerät der Lehrperson) ---------- */
+
+function pruefLoesungLaden(pid){
+  if(pruef.loes[pid]) return Promise.resolve(pruef.loes[pid]);
+  return getDoc(loesRef(pid)).then(function(snap){
+    var l = snap.exists() ? (snap.data().loesungen || {}) : {};
+    pruef.loes[pid] = l;
+    return l;
+  });
+}
+function pruefNorm(s){
+  return (s || '').toString().trim().toLowerCase()
+    .replace(/ä/g,'ae').replace(/ö/g,'oe').replace(/ü/g,'ue').replace(/ß/g,'ss')
+    .replace(/[.,!?;:]/g,'').replace(/\s+/g,' ');
+}
+function pruefZahl(s){
+  var m = String(s == null ? '' : s).replace(/[’'\s]/g, '').replace(',', '.').match(/-?\d+(\.\d+)?/);
+  return m ? parseFloat(m[0]) : NaN;
+}
+function pruefBankBewerten(p, loes, antworten, korrektur){
+  antworten = antworten || {}; korrektur = korrektur || {};
+  var details = [];
+  (p.fragen || []).forEach(function(q){
+    var L = loes[q.id]; if(!L) return;
+    var v = antworten[q.id], max = L.punkte || 1, pkt = 0, a = '–';
+    if(q.typ === 'mc'){ if(v != null && q.optionen[v] != null) a = q.optionen[v]; pkt = v === L.loesung ? max : 0; }
+    else if(q.typ === 'tf'){ a = v === true ? 'Wahr' : v === false ? 'Falsch' : '–'; pkt = v === L.loesung ? max : 0; }
+    else if(q.typ === 'text'){ if(v) a = v; var nv = pruefNorm(v); pkt = nv && (L.loesung || []).some(function(x){ return pruefNorm(x) === nv; }) ? max : 0; }
+    else if(q.typ === 'zahl'){ if(v) a = v + (q.einheit ? ' ' + q.einheit : ''); var z = pruefZahl(v); pkt = !isNaN(z) && Math.abs(z - L.loesung.wert) <= L.loesung.tol + 1e-9 ? max : 0; }
+    else if(q.typ === 'zuordnen'){
+      var arr = Array.isArray(v) ? v : [];
+      pkt = L.loesung.filter(function(r, i){ return arr[i] === r; }).length;
+      if(arr.some(function(x){ return x != null; })) a = q.links.map(function(l, i){ return l + ' → ' + (arr[i] != null ? q.rechts[arr[i]] : '–'); }).join('; ');
+    }
+    else if(q.typ === 'reihenfolge'){
+      if(Array.isArray(v)){ a = v.map(function(i){ return q.items[i]; }).join(' → '); pkt = v.join(',') === L.loesung.join(',') ? max : 0; }
+    }
+    if(korrektur.hasOwnProperty(q.id)) pkt = korrektur[q.id] ? max : 0;
+    details.push({id:q.id, f:q.frage, kat:q.kat, a:a, r:L.anzeige || '', ok:pkt === max, pkt:pkt, max:max});
+  });
+  var punkte = 0, total = 0;
+  details.forEach(function(d){ punkte += d.pkt; total += d.max; });
+  return {punkte:punkte, max:total, details:details};
+}
+
+/* ---------- Schüler:in: Bank-Prüfung schreiben ---------- */
+
+function pruefBankStart(p, sess, ov, saved){
+  var fragen = (p.fragen || []).slice();
+  if(p.cfg && p.cfg.mischen) fragen = pruefMischen(fragen, pruefRng(pruefPersonSeed(state.user.uid)));
+  var ans = {};
+  fragen.forEach(function(q){ if(saved && saved.hasOwnProperty(q.id)) ans[q.id] = saved[q.id]; });
+  sess.bank = {p:p, fragen:fragen, i:0, ans:ans};
+  for(var j=0;j<fragen.length;j++){ if(!pruefBankHat(ans[fragen[j].id])){ sess.bank.i = j; break; } }
+  ov.innerHTML = pruefLockBar(p, sess.vorschau) + '<div class="pr-bank-wrap"><div class="pr-bank" id="prBank"></div></div>';
+  pruefLockBarVerdrahten();
+  document.getElementById('prBank').addEventListener('click', pruefBankKlick);
+  document.getElementById('prBank').addEventListener('input', pruefBankEingabe);
+  document.getElementById('prBank').addEventListener('change', pruefBankEingabe);
+  pruefBankZeichnen();
+  if(p.status === 'beendet') pruefErzwingeAbgabe();
+}
+function pruefBankHat(v){
+  if(v == null || v === '') return false;
+  if(Array.isArray(v)) return v.some(function(x){ return x != null; });
+  return true;
+}
+function pruefBankBeantwortet(b){ return b.fragen.filter(function(q){ return pruefBankHat(b.ans[q.id]); }).length; }
+function pruefBankZeichnen(){
+  var s = pruef.sess; if(!s || !s.bank) return;
+  var b = s.bank, q = b.fragen[b.i], v = b.ans[q.id], n = b.fragen.length, done = pruefBankBeantwortet(b);
+  var h = '<div class="pr-q-kopf"><span class="pr-badge">'+esc(q.kat)+'</span><span>Frage '+(b.i+1)+' von '+n+' · '+done+' beantwortet</span></div>';
+  h += '<div class="pr-q-bar"><div style="width:'+Math.round(done / n * 100)+'%"></div></div>';
+  if(q.kontext) h += '<p class="pr-q-kontext">'+esc(q.kontext)+'</p>';
+  if(q.bild != null && b.p.bilder && b.p.bilder[q.bild]) h += '<div class="pr-q-bild">'+b.p.bilder[q.bild]+'</div>';
+  h += '<p class="pr-q-frage">'+esc(q.frage)+'</p>';
+  if(q.typ === 'mc'){
+    h += '<div class="pr-q-opts">' + q.optionen.map(function(o, i){ return '<button class="pr-q-opt'+(v === i ? ' sel' : '')+'" data-v="'+i+'" type="button">'+esc(o)+'</button>'; }).join('') + '</div>';
+  } else if(q.typ === 'tf'){
+    h += '<div class="pr-q-opts pr-q-tf"><button class="pr-q-opt'+(v === true ? ' sel' : '')+'" data-v="true" type="button">Wahr</button><button class="pr-q-opt'+(v === false ? ' sel' : '')+'" data-v="false" type="button">Falsch</button></div>';
+  } else if(q.typ === 'text'){
+    h += '<input type="text" class="modal-input pr-q-in" id="prBankIn" autocomplete="off" spellcheck="false" placeholder="Deine Antwort …" value="'+esc(v || '')+'">';
+  } else if(q.typ === 'zahl'){
+    h += '<div class="pr-q-zahl"><input type="text" inputmode="decimal" class="modal-input pr-q-in" id="prBankIn" autocomplete="off" placeholder="Zahl eingeben …" value="'+esc(v || '')+'">'+(q.einheit ? '<span>'+esc(q.einheit)+'</span>' : '')+'</div>';
+  } else if(q.typ === 'zuordnen'){
+    var arr = Array.isArray(v) ? v : [];
+    h += '<div class="pr-q-match">' + q.links.map(function(l, i){
+      return '<label><span>'+esc(l)+'</span><select class="modal-input" data-li="'+i+'"><option value="">– wählen –</option>' +
+        q.rechts.map(function(r, j){ return '<option value="'+j+'"'+(arr[i] === j ? ' selected' : '')+'>'+esc(r)+'</option>'; }).join('') + '</select></label>';
+    }).join('') + '</div>';
+  } else if(q.typ === 'reihenfolge'){
+    var ord = Array.isArray(v) ? v : q.items.map(function(x, i){ return i; });
+    h += '<p class="pr-hinweis">Mit ▲ ▼ in die richtige Reihenfolge bringen (oben = zuerst).</p><div class="pr-q-order">' + ord.map(function(it, pos){
+      return '<div class="pr-q-orow"><b>'+(pos+1)+'.</b><span>'+esc(q.items[it])+'</span><button class="btn btn-ghost btn-sm" data-up="'+pos+'" type="button"'+(pos === 0 ? ' disabled' : '')+'>▲</button><button class="btn btn-ghost btn-sm" data-down="'+pos+'" type="button"'+(pos === ord.length-1 ? ' disabled' : '')+'>▼</button></div>';
+    }).join('') + '</div>';
+  }
+  h += '<div class="pr-q-nav"><button class="btn btn-ghost btn-sm" data-nav="-1" type="button"'+(b.i === 0 ? ' disabled' : '')+'>← Zurück</button>' +
+    (b.i < n-1 ? '<button class="btn btn-primary btn-sm" data-nav="1" type="button">Weiter →</button>' : '<button class="btn btn-primary btn-sm" data-abgeben="1" type="button">✉️ Abgeben</button>') + '</div>';
+  h += '<div class="pr-q-dots">' + b.fragen.map(function(x, i){ return '<button type="button" data-go="'+i+'" class="'+(i === b.i ? 'cur ' : '')+(pruefBankHat(b.ans[x.id]) ? 'done' : '')+'">'+(i+1)+'</button>'; }).join('') + '</div>';
+  if(b.i < n-1) h += '<div class="pr-q-nav" style="justify-content:center"><button class="btn btn-ghost btn-sm" data-abgeben="1" type="button">✉️ Prüfung abgeben</button></div>';
+  h += '<div id="prBankConfirm"></div>';
+  var el = document.getElementById('prBank');
+  el.innerHTML = h;
+  var inp = document.getElementById('prBankIn');
+  if(inp) setTimeout(function(){ try{ inp.focus({preventScroll:true}); }catch(e){} }, 30);
+}
+function pruefBankSetze(v){
+  var s = pruef.sess, b = s.bank, q = b.fragen[b.i];
+  b.ans[q.id] = v;
+  pruefStand(s, Object.assign({}, b.ans), pruefBankBeantwortet(b));
+}
+function pruefBankKlick(e){
+  var s = pruef.sess; if(!s || !s.bank || s.ending) return;
+  var b = s.bank, q = b.fragen[b.i], t = e.target.closest('button'); if(!t) return;
+  if(t.hasAttribute('data-v')){
+    var raw = t.getAttribute('data-v');
+    pruefBankSetze(q.typ === 'tf' ? raw === 'true' : +raw);
+    pruefBankZeichnen(); return;
+  }
+  if(t.hasAttribute('data-up') || t.hasAttribute('data-down')){
+    var ord = Array.isArray(b.ans[q.id]) ? b.ans[q.id].slice() : q.items.map(function(x, i){ return i; });
+    var pos = +(t.getAttribute('data-up') || t.getAttribute('data-down')), ziel = t.hasAttribute('data-up') ? pos - 1 : pos + 1;
+    if(ziel < 0 || ziel >= ord.length) return;
+    var tmp = ord[pos]; ord[pos] = ord[ziel]; ord[ziel] = tmp;
+    pruefBankSetze(ord); pruefBankZeichnen(); return;
+  }
+  if(t.hasAttribute('data-nav')){ b.i = Math.max(0, Math.min(b.fragen.length-1, b.i + (+t.getAttribute('data-nav')))); pruefBankZeichnen(); return; }
+  if(t.hasAttribute('data-go')){ b.i = +t.getAttribute('data-go'); pruefBankZeichnen(); return; }
+  if(t.hasAttribute('data-abgeben')){ pruefBankAbgeben(false); return; }
+  if(t.hasAttribute('data-ok')){ pruefBankAbgeben(true); return; }
+  if(t.hasAttribute('data-nein')){ document.getElementById('prBankConfirm').innerHTML = ''; }
+}
+function pruefBankEingabe(e){
+  var s = pruef.sess; if(!s || !s.bank || s.ending) return;
+  var b = s.bank, q = b.fragen[b.i], t = e.target;
+  if(t.id === 'prBankIn'){
+    if(e.type !== 'input') return;
+    pruefBankSetze(t.value.trim() ? t.value : '');
+    // Nur Zähler/Punkte nachführen, nicht neu zeichnen (sonst springt der Cursor).
+    var kopf = document.querySelector('.pr-q-kopf span:last-child');
+    if(kopf) kopf.textContent = 'Frage '+(b.i+1)+' von '+b.fragen.length+' · '+pruefBankBeantwortet(b)+' beantwortet';
+    var dot = document.querySelector('.pr-q-dots [data-go="'+b.i+'"]');
+    if(dot) dot.classList.toggle('done', pruefBankHat(b.ans[q.id]));
+    return;
+  }
+  if(t.hasAttribute('data-li') && e.type === 'change'){
+    var arr = Array.isArray(b.ans[q.id]) ? b.ans[q.id].slice() : q.links.map(function(){ return null; });
+    arr[+t.getAttribute('data-li')] = t.value === '' ? null : +t.value;
+    pruefBankSetze(arr); pruefBankZeichnen();
+  }
+}
+// Die Rückfrage steht IN der Prüfung: ein normales Modal läge ausserhalb des
+// Vollbild-Elements und wäre gar nicht sichtbar.
+function pruefBankAbgeben(sofort){
+  var s = pruef.sess; if(!s || !s.bank || s.ending) return;
+  var b = s.bank;
+  if(!sofort){
+    var offen = b.fragen.length - pruefBankBeantwortet(b);
+    document.getElementById('prBankConfirm').innerHTML = '<div class="pr-q-confirm"><p>'+
+      (offen ? 'Noch <b>'+offen+'</b> Frage'+(offen === 1 ? '' : 'n')+' ohne Antwort. Trotzdem abgeben?' : 'Prüfung jetzt abgeben?')+
+      ' Danach kannst du nichts mehr ändern.</p><div class="modal-actions"><button class="btn btn-ghost btn-sm" data-nein="1" type="button">Zurück</button><button class="btn btn-primary btn-sm" data-ok="1" type="button">Abgeben</button></div></div>';
+    return;
+  }
+  clearTimeout(s.saveTimer);
+  pruefAbgabe(s, {antworten:Object.assign({}, b.ans)});
+}
+
 /* ---------- Schüler:in: Resultat ---------- */
 
 function pruefResultatZeigen(p){
@@ -12797,22 +13256,11 @@ function pruefResultatZeigen(p){
   updatePruefungBanner();
   var note = pruefNote(p, t.punkte, t.max);
   var h = '<h3>📝 '+esc(p.titel)+'</h3>';
-  h += '<div class="pr-resultat"><div><span>Note</span><b>'+pruefNoteText(note)+'</b></div><div><span>Punkte</span><b>'+esc(String(t.punkte))+' / '+esc(String(t.max))+'</b></div></div>';
+  h += '<div class="pr-resultat"><div><span>Note</span><b>'+pruefNoteText(note)+'</b></div><div><span>Punkte</span><b>'+esc(String(t.punkte == null ? '–' : t.punkte))+' / '+esc(String(t.max || '–'))+'</b></div></div>';
   h += pruefDetailsHtml(t.details || [], false);
   h += '<div class="modal-actions"><button class="btn btn-primary btn-sm" id="modalOk" type="button">Schliessen</button></div>';
   openModal(h, 'pr-modal');
   document.getElementById('modalOk').addEventListener('click', closeModal);
-}
-function pruefDetailsHtml(details, editierbar){
-  if(!details.length) return '<p class="kz-intro">Keine Einzelheiten gespeichert.</p>';
-  var h = '<div class="pr-details">';
-  details.forEach(function(d, i){
-    h += '<div class="pr-det '+(d.ok ? 'ok' : 'bad')+'">'+
-      (editierbar ? '<button class="pr-det-ok" data-i="'+i+'" type="button" title="Richtig/falsch umschalten">'+(d.ok ? '✅' : '❌')+'</button>' : '<span class="pr-det-ok">'+(d.ok ? '✅' : '❌')+'</span>')+
-      '<div><div class="pr-det-f">'+(i+1)+'. '+esc(d.f || '')+' <small>'+esc(d.kat || '')+'</small></div>'+
-      '<div class="pr-det-a">Antwort: <b>'+esc(d.a || '–')+'</b>'+(d.ok ? '' : ' · richtig: <b>'+esc(d.r || '')+'</b>')+'</div></div></div>';
-  });
-  return h + '</div>';
 }
 
 /* ---------- Lehrperson: Übersicht & Verwaltung ---------- */
@@ -12827,7 +13275,7 @@ function renderPruefungen(){
   var html = '';
   html += '<div class="back-row"><button class="btn btn-ghost btn-sm" id="backBtn" type="button">&larr; Klassenzimmer</button></div>';
   html += '<h2 class="page-welcome" style="margin-bottom:6px;">📝 Prüfungen</h2>';
-  html += '<p class="kz-intro">Online-Prüfung aus einer Übung mit Prüfungsmodus (Pöstlergeografie). Wer die Prüfung verlässt, wird gesperrt, bis du entsperrst.</p>';
+  html += '<p class="kz-intro">Online-Prüfung aus einer Übung. Die Bereiche kommen aus der Übung selbst (z.B. die Themen einer Prüfungsvorbereitung). Wer die Prüfung verlässt, wird gesperrt, bis du entsperrst.</p>';
   html += '<div class="back-row"><button class="btn btn-primary btn-sm" id="prNeu" type="button">➕ Neue Prüfung</button></div>';
   html += '<div id="prListe"><div class="empty-state">Wird geladen …</div></div>';
   renderChrome(html);
@@ -12841,85 +13289,183 @@ function pruefStatusBadge(p){
   if(p.status === 'beendet') return '<span class="pr-badge beendet">beendet'+(p.resultateFrei ? ' · Resultate frei' : '')+'</span>';
   return '<span class="pr-badge">Entwurf</span>';
 }
+// Kurzbeschreibung: Übung · Anzahl · Bereiche · (Einstellungen der Übung)
+function pruefBeschreibung(p, lang){
+  var c = p.cfg || {}, teile = [p.resourceTitel || ''];
+  teile.push(pruefAnzahl(p) + ' Fragen' + (pruefArt(p) === 'bank' && p.maxPunkte ? ' (' + p.maxPunkte + ' Punkte)' : ''));
+  if(lang){
+    if(c.katNamen && c.katNamen.length) teile.push(c.katNamen.join(', '));
+    Object.keys(c.optNamen || {}).forEach(function(k){ teile.push(c.optNamen[k]); });
+  }
+  return teile.filter(Boolean).join(' · ');
+}
 function pruefListeZeichnen(){
   var el = document.getElementById('prListe');
   if(!el) return;
   if(!pruef.unsub){ el.innerHTML = '<div class="empty-state">Wird geladen …</div>'; return; }
   if(!pruef.list.length){ el.innerHTML = '<div class="empty-state">Noch keine Prüfung. Leg mit «➕ Neue Prüfung» eine an.</div>'; return; }
   el.innerHTML = '<div class="pr-liste">' + pruef.list.map(function(p){
-    var c = p.cfg || {};
     return '<button class="pr-karte" data-id="'+esc(p.id)+'" type="button"><div><b>'+esc(p.titel)+'</b> '+pruefStatusBadge(p)+'</div>'+
-      '<small>'+esc(p.resourceTitel || '')+' · '+esc(String(c.anzahl || ''))+' Fragen · '+esc(PRUEF_DIFF[c.diff] || '')+'</small></button>';
+      '<small>'+esc(pruefBeschreibung(p, false))+'</small></button>';
   }).join('') + '</div>';
   Array.prototype.forEach.call(el.querySelectorAll('[data-id]'), function(b){
     b.addEventListener('click', function(){ state.route = {name:'pruefung', id:b.getAttribute('data-id')}; render(); });
   });
 }
 
+/* ---------- Lehrperson: Prüfung anlegen / bearbeiten ---------- */
+
 async function pruefEditor(p){
-  var neu = !p, c = (p && p.cfg) || {kats:['land','cap','flag'], reg:'EU', lvl:1, diff:1, anzahl:20, mischen:true};
+  var neu = !p, c = (p && p.cfg) || {};
   var fragenFix = !neu && p.status !== 'entwurf';
   openModal('<h3>'+(neu ? '➕ Neue Prüfung' : '✏️ Prüfung bearbeiten')+'</h3><p>Übungen werden geladen …</p>', 'pr-modal');
   var uebungen = [];
-  try{
-    var snap = await getDocs(kcol('resources'));
-    snap.forEach(function(d){ var r = Object.assign({id:d.id}, d.data()); if(!r.linkUrl && !r.externalUrl) uebungen.push(r); });
-  }catch(err){ console.error(err); }
-  var passt = function(r){ return /geograf|pöstler|poestler/i.test((r.title || '') + ' ' + (r.fileName || '')); };
-  uebungen.sort(function(a,b){ return (passt(b) - passt(a)) || (a.title || '').localeCompare(b.title || '', 'de'); });
-  if(!uebungen.length){ openModal('<h3>Keine Übung gefunden</h3><p>Lade zuerst Pöstlergeografie Welt als Übung hoch.</p><div class="modal-actions"><button class="btn btn-primary btn-sm" id="modalOk" type="button">OK</button></div>'); document.getElementById('modalOk').addEventListener('click', closeModal); return; }
-  var sel = function(id, obj, val){ return '<select id="'+id+'" class="modal-input"'+(fragenFix ? ' disabled' : '')+'>' + Object.keys(obj).map(function(k){ return '<option value="'+k+'"'+(String(val) === String(k) ? ' selected' : '')+'>'+esc(obj[k])+'</option>'; }).join('') + '</select>'; };
+  if(!fragenFix){
+    try{
+      var snap = await getDocs(kcol('resources'));
+      snap.forEach(function(d){ var r = Object.assign({id:d.id}, d.data()); if(!r.linkUrl && !r.externalUrl) uebungen.push(r); });
+    }catch(err){ console.error(err); }
+    var fachName = function(r){ var s = subjectById(r.subject); return s ? s.name : (r.subject || ''); };
+    uebungen.sort(function(a,b){ return fachName(a).localeCompare(fachName(b), 'de') || (a.title || '').localeCompare(b.title || '', 'de', {numeric:true}); });
+    if(!uebungen.length){ uiInfo('Keine Übung gefunden', 'Lade zuerst eine Übung hoch.'); return; }
+  }
   var h = '<h3>'+(neu ? '➕ Neue Prüfung' : '✏️ Prüfung bearbeiten')+'</h3>';
-  if(fragenFix) h += '<p class="pr-hinweis">Die Prüfung wurde schon freigegeben — Fragen lassen sich nicht mehr ändern, nur Titel und Notenskala.</p>';
-  h += '<label class="modal-label">Titel</label><input type="text" id="prTitel" class="modal-input" maxlength="80" value="'+esc(p ? p.titel : 'Prüfung Geografie')+'">';
-  h += '<label class="modal-label">Übung</label><select id="prUebung" class="modal-input"'+(fragenFix ? ' disabled' : '')+'>' + uebungen.map(function(r){
-    var s = subjectById(r.subject);
-    return '<option value="'+esc(r.id)+'"'+(p && p.resourceId === r.id ? ' selected' : '')+'>'+esc(r.title || r.fileName || r.id)+(s ? ' ('+esc(s.name)+')' : '')+'</option>';
-  }).join('') + '</select>';
-  h += '<label class="modal-label">Bereiche</label><div class="pr-kats">' + Object.keys(PRUEF_KATS).map(function(k){
-    return '<label><input type="checkbox" value="'+k+'"'+((c.kats || []).indexOf(k) >= 0 ? ' checked' : '')+(fragenFix ? ' disabled' : '')+'> '+PRUEF_KATS[k]+'</label>';
-  }).join('') + '</div>';
-  h += '<div class="pr-grid2"><div><label class="modal-label">Gebiet</label>'+sel('prReg', PRUEF_REG, c.reg)+'</div>';
-  h += '<div><label class="modal-label">Umfang</label>'+sel('prLvl', PRUEF_LVL, c.lvl)+'</div>';
-  h += '<div><label class="modal-label">Antwortart</label>'+sel('prDiff', PRUEF_DIFF, c.diff)+'</div>';
-  h += '<div><label class="modal-label">Anzahl Fragen</label><input type="number" id="prAnzahl" class="modal-input" min="1" max="100" value="'+esc(String(c.anzahl || 20))+'"'+(fragenFix ? ' disabled' : '')+'></div></div>';
-  h += '<label class="pr-check"><input type="checkbox" id="prMischen"'+(c.mischen !== false ? ' checked' : '')+(fragenFix ? ' disabled' : '')+'> Reihenfolge der Fragen pro Person mischen (alle haben dieselben Fragen)</label>';
+  h += '<label class="modal-label">Titel</label><input type="text" id="prTitel" class="modal-input" maxlength="80" value="'+esc(p ? p.titel : '')+'" placeholder="z.B. Prüfung Industrialisierung">';
+  if(fragenFix){
+    h += '<p class="pr-hinweis">Die Prüfung wurde schon freigegeben — die Fragen bleiben, wie sie sind. Ändern lassen sich Titel und Notenskala.</p>';
+    h += '<p class="pr-hinweis"><b>'+esc(pruefBeschreibung(p, true))+'</b></p>';
+  } else {
+    h += '<label class="modal-label">Übung</label><select id="prUebung" class="modal-input"><option value="">– Übung wählen –</option>';
+    var fach = null;
+    uebungen.forEach(function(r){
+      var s = subjectById(r.subject), fn = s ? s.name : (r.subject || 'Ohne Fach');
+      if(fn !== fach){ h += (fach !== null ? '</optgroup>' : '') + '<optgroup label="'+esc(fn)+'">'; fach = fn; }
+      h += '<option value="'+esc(r.id)+'"'+(p && p.resourceId === r.id ? ' selected' : '')+'>'+esc(r.title || r.fileName || r.id)+'</option>';
+    });
+    h += (fach !== null ? '</optgroup>' : '') + '</select>';
+    h += '<div id="prInfo"><p class="pr-hinweis">Wähle eine Übung — die Bereiche werden aus ihr ausgelesen.</p></div>';
+  }
+  var faecherListe = notenFaecher(), fachStd = p && p.fach ? p.fach : '';
+  h += '<div class="pr-grid2"><div><label class="modal-label">Fach im Notenrechner</label><select id="prFach" class="modal-input">' + faecherListe.map(function(f){
+    return '<option value="'+esc(f.id)+'"'+(f.id === fachStd ? ' selected' : '')+'>'+esc(f.name)+'</option>'; }).join('') + '</select></div>';
+  h += '<div><label class="modal-label">Gewichtung</label><input type="number" id="prGewicht" class="modal-input" min="0.5" max="10" step="0.5" value="'+esc(String(p && p.gewicht ? p.gewicht : 1))+'"></div></div>';
+  h += '<p class="pr-hinweis">Bei «📣 Resultate freigeben» wird die Note mit dieser Gewichtung automatisch im 🎶 Notenrechner der Schüler:innen eingetragen. Wird die Prüfung gelöscht oder werden die Resultate wieder verborgen, verschwindet sie dort wieder.</p>';
   h += '<div class="pr-grid2"><div><label class="modal-label">Punkte für eine 6 (leer = alle)</label><input type="number" id="prP6" class="modal-input" min="1" step="0.5" value="'+esc(p && p.punkteFuer6 ? String(p.punkteFuer6) : '')+'"></div>';
   h += '<div><label class="modal-label">Noten runden auf</label><select id="prRund" class="modal-input">' + [['0.1','Zehntel'],['0.25','Viertel'],['0.5','Halbe']].map(function(o){
     return '<option value="'+o[0]+'"'+(String((p && p.rundung) || 0.1) === o[0] ? ' selected' : '')+'>'+o[1]+'</option>'; }).join('') + '</select></div></div>';
-  h += '<p class="pr-hinweis">Note = 1 + 5 × Punkte ÷ «Punkte für eine 6», höchstens 6. Jede Frage gibt 1 Punkt.</p>';
-  h += '<div class="modal-actions"><button class="btn btn-ghost btn-sm" id="modalCancel" type="button">Abbrechen</button><button class="btn btn-primary btn-sm" id="modalOk" type="button">Speichern</button></div>';
+  h += '<p class="pr-hinweis">Note = 1 + 5 × Punkte ÷ «Punkte für eine 6», höchstens 6.</p>';
+  h += '<div class="modal-actions"><button class="btn btn-ghost btn-sm" id="modalCancel" type="button">Abbrechen</button><button class="btn btn-primary btn-sm" id="modalOk" type="button"'+(fragenFix ? '' : ' disabled')+'>Speichern</button></div>';
   openModal(h, 'pr-modal');
   document.getElementById('modalCancel').addEventListener('click', closeModal);
-  document.getElementById('modalOk').addEventListener('click', async function(){
+
+  var info = null, resource = null, okBtn = document.getElementById('modalOk');
+  function infoZeichnen(){
+    var box = document.getElementById('prInfo'); if(!box) return;
+    if(!info){ box.innerHTML = '<p class="pr-hinweis">Wähle eine Übung — die Bereiche werden aus ihr ausgelesen.</p>'; okBtn.disabled = true; return; }
+    if(info.art === 'keine'){
+      box.innerHTML = '<p class="pr-hinweis pr-warn">In dieser Übung wurden keine automatisch korrigierbaren Fragen gefunden. Geht bisher mit: Prüfungsvorbereitungen (Quiz), Mathe-Übungen und Pöstlergeografie.</p>';
+      okBtn.disabled = true; return;
+    }
+    var gleich = p && p.resourceId === resource.id;
+    var kats = gleich && c.kats ? c.kats : (info.standardKats || info.kategorien.map(function(k){ return k.id; }));
+    var b = '<label class="modal-label">Bereiche aus der Übung</label><div class="pr-kats">' + info.kategorien.map(function(k){
+      return '<label><input type="checkbox" value="'+esc(k.id)+'" data-n="'+(k.anzahl || 0)+'"'+(kats.indexOf(k.id) >= 0 ? ' checked' : '')+'> '+esc(k.name)+(k.anzahl ? ' <small>('+k.anzahl+')</small>' : '')+'</label>';
+    }).join('') + '</div>';
+    var opts = info.optionen || [];
+    b += '<div class="pr-grid2">';
+    opts.forEach(function(o){
+      var cur = gleich && c.optionen && c.optionen[o.id] != null ? String(c.optionen[o.id]) : (gleich && c[o.id] != null ? String(c[o.id]) : String(o.standard));
+      b += '<div><label class="modal-label">'+esc(o.name)+'</label><select class="modal-input" data-opt="'+esc(o.id)+'">' + o.werte.map(function(w){
+        return '<option value="'+esc(String(w[0]))+'"'+(String(w[0]) === cur ? ' selected' : '')+'>'+esc(w[1])+'</option>'; }).join('') + '</select></div>';
+    });
+    b += '<div><label class="modal-label">Anzahl Fragen <small id="prMaxHint"></small></label><input type="number" id="prAnzahl" class="modal-input" min="1" max="100" value="'+esc(String(gleich && c.anzahl ? c.anzahl : 20))+'"></div></div>';
+    b += '<label class="pr-check"><input type="checkbox" id="prMischen"'+(gleich && c.mischen === false ? '' : ' checked')+'> Reihenfolge der Fragen pro Person mischen (alle haben dieselben Fragen)</label>';
+    if(info.art === 'bank') b += '<p class="pr-hinweis">Die Fragen werden beim Speichern zufällig aus den gewählten Bereichen gezogen (gleichmässig verteilt). Mit «👀 Ausprobieren» siehst du sie danach. Speichern im Entwurf zieht neu.</p>';
+    box.innerHTML = b;
+    okBtn.disabled = false;
+    function maxHint(){
+      if(info.art !== 'bank') return;
+      var n = 0;
+      Array.prototype.forEach.call(box.querySelectorAll('.pr-kats input:checked'), function(i){ n += +i.getAttribute('data-n'); });
+      document.getElementById('prMaxHint').textContent = '(max. ' + n + ')';
+    }
+    box.querySelector('.pr-kats').addEventListener('change', maxHint);
+    maxHint();
+  }
+  var sel = document.getElementById('prUebung');
+  function uebungGewaehlt(){
+    resource = uebungen.find(function(u){ return u.id === sel.value; }) || null;
+    info = null;
+    if(!resource){ infoZeichnen(); return; }
+    var fEl = document.getElementById('prFach');
+    if(fEl && !fachStd && faecherListe.some(function(f){ return f.id === resource.subject; })) fEl.value = resource.subject;
+    var tEl = document.getElementById('prTitel');
+    if(!tEl.value.trim()) tEl.value = 'Prüfung ' + (resource.title || '').replace(/^[\d.\s_]+/, '').replace(/^Prüfungsvorbereitung[\s_:–-]*/i, '');
+    document.getElementById('prInfo').innerHTML = '<p class="pr-hinweis">🔎 Übung wird untersucht …</p>';
+    okBtn.disabled = true;
+    var gewaehlt = resource;
+    pruefProbe(resourceContentId(resource)).then(function(r){
+      if(resource !== gewaehlt) return;
+      info = r; infoZeichnen();
+    }).catch(function(err){
+      console.error(err);
+      if(resource !== gewaehlt) return;
+      info = {art:'keine'}; infoZeichnen();
+    });
+  }
+  if(sel){ sel.addEventListener('change', uebungGewaehlt); if(sel.value) uebungGewaehlt(); }
+
+  okBtn.addEventListener('click', async function(){
     var titel = document.getElementById('prTitel').value.trim();
     if(!titel){ document.getElementById('prTitel').focus(); return; }
-    var data = {titel:titel, punkteFuer6:+document.getElementById('prP6').value || null, rundung:+document.getElementById('prRund').value || 0.1};
+    var gewicht = parseFloat(String(document.getElementById('prGewicht').value).replace(',', '.'));
+    if(!(gewicht > 0 && gewicht <= 10)){ toast('Gewichtung muss zwischen 0.5 und 10 liegen.'); document.getElementById('prGewicht').focus(); return; }
+    var data = {titel:titel, punkteFuer6:+document.getElementById('prP6').value || null, rundung:+document.getElementById('prRund').value || 0.1,
+      fach:document.getElementById('prFach').value, gewicht:gewicht};
+    var loesung = null;
     if(!fragenFix){
-      var kats = Array.prototype.map.call(document.querySelectorAll('.pr-kats input:checked'), function(i){ return i.value; });
+      if(!info || info.art === 'keine' || !resource) return;
+      var box = document.getElementById('prInfo');
+      var katEls = Array.prototype.slice.call(box.querySelectorAll('.pr-kats input:checked'));
+      var kats = katEls.map(function(i){ return i.value; });
       if(!kats.length){ toast('Mindestens einen Bereich wählen.'); return; }
-      var r = uebungen.find(function(u){ return u.id === document.getElementById('prUebung').value; });
-      data.resourceId = r.id; data.resourceTitel = r.title || r.fileName || ''; data.contentId = resourceContentId(r);
-      data.cfg = {kats:kats, reg:document.getElementById('prReg').value, lvl:+document.getElementById('prLvl').value,
-        diff:+document.getElementById('prDiff').value, anzahl:Math.min(100, Math.max(1, +document.getElementById('prAnzahl').value || 20)),
-        mischen:document.getElementById('prMischen').checked};
+      var optionen = {}, optNamen = {};
+      Array.prototype.forEach.call(box.querySelectorAll('[data-opt]'), function(s){ optionen[s.getAttribute('data-opt')] = s.value; optNamen[s.getAttribute('data-opt')] = s.options[s.selectedIndex].text; });
+      var anzahl = Math.min(100, Math.max(1, +document.getElementById('prAnzahl').value || 20));
+      data.art = info.art;
+      data.resourceId = resource.id; data.resourceTitel = resource.title || resource.fileName || ''; data.contentId = resourceContentId(resource);
+      data.cfg = {kats:kats, katNamen:katEls.map(function(i){ return i.parentNode.textContent.replace(/\s*\(\d+\)\s*$/, '').trim(); }),
+        optionen:optionen, optNamen:optNamen, anzahl:anzahl, mischen:document.getElementById('prMischen').checked};
+      data.seed = Math.floor(Math.random() * 2147483646) + 1;
+      if(info.art === 'bank'){
+        var zug = pruefBankZiehen(info, kats, anzahl, data.seed);
+        data.fragen = zug.fragen; data.bilder = zug.bilder; data.cfg.anzahl = zug.fragen.length;
+        data.maxPunkte = Object.keys(zug.loesungen).reduce(function(s, k){ return s + (zug.loesungen[k].punkte || 1); }, 0);
+        loesung = zug.loesungen;
+        if(JSON.stringify(data).length > 900000){ toast('Zu viele/zu grosse Fragen — bitte weniger Fragen wählen.'); return; }
+      }
     }
     this.disabled = true;
     try{
-      if(neu){
-        var id = 'p' + Date.now().toString(36);
-        data.status = 'entwurf'; data.resultateFrei = false; data.seed = Math.floor(Math.random() * 2147483646) + 1;
-        data.createdAt = serverTimestamp(); data.createdBy = state.user.uid;
-        await setDoc(pruefRef(id), data);
-        closeModal();
-        state.route = {name:'pruefung', id:id}; render();
-      } else {
-        await updateDoc(pruefRef(p.id), data);
-        closeModal(); toast('Gespeichert.');
+      var id = neu ? 'p' + Date.now().toString(36) : p.id;
+      if(neu){ data.status = 'entwurf'; data.resultateFrei = false; data.createdAt = serverTimestamp(); data.createdBy = state.user.uid; }
+      var batch = writeBatch();
+      if(neu) batch.set(pruefRef(id), data); else batch.update(pruefRef(id), data);
+      if(loesung) batch.set(loesRef(id), {loesungen:loesung});
+      await batch.commit();
+      if(loesung) pruef.loes[id] = loesung;
+      closeModal();
+      if(neu){ state.route = {name:'pruefung', id:id}; render(); }
+      else {
+        toast('Gespeichert.');
+        // Skala, Fach oder Gewichtung geändert: bereits eingetragene Noten nachführen.
+        if(p.resultateFrei) pruefNotenEintragen(Object.assign({}, p, data)).catch(pruefFehler);
       }
-    }catch(err){ console.error(err); this.disabled = false; if(err && err.code !== 'klasse/abgebrochen') toast('Speichern fehlgeschlagen.'); }
+    }catch(err){ this.disabled = false; pruefFehler(err); }
   });
 }
+
+/* ---------- Lehrperson: Live-Übersicht ---------- */
 
 var pruefRosterCache = {klasse:null, list:null};
 function renderPruefungMonitor(){
@@ -12949,15 +13495,29 @@ function pruefTeilStatus(t){
   if(lebt && Date.now() - lebt > PRUEF_STALE_MS) return {cls:'weg', txt:'🟠 keine Verbindung seit '+Math.round((Date.now() - lebt)/60000)+' Min.'};
   return {cls:'laeuft', txt:'🟢 schreibt'};
 }
+// Resultat einer abgegebenen Teilnahme: bei Bank-Prüfungen hier korrigiert
+// (braucht die Lösungen), sonst das, was die Übungsseite mitgeschickt hat.
+function pruefErgebnis(p, t){
+  if(!t || t.status !== 'abgegeben') return null;
+  if(pruefArt(p) === 'bank'){
+    var loes = pruef.loes[p.id];
+    return loes ? pruefBankBewerten(p, loes, t.antworten, t.korrektur) : null;
+  }
+  return typeof t.punkte === 'number' ? {punkte:t.punkte, max:t.max, details:t.details || []} : null;
+}
 function pruefMonitorZeichnen(){
   var el = document.getElementById('prMon');
   if(!el || state.route.name !== 'pruefung') return;
   var p = pruefById(state.route.id);
   if(!pruef.unsub || (!p && !pruef.list.length)){ el.innerHTML = '<div class="empty-state">Wird geladen …</div>'; return; }
   if(!p){ el.innerHTML = '<div class="empty-state">Diese Prüfung gibt es nicht mehr.</div>'; return; }
-  var c = p.cfg || {}, teil = pruef.teil[p.id], roster = pruefRosterCache.list;
+  if(pruefArt(p) === 'bank' && !pruef.loes[p.id] && !pruef.loesLaedt){
+    pruef.loesLaedt = true;
+    pruefLoesungLaden(p.id).then(function(){ pruef.loesLaedt = false; pruefMonitorZeichnen(); }, function(err){ pruef.loesLaedt = false; console.error(err); });
+  }
+  var teil = pruef.teil[p.id], roster = pruefRosterCache.list, anzahl = pruefAnzahl(p);
   var h = '<h2 class="page-welcome" style="margin-bottom:6px;">📝 '+esc(p.titel)+' '+pruefStatusBadge(p)+'</h2>';
-  h += '<p class="kz-intro">'+esc(p.resourceTitel || '')+' · '+esc(String(c.anzahl))+' Fragen · '+esc((c.kats || []).map(function(k){ return PRUEF_KATS[k] || k; }).join(', '))+' · '+esc(PRUEF_REG[c.reg] || '')+' · '+esc(PRUEF_LVL[c.lvl] || '')+' · '+esc(PRUEF_DIFF[c.diff] || '')+'</p>';
+  h += '<p class="kz-intro">'+esc(pruefBeschreibung(p, true))+'</p>';
   h += '<div class="back-row" style="flex-wrap:wrap;">';
   if(p.status === 'entwurf') h += '<button class="btn btn-primary btn-sm" data-a="freigeben" type="button">▶️ Freigeben</button>';
   if(p.status === 'offen') h += '<button class="btn btn-danger btn-sm" data-a="beenden" type="button">⏹ Beenden</button>';
@@ -12970,28 +13530,39 @@ function pruefMonitorZeichnen(){
   if(!teil || !roster){ el.innerHTML = h + '<div class="empty-state">Klasse wird geladen …</div>'; pruefMonitorVerdrahten(p); return; }
   var rows = roster.map(function(s){ return {uid:s.uid, name:s.displayName || s.username || s.uid, t:teil[s.uid] || null}; });
   Object.keys(teil).forEach(function(uid){ if(!rows.some(function(r){ return r.uid === uid; })) rows.push({uid:uid, name:teil[uid].name || uid, t:teil[uid]}); });
-  var z = {ab:0, gesperrt:0, laeuft:0, nix:0}, noten = [];
+  var z = {ab:0, gesperrt:0, laeuft:0, nix:0}, notenListe = [];
   rows.forEach(function(r){
     var st = pruefTeilStatus(r.t);
-    if(st.cls === 'ab'){ z.ab++; var n = pruefNote(p, r.t.punkte, r.t.max); if(n != null) noten.push(n); }
+    r.st = st; r.erg = pruefErgebnis(p, r.t);
+    if(st.cls === 'ab'){ z.ab++; if(r.erg){ var n = pruefNote(p, r.erg.punkte, r.erg.max); if(n != null) notenListe.push(n); } }
     else if(st.cls === 'gesperrt') z.gesperrt++;
     else if(st.cls === 'nix') z.nix++;
     else z.laeuft++;
   });
-  var schnitt = noten.length ? noten.reduce(function(a,b){ return a+b; }, 0) / noten.length : null;
+  if(p.resultateFrei && (pruefArt(p) !== 'bank' || pruef.loes[p.id])){
+    pruef.notiertVersucht = pruef.notiertVersucht || {};
+    var spaet = rows.filter(function(r){ return r.t && r.t.status === 'abgegeben' && !r.t.notiertAm && !pruef.notiertVersucht[p.id + '/' + r.uid]; }).map(function(r){ return r.uid; });
+    if(spaet.length){
+      spaet.forEach(function(u){ pruef.notiertVersucht[p.id + '/' + u] = true; });
+      pruefNotenEintragen(p, spaet).catch(pruefFehler);
+    }
+  }
+  var schnitt = notenListe.length ? notenListe.reduce(function(a,b){ return a+b; }, 0) / notenListe.length : null;
   h += '<div class="pr-zahlen"><div><b>'+z.laeuft+'</b><span>schreiben</span></div><div class="'+(z.gesperrt ? 'alarm' : '')+'"><b>'+z.gesperrt+'</b><span>gesperrt</span></div>'+
     '<div><b>'+z.ab+'</b><span>abgegeben</span></div><div><b>'+z.nix+'</b><span>nicht gestartet</span></div><div><b>'+(schnitt == null ? '–' : schnitt.toFixed(2))+'</b><span>Schnitt</span></div></div>';
   if(z.gesperrt > 1) h += '<div class="back-row"><button class="btn btn-primary btn-sm" data-a="alleEntsperren" type="button">🔓 Alle '+z.gesperrt+' entsperren</button></div>';
   var rang = {gesperrt:0, weg:1, frei:2, laeuft:3, ab:4, nix:5};
-  rows.sort(function(a,b){ return (rang[pruefTeilStatus(a.t).cls] - rang[pruefTeilStatus(b.t).cls]) || a.name.localeCompare(b.name, 'de'); });
+  rows.sort(function(a,b){ return (rang[a.st.cls] - rang[b.st.cls]) || a.name.localeCompare(b.name, 'de'); });
   h += '<div class="pr-tabelle">';
   rows.forEach(function(r){
-    var t = r.t, st = pruefTeilStatus(t), max = (t && t.max) || c.anzahl || 0;
-    var fort = t ? (t.status === 'abgegeben' ? t.punkte+' / '+t.max+' Pkt · Note <b>'+pruefNoteText(pruefNote(p, t.punkte, t.max))+'</b>' : (t.beantwortet || 0)+' / '+max+' beantwortet') : '';
+    var t = r.t, st = r.st;
+    var fort = !t ? '' : t.status === 'abgegeben'
+      ? (r.erg ? r.erg.punkte+' / '+r.erg.max+' Pkt · Note <b>'+pruefNoteText(pruefNote(p, r.erg.punkte, r.erg.max))+'</b>' : 'wird korrigiert …')
+      : (t.beantwortet || 0)+' / '+anzahl+' beantwortet';
     var vs = t && t.verstoesse && t.verstoesse.length ? ' · <span class="pr-vs" title="'+esc(t.verstoesse.map(function(v){ return new Date(v.at).toLocaleTimeString('de-CH',{hour:'2-digit',minute:'2-digit'})+' '+v.grund; }).join('\n'))+'">⚠️ '+t.verstoesse.length+'× verlassen</span>' : '';
     h += '<div class="pr-zeile '+st.cls+'"><div class="pr-name">'+esc(r.name)+'</div><div class="pr-st">'+esc(st.txt)+'</div><div class="pr-fort">'+fort+vs+'</div><div class="pr-akt">';
     if(t && t.status === 'gesperrt') h += '<button class="btn btn-primary btn-sm" data-e="'+esc(r.uid)+'" type="button">🔓 Entsperren</button>';
-    if(t && t.status === 'abgegeben') h += '<button class="btn btn-ghost btn-sm" data-d="'+esc(r.uid)+'" type="button">Details</button>';
+    if(t && t.status === 'abgegeben' && r.erg) h += '<button class="btn btn-ghost btn-sm" data-d="'+esc(r.uid)+'" type="button">Details</button>';
     if(t) h += '<button class="btn btn-ghost btn-sm" data-r="'+esc(r.uid)+'" type="button" title="Teilnahme löschen — die Person kann neu beginnen">↺</button>';
     h += '</div></div>';
   });
@@ -13009,14 +13580,14 @@ function pruefMonitorVerdrahten(p){
     if(du){ pruefDetailsLehrer(p, du); return; }
     if(ru){
       uiConfirm('Teilnahme zurücksetzen?', (teil[ru] && teil[ru].name || 'Die Person')+' verliert alle Antworten und kann die Prüfung neu beginnen.', 'Zurücksetzen', function(){
-        deleteDoc(teilRef(p.id, ru)).then(function(){ toast('Zurückgesetzt.'); }).catch(pruefFehler);
+        writeBatch().delete(teilRef(p.id, ru)).delete(pruefNoteRef(ru, p.id)).commit().then(function(){ toast('Zurückgesetzt.'); }).catch(pruefFehler);
       }, true);
       return;
     }
     if(a === 'freigeben') pruefFreigeben(p);
     else if(a === 'beenden') uiConfirm('Prüfung beenden?', 'Wer noch schreibt, gibt automatisch mit dem aktuellen Stand ab. Gesperrte geben ab, sobald du sie entsperrst und sie auf «Abgeben» klicken.', 'Beenden', function(){ updateDoc(pruefRef(p.id), {status:'beendet', beendetAm:serverTimestamp()}).catch(pruefFehler); }, true);
     else if(a === 'oeffnen') updateDoc(pruefRef(p.id), {status:'offen'}).catch(pruefFehler);
-    else if(a === 'resultate') updateDoc(pruefRef(p.id), {resultateFrei:!p.resultateFrei}).then(function(){ toast(p.resultateFrei ? 'Resultate verborgen.' : 'Resultate für die Klasse sichtbar.'); }).catch(pruefFehler);
+    else if(a === 'resultate') pruefResultateUmschalten(p);
     else if(a === 'vorschau') pruefStarten(p, false, true);
     else if(a === 'bearbeiten') pruefEditor(p);
     else if(a === 'alleEntsperren'){
@@ -13024,11 +13595,12 @@ function pruefMonitorVerdrahten(p){
       Object.keys(teil).forEach(function(uid){ if(teil[uid].status === 'gesperrt') batch.update(teilRef(p.id, uid), {status:'laeuft', aktiv:false, entsperrtAm:serverTimestamp()}); });
       batch.commit().then(function(){ toast('Alle entsperrt.'); }).catch(pruefFehler);
     }
-    else if(a === 'loeschen') uiConfirm('Prüfung löschen?', 'Die Prüfung und alle Abgaben und Noten dazu werden gelöscht.', 'Löschen', async function(){
+    else if(a === 'loeschen') uiConfirm('Prüfung löschen?', 'Die Prüfung und alle Abgaben werden gelöscht — auch die Noten im Notenrechner der Schüler:innen.', 'Löschen', async function(){
       try{
         var snap = await getDocs(teilCol(p.id));
         var batch = writeBatch();
-        snap.forEach(function(d){ batch.delete(d.ref); });
+        snap.forEach(function(d){ batch.delete(d.ref); batch.delete(pruefNoteRef(d.id, p.id)); });
+        batch.delete(loesRef(p.id));
         batch.delete(pruefRef(p.id));
         await batch.commit();
         state.route = {name:'pruefungen'}; render();
@@ -13036,20 +13608,77 @@ function pruefMonitorVerdrahten(p){
     }, true);
   };
 }
+// Resultate freigeben: Punkte + Details in jede abgegebene Teilnahme schreiben
+// (bei Bank-Prüfungen dürfen die Schüler:innen die Lösungen nicht lesen und
+// sehen nur, was hier hineingeschrieben wird) und die Note im Notenrechner
+// eintragen. Verbergen nimmt die Noten wieder heraus.
+async function pruefResultateUmschalten(p){
+  try{
+    if(!p.resultateFrei){
+      await pruefNotenEintragen(p);
+      await updateDoc(pruefRef(p.id), {resultateFrei:true});
+      toast('Resultate frei — Noten sind im Notenrechner eingetragen.');
+    } else {
+      await updateDoc(pruefRef(p.id), {resultateFrei:false});
+      await pruefNotenEntfernen(p);
+      toast('Resultate verborgen — Noten aus dem Notenrechner entfernt.');
+    }
+  }catch(err){ pruefFehler(err); }
+}
+
+/* ---------- Noten im Notenrechner der Schüler:innen ----------
+   progress/{uid}/pruefungsnoten/{klasse}_{pruefungId} -> {fach, name, note, gewicht}
+   Schreibt nur die Lehrperson; der Notenrechner zeigt diese Einträge fest
+   (nicht änderbar) neben den selbst eingetragenen Noten. */
+function pruefNoteRef(uid, pid){ return doc(db, 'progress', uid, 'pruefungsnoten', state.klasse + '_' + pid); }
+async function pruefNotenEintragen(p, nurUids){
+  var teil = pruef.teil[p.id] || {};
+  var loes = pruefArt(p) === 'bank' ? await pruefLoesungLaden(p.id) : null;
+  var batch = writeBatch(), n = 0;
+  Object.keys(teil).forEach(function(uid){
+    if(nurUids && nurUids.indexOf(uid) < 0) return;
+    var t = teil[uid]; if(t.status !== 'abgegeben') return;
+    var r = loes ? pruefBankBewerten(p, loes, t.antworten, t.korrektur)
+                 : (typeof t.punkte === 'number' ? {punkte:t.punkte, max:t.max} : null);
+    if(!r || !r.max) return;
+    var upd = {notiertAm:serverTimestamp()};
+    if(loes){ upd.punkte = r.punkte; upd.max = r.max; upd.details = r.details; }
+    batch.update(teilRef(p.id, uid), upd);
+    pruefNoteSetzen(batch, p, uid, r);
+    n++;
+  });
+  if(n) await batch.commit();
+}
+function pruefNoteSetzen(batch, p, uid, r){
+  batch.set(pruefNoteRef(uid, p.id), {fach:p.fach || '', name:p.titel || 'Prüfung', note:pruefNote(p, r.punkte, r.max),
+    gewicht:+p.gewicht > 0 ? +p.gewicht : 1, pruefungId:p.id, klasse:state.klasse, datum:serverTimestamp()});
+}
+async function pruefNotenEntfernen(p){
+  var teil = pruef.teil[p.id] || {}, batch = writeBatch(), n = 0;
+  Object.keys(teil).forEach(function(uid){
+    batch.delete(pruefNoteRef(uid, p.id));
+    if(teil[uid].notiertAm) batch.update(teilRef(p.id, uid), {notiertAm:null});
+    n++;
+  });
+  if(n) await batch.commit();
+}
 function pruefFehler(err){
   console.error(err);
   if(err && err.code === 'klasse/abgebrochen') return;
   toast('Hat nicht geklappt'+(err && err.code ? ' ('+err.code+')' : '')+'.');
 }
 async function pruefFreigeben(p){
-  // Nur freigeben, wenn die Übung den Prüfungsmodus kennt — sonst würden die
-  // Schüler:innen gesperrt in einer normalen Übungsseite landen.
-  toast('Übung wird geprüft …');
   try{
-    var html = await loadResourceHtml(p.contentId);
-    if(html.indexOf('__GEO_PRUEFUNG') < 0){
-      uiInfo('Diese Übung hat noch keinen Prüfungsmodus', 'Ersetze die Übung «'+(p.resourceTitel || '')+'» zuerst mit der neuen Fassung von Pöstlergeografie Welt (Datei ersetzen), dann nochmals freigeben.');
-      return;
+    // Ältere Prüfungen ohne «art»: nur freigeben, wenn die Übung den
+    // Prüfungsmodus kennt — sonst landeten die Schüler:innen gesperrt in einer
+    // normalen Übungsseite. Neue Prüfungen wurden beim Anlegen schon befragt.
+    if(!p.art){
+      toast('Übung wird geprüft …');
+      var html = await loadResourceHtml(p.contentId);
+      if(html.indexOf('__GEO_PRUEFUNG') < 0){
+        uiInfo('Diese Übung hat noch keinen Prüfungsmodus', 'Ersetze die Übung «'+(p.resourceTitel || '')+'» zuerst mit der neuen Fassung, dann nochmals freigeben.');
+        return;
+      }
     }
     await updateDoc(pruefRef(p.id), {status:'offen', freigegebenAm:serverTimestamp()});
     toast('Freigegeben — bei der Klasse erscheint «Prüfung verfügbar».');
@@ -13058,22 +13687,44 @@ async function pruefFreigeben(p){
 function pruefDetailsLehrer(p, uid){
   var t = (pruef.teil[p.id] || {})[uid];
   if(!t) return;
-  var details = (t.details || []).map(function(d){ return Object.assign({}, d); });
+  var bank = pruefArt(p) === 'bank';
+  // Bank: Handkorrektur als {frageId: true|false}; sonst die mitgeschickten Details direkt umschalten.
+  var korrektur = Object.assign({}, t.korrektur || {});
+  var details = bank ? null : (t.details || []).map(function(d){ return Object.assign({}, d); });
+  function erg(){
+    if(bank) return pruefBankBewerten(p, pruef.loes[p.id] || {}, t.antworten, korrektur);
+    var pk = details.filter(function(d){ return d.ok; }).length;
+    return {punkte:pk, max:t.max, details:details};
+  }
   function zeichne(){
-    var punkte = details.filter(function(d){ return d.ok; }).length;
+    var r = erg();
     var h = '<h3>'+esc(t.name || '')+' — '+esc(p.titel)+'</h3>';
-    h += '<div class="pr-resultat"><div><span>Note</span><b>'+pruefNoteText(pruefNote(p, punkte, t.max))+'</b></div><div><span>Punkte</span><b>'+punkte+' / '+esc(String(t.max))+'</b></div></div>';
+    h += '<div class="pr-resultat"><div><span>Note</span><b>'+pruefNoteText(pruefNote(p, r.punkte, r.max))+'</b></div><div><span>Punkte</span><b>'+r.punkte+' / '+esc(String(r.max))+'</b></div></div>';
     if(t.verstoesse && t.verstoesse.length) h += '<p class="pr-hinweis">⚠️ '+t.verstoesse.length+'× verlassen: '+esc(t.verstoesse.map(function(v){ return new Date(v.at).toLocaleTimeString('de-CH',{hour:'2-digit',minute:'2-digit'})+' '+v.grund; }).join(' · '))+'</p>';
     h += '<p class="pr-hinweis">Tippe auf ✅/❌, um eine Antwort von Hand anders zu werten.</p>';
-    h += pruefDetailsHtml(details, true);
+    h += pruefDetailsHtml(r.details, true);
     h += '<div class="modal-actions"><button class="btn btn-ghost btn-sm" id="modalCancel" type="button">Schliessen</button><button class="btn btn-primary btn-sm" id="modalOk" type="button">Korrektur speichern</button></div>';
     openModal(h, 'pr-modal');
     document.getElementById('modalCancel').addEventListener('click', closeModal);
     document.getElementById('modalOk').addEventListener('click', function(){
-      updateDoc(teilRef(p.id, uid), {details:details, punkte:punkte, korrigiertAm:serverTimestamp()}).then(function(){ closeModal(); toast('Korrektur gespeichert.'); }).catch(pruefFehler);
+      var r2 = erg(), upd = {korrigiertAm:serverTimestamp()};
+      if(bank){
+        upd.korrektur = korrektur;
+        // Sind die Resultate schon frei, auch das nachführen, was die Person sieht.
+        if(p.resultateFrei){ upd.punkte = r2.punkte; upd.max = r2.max; upd.details = r2.details; }
+      } else { upd.details = details; upd.punkte = r2.punkte; }
+      // In einem Rutsch: Teilnahme und (falls schon frei) die Note im Notenrechner.
+      var batch = writeBatch().update(teilRef(p.id, uid), upd);
+      if(p.resultateFrei) pruefNoteSetzen(batch, p, uid, r2);
+      batch.commit().then(function(){ closeModal(); toast('Korrektur gespeichert.'); }).catch(pruefFehler);
     });
     Array.prototype.forEach.call(document.querySelectorAll('.pr-det-ok[data-i]'), function(b){
-      b.addEventListener('click', function(){ var d = details[+b.getAttribute('data-i')]; d.ok = !d.ok; zeichne(); });
+      b.addEventListener('click', function(){
+        var i = +b.getAttribute('data-i');
+        if(bank){ var d = r.details[i]; korrektur[d.id] = !d.ok; }
+        else details[i].ok = !details[i].ok;
+        zeichne();
+      });
     });
   }
   zeichne();
