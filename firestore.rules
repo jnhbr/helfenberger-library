@@ -56,6 +56,11 @@ rules_version = '2';
 //   quizSessions/aktiv                              -> laufende Quiz-Runde (feste Dokument-ID, es läuft immer nur eine)
 //   quizSessions/aktiv/antworten/{uid}              -> {qIndex, choice, at, name}   (jede:r schreibt nur die eigene)
 //   quizSessions/aktiv/spieler/{uid}                -> {name, score, correct}       (Punkte setzt nur die Lehrperson)
+//   pruefungen/{id}                                 -> {titel, resourceId, contentId, cfg, seed, status: entwurf|offen|beendet,
+//                                                       resultateFrei, punkteFuer6, rundung} Online-Prüfung (Prüfungsmodus)
+//   pruefungen/{id}/teilnahmen/{uid}                -> {status: laeuft|gesperrt|abgegeben, aktiv, antworten, verstoesse,
+//                                                       punkte, max, details}. Die Person schreibt nur, solange
+//                                                       status == 'laeuft' — entsperren kann nur die Lehrperson.
 //
 // KLASSEN (seit Herbst 2026): Alles Klassenbezogene liegt unter
 //   klassen/{klasse}/{resources|folders|calendarEntries|debts|appMeta|klassenzimmer|
@@ -191,6 +196,29 @@ service cloud.firestore {
           allow read: if inKlasseLesen(klasse);
           allow create: if isTeacher() || (isOwner(uid) && inKlasse(klasse) && request.resource.data.score == 0);
           allow update: if isTeacher() || (isOwner(uid) && inKlasse(klasse) && request.resource.data.score == resource.data.score);
+          allow delete: if isTeacher();
+        }
+      }
+
+      // Prüfungsmodus: die Klasse liest die Prüfung (Einstellungen, Status),
+      // nur die Lehrperson legt an / ändert / löscht.
+      match /pruefungen/{pruefungId} {
+        allow read: if inKlasseLesen(klasse);
+        allow create, update: if isTeacher();
+        allow delete: if isTeacher();
+
+        // Eigene Teilnahme: anlegen nur bei offener Prüfung und nur als
+        // 'laeuft'; ändern nur, solange sie noch 'laeuft' (also nicht selbst
+        // entsperren und nach der Abgabe nichts mehr ändern).
+        match /teilnahmen/{uid} {
+          allow read: if (isOwner(uid) && inKlasse(klasse)) || canReadAll();
+          allow create: if isOwner(uid) && inKlasse(klasse)
+            && request.resource.data.status == 'laeuft'
+            && get(/databases/$(database)/documents/klassen/$(klasse)/pruefungen/$(pruefungId)).data.status == 'offen';
+          allow update: if isTeacher() || (isOwner(uid) && inKlasse(klasse)
+            && resource.data.status == 'laeuft'
+            && request.resource.data.status in ['laeuft', 'gesperrt', 'abgegeben']);
+          // Separat, siehe oben: bei einem delete ist request.resource null.
           allow delete: if isTeacher();
         }
       }
