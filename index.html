@@ -99,6 +99,24 @@
       background-attachment:scroll;
     }
   }
+  /* Testseite: Hintergrund rot statt blau getönt, damit man sie sofort von
+     der Live-Seite unterscheidet. Klasse wird im <head> gesetzt (Pfad enthält -test/). */
+  html.test-site{--test-bg:color-mix(in srgb, var(--bg) 82%, #E53935);background:var(--test-bg);}
+  html.test-site body{
+    background-color:var(--test-bg);
+    background-image:
+      radial-gradient(ellipse at 12% 0%, rgba(229,57,53,.16), transparent 45%),
+      radial-gradient(ellipse at 100% 100%, rgba(229,57,53,.12), transparent 50%),
+      linear-gradient(color-mix(in srgb, var(--test-bg) 88%, transparent), color-mix(in srgb, var(--test-bg) 88%, transparent)),
+      url('assets/background.jpg');
+  }
+  @media (max-width:600px){
+    html.test-site body{
+      background-image:
+        radial-gradient(ellipse at 12% 0%, rgba(229,57,53,.16), transparent 45%),
+        radial-gradient(ellipse at 100% 100%, rgba(229,57,53,.12), transparent 50%);
+    }
+  }
   .desk-prop{position:fixed;bottom:0;font-size:64px;line-height:1;opacity:.5;pointer-events:none;z-index:0;filter:saturate(.9);}
   .desk-prop-left{left:14px;}
   .desk-prop-right{right:70px;}
@@ -290,6 +308,27 @@
   .modal-overlay.show{display:flex;}
   .modal{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:0 24px 60px rgba(0,0,0,.28);width:100%;max-width:440px;max-height:85vh;overflow:auto;padding:22px;}
   .modal-wide{max-width:640px;}
+  .modal.ued-modal{max-width:980px;width:100%;height:88vh;max-height:88vh;display:flex;flex-direction:column;overflow:hidden;}
+  .ued-tabs{display:flex;gap:6px;flex-wrap:wrap;margin:4px 0 10px;}
+  .ued-tabs .btn.active{background:var(--brand);color:#fff;}
+  .ued-bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;}
+  .modal .ued-bar input[type=text]{flex:1;min-width:180px;margin:0;}
+  .ued-bar label{font-size:12.5px;color:var(--text-muted);display:flex;gap:6px;align-items:center;white-space:nowrap;}
+  .ued-body{flex:1;min-height:0;overflow:auto;border:1px solid var(--border);border-radius:10px;background:var(--surface-2);padding:10px;}
+  .ued-group{font-size:13px;font-weight:700;margin:14px 2px 6px;color:var(--text);}
+  .ued-group:first-child{margin-top:2px;}
+  .ued-entry{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:8px 10px;margin-bottom:8px;}
+  .ued-entry.changed{border-color:var(--brand);box-shadow:0 0 0 1px var(--brand);}
+  .ued-entry small{display:block;font-size:11.5px;color:var(--text-muted);margin-bottom:4px;font-family:ui-monospace,Menlo,monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .modal .ued-entry textarea{margin:0;padding:7px 9px;font-size:14px;min-height:0;}
+  .modal .ued-code{width:100%;height:100%;margin:0;box-sizing:border-box;font:12.5px/1.45 ui-monospace,Menlo,monospace;white-space:pre;overflow:auto;resize:none;background:var(--surface);}
+  .ued-body.ued-code-wrap{padding:0;overflow:hidden;}
+  .ued-body iframe{width:100%;height:100%;border:0;background:#fff;border-radius:10px;}
+  .ued-body.ued-preview{padding:0;overflow:hidden;}
+  .ued-hint{font-size:12.5px;color:var(--text-muted);margin:0 0 8px;}
+  .ued-err{font-size:13px;color:#C62828;margin:8px 0 0;}
+  .ued-foot{display:flex;gap:10px;justify-content:space-between;flex-wrap:wrap;margin-top:12px;}
+  .ued-foot > div{display:flex;gap:8px;flex-wrap:wrap;}
   .modal h3{font-size:18px;margin:0 0 8px;}
   .modal p{font-size:14px;color:var(--text-muted);margin:0 0 16px;line-height:1.5;}
   .modal input[type=text],.modal input[type=password],.modal input[type=number]{width:100%;padding:11px 13px;border:1px solid var(--border);border-radius:10px;font:inherit;background:var(--surface-2);color:var(--text);margin-bottom:16px;}
@@ -1100,6 +1139,7 @@
   .vg-item-spacer{flex:1;}
   .vg-hint{color:var(--text-muted);font-size:13px;line-height:1.55;margin:0 2px 14px;}
 </style>
+<script>if(/-test\//.test(location.pathname))document.documentElement.classList.add('test-site');</script>
 </head>
 <body>
 <div class="desk-prop desk-prop-left" aria-hidden="true">📚</div>
@@ -4706,6 +4746,8 @@ function renderFolderContents(){
     document.getElementById('mv-'+r.id).addEventListener('click', function(){ askMoveResource(r); });
     var replBtn = document.getElementById('repl-'+r.id);
     if(replBtn) replBtn.addEventListener('click', function(){ pickReplacementFile(r); });
+    var ueditBtn = document.getElementById('uedit-'+r.id);
+    if(ueditBtn) ueditBtn.addEventListener('click', function(){ openUebungEditor(r); });
   });
 }
 
@@ -4919,6 +4961,7 @@ function resourceCardHtml(r, index, total, isTeacher){
     }
     html += '<button class="btn btn-ghost btn-sm" id="rrename-'+r.id+'" type="button">Umbenennen</button>';
     if(!r.externalUrl){
+      html += '<button class="btn btn-ghost btn-sm" id="uedit-'+r.id+'" type="button" title="Texte, Lösungen oder Code direkt in der App anpassen">✏️ Bearbeiten</button>';
       html += '<button class="btn btn-ghost btn-sm" id="repl-'+r.id+'" type="button" title="Neue Version der HTML-Datei hochladen – Titel, Ort und Übungsstände bleiben">Datei ersetzen</button>';
     }
     html += '<button class="btn btn-ghost btn-sm" id="mv-'+r.id+'" type="button">Verschieben</button>';
@@ -4964,7 +5007,7 @@ function pickReplacementFile(r){
       return;
     }
     uiConfirm('Datei ersetzen?',
-      'Der Inhalt von «'+(r.title||r.fileName)+'» wird durch «'+file.name+'» ersetzt. Titel, Ort und Übungsstände bleiben erhalten.',
+      'Der Inhalt von «'+(r.title||r.fileName)+'» wird durch «'+file.name+'» ersetzt. Titel, Ort und Übungsstände bleiben erhalten, Kopien in anderen Klassen werden mitaktualisiert.',
       'Ersetzen', function(){ replaceResource(r, file); });
   });
   input.click();
@@ -4973,33 +5016,568 @@ function pickReplacementFile(r){
 async function replaceResource(r, file){
   try{
     var htmlText = await readFileAsText(file);
-    if(new Blob([htmlText]).size > MAX_RESOURCE_BYTES){
-      toast('Datei ist zu gross (max. '+Math.round(MAX_RESOURCE_BYTES/1024/1024)+' MB).');
-      return;
-    }
-    var chunks = chunkStringByBytes(htmlText, MAX_CHUNK_BYTES);
-    // Der Inhalt kann mit Kopien in anderen Klassen geteilt sein. Darum nie
-    // überschreiben, sondern als neuen Inhalt ablegen und nur diese Übung
-    // umhängen; der alte Inhalt wird gelöscht, sobald ihn niemand mehr nutzt.
-    var oldContentId = resourceContentId(r);
-    var newContentId = r.id + '_' + Date.now().toString(36);
-    var batch = writeBatch(db);
-    batch.set(doc(db,'resourceContent', newContentId), { chunkCount: chunks.length });
-    chunks.forEach(function(chunk, i){
-      batch.set(doc(db,'resourceContent', newContentId, 'chunks', String(i)), { html: chunk });
-    });
-    var patch = { fileName: file.name, replacedAt: serverTimestamp(), contentId: newContentId };
-    // Nur Originale zählen die Version hoch — daran sehen die anderen Klassen,
-    // dass es eine neue Fassung gibt (Einstellungen -> Aktualisierungen).
-    if(!r.originKlasse) patch.version = increment(1);
-    batch.set(kdoc('resources', r.id), patch, {merge:true});
-    await batch.commit();
+    await publishResourceContent(r, htmlText, file.name);
     toast('«'+(r.title||file.name)+'» wurde ersetzt.');
-    deleteContentIfUnused(oldContentId);
   }catch(err){
     console.error(err);
     toast('Ersetzen fehlgeschlagen: '+(err && err.message ? err.message : 'unbekannter Fehler'));
   }
+}
+
+// Alle Einträge dieser Übung (Original + Kopien, gleiche ID in allen Klassen),
+// die gerade denselben Inhalt zeigen wie r. Genau diese werden bei einer
+// Änderung automatisch mitgezogen; Kopien, die bewusst eine andere Fassung
+// haben (z.B. «Ignorieren» gewählt), bleiben unberührt.
+async function syncedResourceEntries(r){
+  var snaps = await Promise.all(KLASSEN.map(function(k){ return getDoc(kdocFor(k.id, 'resources', r.id)); }));
+  var all = [];
+  snaps.forEach(function(snap, i){
+    if(snap.exists()) all.push({ klasse:KLASSEN[i].id, ref:kdocFor(KLASSEN[i].id, 'resources', r.id), data:Object.assign({id:r.id}, snap.data()) });
+  });
+  var own = all.filter(function(e){ return e.klasse === state.klasse; })[0];
+  var cid = own ? resourceContentId(own.data) : resourceContentId(r);
+  return {
+    contentId: cid,
+    entries: all.filter(function(e){ return resourceContentId(e.data) === cid; }),
+    origin: all.filter(function(e){ return !e.data.originKlasse; })[0] || null
+  };
+}
+
+// Zeigt für alle synchronen Einträge einen anderen Inhalt an. Der bisherige
+// Inhalt bleibt als prevContentId erhalten («Vorherige Version wiederherstellen»);
+// erst die davor liegende Fassung wird aufgeräumt, sobald sie niemand mehr nutzt.
+function repointEntries(batch, sync, newContentId, prevContentId, fileName){
+  var originIn = sync.origin && sync.entries.some(function(e){ return e.klasse === sync.origin.klasse; });
+  var newVersion = sync.origin ? (sync.origin.data.version || 0) + (originIn ? 1 : 0) : 0;
+  var dropped = [];
+  sync.entries.forEach(function(e){
+    var patch = { contentId:newContentId, prevContentId:prevContentId, replacedAt:serverTimestamp() };
+    if(fileName) patch.fileName = fileName;
+    if(!e.data.originKlasse){ patch.version = newVersion; }
+    else if(originIn){ patch.originVersion = newVersion; }
+    if(e.data.prevContentId && e.data.prevContentId !== newContentId && e.data.prevContentId !== prevContentId) dropped.push(e.data.prevContentId);
+    batch.set(e.ref, patch, {merge:true});
+  });
+  return dropped.filter(function(id, i){ return dropped.indexOf(id) === i; });
+}
+
+async function publishResourceContent(r, htmlText, fileName){
+  if(new Blob([htmlText]).size > MAX_RESOURCE_BYTES){
+    throw new Error('Datei ist zu gross (max. '+Math.round(MAX_RESOURCE_BYTES/1024/1024)+' MB).');
+  }
+  var chunks = chunkStringByBytes(htmlText, MAX_CHUNK_BYTES);
+  var sync = await syncedResourceEntries(r);
+  // Nie einen Inhalt überschreiben (er kann geteilt sein), sondern neu ablegen
+  // und die Übung(en) umhängen.
+  var newContentId = r.id + '_' + Date.now().toString(36);
+  var batch = writeBatch(db);
+  batch.set(doc(db,'resourceContent', newContentId), { chunkCount: chunks.length });
+  chunks.forEach(function(chunk, i){
+    batch.set(doc(db,'resourceContent', newContentId, 'chunks', String(i)), { html: chunk });
+  });
+  var dropped = repointEntries(batch, sync, newContentId, sync.contentId, fileName);
+  await batch.commit();
+  dropped.forEach(deleteContentIfUnused);
+}
+
+// Tauscht aktuelle und vorherige Fassung (nochmals klicken = wieder zurück).
+async function restorePreviousContent(r){
+  var sync = await syncedResourceEntries(r);
+  var own = sync.entries.filter(function(e){ return e.klasse === state.klasse; })[0];
+  var prev = own && own.data.prevContentId;
+  if(!prev) throw new Error('Keine vorherige Version vorhanden.');
+  var snap = await getDoc(doc(db,'resourceContent', prev));
+  if(!snap.exists()) throw new Error('Die vorherige Version ist nicht mehr vorhanden.');
+  var batch = writeBatch(db);
+  var dropped = repointEntries(batch, sync, prev, sync.contentId, null);
+  await batch.commit();
+  dropped.forEach(deleteContentIfUnused);
+}
+
+async function loadResourceHtml(contentId){
+  var snap = await getDoc(doc(db,'resourceContent', contentId));
+  if(!snap.exists()) throw new Error('Inhalt nicht gefunden.');
+  var n = snap.data().chunkCount || 0, idx = [];
+  for(var i=0;i<n;i++) idx.push(i);
+  var chunkSnaps = await Promise.all(idx.map(function(i){ return getDoc(doc(db,'resourceContent', contentId, 'chunks', String(i))); }));
+  return chunkSnaps.map(function(c){ return (c.exists() && c.data().html) || ''; }).join('');
+}
+
+/* ===================== ÜBUNG BEARBEITEN =====================
+   Universeller Editor für hochgeladene Übungsseiten. Modus «Texte & Lösungen»
+   sucht alle Texte im HTML (Textknoten, einige Attribute) und alle
+   String-Literale in den Skripten und zeigt sie als Felder. Geändert wird nur
+   der INHALT eines Strings – Anführungszeichen/Escapes setzt der Editor selbst,
+   darum kann dieser Modus den Code nicht kaputt machen. Der Code-Modus zeigt
+   das ganze HTML; vor dem Speichern wird jedes Skript, das vorher fehlerfrei
+   war, erneut kompiliert (nicht ausgeführt). Gespeichert wird über
+   publishResourceContent (neue Fassung, Kopien in anderen Klassen synchron,
+   vorherige Fassung bleibt wiederherstellbar).
+   Hinweis in der UI: Aufgaben nicht löschen/umsortieren, sonst können
+   gespeicherte Übungsstände verrutschen. */
+
+var UED_TEXT_KEY = /l(oe|ö)s|antwort|answer|korrekt|correct|richtig|falsch|wrong|frage|question|aufgabe|auftrag|tipp|hint|hilfe|help|text|titel|title|erkl|expla|label|option|choice|solution|feedback|beispiel|example|satz|wort|begriff|beschr|desc|hinweis|info|name|prompt|instruction/i;
+var UED_TECH_CALL = /(getElementById|querySelector(All)?|getElementsBy\w+|addEventListener|removeEventListener|createElement\w*|getItem|setItem|removeItem|classList\.\w+|getAttribute|setAttribute|hasAttribute|removeAttribute|closest|matches|import|require|fetch|postMessage|toggleAttribute|setProperty|getPropertyValue|toLocaleString|toLocaleDateString|Intl\.\w+|\.style\.\w+\s*=|===|!==|==|!=)\s*\(?\s*$/;
+var UED_REGEX_BEFORE = /^(?:[(,=:\[!&|?{};+\-*%<>~^}]|return|typeof|instanceof|in|of|new|delete|void|throw|case|do|else|yield|await)$/;
+var UED_GROUP_RE = /^\s*(?:\d+[.)]\s*)?(?:Aufgabe|Auftrag|Frage|Teil|Kapitel|Übung|Uebung|Station|Niveau|Level|Block)\b/i;
+
+function uedDecodeHtml(raw){
+  if(raw.indexOf('&') < 0) return raw;
+  var t = document.createElement('textarea');
+  t.innerHTML = raw;
+  return t.value;
+}
+function uedEncodeText(v){ return v.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function uedEncodeAttr(v, q){
+  v = v.replace(/&/g,'&amp;').replace(/</g,'&lt;');
+  return q === "'" ? v.replace(/'/g,'&#39;') : v.replace(/"/g,'&quot;');
+}
+function uedDecodeJs(raw){
+  return raw.replace(/\\(u\{[0-9a-fA-F]+\}|u[0-9a-fA-F]{4}|x[0-9a-fA-F]{2}|\r\n|[\s\S])/g, function(m, c){
+    if(c[0] === 'u' && c.length > 1){ return String.fromCodePoint(parseInt(c[1] === '{' ? c.slice(2,-1) : c.slice(1), 16)); }
+    if(c[0] === 'x' && c.length === 3){ return String.fromCharCode(parseInt(c.slice(1), 16)); }
+    switch(c){
+      case 'n': return '\n'; case 't': return '\t'; case 'r': return '\r';
+      case 'b': return '\b'; case 'f': return '\f'; case 'v': return '\v'; case '0': return '\0';
+      case '\n': case '\r\n': case '\r': case '\u2028': case '\u2029': return '';
+      default: return c;
+    }
+  });
+}
+function uedEncodeJs(v, q){
+  v = v.replace(/\\/g,'\\\\');
+  if(q === '`'){
+    v = v.replace(/`/g,'\\`').replace(/\$\{/g,'\\${');
+  }else{
+    v = v.split(q).join('\\'+q).replace(/\r/g,'\\r').replace(/\n/g,'\\n');
+  }
+  return v.replace(/\u2028/g,'\\u2028').replace(/\u2029/g,'\\u2029').replace(/<\/(script)/gi,'<\\/$1').replace(/<!--/g,'<\\!--');
+}
+
+// Findet alle String-Literale in einem Skript. Kommentare, Regex-Literale und
+// Template-Ausdrücke werden korrekt übersprungen. Templates mit ${…} werden
+// nicht angeboten (dort steckt Code im Text).
+function uedScanJs(code, base, out){
+  var i = 0, n = code.length, last = null;
+  function word(c){ return /[A-Za-z0-9_$\u00C0-\uFFFF]/.test(c); }
+  function skipTemplate(j){ // j = Index nach dem öffnenden Backtick; gibt Index nach dem schliessenden zurück
+    var hasExpr = false;
+    while(j < n){
+      var c = code[j];
+      if(c === '\\'){ j += 2; continue; }
+      if(c === '`') return { end:j+1, hasExpr:hasExpr };
+      if(c === '$' && code[j+1] === '{'){ hasExpr = true; j = skipExpr(j+2); continue; }
+      j++;
+    }
+    return { end:n, hasExpr:hasExpr };
+  }
+  function skipExpr(j){ // bis zur passenden schliessenden Klammer
+    var depth = 0;
+    while(j < n){
+      var c = code[j];
+      if(c === '"' || c === "'"){ j = skipQuoted(j); continue; }
+      if(c === '`'){ j = skipTemplate(j+1).end; continue; }
+      if(c === '/' && code[j+1] === '/'){ var e = code.indexOf('\n', j); j = e < 0 ? n : e; continue; }
+      if(c === '/' && code[j+1] === '*'){ var e2 = code.indexOf('*/', j+2); j = e2 < 0 ? n : e2+2; continue; }
+      if(c === '{') depth++;
+      if(c === '}'){ if(depth === 0) return j+1; depth--; }
+      j++;
+    }
+    return n;
+  }
+  function skipQuoted(j){
+    var q = code[j]; j++;
+    while(j < n){
+      var c = code[j];
+      if(c === '\\'){ j += 2; continue; }
+      if(c === q) return j+1;
+      if(c === '\n') return j;
+      j++;
+    }
+    return n;
+  }
+  while(i < n){
+    var c = code[i];
+    if(/\s/.test(c)){ i++; continue; }
+    if(c === '/' && code[i+1] === '/'){ var e = code.indexOf('\n', i); i = e < 0 ? n : e; continue; }
+    if(c === '/' && code[i+1] === '*'){ var e2 = code.indexOf('*/', i+2); i = e2 < 0 ? n : e2+2; continue; }
+    if(c === '"' || c === "'"){
+      var end = skipQuoted(i);
+      if(code[end-1] === c && end-1 > i){ out.push({ kind:'js', start:base+i, end:base+end, q:c, raw:code.slice(i+1, end-1), before:code.slice(Math.max(0,i-160), i), after:code.slice(end, end+3) }); }
+      i = end; last = 'str'; continue;
+    }
+    if(c === '`'){
+      var t = skipTemplate(i+1);
+      if(!t.hasExpr && code[t.end-1] === '`' && t.end-1 > i+1){ out.push({ kind:'js', start:base+i, end:base+t.end, q:'`', raw:code.slice(i+1, t.end-1), before:code.slice(Math.max(0,i-160), i), after:code.slice(t.end, t.end+3) }); }
+      i = t.end; last = 'str'; continue;
+    }
+    if(c === '/' && (last === null || UED_REGEX_BEFORE.test(last))){
+      var j = i+1, inClass = false;
+      while(j < n){
+        var d = code[j];
+        if(d === '\\'){ j += 2; continue; }
+        if(d === '\n') break;
+        if(d === '[') inClass = true; else if(d === ']') inClass = false;
+        else if(d === '/' && !inClass) break;
+        j++;
+      }
+      i = j+1;
+      while(i < n && /[a-z]/i.test(code[i])) i++;
+      last = 'regex'; continue;
+    }
+    if(word(c)){
+      var k = i; while(k < n && word(code[k])) k++;
+      last = code.slice(i, k); i = k; continue;
+    }
+    last = c; i++;
+  }
+}
+
+function uedIsJsType(type){
+  return !type || /^(text|application)\/(java|ecma)script$|^module$|json/i.test(type.trim());
+}
+
+// Zerlegt das HTML in bearbeitbare Stellen (in Dokument-Reihenfolge).
+function uedParse(html){
+  var out = [], i = 0, n = html.length;
+  var attrWanted = /^(placeholder|title|alt|aria-label|value|data-[\w-]+)$/i;
+  while(i < n){
+    if(html.startsWith('<!--', i)){ var ce = html.indexOf('-->', i+4); i = ce < 0 ? n : ce+3; continue; }
+    if(html[i] === '<' && /[A-Za-z\/!?]/.test(html[i+1] || '')){
+      var j = i+1, q = null;
+      while(j < n){
+        var c = html[j];
+        if(q){ if(c === q) q = null; }
+        else if(c === '"' || c === "'") q = c;
+        else if(c === '>') break;
+        j++;
+      }
+      var tag = html.slice(i, j+1);
+      var m = /^<([A-Za-z][\w-]*)/.exec(tag);
+      var name = m ? m[1].toLowerCase() : '';
+      if(name){
+        var ar = /([^\s"'>\/=]+)\s*=\s*("([^"]*)"|'([^']*)')/g, am;
+        while((am = ar.exec(tag))){
+          if(!attrWanted.test(am[1])) continue;
+          var val = am[3] !== undefined ? am[3] : am[4];
+          if(!/[A-Za-zÀ-ÿ0-9]/.test(val)) continue;
+          var vStart = i + am.index + am[0].length - val.length - 1;
+          out.push({ kind:'attr', start:vStart, end:vStart+val.length, q:am[2][0], raw:val, tag:name, attr:am[1].toLowerCase() });
+        }
+      }
+      i = j+1;
+      if(name === 'script' || name === 'style'){
+        var close = html.toLowerCase().indexOf('</'+name, i);
+        if(close < 0) close = n;
+        if(name === 'script'){
+          var tm = /\stype\s*=\s*["']?([^"'\s>]+)/i.exec(tag);
+          if(uedIsJsType(tm && tm[1]) && !/\ssrc\s*=/i.test(tag)) uedScanJs(html.slice(i, close), i, out);
+        }
+        i = close;
+      }
+      if(name) out.lastTag = name;
+      continue;
+    }
+    var next = i+1;
+    while(next < n && !(html[next] === '<' && /[A-Za-z\/!?]/.test(html[next+1] || ''))) next++;
+    var seg = html.slice(i, next);
+    var lead = seg.length - seg.replace(/^\s+/, '').length;
+    var trimmed = seg.trim();
+    if(trimmed && /[A-Za-zÀ-ÿ0-9]/.test(trimmed)){
+      out.push({ kind:'text', start:i+lead, end:i+lead+trimmed.length, raw:trimmed, tag:out.lastTag || '' });
+    }
+    i = next;
+  }
+  // Aufbereiten: Wert, Beschriftung, Text vs. technisch, Gruppe.
+  var group = '';
+  var list = [];
+  out.forEach(function(e){
+    if(e.raw.length > 20000 || /^data:/.test(e.raw)) return;
+    var value, label, isText;
+    if(e.kind === 'js'){
+      value = uedDecodeJs(e.raw);
+      if(!/[A-Za-zÀ-ÿ0-9]/.test(value)) return;
+      var km = /([A-Za-z_$][\w$]*|"[^"]*"|'[^']*')\s*:\s*$/.exec(e.before);
+      var key = km ? km[1].replace(/^["']|["']$/g,'') : '';
+      var inArr = !km && /([A-Za-z_$][\w$]*|"[^"]*"|'[^']*')\s*:\s*\[[^\[\]{}]*$/.exec(e.before);
+      if(inArr) key = inArr[1].replace(/^["']|["']$/g,'') + '[]';
+      var isKey = /^\s*:/.test(e.after) && !/\?\s*$/.test(e.before);
+      var tech = isKey || UED_TECH_CALL.test(e.before) || /^\s*(from|import)\s*$/.test(e.before.slice(-8));
+      label = key ? key + ':' : '…' + e.before.slice(-40).replace(/\s+/g,' ').trim();
+      isText = !tech && (/\s/.test(value.trim()) || /[^\x00-\x7F]/.test(value) || /^[A-ZÄÖÜ]/.test(value) || UED_TEXT_KEY.test(key));
+    }else if(e.kind === 'attr'){
+      value = uedDecodeHtml(e.raw);
+      label = '<'+e.tag+' '+e.attr+'>';
+      isText = !/^data-/.test(e.attr) || UED_TEXT_KEY.test(e.attr);
+    }else{
+      value = uedDecodeHtml(e.raw);
+      label = '<'+e.tag+'>';
+      isText = true;
+    }
+    if(isText && (/^h[1-4]$/.test(e.tag || '') && e.kind === 'text' || UED_GROUP_RE.test(value) && value.length < 120 ||
+        e.kind === 'js' && /^(frage|question|aufgabe|task|prompt|titel|title|q)$/i.test(label.slice(0,-1)))){
+      group = value.replace(/\s+/g,' ').trim().slice(0, 80);
+    }
+    list.push({ kind:e.kind, start:e.start, end:e.end, q:e.q, raw:e.raw, value:value, label:label, isText:isText, group:group });
+  });
+  return list;
+}
+
+// Setzt geänderte Werte zurück ins HTML (von hinten nach vorne, damit die
+// Positionen der übrigen Stellen stimmen).
+function uedApply(html, entries, edits){
+  var ids = Object.keys(edits).map(Number).sort(function(a,b){ return entries[b].start - entries[a].start; });
+  ids.forEach(function(idx){
+    var e = entries[idx], v = edits[idx];
+    if(v === e.value) return;
+    var enc = e.kind === 'js' ? e.q + uedEncodeJs(v, e.q) + e.q
+            : e.kind === 'attr' ? uedEncodeAttr(v, e.q)
+            : uedEncodeText(v);
+    html = html.slice(0, e.start) + enc + html.slice(e.end);
+  });
+  return html;
+}
+
+// Kompiliert jedes Inline-Skript (ohne es auszuführen). Gemeldet werden nur
+// Skripte, die im Original fehlerfrei kompilierten (z.B. Module mit import
+// lassen sich so nicht prüfen und werden übersprungen).
+function uedScriptErrors(html){
+  var res = [], re = /<script\b([^>]*)>([\s\S]*?)<\/script\s*>/gi, m, nr = 0;
+  while((m = re.exec(html))){
+    nr++;
+    if(/\ssrc\s*=/i.test(m[1])) continue;
+    var tm = /\stype\s*=\s*["']?([^"'\s>]+)/i.exec(m[1]);
+    var type = tm ? tm[1] : '';
+    if(!uedIsJsType(type)) continue;
+    var err = null;
+    try{
+      if(/json/i.test(type)) JSON.parse(m[2]);
+      else new Function(m[2]);
+    }catch(e){ err = (e && e.message) || String(e); }
+    res.push({ nr:nr, err:err });
+  }
+  return res;
+}
+function uedNewErrors(oldHtml, newHtml){
+  var before = uedScriptErrors(oldHtml), after = uedScriptErrors(newHtml);
+  var msgs = [];
+  if(after.length !== before.length) msgs.push('Die Anzahl der Skript-Blöcke hat sich verändert ('+before.length+' → '+after.length+').');
+  after.forEach(function(a, i){
+    if(a.err && before[i] && !before[i].err) msgs.push('Skript '+a.nr+': '+a.err);
+  });
+  return msgs;
+}
+
+async function openUebungEditor(r){
+  var html;
+  try{
+    var fresh = await getDoc(kdoc('resources', r.id));
+    if(fresh.exists()) r = Object.assign({id:r.id}, fresh.data());
+    html = await loadResourceHtml(resourceContentId(r));
+  }catch(err){
+    console.error(err);
+    toast('Übung konnte nicht geladen werden.');
+    return;
+  }
+  var original = html;
+  var entries = uedParse(html);
+  var edits = {};
+  var mode = 'text';
+  var codeDirty = false;
+  var showTech = false;
+
+  var h = '<h3>✏️ '+esc(r.title || r.fileName || 'Übung')+'</h3>';
+  h += '<div class="ued-tabs">'+
+    '<button class="btn btn-ghost btn-sm active" type="button" data-ued-mode="text">📝 Texte & Lösungen</button>'+
+    '<button class="btn btn-ghost btn-sm" type="button" data-ued-mode="code">&lt;/&gt; Code</button>'+
+    '<button class="btn btn-ghost btn-sm" type="button" data-ued-mode="preview">👁️ Vorschau</button></div>';
+  h += '<div class="ued-bar" id="uedBar"><input type="text" id="uedSearch" placeholder="Suchen, z.B. «Aufgabe 3» oder einen Teil der Lösung …" autocomplete="off">'+
+    '<label id="uedTechWrap"><input type="checkbox" id="uedTech"> auch technische Werte</label>'+
+    '<button class="btn btn-ghost btn-sm" type="button" id="uedFind" hidden>Weiter suchen</button></div>';
+  h += '<p class="ued-hint" id="uedHint"></p>';
+  h += '<div class="ued-body" id="uedBody"></div>';
+  h += '<div class="ued-err" id="uedErr" hidden></div>';
+  h += '<div class="ued-foot"><div>'+
+    (r.prevContentId ? '<button class="btn btn-ghost btn-sm" type="button" id="uedRestore" title="Tauscht die aktuelle mit der vorherigen Fassung – nochmals klicken holt sie zurück">↩️ Vorherige Version</button>' : '')+
+    '</div><div>'+
+    '<button class="btn btn-ghost btn-sm" type="button" id="uedCancel">Abbrechen</button>'+
+    '<button class="btn btn-primary btn-sm" type="button" id="uedSave">Speichern</button></div></div>';
+  openModal(h, 'ued-modal');
+  // Nicht versehentlich schliessen (Esc / Klick daneben) – sonst wären alle
+  // Änderungen weg.
+  document.removeEventListener('keydown', modalEscHandler);
+  modalEl.onclick = null;
+
+  var body = document.getElementById('uedBody');
+  var search = document.getElementById('uedSearch');
+  var hint = document.getElementById('uedHint');
+  var errEl = document.getElementById('uedErr');
+  var findBtn = document.getElementById('uedFind');
+  var techWrap = document.getElementById('uedTechWrap');
+
+  function dirty(){ return codeDirty || Object.keys(edits).some(function(k){ return edits[k] !== entries[k].value; }) || html !== original; }
+  function currentHtml(){
+    if(mode === 'code'){
+      var ta = document.getElementById('uedCode');
+      return ta ? ta.value : html;
+    }
+    return uedApply(html, entries, edits);
+  }
+  function commitToHtml(){
+    var next = currentHtml();
+    if(next !== html){ html = next; entries = uedParse(html); }
+    edits = {}; codeDirty = false;
+  }
+  function showErr(msgs){
+    errEl.hidden = !msgs.length;
+    errEl.innerHTML = msgs.map(esc).join('<br>');
+  }
+
+  function renderText(){
+    var q = search.value.trim().toLowerCase();
+    var shown = 0, LIMIT = 250, lastGroup = null, parts = [];
+    for(var idx = 0; idx < entries.length; idx++){
+      var e = entries[idx];
+      if(!e.isText && !showTech) continue;
+      var val = edits.hasOwnProperty(idx) ? edits[idx] : e.value;
+      if(q && val.toLowerCase().indexOf(q) < 0 && e.group.toLowerCase().indexOf(q) < 0 && e.label.toLowerCase().indexOf(q) < 0) continue;
+      if(shown >= LIMIT){ shown++; continue; }
+      if(e.group !== lastGroup){ parts.push('<div class="ued-group">'+esc(e.group || 'Allgemein')+'</div>'); lastGroup = e.group; }
+      var rows = Math.min(8, Math.max(1, Math.ceil(val.length / 90) + (val.match(/\n/g) || []).length));
+      parts.push('<div class="ued-entry'+(val !== e.value ? ' changed' : '')+'"><small title="'+esc(e.label)+'">'+esc(e.label)+'</small>'+
+        '<textarea rows="'+rows+'" data-ued-idx="'+idx+'" spellcheck="true">'+esc(val)+'</textarea></div>');
+      shown++;
+    }
+    if(shown > LIMIT) parts.push('<div class="ued-hint">… und '+(shown - LIMIT)+' weitere – Suche eingrenzen.</div>');
+    body.innerHTML = parts.join('') || '<div class="empty-state" style="padding:20px;">Nichts gefunden.'+(showTech ? '' : ' Evtl. «auch technische Werte» ankreuzen.')+'</div>';
+    body.querySelectorAll('textarea[data-ued-idx]').forEach(function(ta){
+      ta.addEventListener('input', function(){
+        var idx = parseInt(ta.getAttribute('data-ued-idx'), 10);
+        edits[idx] = ta.value;
+        ta.parentNode.classList.toggle('changed', ta.value !== entries[idx].value);
+      });
+    });
+  }
+
+  function setMode(m){
+    if(m === mode) return;
+    commitToHtml();
+    mode = m;
+    modalEl.querySelectorAll('[data-ued-mode]').forEach(function(b){ b.classList.toggle('active', b.getAttribute('data-ued-mode') === m); });
+    body.className = 'ued-body' + (m === 'code' ? ' ued-code-wrap' : m === 'preview' ? ' ued-preview' : '');
+    document.getElementById('uedBar').hidden = (m === 'preview');
+    techWrap.hidden = (m !== 'text');
+    findBtn.hidden = (m !== 'code');
+    showErr([]);
+    if(m === 'text'){
+      hint.textContent = 'Jedes Feld ist ein Text aus der Übung. Hier kann nichts am Code kaputtgehen. Nach Aufgabe gruppiert, soweit erkennbar.';
+      renderText();
+    }else if(m === 'code'){
+      hint.textContent = 'Ganzes HTML. Texte/Lösungen ändern ist unproblematisch – Aufgaben aber nicht löschen oder umsortieren, sonst können gespeicherte Übungsstände verrutschen.';
+      body.innerHTML = '<textarea class="ued-code" id="uedCode" spellcheck="false" wrap="off"></textarea>';
+      var ta = document.getElementById('uedCode');
+      ta.value = html;
+      ta.addEventListener('input', function(){ codeDirty = true; });
+    }else{
+      hint.textContent = 'So sieht die Übung mit deinen Änderungen aus (noch nicht gespeichert).';
+      body.innerHTML = '<iframe id="uedFrame" title="Vorschau"></iframe>';
+      document.getElementById('uedFrame').srcdoc = html;
+    }
+  }
+
+  function findInCode(fromStart){
+    var ta = document.getElementById('uedCode');
+    var q = search.value;
+    if(!ta || !q) return;
+    var hay = ta.value.toLowerCase(), needle = q.toLowerCase();
+    var from = fromStart ? 0 : ta.selectionEnd;
+    var pos = hay.indexOf(needle, from);
+    if(pos < 0) pos = hay.indexOf(needle, 0);
+    if(pos < 0){ toast('Nicht gefunden.'); return; }
+    ta.focus();
+    ta.setSelectionRange(pos, pos + q.length);
+    var line = ta.value.slice(0, pos).split('\n').length - 1;
+    var lh = parseFloat(getComputedStyle(ta).lineHeight) || 18;
+    ta.scrollTop = Math.max(0, line * lh - ta.clientHeight / 3);
+  }
+
+  modalEl.querySelectorAll('[data-ued-mode]').forEach(function(b){
+    b.addEventListener('click', function(){ setMode(b.getAttribute('data-ued-mode')); });
+  });
+  var searchTimer = null;
+  search.addEventListener('input', function(){
+    if(mode !== 'text') return;
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(renderText, 150);
+  });
+  search.addEventListener('keydown', function(e){
+    if(e.key === 'Enter' && mode === 'code'){ e.preventDefault(); findInCode(false); }
+  });
+  findBtn.addEventListener('click', function(){ findInCode(false); });
+  document.getElementById('uedTech').addEventListener('change', function(){ showTech = this.checked; renderText(); });
+
+  var cancelBtn = document.getElementById('uedCancel');
+  var cancelArmed = false;
+  cancelBtn.addEventListener('click', function(){
+    if(!dirty() || cancelArmed){ closeModal(); return; }
+    cancelArmed = true;
+    cancelBtn.textContent = 'Änderungen verwerfen?';
+    cancelBtn.classList.add('btn-danger');
+    setTimeout(function(){ cancelArmed = false; if(cancelBtn.isConnected){ cancelBtn.textContent = 'Abbrechen'; cancelBtn.classList.remove('btn-danger'); } }, 4000);
+  });
+
+  var saveBtn = document.getElementById('uedSave');
+  var forceArmed = false;
+  saveBtn.addEventListener('click', async function(){
+    var next = currentHtml();
+    if(next === original){ toast('Keine Änderungen.'); return; }
+    var problems = uedNewErrors(original, next);
+    if(problems.length && !forceArmed){
+      showErr(['⚠️ Mögliche Fehler – die Übung würde so evtl. nicht mehr funktionieren:'].concat(problems).concat(['Nochmals «Trotzdem speichern» klicken, um es dennoch zu speichern.']));
+      forceArmed = true;
+      saveBtn.textContent = 'Trotzdem speichern';
+      saveBtn.classList.add('btn-danger');
+      return;
+    }
+    saveBtn.disabled = true; cancelBtn.disabled = true;
+    saveBtn.textContent = 'Speichert …';
+    try{
+      await publishResourceContent(r, next, null);
+      closeModal();
+      toast('«'+(r.title || r.fileName || 'Übung')+'» gespeichert.');
+    }catch(err){
+      console.error(err);
+      saveBtn.disabled = false; cancelBtn.disabled = false;
+      saveBtn.textContent = forceArmed ? 'Trotzdem speichern' : 'Speichern';
+      showErr(['Speichern fehlgeschlagen: '+((err && err.message) || 'unbekannter Fehler')]);
+    }
+  });
+
+  var restoreBtn = document.getElementById('uedRestore');
+  if(restoreBtn){
+    var restoreArmed = false;
+    restoreBtn.addEventListener('click', async function(){
+      if(!restoreArmed){
+        restoreArmed = true;
+        restoreBtn.textContent = 'Wirklich zurück zur vorherigen Version?';
+        restoreBtn.classList.add('btn-danger');
+        return;
+      }
+      restoreBtn.disabled = true;
+      try{
+        await restorePreviousContent(r);
+        closeModal();
+        toast('Vorherige Version ist wieder aktiv.');
+      }catch(err){
+        console.error(err);
+        restoreBtn.disabled = false;
+        showErr([(err && err.message) || 'Wiederherstellen fehlgeschlagen.']);
+      }
+    });
+  }
+
+  mode = null;
+  setMode('text');
 }
 
 function askDeleteResource(r){
@@ -5018,6 +5596,7 @@ async function deleteResource(r){
     return;
   }
   deleteContentIfUnused(resourceContentId(r));
+  if(r.prevContentId) deleteContentIfUnused(r.prevContentId);
 }
 
 // Inhalt einer Übung: resources.contentId, bei alten Einträgen die eigene ID.
@@ -5031,6 +5610,11 @@ async function contentStillUsed(contentId){
     var checks = KLASSEN.map(function(k){
       return getDocs(query(kcolFor(k.id, 'resources'), where('contentId','==',contentId)))
         .then(function(snap){ return !snap.empty; });
+    });
+    // Als «vorherige Version» aufbewahrte Inhalte gelten ebenfalls als genutzt.
+    KLASSEN.forEach(function(k){
+      checks.push(getDocs(query(kcolFor(k.id, 'resources'), where('prevContentId','==',contentId)))
+        .then(function(snap){ return !snap.empty; }));
     });
     // Einträge ohne contentId nutzen den Inhalt mit ihrer eigenen ID.
     KLASSEN.forEach(function(k){
@@ -9950,6 +10534,7 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-09-18-uebung-bearbeiten', datum:'2026-09-18', fuer:'lehrer', text:'Übungen direkt bearbeiten: «✏️ Bearbeiten» bei jeder Übung — Texte & Lösungen als Formularfelder (nach Aufgabe gruppiert, mit Suche) oder im Code-Modus. Mit Vorschau, Syntaxprüfung und «↩️ Vorherige Version». Kopien in anderen Klassen werden automatisch mitaktualisiert, auch bei «Datei ersetzen».'},
   {id:'2026-09-18-fach-gaeste', datum:'2026-09-18', fuer:'lehrer', text:'Fach-Gäste (z.B. Elena und Letizia in Mathe): erscheinen in Abgabe-Checklisten, Vergessen-Zähler und Live-Klasse nur bei Mathe, in Spielen per «👭 Gäste»-Schalter, im Sitzplan nur von Hand — auch als zweite Person auf einem besetzten Platz.'},
   {id:'2026-09-18-quiz-punkte-plus', datum:'2026-09-18', fuer:'alle', text:'Klassen-Quiz: Nach jeder Frage siehst du gross, wie viele Punkte du dazubekommen hast. Und «mitmachen» klappt jetzt zuverlässig.'},
   {id:'2026-09-18-quiz-stopp', datum:'2026-09-18', fuer:'lehrer', text:'Klassen-Quiz: Neuer Knopf «⏸ Zeit stoppen» am Beamer — der Countdown friert ein, niemand wird gesperrt, aufgelöst wird per Knopf.'},
