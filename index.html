@@ -349,6 +349,11 @@
   .cal-entry-text{font-size:14.5px;font-weight:600;}
   .cal-entry-desc{font-size:13px;color:var(--text-muted);margin-top:2px;white-space:pre-wrap;}
   .cal-open-res-btn{margin-top:6px;padding-left:0;}
+  .cal-res-links{display:flex;flex-direction:column;align-items:flex-start;}
+  .cal-res-links .cal-open-res-btn{margin-top:2px;}
+  .cal-res-pick{max-height:190px;overflow-y:auto;border:1px solid var(--border);border-radius:10px;padding:6px 10px;margin-bottom:12px;}
+  .cal-res-pick label{display:flex;align-items:center;gap:8px;font-size:14px;padding:3px 0;}
+  .cal-res-pick .cal-res-empty{font-size:13px;color:var(--text-muted);padding:3px 0;}
   .cal-sub-btn{margin-top:6px;margin-left:8px;}
   .submission-toolbar{display:flex;justify-content:flex-end;margin-top:10px;}
   .submission-list{max-height:calc(85vh - 170px);overflow-y:auto;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:2px 16px;margin:10px 0;align-content:start;}
@@ -1772,6 +1777,13 @@ function erledigtSetzen(entryId, an){
     .catch(function(err){ console.error(err); toast('Häkchen konnte nicht gespeichert werden.'); });
 }
 
+// Verlinkte Übungen/PDFs eines Eintrags. Neu als Liste `resources`
+// [{id,title}]; ältere Einträge haben nur resourceId/resourceTitle.
+function calendarEntryResources(e){
+  if(Array.isArray(e.resources)) return e.resources.filter(function(l){ return l && l.id; });
+  return e.resourceId ? [{id:e.resourceId, title:e.resourceTitle||''}] : [];
+}
+
 function calendarEntryLineHtml(e, isTeacher, roster){
   var meta = CALENDAR_TYPES[e.type] || {label:e.type, icon:'📌', color:'#556270'};
   var s = e.subject ? subjectById(e.subject) : null;
@@ -1782,8 +1794,11 @@ function calendarEntryLineHtml(e, isTeacher, roster){
     (e.private ? ' <span class="cal-private-tag" title="Diesen Eintrag siehst nur du">🔒 nur für dich</span>' : '')+'</div>';
   html += '<div class="cal-entry-text">'+esc(e.title)+'</div>';
   if(e.description){ html += '<div class="cal-entry-desc">'+esc(e.description)+'</div>'; }
-  if(e.resourceId){
-    html += '<button class="btn btn-ghost btn-sm cal-open-res-btn" type="button" data-resource-id="'+esc(e.resourceId)+'">▶ Zur Übung'+(e.resourceTitle?': '+esc(e.resourceTitle):'')+'</button>';
+  var links = calendarEntryResources(e);
+  if(links.length){
+    html += '<div class="cal-res-links">' + links.map(function(l){
+      return '<button class="btn btn-ghost btn-sm cal-open-res-btn" type="button" data-resource-id="'+esc(l.id)+'">▶ '+(l.title ? esc(l.title) : 'Zur Übung')+'</button>';
+    }).join('') + '</div>';
   }
   if(isTeacher && hasSubmissionChecklist(e.type) && roster){
     html += '<button class="btn btn-ghost btn-sm cal-sub-btn" type="button" data-id="'+esc(e.id)+'">☑ '+esc(submittedCountLabel(e, roster))+'</button>';
@@ -1873,7 +1888,7 @@ function uiCalendarEntryForm(existing, onSaved){
     '<label class="modal-label">Titel</label><input type="text" id="calTitle" maxlength="120" value="'+esc(existing?existing.title:'')+'" placeholder="z.B. Seite 42, Aufgabe 3–5">'+
     '<label class="modal-label">Datum</label><input type="date" id="calDate" value="'+esc(existing?existing.dueDate:todayStr())+'">'+
     '<label class="modal-label">Details (optional)</label><textarea id="calDesc" rows="3" maxlength="500" placeholder="Weitere Angaben …">'+esc(existing?existing.description||'':'')+'</textarea>'+
-    '<label class="modal-label">Übung verlinken (optional)</label><select id="calResource"><option value="">— Keine Übung verlinken —</option></select>'+
+    '<label class="modal-label">Übungen / PDFs verlinken (optional, mehrere möglich)</label><div class="cal-res-pick" id="calResource"><div class="cal-res-empty">Zuerst ein Fach wählen.</div></div>'+
     '<div class="login-err" id="calErr"></div>'+
     '<div class="modal-actions">'+
       '<button class="btn btn-ghost btn-sm" id="modalCancel" type="button">Abbrechen</button>'+
@@ -1886,35 +1901,48 @@ function uiCalendarEntryForm(existing, onSaved){
   titleEl.focus();
   document.getElementById('modalCancel').addEventListener('click', closeModal);
 
-  var currentResourceId = existing ? (existing.resourceId || '') : '';
-  var currentResourceTitle = existing ? (existing.resourceTitle || '') : '';
+  // Gewählte Links (id -> Titel); bleiben beim Fachwechsel nicht erhalten.
+  var selectedLinks = {};
+  var selectedOrder = [];
+  (existing ? calendarEntryResources(existing) : []).forEach(function(l){ selectedLinks[l.id] = l.title; selectedOrder.push(l.id); });
+  function resourceCheckRow(id, label, checked, missing){
+    return '<label><input type="checkbox" class="cal-res-check" value="'+esc(id)+'" data-title="'+esc(label)+'"'+(checked?' checked':'')+'> <span>'+esc(label)+(missing?' (nicht mehr in diesem Fach gefunden)':'')+'</span></label>';
+  }
   function loadResourceOptionsFor(subjectId){
-    resourceEl.innerHTML = '<option value="">— Keine Übung / kein PDF verlinken —</option>';
-    if(!subjectId) return;
+    if(!subjectId){ resourceEl.innerHTML = '<div class="cal-res-empty">Zuerst ein Fach wählen.</div>'; return; }
+    resourceEl.innerHTML = '<div class="cal-res-empty">Lade …</div>';
     var q = query(kcol('resources'), where('subject','==',subjectId));
     getDocs(q).then(function(snap){
-      var opts = ['<option value="">— Keine Übung / kein PDF verlinken —</option>'];
-      var found = false;
+      var rows = [];
+      var found = {};
       snap.forEach(function(d){
         var res = d.data();
         var label = (res.pdf ? '📄 ' : res.externalUrl ? '🔗 ' : '') + (res.title || res.fileName || d.id);
-        if(d.id === currentResourceId){ found = true; currentResourceTitle = label; }
-        opts.push('<option value="'+esc(d.id)+'"'+(d.id===currentResourceId?' selected':'')+'>'+esc(label)+'</option>');
+        rows.push({id:d.id, label:label, current:!!res.current});
+        if(selectedLinks.hasOwnProperty(d.id)){ found[d.id] = true; selectedLinks[d.id] = label; }
       });
-      resourceEl.innerHTML = opts.join('');
-      // Falls die verlinkte Übung inzwischen aus diesem Fach entfernt/verschoben wurde,
-      // Option trotzdem anzeigen, damit nichts stillschweigend verloren geht.
-      if(currentResourceId && !found){
-        var extra = document.createElement('option');
-        extra.value = currentResourceId;
-        extra.textContent = currentResourceTitle + ' (nicht mehr in diesem Fach gefunden)';
-        extra.selected = true;
-        resourceEl.appendChild(extra);
-      }
-    }).catch(function(err){ console.error(err); });
+      // Aktuelle Themen zuerst, sonst alphabetisch
+      rows.sort(function(a,b){ return (a.current?0:1)-(b.current?0:1) || a.label.localeCompare(b.label,'de'); });
+      var h = rows.map(function(r){ return resourceCheckRow(r.id, r.label, selectedLinks.hasOwnProperty(r.id), false); });
+      // Falls eine verlinkte Übung inzwischen aus diesem Fach entfernt/verschoben
+      // wurde, trotzdem anzeigen, damit nichts stillschweigend verloren geht.
+      selectedOrder.forEach(function(id){ if(!found[id]) h.push(resourceCheckRow(id, selectedLinks[id]||id, true, true)); });
+      resourceEl.innerHTML = h.length ? h.join('') : '<div class="cal-res-empty">In diesem Fach gibt es noch keine Übungen.</div>';
+    }).catch(function(err){ console.error(err); resourceEl.innerHTML = '<div class="cal-res-empty">Übungen konnten nicht geladen werden.</div>'; });
   }
+  resourceEl.addEventListener('change', function(ev){
+    var cb = ev.target;
+    if(!cb.classList || !cb.classList.contains('cal-res-check')) return;
+    if(cb.checked){
+      selectedLinks[cb.value] = cb.getAttribute('data-title') || '';
+      if(selectedOrder.indexOf(cb.value) < 0) selectedOrder.push(cb.value);
+    } else {
+      delete selectedLinks[cb.value];
+      selectedOrder = selectedOrder.filter(function(id){ return id !== cb.value; });
+    }
+  });
   loadResourceOptionsFor(subjectEl.value);
-  subjectEl.addEventListener('change', function(){ currentResourceId=''; loadResourceOptionsFor(subjectEl.value); });
+  subjectEl.addEventListener('change', function(){ selectedLinks = {}; selectedOrder = []; loadResourceOptionsFor(subjectEl.value); });
 
   document.getElementById('modalOk').addEventListener('click', async function(){
     var errEl = document.getElementById('calErr');
@@ -1924,11 +1952,13 @@ function uiCalendarEntryForm(existing, onSaved){
     var title = titleEl.value.trim();
     var dueDate = document.getElementById('calDate').value;
     var description = document.getElementById('calDesc').value.trim();
-    var resourceId = resourceEl.value;
-    var resourceTitle = resourceId ? (resourceEl.options[resourceEl.selectedIndex].textContent||'').replace(' (nicht mehr in diesem Fach gefunden)','') : '';
+    var resources = selectedOrder.slice(0, 20).map(function(id){ return {id:id, title:(selectedLinks[id]||'').slice(0,200)}; });
+    // resourceId/resourceTitle = erster Link, für ältere Stellen/Versionen
+    var resourceId = resources.length ? resources[0].id : '';
+    var resourceTitle = resources.length ? resources[0].title : '';
     if(!title){ errEl.textContent='Bitte einen Titel eingeben.'; errEl.classList.add('show'); titleEl.focus(); return; }
     if(!dueDate){ errEl.textContent='Bitte ein Datum wählen.'; errEl.classList.add('show'); return; }
-    var data = { type:type, subject:subject, title:title.slice(0,120), description:description.slice(0,500), dueDate:dueDate, resourceId:resourceId, resourceTitle:resourceTitle };
+    var data = { type:type, subject:subject, title:title.slice(0,120), description:description.slice(0,500), dueDate:dueDate, resourceId:resourceId, resourceTitle:resourceTitle, resources:resources };
     try{
       if(existing){
         await setDoc(calendarEntryRef(existing), data, {merge:true});
@@ -5227,8 +5257,8 @@ function askMoveResource(r){
   });
 }
 
-// Markiert genau EINE Übung pro Fach als "aktuell" (rot hervorgehoben, auch für
-// die Klasse sichtbar). Beim Markieren rutscht sie zusätzlich an den Anfang
+// Markiert eine Übung als "aktuell" (rot hervorgehoben, auch für die Klasse
+// sichtbar; pro Fach sind mehrere gleichzeitig möglich). Beim Markieren rutscht sie zusätzlich an den Anfang
 // ihres eigenen Ordners; beim Entfernen der Markierung wieder genau dorthin
 // zurück, wo sie vorher stand (prevOrder). Ordner, in denen das aktuelle Thema
 // liegt, werden im Kärtchen ebenfalls rot markiert, damit man es findet.
@@ -5243,11 +5273,6 @@ function toggleCurrent(resources, r){
       var patch = { order: i };
       if(item.id === r.id){ patch.current = true; patch.prevOrder = prevIndex; }
       batch.update(kdoc('resources', item.id), patch);
-    });
-    // jede andere im Fach als "aktuell" markierte Übung entmarkieren — auch in
-    // anderen Ordnern, deshalb über state.resources statt nur die Liste hier
-    state.resources.forEach(function(x){
-      if(x.id !== r.id && x.current){ batch.update(kdoc('resources', x.id), {current: false}); }
     });
   } else {
     var others = resources.filter(function(x){ return x.id !== r.id; });
@@ -11077,6 +11102,7 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-09-18-mehrere-links-aktuell', datum:'2026-09-18', fuer:'alle', text:'📘 Bei Hausaufgaben können jetzt mehrere Übungen oder PDFs verlinkt sein – und pro Fach können mehrere Themen gleichzeitig rot als «Aktuell» markiert sein.'},
   {id:'2026-09-18-pdf-link', datum:'2026-09-18', fuer:'lehrer', text:'📄 PDFs: Einfach ins gleiche Feld wie die Übungsseiten ziehen (max. 8 MB, gespeichert ohne Aufschlag). Neu auch «🔗 Link hinzufügen» – z.B. für ein PDF aus iCloud/OneDrive: es wird nur der Link gespeichert, öffnet in neuem Tab. Beides lässt sich wie Übungen bei Hausaufgaben verlinken.'},
   {id:'2026-09-18-gaeste-pruefung', datum:'2026-09-18', fuer:'lehrer', text:'Fach-Gäste (z.B. Elena und Letizia) erscheinen bei Prüfungen nur noch in Mathe-Prüfungen — in der Live-Übersicht und bei ihnen selbst.'},
   {id:'2026-09-18-pruefung-formate', datum:'2026-09-18', fuer:'lehrer', text:'📝 Prüfungen: Beim Erstellen wählst du jetzt die Aufgabenformate — ✍️ Frei formulieren, 🔤 Selbst hinschreiben (ohne Auswahl), ☑️ Auswählen, 🔗 Zuordnen & Ordnen. Standard 30/40/20/10 %, frei änderbar. Hat die Übung zu wenig Kurzantwort-Fragen, werden Auswahlfragen mit kurzer Antwort und Zuordnungs-Paare automatisch zu Fragen ohne Auswahl umgewandelt (kleine Tippfehler zählen als richtig).'},
