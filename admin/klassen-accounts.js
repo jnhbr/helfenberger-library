@@ -3,7 +3,8 @@
  *
  *   node klassen-accounts.js vorbereiten <Schuelerliste.xlsx>
  *   node klassen-accounts.js umstellen   <Schuelerliste.xlsx>
- *   node klassen-accounts.js konten      <Schuelerliste.xlsx>   (nur Konten nachführen, z.B. neue Schüler:in)
+ *   node klassen-accounts.js konten      <Schuelerliste.xlsx> [benutzername …]
+ *        (nur Konten nachführen, z.B. neue Schüler:in; mit Benutzernamen nur diese)
  *
  * Braucht firebase-admin und xlsx (npm install firebase-admin xlsx) sowie den
  * Service-Account-Schlüssel: ./serviceAccountKey.json oder per
@@ -40,6 +41,11 @@ const LEHRPERSONEN = [
   { username: 'schlaepfer',   displayName: 'Schläpfer',    klasse: 'G3a', passwort: 'Schläpfer123' },
   { username: 'schoch',       displayName: 'Schoch',       klasse: 'E1c', passwort: 'Schoch123' }
 ];
+// Fach-Gäste: stehen im Blatt der Klasse, gehören aber eigentlich in eine
+// andere und sind nur in einem Fach dabei (students/{uid}.nurFach). In der
+// Library sehen sie dann nur Kalender-Einträge dieses Fachs, erscheinen nur
+// dort in Abgabe-Checklisten und werden im Sitzplan nie zufällig verteilt.
+const FACH_GAESTE = { 'G3b:elena': 'mathe', 'G3b:letizia': 'mathe' };
 // Konten, die in keiner Liste stehen, aber zu einer Klasse gehören.
 const ZUSATZKONTEN = [{ username: 'schueler', klasse: 'G3b' }];
 // Klassenbezogene Collections (alt: klassenlos auf oberster Ebene).
@@ -50,6 +56,8 @@ const keyPath = process.env.GOOGLE_APPLICATION_CREDENTIALS || path.join(__dirnam
 admin.initializeApp({ credential: admin.credential.cert(require(keyPath)) });
 const auth = admin.auth();
 const db = admin.firestore();
+// REST statt gRPC: gRPC blieb auf Jans Mac beim ersten Firestore-Zugriff hängen.
+db.settings({ preferRest: true });
 
 function slug(s) {
   return String(s).trim().toLowerCase()
@@ -116,13 +124,18 @@ async function upsert(username, props, claims, profil) {
   return user.uid;
 }
 
-async function konten(liste, mitHauptklassePasswort) {
+async function konten(liste, mitHauptklassePasswort, nur) {
   for (const s of liste) {
+    if (nur && nur.length && nur.indexOf(s.username) < 0) continue;
     const pw = (s.klasse === HAUPTKLASSE && !mitHauptklassePasswort) ? null : s.passwort;
-    await upsert(s.username, { displayName: s.vorname, password: pw }, { klasse: s.klasse },
-      { displayName: s.vorname, nachname: s.nachname, role: 'student', klasse: s.klasse });
+    const profil = { displayName: s.vorname, nachname: s.nachname, role: 'student', klasse: s.klasse };
+    const fach = FACH_GAESTE[s.klasse + ':' + s.username];
+    profil.nurFach = fach || admin.firestore.FieldValue.delete();
+    await upsert(s.username, { displayName: s.vorname, password: pw }, { klasse: s.klasse }, profil);
+    if (fach) console.log('Fach-Gast ' + s.username + ' (nur ' + fach + ')');
     console.log('Konto    ' + s.klasse + ' ' + s.username + (pw ? ' (Passwort gesetzt)' : ''));
   }
+  if (nur && nur.length) return {};   // nur die genannten Konten, Lehrpersonen unangetastet
   for (const z of ZUSATZKONTEN) {
     try {
       const u = await auth.getUserByEmail(z.username + '@' + EMAIL_DOMAIN);
@@ -225,10 +238,10 @@ async function regeln(file) {
 }
 
 async function main() {
-  const [modus, liste] = process.argv.slice(2);
+  const [modus, liste, ...nur] = process.argv.slice(2);
   if (!modus || !liste) { console.log('Aufruf: node klassen-accounts.js vorbereiten|umstellen|konten <Schuelerliste.xlsx>'); process.exit(1); }
   const schueler = leseListe(liste);
-  if (modus === 'konten') { await konten(schueler, true); return; }
+  if (modus === 'konten') { await konten(schueler, true, nur); return; }
   if (modus === 'vorbereiten') {
     const uids = await konten(schueler, false);
     await altNachHauptklasse();

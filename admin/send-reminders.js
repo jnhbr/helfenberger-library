@@ -96,14 +96,16 @@ async function main(){
   // (klassen/{klasse}/calendarEntries). Jedes Gerät bekommt nur die Einträge
   // der Klasse seiner Besitzerin/seines Besitzers (students/{uid}.klasse).
   var KLASSEN = ['G3b', 'G3a', 'E1c'];
-  var bodyByKlasse = {}, entryCount = 0;
+  var bodyByKlasse = {}, entriesByKlasse = {}, entryCount = 0;
   for(const klasse of KLASSEN){
     var snap = await db.collection('klassen').doc(klasse).collection('calendarEntries').where('dueDate', '==', dueDate).get();
     entryCount += snap.size;
     if(snap.empty) continue;
     var lines = [];
+    entriesByKlasse[klasse] = [];
     snap.forEach(function(doc){
       var e = doc.data();
+      entriesByKlasse[klasse].push(e);
       lines.push('• ' + (TYPE_LABELS[e.type] || e.type) + ': ' + e.title);
     });
     bodyByKlasse[klasse] = lines.join('\n');
@@ -119,8 +121,18 @@ async function main(){
   var title = 'Morgen fällig';
 
   var studentsSnap = await db.collection('students').get();
-  var klasseByUid = {};
-  studentsSnap.forEach(function(d){ klasseByUid[d.id] = d.data().klasse || 'G3b'; });
+  var klasseByUid = {}, bodyByUid = {};
+  studentsSnap.forEach(function(d){
+    var st = d.data();
+    klasseByUid[d.id] = st.klasse || 'G3b';
+    // Fach-Gäste (students/{uid}.nurFach) bekommen nur Einträge ihres Fachs.
+    if(st.nurFach){
+      bodyByUid[d.id] = (entriesByKlasse[klasseByUid[d.id]] || [])
+        .filter(function(e){ return e.subject === st.nurFach; })
+        .map(function(e){ return '• ' + (TYPE_LABELS[e.type] || e.type) + ': ' + e.title; })
+        .join('\n');
+    }
+  });
 
   var devicesSnap = await db.collectionGroup('devices').get();
   console.log('Registrierte Geräte: ' + devicesSnap.size);
@@ -130,7 +142,7 @@ async function main(){
     var sub = deviceDoc.data();
     if(!sub || !sub.endpoint || !sub.keys){ continue; }
     var ownerUid = deviceDoc.ref.parent.parent ? deviceDoc.ref.parent.parent.id : null;
-    var body = bodyByKlasse[klasseByUid[ownerUid]];
+    var body = (ownerUid in bodyByUid) ? bodyByUid[ownerUid] : bodyByKlasse[klasseByUid[ownerUid]];
     if(!body){ continue; }
     try{
       await webpush.sendNotification(

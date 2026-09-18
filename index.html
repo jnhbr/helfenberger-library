@@ -731,6 +731,9 @@
   .sp-seat{flex:1;min-width:0;border:none;background:transparent;font:inherit;font-size:11px;font-weight:700;color:#3A2A18;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0 2px;border-right:1px dashed rgba(0,0,0,.25);}
   .sp-seat:last-child{border-right:none;}
   .sp-seat span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;}
+  .sp-seat span.sp-seat-shared{white-space:normal;line-height:1.05;font-size:.85em;text-align:center;}
+  .sp-seat-shared i{font-style:normal;font-weight:600;color:#7A4E12;}
+  .sp-people-gast-head{font-size:12px;font-weight:700;color:var(--text-muted);margin:10px 0 4px;}
   .sp-seat-on{background:#FFF3DF;}
   .sp-seat.sp-g-m{background:#DCE9FB;}
   .sp-seat.sp-g-w{background:#FBE0EE;}
@@ -937,6 +940,10 @@
   .qp-right .qp-big{color:var(--good);}
   .qp-wrong .qp-big{color:var(--bad);}
   .qp-score{font-size:22px;font-weight:700;}
+  .qp-gain{font-family:'Baloo 2',system-ui,sans-serif;font-weight:800;font-size:clamp(30px,7vw,56px);color:var(--good);animation:qpGainPop .45s ease-out;}
+  .qp-gain-0{color:var(--text-muted);font-size:clamp(20px,4vw,30px);}
+  @keyframes qpGainPop{0%{transform:scale(.6);opacity:0;}70%{transform:scale(1.12);opacity:1;}100%{transform:scale(1);}}
+  @media (prefers-reduced-motion: reduce){ .qp-gain{animation:none;} }
   .qp-me{outline:2px solid var(--brand);}
 
   /* ---------- Kopfzeile: neue Knöpfe ---------- */
@@ -1498,6 +1505,9 @@ async function loadMyCalendarEntries(){
     }).catch(function(err){ console.error('Eigene Einträge nicht lesbar', err); return []; }));
   }
   var res = await Promise.all(jobs);
+  // Fach-Gäste (z.B. nur in Mathe dabei) sehen von der Klasse nur ihr Fach.
+  var nurFach = state.profile.role !== 'teacher' && state.profile.nurFach;
+  if(nurFach) res[0] = res[0].filter(function(e){ return e.subject === nurFach; });
   var all = res[0].concat(res[1] || []);
   all.sort(function(a,b){
     if(a.dueDate !== b.dueDate) return (a.dueDate||'').localeCompare(b.dueDate||'');
@@ -1739,18 +1749,56 @@ async function loadStudentRoster(){
   return students;
 }
 
+/* ===================== FACH-GÄSTE =====================
+   Schüler:innen einer anderen Klasse, die nur für ein Fach dazukommen (z.B.
+   Elena und Letizia in Mathe bei der G3b). Ihr Konto gehört zur Klasse, trägt
+   aber students/{uid}.nurFach = 'mathe' (gesetzt vom Admin-Skript).
+   - Abgabe-Checkliste/Vergessen: nur bei Einträgen dieses Fachs.
+   - Kalender der Gäste: nur Klassen-Einträge dieses Fachs.
+   - Spiele mit Namen: nur wenn "👭 Gäste" eingeschaltet ist (gerätelokal).
+   - Sitzplan: nie beim zufälligen Setzen, aber von Hand platzierbar (auch
+     als zweite Person auf einem besetzten Platz).
+   loadStudentRoster() liefert sie mit; wer sie nicht will, filtert. */
+function gastFach(stu){ return (stu && stu.nurFach) || ''; }
+function ohneGaeste(list){ return (list||[]).filter(function(s){ return !gastFach(s); }); }
+function hatGaeste(list){ return (list||[]).some(function(s){ return !!gastFach(s); }); }
+// Wer gehört zu einem Kalender-Eintrag bzw. einer Übung dieses Fachs?
+function rosterFuerFach(list, subject){
+  return (list||[]).filter(function(s){ var f = gastFach(s); return !f || f === subject; });
+}
+function gaesteDabei(){ return lsGet(LIB_PREFIX+'gaeste_an') === '1'; }
+function gaesteOptional(list){ return gaesteDabei() ? (list||[]) : ohneGaeste(list); }
+function gaesteToggleHtml(id){
+  var an = gaesteDabei();
+  return '<button class="kz-tab'+(an?' kz-tab-on':'')+'" id="'+id+'" type="button" hidden title="Fach-Gäste (z.B. Mathe) in Namen-Spielen mitnehmen">👭 Gäste '+(an?'dabei':'aus')+'</button>';
+}
+// Knopf erst zeigen, wenn die Klasse überhaupt Gäste hat.
+function wireGaesteToggle(btn, onChange){
+  if(!btn) return;
+  klasseRosterLoad().then(function(list){ btn.hidden = !hatGaeste(list); }).catch(function(){});
+  btn.addEventListener('click', function(){
+    var an = !gaesteDabei();
+    lsSet(LIB_PREFIX+'gaeste_an', an ? '1' : '0');
+    btn.classList.toggle('kz-tab-on', an);
+    btn.textContent = '👭 Gäste '+(an ? 'dabei' : 'aus');
+    onChange();
+  });
+}
+
 // Abgabe-Checkliste (nur Lehrperson): pro Hausaufgaben-Eintrag ankreuzen, wer
 // bereits abgegeben hat. Gespeichert direkt auf dem Kalender-Eintrag unter
 // submitted.{uid}=true/false, per updateDoc mit Dot-Notation - das ändert
 // gezielt nur das eine Feld des verschachtelten Objekts, ohne die Abgaben
 // anderer Schüler:innen zu überschreiben.
 function submittedCountLabel(entry, roster){
+  roster = rosterFuerFach(roster, entry.subject);
   if(!roster || !roster.length) return '';
   var done = roster.filter(function(s){ return entry.submitted && entry.submitted[s.uid]; }).length;
   return done+' / '+roster.length+' abgegeben';
 }
 
 function uiSubmissionChecklist(entry, roster, onChanged){
+  roster = rosterFuerFach(roster, entry.subject);   // Fach-Gäste nur im eigenen Fach
   var rows = roster.map(function(stu){
     var checked = entry.submitted && entry.submitted[stu.uid];
     return '<label class="submission-row"><input type="checkbox" class="sub-check" data-uid="'+esc(stu.uid)+'"'+(checked?' checked':'')+'> <span>'+esc(stu.displayName||stu.username)+'</span></label>';
@@ -2102,7 +2150,7 @@ async function loadDiktatAuswertung(){
   diktatResources.sort(function(a,b){ return (a.title||'').localeCompare(b.title||'', 'de'); });
   result.resources = diktatResources;
 
-  var students = await loadStudentRoster();
+  var students = ohneGaeste(await loadStudentRoster());
   result.students = students;
 
   // Jedes {Schüler:in x Diktat}-Paar einzeln lesen (Lehrperson-Leserecht laut
@@ -2261,6 +2309,7 @@ async function loadLernstandUebersicht(){
   var reads = [];
   students.forEach(function(stu){
     resources.forEach(function(res){
+      if(gastFach(stu) && res.subject !== gastFach(stu)) return;   // Fach-Gast
       reads.push(
         getDoc(doc(db,'progress', stu.uid, 'resources', res.id)).then(function(snap){
           return {uid:stu.uid, resId:res.id, data: snap.exists() ? snap.data() : null};
@@ -2331,7 +2380,7 @@ function renderLernstandUebersicht(){
       h += '<div class="table-scroll"><table class="da-table"><thead><tr><th>Schüler:in</th>';
       sub.resources.forEach(function(res){ h += '<th>'+esc(res.title||res.fileName)+'</th>'; });
       h += '</tr></thead><tbody>';
-      result.students.forEach(function(stu){
+      rosterFuerFach(result.students, subjId).forEach(function(stu){
         h += '<tr><td>'+esc(stu.displayName)+'</td>';
         sub.resources.forEach(function(res){
           var cell = sub.cell[stu.uid+'|'+res.id];
@@ -2347,7 +2396,7 @@ function renderLernstandUebersicht(){
 
       // Ausführliche Historie nur für Zellen mit mindestens einem Reset anzeigen.
       var histLines = [];
-      result.students.forEach(function(stu){
+      rosterFuerFach(result.students, subjId).forEach(function(stu){
         sub.resources.forEach(function(res){
           var cell = sub.cell[stu.uid+'|'+res.id];
           if(cell && cell.history.length){
@@ -2383,7 +2432,7 @@ function renderLernstandUebersicht(){
       subjectIds.forEach(function(subjId){
         var sub = result.bySubject[subjId];
         var s = subjectById(subjId);
-        result.students.forEach(function(stu){
+        rosterFuerFach(result.students, subjId).forEach(function(stu){
           sub.resources.forEach(function(res){
             var cell = sub.cell[stu.uid+'|'+res.id];
             var h = cell ? Math.round((cell.timeSpentSec||0)/360)/10 : 0;
@@ -2781,7 +2830,7 @@ async function openDebtManager(){
   var token = ++debtLoadToken;
   var rows;
   try{
-    var roster = await loadStudentRoster();
+    var roster = ohneGaeste(await loadStudentRoster());
     var byUid = {};
     var snap = await getDocs(kcol('debts'));
     snap.forEach(function(d){ byUid[d.id] = normalizeDebtEntries(d.data()); });
@@ -5730,6 +5779,7 @@ function openBeamerTools(initialTab){
   html += '<button class="kz-tab" data-tab="rad" type="button">🎡 Glücksrad</button>';
   html += '<button class="kz-tab" data-tab="slf" type="button">🌍 Stadt Land Fluss</button>';
   html += '<div class="kz-bar-spacer"></div>';
+  html += gaesteToggleHtml('kzGaeste');
   html += '<button class="kz-close" id="kzClose" type="button" title="Schliessen (Esc)">✕</button>';
   html += '</div>';
   html += '<div class="kz-stage" id="kzStage"></div>';
@@ -5741,9 +5791,10 @@ function openBeamerTools(initialTab){
 
   var root = beamer.overlay.el;
   root.querySelector('#kzClose').addEventListener('click', function(){ beamer.overlay.close(); });
-  Array.prototype.forEach.call(root.querySelectorAll('.kz-tab'), function(btn){
+  Array.prototype.forEach.call(root.querySelectorAll('.kz-tab[data-tab]'), function(btn){
     btn.addEventListener('click', function(){ switchBeamerTab(btn.getAttribute('data-tab')); });
   });
+  wireGaesteToggle(root.querySelector('#kzGaeste'), function(){ switchBeamerTab(beamer.tab); });
   switchBeamerTab(beamer.tab);
 }
 
@@ -5760,7 +5811,7 @@ function switchBeamerTab(tab){
   runBeamerCleanups();
   beamer.tab = tab;
   var root = beamer.overlay.el;
-  Array.prototype.forEach.call(root.querySelectorAll('.kz-tab'), function(b){
+  Array.prototype.forEach.call(root.querySelectorAll('.kz-tab[data-tab]'), function(b){
     b.classList.toggle('kz-tab-on', b.getAttribute('data-tab') === tab);
   });
   var stage = root.querySelector('#kzStage');
@@ -5990,7 +6041,7 @@ function saveSprecher(){
 function mountSprecher(host){
   loadSprecher();
   function paint(){
-    var roster = sprecherState.roster || [];
+    var roster = gaesteOptional(sprecherState.roster || []);
     var byUid = {};
     roster.forEach(function(s){ byUid[s.uid] = s; });
     var chosen = sprecherState.uids.filter(function(u){ return byUid[u]; });
@@ -6133,10 +6184,10 @@ function mountWerIstDran(stage){
     paintList();
   }
 
-  if(dranNames){ build(dranNames); return; }
+  if(dranNames){ build(gaesteOptional(dranNames)); return; }
   loadStudentRoster().then(function(list){
     dranNames = list;
-    if(beamer.tab === 'dran' && beamer.overlay) build(list);
+    if(beamer.tab === 'dran' && beamer.overlay) build(gaesteOptional(list));
   }).catch(function(err){
     console.error(err);
     stage.innerHTML = '<div class="wd-wrap"><div class="wd-name">Klassenliste konnte nicht geladen werden.</div></div>';
@@ -6327,7 +6378,7 @@ function glueckAlle(){
     return glueckEigene().map(function(t, i){ return { key:'e'+i+'|'+t, label:t }; });
   }
   if(!glueck.klasse) return null;
-  var list = glueck.klasse.filter(function(s){ return !glueck.abwesend[s.uid]; });
+  var list = gaesteOptional(glueck.klasse).filter(function(s){ return !glueck.abwesend[s.uid]; });
   var vornamen = {};
   function voll(s){ return s.displayName || s.username || '?'; }
   list.forEach(function(s){ var f = voll(s).split(' ')[0]; vornamen[f] = (vornamen[f] || 0) + 1; });
@@ -6445,7 +6496,7 @@ function mountGlueck(stage){
     var info = wheel.length + (wheel.length === 1 ? ' Eintrag' : ' Einträge') + ' auf dem Rad';
     if(gezogen) info += ' · ' + gezogen + ' schon gezogen';
     if(glueck.quelle === 'klasse'){
-      var ab = glueck.klasse.filter(function(s){ return glueck.abwesend[s.uid]; }).length;
+      var ab = gaesteOptional(glueck.klasse).filter(function(s){ return glueck.abwesend[s.uid]; }).length;
       if(ab) info += ' · ' + ab + ' abwesend (laut Sitzplan)';
     }
     infoEl.textContent = info;
@@ -7348,6 +7399,7 @@ function openLiveKlasse(resource){
 
   loadStudentRoster().then(function(roster){
     if(!liveKlasse.overlay) return;
+    roster = rosterFuerFach(roster, resource.subject);   // Fach-Gäste nur im eigenen Fach
     liveKlasse.roster = roster;
     roster.forEach(function(stu, idx){
       var ref_ = doc(db, 'progress', stu.uid, 'resources', resource.id);
@@ -7480,7 +7532,7 @@ var SNAP = 0.1;
 
 // Vornamen der Mädchen dieser Klasse. Dient nur als Vorbelegung: sobald über
 // die J/M-Knöpfe etwas eingestellt wird, gilt der gespeicherte Wert.
-var SP_MAEDCHEN = ['feyza','matilda','marielou','tamara','giulia','naima','julia','alisia'];
+var SP_MAEDCHEN = ['feyza','matilda','marielou','tamara','giulia','naima','julia','alisia','elena','letizia'];
 
 var sp = {
   doc:null, roster:[], picked:null, selected:null, saveTimer:null, loaded:false,
@@ -7488,7 +7540,7 @@ var sp = {
 };
 
 function spEmptyPlan(){
-  return { tables:[], seats:{}, meta:{}, rules:[], absent:[], genderMode:'egal', mirror:false };
+  return { tables:[], seats:{}, meta:{}, rules:[], absent:[], genderMode:'egal', mirror:false, teilen:{} };
 }
 function spNewTableId(){
   return 't' + Date.now().toString(36) + Math.floor(Math.random()*46656).toString(36);
@@ -7617,9 +7669,18 @@ function spSeatLabel(uid){ return sp.labelMap[uid] || '?'; }
 function spFullName(uid){ var s = spStudentById(uid); return s ? s.displayName : ''; }
 
 function spIsAbsent(uid){ return sp.doc.absent.indexOf(uid) >= 0; }
+// Fach-Gäste (siehe gastFach) zählen beim zufälligen Setzen nie mit.
 function spActiveStudents(){
-  return sp.roster.filter(function(s){ return !spIsAbsent(s.uid); });
+  return ohneGaeste(sp.roster).filter(function(s){ return !spIsAbsent(s.uid); });
 }
+function spIsGast(uid){ return !!gastFach(spStudentById(uid)); }
+// Ein Fach-Gast kann sich den Platz mit jemandem teilen: teilen[gastUid] = uid
+// der Person, die dort sitzt. Hängt an der Person, nicht am Platz — nach dem
+// zufälligen Setzen sitzt der Gast also wieder neben ihr.
+function spGaesteBei(uid){
+  return Object.keys(sp.doc.teilen).filter(function(g){ return sp.doc.teilen[g] === uid && spStudentById(g); });
+}
+function spLoesTeilen(gastUid){ delete sp.doc.teilen[gastUid]; }
 function spSeatedUid(seatId){ return sp.doc.seats[seatId] || null; }
 function spSeatOf(uid){
   var keys = Object.keys(sp.doc.seats);
@@ -7649,6 +7710,7 @@ function spSave(){
       tables: sp.doc.tables, seats: sp.doc.seats, meta: sp.doc.meta,
       rules: sp.doc.rules, absent: sp.doc.absent,
       genderMode: sp.doc.genderMode, mirror: !!sp.doc.mirror,
+      teilen: sp.doc.teilen,
       updatedAt: serverTimestamp()
     }).catch(function(err){ console.error('Sitzplan konnte nicht gespeichert werden', err); toast('Sitzplan nicht gespeichert.'); });
   }, 700);
@@ -7692,7 +7754,8 @@ function renderSitzplan(){
       rules:  (d && Array.isArray(d.rules)) ? d.rules : base.rules,
       absent: (d && Array.isArray(d.absent)) ? d.absent : base.absent,
       genderMode: (d && d.genderMode) || base.genderMode,
-      mirror: !!(d && d.mirror)
+      mirror: !!(d && d.mirror),
+      teilen: (d && d.teilen) ? Object.assign({}, d.teilen) : base.teilen
     };
     var v = res[2].exists() ? res[2].data() : null;
     sp.saved = (v && Array.isArray(v.plans)) ? v.plans : [];
@@ -7713,6 +7776,7 @@ function paintSitzplan(){
 
   var seated = {};
   Object.keys(sp.doc.seats).forEach(function(k){ if(sp.doc.seats[k]) seated[sp.doc.seats[k]] = true; });
+  Object.keys(sp.doc.teilen).forEach(function(g){ if(seated[sp.doc.teilen[g]]) seated[g] = true; });
   var free = spActiveStudents().filter(function(s){ return !seated[s.uid]; });
 
   var html = '';
@@ -7796,9 +7860,12 @@ function paintSitzplan(){
         var shown = sp.doc.mirror ? (1-slot) : slot;
         var uid = spSeatedUid(spSeatId(t.id, shown));
         var g = uid ? spGender(uid) : '';
-        html += '<button class="sp-seat'+(uid?' sp-seat-on':'')+(g?' sp-g-'+g:'')+'" type="button" title="'+esc(uid?spFullName(uid):'Freier Platz')+'" data-seat="'+spSeatId(t.id, shown)+'">';
+        var gaeste = uid ? spGaesteBei(uid) : [];
+        var title = uid ? [uid].concat(gaeste).map(spFullName).join(' + ') : 'Freier Platz';
+        html += '<button class="sp-seat'+(uid?' sp-seat-on':'')+(g?' sp-g-'+g:'')+'" type="button" title="'+esc(title)+'" data-seat="'+spSeatId(t.id, shown)+'">';
         // Ein um 180 Grad gedrehter Tisch stünde sonst mit kopfstehenden Namen da.
-        html += '<span'+(rot===180?' style="transform:rotate(180deg);"':'')+'>'+(uid ? esc(spSeatLabel(uid)) : '')+'</span>';
+        html += '<span'+(gaeste.length?' class="sp-seat-shared"':'')+(rot===180?' style="transform:rotate(180deg);"':'')+'>'+(uid ? esc(spSeatLabel(uid)) : '')
+              + gaeste.map(function(gu){ return '<br><i>+ '+esc(spSeatLabel(gu))+'</i>'; }).join('')+'</span>';
         html += '</button>';
       });
     } else {
@@ -7819,7 +7886,12 @@ function paintSitzplan(){
       ? 'Ausgewählt: <b>'+esc(spFullName(sp.picked))+'</b> — jetzt auf einen Platz tippen.'
       : 'Kind antippen, dann einen Platz antippen. Ein besetzter Platz gibt das Kind wieder frei. Möbel lassen sich frei verschieben.')+'</div>';
   html += '<div class="sp-people">';
-  sp.roster.forEach(function(s){
+  var spGastHead = false;
+  ohneGaeste(sp.roster).concat(sp.roster.filter(function(s){ return gastFach(s); })).forEach(function(s){
+    if(gastFach(s) && !spGastHead){
+      spGastHead = true;
+      html += '<div class="sp-people-gast-head" title="Werden beim zufälligen Setzen nie eingeplant. Auf einen besetzten Platz getippt, teilen sie sich den Platz.">👭 Gäste (nur von Hand, können einen Platz teilen)</div>';
+    }
     var isSeated = !!seated[s.uid];
     var abs = spIsAbsent(s.uid);
     var g = spGender(s.uid);
@@ -7843,6 +7915,23 @@ function paintSitzplan(){
 /* ---------- Platz-Klick ---------- */
 function spHandleSeatClick(seatId){
   var here = spSeatedUid(seatId);
+  // Gast auf einen Platz, auf dem schon jemand (kein Gast) sitzt: Platz teilen.
+  if(sp.picked && here && here !== sp.picked && spIsGast(sp.picked) && !spIsGast(here)){
+    var alt = spSeatOf(sp.picked);
+    if(alt) delete sp.doc.seats[alt];
+    sp.doc.teilen[sp.picked] = here;
+    sp.picked = null;
+    spSave(); paintSitzplan();
+    return true;
+  }
+  if(sp.picked) spLoesTeilen(sp.picked);
+  // Ohne Auswahl auf einen geteilten Platz: zuerst den Gast wieder abholen.
+  if(!sp.picked && here && spGaesteBei(here).length){
+    sp.picked = spGaesteBei(here)[0];
+    spLoesTeilen(sp.picked);
+    spSave(); paintSitzplan();
+    return true;
+  }
   if(sp.picked){
     var from = spSeatOf(sp.picked);
     if(from) delete sp.doc.seats[from];
@@ -7887,7 +7976,7 @@ function wireSitzplan(){
   host.querySelector('#spRules').addEventListener('click', spRulesModal);
   host.querySelector('#spClearSeats').addEventListener('click', function(){
     uiConfirm('Alle Plätze leeren?', 'Die Möbel bleiben stehen, nur die Namen werden entfernt.', 'Leeren', function(){
-      sp.doc.seats = {}; sp.picked = null; spSave(); paintSitzplan();
+      sp.doc.seats = {}; sp.doc.teilen = {}; sp.picked = null; spSave(); paintSitzplan();
     }, true);
   });
   host.querySelector('#spMirror').addEventListener('click', function(){
@@ -7911,7 +8000,8 @@ function wireSitzplan(){
         name: name,
         savedAt: new Date().toISOString(),
         tables: JSON.parse(JSON.stringify(sp.doc.tables)),
-        seats: Object.assign({}, sp.doc.seats)
+        seats: Object.assign({}, sp.doc.seats),
+        teilen: Object.assign({}, sp.doc.teilen)
       });
       spSaveVarianten().then(function(){ toast('„'+name+'" gesichert.'); });
       paintSitzplan();
@@ -7924,6 +8014,7 @@ function wireSitzplan(){
     uiConfirm('„'+plan.name+'" laden?', 'Die aktuelle Tisch- und Sitzordnung wird ersetzt.', 'Laden', function(){
       sp.doc.tables = spNormTables(JSON.parse(JSON.stringify(plan.tables || [])));
       sp.doc.seats = Object.assign({}, plan.seats || {});
+      sp.doc.teilen = Object.assign({}, plan.teilen || {});
       sp.picked = null; sp.selected = null;
       spSave(); paintSitzplan();
       toast('„'+plan.name+'" geladen.');
@@ -7965,6 +8056,7 @@ function wireSitzplan(){
         sp.doc.absent.push(uid);
         var seat = spSeatOf(uid);
         if(seat) delete sp.doc.seats[seat];
+        spLoesTeilen(uid);
         if(sp.picked === uid) sp.picked = null;
       }
       spSave(); paintSitzplan();
@@ -8153,7 +8245,7 @@ function spAutoLayout(kind, silent){
 
 function spRulesModal(){
   function optionsHtml(sel){
-    return sp.roster.map(function(s){
+    return ohneGaeste(sp.roster).map(function(s){
       return '<option value="'+esc(s.uid)+'"'+(sel===s.uid?' selected':'')+'>'+esc(s.displayName)+'</option>';
     }).join('');
   }
@@ -8948,16 +9040,23 @@ function openQuizImport(){
 
 function startQuizSession(quiz){
   quizLive.busy = {}; quizLive.sig = null; quizClock.key = '';
-  setDoc(quizSessionRef(), {
-    quizId: quiz.id, title: quiz.title, state:'lobby', qIndex:-1,
-    totalQ: (quiz.questions||[]).length, question:null, sec:0, startedAt:0,
-    correctIndex:-1, stats:[], updatedAt: serverTimestamp()
-  }).then(function(){
-    // Punktestände und Antworten der letzten Runde wegräumen.
+  /* Reihenfolge ist wichtig: ZUERST die Spieler und Antworten der letzten Runde
+     wegräumen, ERST DANN die Lobby öffnen. Früher war es umgekehrt - wer schnell
+     auf «mitmachen» tippte, fand noch den alten Eintrag vom letzten Quiz, schrieb
+     darum keinen neuen, und Sekunden später löschte das Aufräumen genau diesen
+     Eintrag. Auf dem Schülergerät stand «Du bist dabei!», am Beamer fehlte die
+     Person (z.B. nur 9 von 15). */
+  setDoc(quizSessionRef(), { state:'idle', question:null, updatedAt: serverTimestamp() }, {merge:true}).then(function(){
     return Promise.all([
       getDocs(quizPlayersCol()).then(function(s){ var b = writeBatch(db); s.forEach(function(d){ b.delete(d.ref); }); return b.commit(); }),
       getDocs(quizAnswersCol()).then(function(s){ var b = writeBatch(db); s.forEach(function(d){ b.delete(d.ref); }); return b.commit(); })
     ]);
+  }).then(function(){
+    return setDoc(quizSessionRef(), {
+      quizId: quiz.id, title: quiz.title, state:'lobby', qIndex:-1,
+      totalQ: (quiz.questions||[]).length, question:null, sec:0, startedAt:0,
+      correctIndex:-1, stats:[], updatedAt: serverTimestamp()
+    });
   }).then(function(){ openQuizHost(quiz); })
     .catch(function(err){ console.error(err); toast('Quiz konnte nicht gestartet werden.'); });
 }
@@ -9295,13 +9394,14 @@ function quizReveal(quiz){
         uid: d.id,
         name: (player && player.name) || a.name || '?',
         score: ((player && player.score) || 0) + gained,
-        correct: ((player && player.correct) || 0) + (gained > 0 ? 1 : 0)
+        correct: ((player && player.correct) || 0) + (gained > 0 ? 1 : 0),
+        gained: gained
       });
     });
 
     var batch = writeBatch(db);
     updates.forEach(function(u){
-      batch.set(doc(quizPlayersCol(), u.uid), { name:u.name, score:u.score, correct:u.correct }, {merge:true});
+      batch.set(doc(quizPlayersCol(), u.uid), { name:u.name, score:u.score, correct:u.correct, lastGain:u.gained, lastQ:qIndex }, {merge:true});
     });
     return batch.commit().then(function(){
       return setDoc(quizSessionRef(), { stats: stats, updatedAt: serverTimestamp() }, {merge:true});
@@ -9326,7 +9426,7 @@ function quizPlaySig(s){
   var uid = (state.user||{}).uid;
   var me = quizLive.players.filter(function(p){ return p.uid === uid; })[0];
   return [s.state, s.qIndex, s.correctIndex, quizPlay.choice,
-          me ? (me.score||0) : -1, quizLive.players.length, (s.stats||[]).join(','),
+          me ? (me.score||0) : -1, me ? (me.lastQ+':'+me.lastGain) : '', quizLive.players.length, (s.stats||[]).join(','),
           quizRevealRank(s)].join('|');
 }
 
@@ -9384,7 +9484,10 @@ function quizPlayFullRender(s){
         + '<button class="btn btn-ghost btn-sm" id="qpLeave" type="button">Verlassen</button></div>';
 
   if(s.state === 'lobby'){
-    html += '<div class="qp-mid"><div class="qp-big">Du bist dabei!</div><p>Gleich geht es los …</p></div>';
+    var inLobby = quizLive.players.some(function(p){ return p.uid === state.user.uid; });
+    html += inLobby
+      ? '<div class="qp-mid"><div class="qp-big">Du bist dabei!</div><p>Gleich geht es los …</p></div>'
+      : '<div class="qp-mid"><div class="qp-wait">⏳</div><div class="qp-big">Einen Moment …</div><p>Du wirst gerade angemeldet.</p></div>';
   } else if(s.state === 'frage'){
     var left = quizSecondsLeft(s);
     html += '<div class="qp-timer'+(left<=5?' qp-timer-hot':'')+'">'+left+'</div>';
@@ -9401,7 +9504,14 @@ function quizPlayFullRender(s){
     html += '<div class="qp-mid '+(right?'qp-right':'qp-wrong')+'">';
     html += '<div class="qp-big">'+(quizPlay.choice === null ? '⏳ Keine Antwort' : (right ? '✅ Richtig!' : '❌ Leider falsch'))+'</div>';
     html += '<p>Richtig war: <b>'+esc((s.question && s.question.answers && s.question.answers[s.correctIndex]) || '')+'</b></p>';
-    if(me) html += '<div class="qp-score">'+(me.score||0)+' Punkte</div>';
+    if(me){
+      // Punkte dieser Frage: bei falsch/keiner Antwort sofort +0; bei richtig
+      // erst, wenn das Lehrergerät die Punkte verrechnet hat (lastQ = diese Frage).
+      if(me.lastQ === s.qIndex) html += '<div class="qp-gain'+((me.lastGain||0)>0?'':' qp-gain-0')+'">+'+(me.lastGain||0)+' Punkte</div>';
+      else if(!right) html += '<div class="qp-gain qp-gain-0">+0 Punkte</div>';
+      else html += '<div class="qp-gain qp-gain-0">Punkte werden gezählt …</div>';
+      html += '<div class="qp-score">Total: '+(me.score||0)+' Punkte</div>';
+    }
     html += '</div>';
   } else if(s.state === 'ende'){
     // Solange die Verkuendung laeuft, verraet das eigene Geraet nichts - erst
@@ -9472,6 +9582,38 @@ function ensureQuizPlayDelegation(){
   });
 }
 
+/* Selbstheilendes Beitreten: solange man im Quiz ist und der eigene Eintrag in
+   spieler/ fehlt (Schreiben fehlgeschlagen, WLAN-Aussetzer, ...), wird es alle
+   paar Sekunden erneut versucht - statt wie früher still in der Konsole zu
+   scheitern, während das Gerät trotzdem «Du bist dabei!» anzeigte. */
+var quizJoin = { pending:false, lastTry:0, retry:null };
+function quizEnsureJoined(viaGet){
+  clearTimeout(quizJoin.retry);
+  if(!state.user || state.route.name !== 'quizplay' || !quizIsRunning(quizLive.session)) return;
+  if(quizLive.unsubPlayers && quizLive.players.some(function(p){ return p.uid === state.user.uid; }) && !viaGet) return;
+  if(quizJoin.pending || Date.now() - quizJoin.lastTry < 2500){
+    quizJoin.retry = setTimeout(function(){ quizEnsureJoined(true); }, 3000);
+    return;
+  }
+  quizJoin.pending = true;
+  quizJoin.lastTry = Date.now();
+  var playerRef = doc(quizPlayersCol(), state.user.uid);
+  var name = (state.profile && state.profile.displayName) || '?';
+  // Den Eintrag nur anlegen, wenn er fehlt: beim erneuten Beitreten während
+  // derselben Runde würde ein Neuschreiben den Punktestand auf 0 setzen (und
+  // die Regel, die genau das verhindert, den Schreibvorgang ablehnen).
+  getDoc(playerRef).then(function(snap){
+    if(snap.exists()) return null;
+    return setDoc(playerRef, { name: name, score: 0, correct: 0 });
+  }).then(function(){
+    quizJoin.pending = false;
+  }, function(err){
+    console.error('Quiz beitreten', err);
+    quizJoin.pending = false;
+    quizJoin.retry = setTimeout(function(){ quizEnsureJoined(true); }, 3000);
+  });
+}
+
 function joinQuiz(){
   if(!quizIsRunning(quizLive.session)) return;
   // Eigener Spieler-Eintrag mit 0 Punkten; die Punkte setzt danach nur noch
@@ -9479,15 +9621,15 @@ function joinQuiz(){
   // derselben Runde darf der Eintrag NICHT neu geschrieben werden - das würde
   // den bereits erspielten Punktestand auf 0 zurücksetzen (und die Regel, die
   // genau das verhindert, den Schreibvorgang ablehnen).
-  var playerRef = doc(quizPlayersCol(), state.user.uid);
-  getDoc(playerRef).then(function(snap){
-    if(snap.exists()) return null;
-    return setDoc(playerRef, { name: state.profile.displayName, score: 0, correct: 0 });
-  }).catch(function(err){ console.error(err); });
+  quizJoin.lastTry = 0;
+  quizEnsureJoined(true);
   if(!quizLive.unsubPlayers){
     quizLive.unsubPlayers = onSnapshot(quizPlayersCol(), function(snap){
       quizLive.players = [];
       snap.forEach(function(d){ quizLive.players.push(Object.assign({uid:d.id}, d.data())); });
+      // Nur eine Antwort vom Server (nicht aus dem Gerätespeicher) zählt als
+      // Beweis, dass der eigene Eintrag fehlt - dann gleich nochmals eintragen.
+      if(!snap.metadata.fromCache) quizEnsureJoined(false);
       if(state.route.name === 'quizplay') renderQuizPlay();
     }, function(err){ console.error(err); });
   }
@@ -9679,7 +9821,7 @@ function aemtliLoad(force){
   });
 
   aemtliState.inflight = Promise.all([doc_, roster_]).then(function(r){
-    var snap = r[0], roster = r[1] || [];
+    var snap = r[0], roster = ohneGaeste(r[1] || []);   // Fach-Gäste haben keine Ämtli
     // Tiefe Kopie der Vorgaben: sonst würden Bearbeitungen (Teams, Zeiten,
     // gestrichene Wochen) direkt in AEMTLI_DEFAULTS landen und dort hängen bleiben.
     var cfg = Object.assign(JSON.parse(JSON.stringify(AEMTLI_DEFAULTS)), snap.exists() ? snap.data() : {});
@@ -9808,6 +9950,8 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-09-18-fach-gaeste', datum:'2026-09-18', fuer:'lehrer', text:'Fach-Gäste (z.B. Elena und Letizia in Mathe): erscheinen in Abgabe-Checklisten, Vergessen-Zähler und Live-Klasse nur bei Mathe, in Spielen per «👭 Gäste»-Schalter, im Sitzplan nur von Hand — auch als zweite Person auf einem besetzten Platz.'},
+  {id:'2026-09-18-quiz-punkte-plus', datum:'2026-09-18', fuer:'alle', text:'Klassen-Quiz: Nach jeder Frage siehst du gross, wie viele Punkte du dazubekommen hast. Und «mitmachen» klappt jetzt zuverlässig.'},
   {id:'2026-09-18-quiz-stopp', datum:'2026-09-18', fuer:'lehrer', text:'Klassen-Quiz: Neuer Knopf «⏸ Zeit stoppen» am Beamer — der Countdown friert ein, niemand wird gesperrt, aufgelöst wird per Knopf.'},
   {id:'2026-09-17-neuigkeiten', datum:'2026-09-17', fuer:'alle', text:'Neuer Reiter 🆕: Hier siehst du, was sich an der Library geändert hat. Leuchtet das Symbol rot, gibt es etwas Neues.'},
   {id:'2026-09-17-erinnerungen', datum:'2026-09-17', fuer:'alle', text:'Erinnerungen kommen zuverlässiger an, auch wenn der Versand sich verspätet.'},
@@ -10602,7 +10746,7 @@ function paintUmfrageHost(){
   var c1 = s.ergebnis1 || null;
   var total = c2.reduce(function(a,b){ return a+b; }, 0);
   var max = Math.max(1, Math.max.apply(null, c2.concat(c1 || [0])));
-  var n = klasseRoster.list.length || 0;
+  var n = gaesteOptional(klasseRoster.list).length || 0;
 
   // Nur neu zeichnen, wenn sich wirklich etwas geändert hat — sonst flackert
   // die Anzeige bei jedem Snapshot.
@@ -10690,10 +10834,17 @@ function openGruppen(){
   if(gruppen.overlay) return;
   var html = '';
   html += '<div class="kz-bar"><div class="kz-bar-title">🎲 Gruppen & Partner</div><div class="kz-bar-spacer"></div>';
+  html += gaesteToggleHtml('grGaeste');
   html += '<button class="kz-close" id="grClose" type="button" title="Schliessen (Esc)">✕</button></div>';
   html += '<div class="kz-stage" id="grStage"><div class="qh-sub">Wird geladen …</div></div>';
   gruppen.overlay = openOverlay(html, function(){ gruppen.overlay = null; }, 'kz-overlay-beamer');
   gruppen.overlay.el.querySelector('#grClose').addEventListener('click', function(){ gruppen.overlay.close(); });
+  wireGaesteToggle(gruppen.overlay.el.querySelector('#grGaeste'), function(){
+    if(!gruppen.rosterAll) return;
+    gruppen.roster = gaesteOptional(gruppen.rosterAll);
+    gruppen.result = null;
+    paintGruppen();
+  });
 
   Promise.all([
     klasseRosterLoad(),
@@ -10701,7 +10852,8 @@ function openGruppen(){
     getDoc(kdoc('klassenzimmer', 'gruppen')).catch(function(){ return { exists:function(){ return false; } }; })
   ]).then(function(r){
     if(!gruppen.overlay) return;
-    gruppen.roster = r[0];
+    gruppen.rosterAll = r[0];
+    gruppen.roster = gaesteOptional(r[0]);
     var eig = r[2].exists() ? r[2].data() : {};
     gruppen.rollenListe = (eig.rollen && eig.rollen.length) ? eig.rollen.slice() : GRUPPEN_ROLLEN.slice();
     var sitz = r[1].exists() ? r[1].data() : {};
@@ -11037,6 +11189,7 @@ function vgRows(){
   rel.sort(function(a,b){ return b.dueDate.localeCompare(a.dueDate); });
   var rows = vergessen.roster.map(function(s){
     var items = rel.filter(function(e){
+      if(gastFach(s) && e.subject !== gastFach(s)) return false;   // Fach-Gast
       if(e.submitted && e.submitted[s.uid]) return false;
       if(e.excused && e.excused[s.uid]) return false;
       return true;
