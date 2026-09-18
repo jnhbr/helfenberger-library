@@ -6247,6 +6247,76 @@ document.addEventListener('visibilitychange', function(){
 });
 window.addEventListener('pagehide', flushTimeTracking);
 
+/* ===================== ÜBUNGS-HELFER (Mathe-Übungsseiten) =====================
+   Wunsch von Jan: (1) den eingebauten Taschenrechner der Mathe-Übungsseiten
+   auch mit der Tastatur bedienen, (2) beim erneuten Öffnen wieder bei der
+   Aufgabe landen, bei der man aufgehört hat. Wie beim Stand-Sync: keine
+   Änderung an den hochgeladenen Seiten nötig — die Shell fügt beim Öffnen
+   ein kleines Script ein und patcht zwei Zeilen der Mathe-Engine
+   (Vorlage «Thales & Pythagoras»: `var VIEW = {mode:'home'};` + `render()`).
+   Passt das Muster nicht (andere Seitentypen), bleibt die Seite unverändert.
+   Die Position liegt unter `lib_pos_<rid>` (bewusst NICHT `hl_`), damit der
+   generische localStorage-Sync sie mitnimmt → auch geräteübergreifend. */
+
+function exerciseHelperScript(rid){
+  var posKey = 'lib_pos_' + rid;
+  return '<script>(function(){' +
+    'var K=' + JSON.stringify(posKey) + ';' +
+    'window.__libLoadView=function(){try{var v=JSON.parse(localStorage.getItem(K)||"null");return v&&typeof v==="object"?v:null;}catch(e){return null;}};' +
+    'window.__libSaveView=function(v){try{if(!v||v.mode==="home")localStorage.removeItem(K);else localStorage.setItem(K,JSON.stringify({mode:v.mode,themeKey:v.themeKey,index:v.index,mDecided:!!v.mDecided}));}catch(e){}};' +
+    'window.__libClearView=function(){try{localStorage.removeItem(K);}catch(e){}};' +
+    // Taschenrechner per Tastatur: nur wenn er offen ist und der Fokus nicht in einem Antwortfeld liegt.
+    'var MAP={"0":"0","1":"1","2":"2","3":"3","4":"4","5":"5","6":"6","7":"7","8":"8","9":"9",".":".",",":".","+":"+","-":"−","*":"×","x":"×","X":"×","/":"÷",":":"÷","Enter":"=","=":"=","Backspace":"⌫","Delete":"C","Escape":"C","c":"C","C":"C","q":"x²","Q":"x²","²":"x²","w":"√","W":"√"};' +
+    'function isField(a){return a&&(a.tagName==="INPUT"||a.tagName==="TEXTAREA"||a.tagName==="SELECT"||a.isContentEditable);}' +
+    'document.addEventListener("pointerdown",function(e){var t=e.target;if(t&&t.closest&&t.closest(".calc-panel,.calc-fab")&&isField(document.activeElement))document.activeElement.blur();},true);' +
+    'document.addEventListener("keydown",function(e){' +
+      'var panel=document.querySelector(".calc-panel.show");if(!panel||e.ctrlKey||e.metaKey||e.altKey)return;' +
+      'var a=document.activeElement;if(isField(a)&&!panel.contains(a))return;' +
+      'var label=MAP[e.key];if(!label)return;' +
+      'var btns=panel.querySelectorAll(".calc-btn"),hit=null;' +
+      'for(var i=0;i<btns.length;i++){if(btns[i].textContent.trim()===label){hit=btns[i];break;}}' +
+      'if(!hit)return;e.preventDefault();hit.click();' +
+      'hit.style.filter="brightness(.8)";setTimeout(function(){hit.style.filter="";},120);' +
+    '});' +
+    'document.addEventListener("DOMContentLoaded",function(){var p=document.querySelector(".calc-panel");if(!p||p.querySelector(".lib-calc-keys"))return;' +
+      'var n=document.createElement("div");n.className="lib-calc-keys";n.style.cssText="font-size:.68rem;opacity:.7;margin-top:8px;line-height:1.35;";' +
+      'n.textContent="⌨️ Tastatur: Ziffern, + − * /, Enter = Resultat, ⌫ löschen, Esc = C, q = x², w = √";p.appendChild(n);});' +
+  '})();<\/script>';
+}
+
+function injectExerciseHelpers(html, rid){
+  if(!html || !rid) return html;
+  try{
+    var out = html;
+    var viewRe = /var VIEW\s*=\s*\{\s*mode\s*:\s*'home'\s*\}\s*;/;
+    var renderRe = /function render\(\)\s*\{(\s*appRoot\.innerHTML)/;
+    if(viewRe.test(out) && renderRe.test(out)){
+      out = out.replace(viewRe, function(){
+        return "var VIEW = (function(){ try{ var v = window.__libLoadView && window.__libLoadView();" +
+          " if(v && (v.mode==='run'||v.mode==='weak') && typeof v.index==='number' && v.index>=0 &&" +
+          " THEMES.some(function(t){ return t.key===v.themeKey; })) return {mode:v.mode, themeKey:v.themeKey, index:v.index, mDecided:!!v.mDecided};" +
+          " }catch(e){} return {mode:'home'}; })();";
+      });
+      out = out.replace(renderRe, function(m, rest){
+        return "function render(){ try{ window.__libSaveView && window.__libSaveView(VIEW); }catch(e){}" + rest;
+      });
+      // „Fortschritt löschen" → auch die gemerkte Position vergessen.
+      out = out.replace(/STATE\s*=\s*\{\}\s*;\s*saveState\(STATE\)\s*;/, function(m){
+        return "try{ window.__libClearView && window.__libClearView(); }catch(e){} " + m;
+      });
+    }
+    var script = exerciseHelperScript(rid);
+    var headRe = /<head(\s[^>]*)?>/i;
+    if(headRe.test(out)) return out.replace(headRe, function(m){ return m + script; });
+    var idx = out.search(/<script/i);
+    if(idx >= 0) return out.slice(0, idx) + script + out.slice(idx);
+    return out;
+  }catch(e){
+    console.error('Übungs-Helfer konnten nicht eingefügt werden', e);
+    return html;
+  }
+}
+
 /* ===================== RENDER: RESOURCE VIEWER ===================== */
 
 var currentViewerResourceId = null;
@@ -6299,7 +6369,7 @@ function renderResource(r){
   Promise.all([contentPromise, prepareResourceSync(r.id)]).then(function(res){
     var chunkSnaps = res[0];
     var html = chunkSnaps.map(function(s){ return (s.exists() && s.data().html) || ''; }).join('');
-    document.getElementById('resourceFrame').srcdoc = html;
+    document.getElementById('resourceFrame').srcdoc = injectExerciseHelpers(html, r.id);
   }).catch(function(err){
     console.error(err);
     var wrap = document.querySelector('.viewer-frame-wrap');
@@ -10740,6 +10810,7 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-09-18-mathe-tastatur-weiter', datum:'2026-09-18', fuer:'alle', text:'Mathe-Übungen: Den Taschenrechner 🧮 kannst du jetzt auch mit der Tastatur bedienen (Ziffern, + − * /, Enter). Und wenn du eine Übung wieder öffnest, landest du direkt bei der Aufgabe, bei der du aufgehört hast — auch auf einem anderen Gerät.'},
   {id:'2026-09-18-schulleitung', datum:'2026-09-18', fuer:'lehrer', text:'Neues Login «Schulleitung»: sieht alle Klassen, wahlweise als Lehrperson oder als Schüler:in (Knopf im gelben Band), kann aber nichts verändern.'},
   {id:'2026-09-18-lmvz-mathe', datum:'2026-09-18', fuer:'alle', text:'Mathe: Alle Online-Übungen aus den Lehrmitteln Mathematik 1, 2 und 3 sind jetzt drin — sortiert nach Kapitel und Unterkapitel, unter «Onlineübungen» nach Niveau I, II und III. Auch im Vollbild.'},
   {id:'2026-09-18-aemtli-stuhl', datum:'2026-09-18', fuer:'lehrer', text:'Ämtli-Erinnerung: am Dienstag steht zusätzlich gross «AUFSTUHLEN», am Freitag «NICHT aufstuhlen».'},
