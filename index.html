@@ -1125,6 +1125,7 @@
   .ae-gross h2{font-family:'Baloo 2',system-ui,sans-serif;font-size:clamp(30px,6vw,76px);line-height:1.1;margin:10px 0 18px;color:var(--bad);}
   .ae-gross-jobs{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;}
   .ae-gross-jobs .ae-job{font-size:clamp(17px,2.6vw,30px);padding:8px 20px;}
+  .ae-gross-stuhl{margin-top:20px;font-family:'Baloo 2',system-ui,sans-serif;font-size:clamp(28px,5.5vw,68px);font-weight:800;line-height:1.1;color:var(--bad);}
   .ae-gross-hint{margin-top:18px;color:var(--text-muted);font-size:14px;}
   @keyframes aeGrossPuls{0%,100%{transform:scale(1);box-shadow:0 0 0 0 rgba(230,57,80,.6);}50%{transform:scale(1.04);box-shadow:0 0 0 26px rgba(230,57,80,0);}}
   @media (prefers-reduced-motion: reduce){ .ae-gross-box{animation:none;} }
@@ -3555,6 +3556,96 @@ function sortByOrder(list, fallbackField){
   return list;
 }
 
+/* ===================== 📐 LMVZ-Lehrmittel in Mathe (virtuelle Ordner) =====================
+   Die Online-Übungen von «Mathematik 1–3 Sekundarstufe I» (003.lmvz.ch) stehen
+   als statischer Katalog in assets/lmvz-mathe.json (einmal von den LMVZ-Seiten
+   ausgelesen). Daraus entstehen im Fach Mathe Ordner und Übungen, die NICHT in
+   Firestore liegen: Lehrmittel › Kapitel › Unterkapitel › Onlineübungen › I/II/III
+   (+ «Extras» nur für Lehrpersonen). Grund: ~1200 Einträge pro Klasse als
+   Firestore-Dokumente würden bei jedem Öffnen von Mathe gelesen.
+   Virtuelle Einträge haben `virtual:true` und Ids mit Präfix `lmvz_`; echte
+   Übungen/Ordner dürfen trotzdem darin liegen (folderId/parentId = lmvz_...).
+   HTML-Übungen öffnen im normalen Viewer (iframe direkt von lmvz.ch, `linkUrl`),
+   alles andere (PDF/Word/Excel, fremde Seiten) über `externalUrl` im neuen Tab.
+   Kopieren wäre sinnlos: die Seiten laden Skripte/GeoGebra relativ vom LMVZ-Server. */
+var LMVZ_SUBJECT = 'mathe';
+var LMVZ_CATALOG_VERSION = 2;   // bei jeder Änderung an assets/lmvz-mathe.json erhöhen (Browser-Cache)
+var LMVZ_PYTHAGORAS_FOLDER = 'lmvz_m2_2a';
+var lmvzCatalogPromise = null;
+function lmvzLoadCatalog(){
+  if(!lmvzCatalogPromise){
+    lmvzCatalogPromise = fetch('assets/lmvz-mathe.json?v='+LMVZ_CATALOG_VERSION).then(function(r){
+      if(!r.ok) throw new Error('HTTP '+r.status);
+      return r.json();
+    }).catch(function(err){ lmvzCatalogPromise = null; throw err; });
+  }
+  return lmvzCatalogPromise;
+}
+function lmvzBuild(cat, isTeacher){
+  var folders = [], resources = [];
+  function fold(id, parentId, name, order, extra){
+    folders.push(Object.assign({id:id, subject:LMVZ_SUBJECT, parentId:parentId, name:name, order:order, virtual:true}, extra || {}));
+  }
+  function items(list, folderId){
+    list.forEach(function(it, i){
+      var url = /^https?:/.test(it[2]) ? it[2] : cat.base + it[2];
+      var nr = String(it[0] || '').replace(/^Aufgabe\s+/i, '');
+      var r = {id:folderId+'_'+i, subject:LMVZ_SUBJECT, folderId:folderId, order:i, virtual:true,
+               title:(nr ? nr+' · ' : '')+it[1]};
+      // Nur LMVZ-HTML läuft im Viewer; Dokumente und fremde Seiten im neuen Tab.
+      if(url.indexOf(cat.base) === 0 && /\.html?$/i.test(url)) r.linkUrl = url; else r.externalUrl = url;
+      resources.push(r);
+    });
+  }
+  (cat.lm || []).forEach(function(lm, li){
+    var lmId = 'lmvz_'+lm.id;
+    fold(lmId, null, lm.name, -1000 + li);
+    lm.kap.forEach(function(k, ki){
+      var kId = lmId+'_k'+k.nr;
+      fold(kId, lmId, k.nr+'. Kapitel'+(k.name ? ': '+k.name : ''), ki);
+      k.subs.forEach(function(s, si){
+        var sId = lmId+'_'+s.id, onId = sId+'_on';
+        fold(sId, kId, s.name, si);
+        fold(onId, sId, 'Onlineübungen', -1000);
+        ['1','2','3'].forEach(function(n, ni){
+          fold(onId+'_n'+n, onId, ['I','II','III'][ni], ni, {lmvzLeaf:true});
+          items(s[n] || [], onId+'_n'+n);
+        });
+        if(s.tb && s.tb.length){ fold(onId+'_tb', onId, 'Themenbuch', 3, {lmvzLeaf:true}); items(s.tb, onId+'_tb'); }
+        if(isTeacher && s.x && s.x.length){ fold(sId+'_x', sId, 'Extras (nur Lehrperson)', -999, {lmvzLeaf:true}); items(s.x, sId+'_x'); }
+      });
+    });
+  });
+  return {folders:folders, resources:resources};
+}
+// Hängt die virtuellen Einträge an state.folders/state.resources an (nach jedem
+// Firestore-Snapshot erneut, weil der die Listen komplett neu aufbaut).
+function lmvzMerge(){
+  var v = state.lmvzV;
+  state.folders = state.folders.filter(function(f){ return !f.virtual; });
+  state.resources = state.resources.filter(function(r){ return !r.virtual; });
+  if(!v || state.route.subject !== LMVZ_SUBJECT) return;
+  state.folders = state.folders.concat(v.folders);
+  state.resources = state.resources.concat(v.resources);
+}
+// Einmalig pro Klasse (nur eigene Klasse der Lehrperson): die bisherige
+// Pythagoras/Thales-Übung in «Mathematik 2 › 2a» einsortieren.
+function lmvzMovePythagoras(){
+  if(!state.profile || state.profile.role !== 'teacher' || isFremdeKlasse()) return;
+  var key = LIB_PREFIX + 'lmvzPyth_' + state.klasse;
+  if(lsGet(key)) return;
+  var hits = state.resources.filter(function(r){
+    return !r.virtual && /pythagoras|thales/i.test(r.title || r.fileName || '') && r.folderId !== LMVZ_PYTHAGORAS_FOLDER;
+  });
+  lsSet(key, '1');
+  if(!hits.length) return;
+  var target = resourcesIn(LMVZ_PYTHAGORAS_FOLDER).length;
+  var batch = writeBatch(db);
+  hits.forEach(function(r, i){ batch.update(kdoc('resources', r.id), {folderId: LMVZ_PYTHAGORAS_FOLDER, order: target + i, prevOrder: null}); });
+  batch.commit().then(function(){ toast('Pythagoras/Thales liegt jetzt in Mathematik 2 › 2a.'); })
+    .catch(function(err){ console.error(err); lsSet(key, ''); });
+}
+
 /* ===================== EIGENE DIALOGE =====================
    Bewusst KEIN window.confirm/alert/prompt: native Dialoge erzwingen einen
    Fullscreen-Exit und können die im Viewer eingebettete Übungsseite in einen
@@ -4126,19 +4217,22 @@ function openSearchModal(){
 
   Promise.all([
     getDocs(kcol('resources')),
-    getDocs(kcol('folders'))
+    getDocs(kcol('folders')),
+    lmvzLoadCatalog().catch(function(){ return null; })
   ]).then(function(res){
     var resultsEl = document.getElementById('searchResults');
     if(!resultsEl) return; // Modal wurde inzwischen geschlossen
 
     var foldersById = {};
     res[1].docs.forEach(function(d){ foldersById[d.id] = Object.assign({id:d.id}, d.data()); });
+    var lmvzV = res[2] ? lmvzBuild(res[2], isTeacher) : {folders:[], resources:[]};
+    lmvzV.folders.forEach(function(f){ foldersById[f.id] = f; });
     function breadcrumb(r){
       var parts = [], f = r.folderId ? foldersById[r.folderId] : null, guard = 0;
       while(f && guard++ < MAX_FOLDER_DEPTH + 2){ parts.unshift(f.name); f = f.parentId ? foldersById[f.parentId] : null; }
       return parts;
     }
-    var allResources = res[0].docs.map(function(d){ return Object.assign({id:d.id}, d.data()); }).filter(function(r){
+    var allResources = res[0].docs.map(function(d){ return Object.assign({id:d.id}, d.data()); }).concat(lmvzV.resources).filter(function(r){
       var s = subjectById(r.subject);
       return s && (!s.teacherOnly || isTeacher);
     });
@@ -4257,6 +4351,7 @@ function uiPickFolder(title, description, currentId, blockedIds, onPick){
   row(null, 'Fach-Hauptebene', 0, (currentId||null) === null, (currentId||null) === null ? 'hier' : '');
   (function walk(parentId, depth){
     foldersIn(parentId).forEach(function(f){
+      if(f.lmvzLeaf) return;   // I/II/III/Extras: nur LMVZ-Material, kein Ablageort
       var blocked = blockedIds.indexOf(f.id) >= 0;
       var isHere = f.id === currentId;
       row(f.id, f.name, depth + 1, blocked || isHere, isHere ? 'hier' : '');
@@ -4640,13 +4735,28 @@ function renderSubject(subjectId, folderId){
     });
   }
 
-  var loaded = {res:false, fold:false};
-  function maybeRender(){ if(loaded.res && loaded.fold) renderFolderContents(); }
+  var isLmvz = subjectId === LMVZ_SUBJECT;
+  var loaded = {res:false, fold:false, lmvz:!isLmvz};
+  function maybeRender(){
+    if(!(loaded.res && loaded.fold && loaded.lmvz)) return;
+    if(isLmvz) lmvzMovePythagoras();
+    renderFolderContents();
+  }
+  state.lmvzV = null;
+  if(isLmvz){
+    lmvzLoadCatalog().then(function(cat){
+      if(state.route.name !== 'subject' || state.route.subject !== LMVZ_SUBJECT) return;
+      state.lmvzV = lmvzBuild(cat, isTeacher);
+      lmvzMerge();
+    }).catch(function(err){ console.error('LMVZ-Katalog nicht ladbar', err); })
+      .then(function(){ loaded.lmvz = true; maybeRender(); });
+  }
 
   var qf = query(kcol('folders'), where('subject','==',subjectId));
   state.folderUnsub = onSnapshot(qf, function(snap){
     state.folders = [];
     snap.forEach(function(d){ state.folders.push(Object.assign({id:d.id}, d.data())); });
+    lmvzMerge();
     loaded.fold = true;
     maybeRender();
   }, function(err){ console.error(err); loaded.fold = true; maybeRender(); });
@@ -4655,6 +4765,7 @@ function renderSubject(subjectId, folderId){
   state.resourceUnsub = onSnapshot(qr, function(snap){
     state.resources = [];
     snap.forEach(function(d){ state.resources.push(Object.assign({id:d.id}, d.data())); });
+    lmvzMerge();
     loaded.res = true;
     maybeRender();
   }, function(err){
@@ -4709,6 +4820,10 @@ function renderFolderContents(){
 
   var folders = foldersIn(here);
   var resources = resourcesIn(here);
+  // Virtuelle LMVZ-Einträge lassen sich weder sortieren noch bearbeiten —
+  // Pfeile/Nummern gelten nur unter den echten Einträgen.
+  var realFolders = folders.filter(function(f){ return !f.virtual; });
+  var realResources = resources.filter(function(r){ return !r.virtual; });
 
   if(!folders.length && !resources.length){
     listEl.innerHTML = '<div class="empty-state">'+
@@ -4721,19 +4836,20 @@ function renderFolderContents(){
   var html = '';
   if(folders.length){
     html += '<div class="section-label">Ordner</div>';
-    html += folders.map(function(f, i){ return folderCardHtml(f, i, folders.length, isTeacher); }).join('');
+    html += folders.map(function(f){ return folderCardHtml(f, realFolders.indexOf(f), realFolders.length, isTeacher && !f.virtual); }).join('');
   }
   if(resources.length){
     if(folders.length) html += '<div class="section-label">Übungen</div>';
-    html += resources.map(function(r, i){ return resourceCardHtml(r, i, resources.length, isTeacher); }).join('');
+    html += resources.map(function(r){ return resourceCardHtml(r, realResources.indexOf(r), realResources.length, isTeacher && !r.virtual); }).join('');
   }
   listEl.innerHTML = html;
 
-  folders.forEach(function(f, i){
+  folders.forEach(function(f){
     document.getElementById('fopen-'+f.id).addEventListener('click', function(){ goSubject(subjectId, f.id); });
-    if(!isTeacher) return;
-    document.getElementById('fup-'+f.id).addEventListener('click', function(){ reorderFolder(folders, i, -1); });
-    document.getElementById('fdown-'+f.id).addEventListener('click', function(){ reorderFolder(folders, i, 1); });
+    if(!isTeacher || f.virtual) return;
+    var i = realFolders.indexOf(f);
+    document.getElementById('fup-'+f.id).addEventListener('click', function(){ reorderFolder(realFolders, i, -1); });
+    document.getElementById('fdown-'+f.id).addEventListener('click', function(){ reorderFolder(realFolders, i, 1); });
     document.getElementById('frename-'+f.id).addEventListener('click', function(){
       uiPrompt('Ordner umbenennen', null, f.name, 'Speichern', function(name){ renameFolder(f, name); });
     });
@@ -4741,16 +4857,17 @@ function renderFolderContents(){
     document.getElementById('fdel-'+f.id).addEventListener('click', function(){ askDeleteFolder(f); });
   });
 
-  resources.forEach(function(r, i){
-    watchProgress(r.id, function(p){ updateResourceBar(r.id, p); });
+  resources.forEach(function(r){
+    if(!r.virtual) watchProgress(r.id, function(p){ updateResourceBar(r.id, p); });
     var openBtn = document.getElementById('open-'+r.id);
     if(openBtn) openBtn.addEventListener('click', function(){ goResource(r); });
-    if(!isTeacher) return;
+    if(!isTeacher || r.virtual) return;
+    var i = realResources.indexOf(r);
     document.getElementById('del-'+r.id).addEventListener('click', function(){ askDeleteResource(r); });
-    document.getElementById('up-'+r.id).addEventListener('click', function(){ moveResource(resources, i, -1); });
-    document.getElementById('down-'+r.id).addEventListener('click', function(){ moveResource(resources, i, 1); });
+    document.getElementById('up-'+r.id).addEventListener('click', function(){ moveResource(realResources, i, -1); });
+    document.getElementById('down-'+r.id).addEventListener('click', function(){ moveResource(realResources, i, 1); });
     var curBtn = document.getElementById('cur-'+r.id);
-    if(curBtn) curBtn.addEventListener('click', function(){ toggleCurrent(resources, r); });
+    if(curBtn) curBtn.addEventListener('click', function(){ toggleCurrent(realResources, r); });
     document.getElementById('rrename-'+r.id).addEventListener('click', function(){
       uiPrompt('Übung umbenennen', null, r.title || r.fileName, 'Speichern', function(title){ renameResource(r, title); });
     });
@@ -4904,8 +5021,8 @@ function moveResource(resources, index, direction){
 function askMoveResource(r){
   var title = r.title || r.fileName;
   uiPickFolder('«'+title+'» verschieben', 'In welchen Ordner soll diese Übung?', r.folderId || null, [], function(targetId){
-    var targetList = resourcesIn(targetId);
-    var sourceList = resourcesIn(r.folderId || null).filter(function(x){ return x.id !== r.id; });
+    var targetList = resourcesIn(targetId).filter(function(x){ return !x.virtual; });
+    var sourceList = resourcesIn(r.folderId || null).filter(function(x){ return x.id !== r.id && !x.virtual; });
     var batch = writeBatch(db);
     batch.update(kdoc('resources', r.id), {folderId: targetId || null, order: targetList.length, prevOrder: null});
     sourceList.forEach(function(x, i){ batch.update(kdoc('resources', x.id), {order: i}); });
@@ -4952,6 +5069,11 @@ function toggleCurrent(resources, r){
 }
 
 function resourceCardHtml(r, index, total, isTeacher){
+  if(r.virtual){
+    return '<div class="resource-card" id="card-'+r.id+'"><div class="resource-info"><h4>'+esc(r.title)+'</h4>'+
+      '<div class="resource-meta">LMVZ · '+(r.linkUrl ? 'Online-Übung' : 'öffnet in neuem Tab')+'</div></div>'+
+      '<div class="resource-actions"><button class="btn btn-primary btn-sm" id="open-'+r.id+'">Öffnen</button></div></div>';
+  }
   var uploaded = r.uploadedAt && r.uploadedAt.toDate ? r.uploadedAt.toDate().toLocaleDateString('de-CH') : '';
   var html = '<div class="resource-card'+(r.current?' current':'')+'" id="card-'+r.id+'">';
   if(isTeacher){
@@ -6083,6 +6205,7 @@ function renderResource(r){
   clearSubjectWatchers();
   unwatchAllProgress();
   currentViewerResourceId = r.id;
+  if(r.linkUrl){ renderLinkResource(r); return; }
   startTimeTracking(r.id);
   var s = subjectById(r.subject);
 
@@ -6130,6 +6253,25 @@ function renderResource(r){
     var wrap = document.querySelector('.viewer-frame-wrap');
     if(wrap) wrap.innerHTML = '<div class="empty-state">Diese Übung konnte nicht geladen werden.</div>';
   });
+}
+
+// LMVZ-Übung: gleicher Viewer (inkl. Vollbild), aber die Seite kommt direkt von
+// lmvz.ch — kein Firestore-Inhalt, kein Fortschritt, kein Live.
+function renderLinkResource(r){
+  var s = subjectById(r.subject);
+  var html = '<div class="viewer-wrap">';
+  html += '<div class="back-row"><button class="btn btn-ghost btn-sm" id="backBtn">&larr; '+esc(s ? s.name : 'Fach')+'</button></div>';
+  html += '<div class="viewer-head"><h2>'+esc(r.title)+'</h2><span class="viewer-progress">LMVZ</span>';
+  html += '<a class="btn btn-ghost btn-sm" href="'+esc(r.linkUrl)+'" target="_blank" rel="noopener">↗ Neuer Tab</a>';
+  html += '<button class="btn btn-ghost btn-sm btn-fs" id="fsBtn" type="button">'+FS_ICON_ENTER+'</button>';
+  html += '</div>';
+  html += '<div class="viewer-frame-wrap" id="frameWrap">';
+  html += '<button class="btn-fs-overlay-exit" id="fsExitBtn" type="button" title="Vollbild verlassen" aria-label="Vollbild verlassen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3v3a2 2 0 0 1-2 2H4M15 3v3a2 2 0 0 0 2 2h3M9 21v-3a2 2 0 0 0-2-2H4M15 21v-3a2 2 0 0 1 2-2h3"/></svg></button>';
+  html += '<iframe id="resourceFrame" title="'+esc(r.title)+'" src="'+esc(r.linkUrl)+'" allow="fullscreen; clipboard-read; clipboard-write" allowfullscreen></iframe>';
+  html += '</div></div>';
+  renderChrome(html);
+  document.getElementById('backBtn').addEventListener('click', function(){ goSubject(r.subject, r.folderId || null); });
+  wireFullscreen();
 }
 
 var FS_ICON_ENTER = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3"/></svg> Vollbild';
@@ -10545,6 +10687,8 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-09-18-lmvz-mathe', datum:'2026-09-18', fuer:'alle', text:'Mathe: Alle Online-Übungen aus den Lehrmitteln Mathematik 1, 2 und 3 sind jetzt drin — sortiert nach Kapitel und Unterkapitel, unter «Onlineübungen» nach Niveau I, II und III. Auch im Vollbild.'},
+  {id:'2026-09-18-aemtli-stuhl', datum:'2026-09-18', fuer:'lehrer', text:'Ämtli-Erinnerung: am Dienstag steht zusätzlich gross «AUFSTUHLEN», am Freitag «NICHT aufstuhlen».'},
   {id:'2026-09-18-aemtli-gross', datum:'2026-09-18', fuer:'lehrer', text:'Ämtli-Erinnerung: 5 Minuten vor jeder Ämtli-Zeit poppt der Hinweis gross und pulsierend über allem auf (auch im Vollbild). Antippen = weg, zur Ämtli-Zeit verschwindet er sowieso.'},
   {id:'2026-09-18-uebung-bearbeiten', datum:'2026-09-18', fuer:'lehrer', text:'Übungen direkt bearbeiten: «✏️ Bearbeiten» bei jeder Übung — Texte & Lösungen als Formularfelder (nach Aufgabe gruppiert, mit Suche) oder im Code-Modus. Mit Vorschau, Syntaxprüfung und «↩️ Vorherige Version». Kopien in anderen Klassen werden automatisch mitaktualisiert, auch bei «Datei ersetzen».'},
   {id:'2026-09-18-fach-gaeste', datum:'2026-09-18', fuer:'lehrer', text:'Fach-Gäste (z.B. Elena und Letizia in Mathe): erscheinen in Abgabe-Checklisten, Vergessen-Zähler und Live-Klasse nur bei Mathe, in Spielen per «👭 Gäste»-Schalter, im Sitzplan nur von Hand — auch als zweite Person auf einem besetzten Platz.'},
@@ -10806,12 +10950,16 @@ function aemtliGrossCheck(){
   var jobs = info.jobs.map(function(j){
     return '<span class="ae-job">'+(j.a.icon||'🧹')+' '+esc(j.a.name)+': <b>'+esc(aemtliShortNames(j.team).join(' + ') || '—')+'</b></span>';
   }).join('');
+  // Stühle: am Dienstag aufstuhlen, am Freitag ausdrücklich nicht.
+  var wd = aemtliParse(info.datum).getDay();
+  var stuhl = wd === 2 ? '🪑 AUFSTUHLEN' : wd === 5 ? '🚫 NICHT aufstuhlen' : '';
   el = document.createElement('div');
   el.id = 'aeGross';
   el.className = 'ae-gross';
   el.innerHTML = '<div class="ae-gross-box"><div class="ae-gross-icon">🧹</div>'
     + '<h2>Ämtli um '+esc(info.zeit)+' Uhr!</h2>'
     + '<div class="ae-gross-jobs">'+jobs+'</div>'
+    + (stuhl ? '<div class="ae-gross-stuhl">'+esc(stuhl)+'</div>' : '')
     + '<div class="ae-gross-hint">Antippen zum Schliessen</div></div>';
   el.addEventListener('click', function(){
     lsSet(LIB_PREFIX + 'aemtli_gross', key);
