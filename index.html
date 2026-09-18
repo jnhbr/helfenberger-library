@@ -1118,6 +1118,16 @@
   .ae-pop h3{margin:8px 0 12px;}
   .ae-pop-job{background:var(--surface-2);border-radius:var(--radius-sm);padding:11px 14px;margin-bottom:8px;font-size:15px;line-height:1.5;}
   .ae-pop-job span{color:var(--text-muted);font-size:13.5px;}
+  /* 5 Minuten vor der Ämtli-Zeit: gross über allem (nur Lehrperson), Klick = weg. */
+  .ae-gross{position:fixed;inset:0;z-index:2147483000;display:flex;align-items:center;justify-content:center;padding:24px;background:rgba(20,10,12,.55);cursor:pointer;}
+  .ae-gross-box{background:var(--surface);color:var(--text);border:6px solid var(--bad);border-radius:28px;padding:clamp(20px,4vw,48px);max-width:min(1100px,96vw);text-align:center;animation:aeGrossPuls 1.1s ease-in-out infinite;}
+  .ae-gross-icon{font-size:clamp(60px,12vw,140px);line-height:1;}
+  .ae-gross h2{font-family:'Baloo 2',system-ui,sans-serif;font-size:clamp(30px,6vw,76px);line-height:1.1;margin:10px 0 18px;color:var(--bad);}
+  .ae-gross-jobs{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;}
+  .ae-gross-jobs .ae-job{font-size:clamp(17px,2.6vw,30px);padding:8px 20px;}
+  .ae-gross-hint{margin-top:18px;color:var(--text-muted);font-size:14px;}
+  @keyframes aeGrossPuls{0%,100%{transform:scale(1);box-shadow:0 0 0 0 rgba(230,57,80,.6);}50%{transform:scale(1.04);box-shadow:0 0 0 26px rgba(230,57,80,0);}}
+  @media (prefers-reduced-motion: reduce){ .ae-gross-box{animation:none;} }
 
   /* ---------- Eigenes Häkchen an einem Kalendereintrag ---------- */
   .cal-done{display:inline-flex;align-items:center;gap:7px;margin-top:8px;background:var(--surface-2);border:1px solid var(--border);border-radius:999px;padding:5px 13px 5px 10px;font-size:13px;font-weight:600;color:var(--text-muted);cursor:pointer;user-select:none;}
@@ -3138,6 +3148,7 @@ onAuthStateChanged(auth, async function(user){
     // ueber die Leitung mussten.
     aemtliLoad();
     if(state.profile.role === 'teacher'){
+      aemtliGrossStart();
       refreshFrageboxBadge();
     } else {
       loadStreak().then(updateStreakButton);
@@ -10534,6 +10545,7 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-09-18-aemtli-gross', datum:'2026-09-18', fuer:'lehrer', text:'Ämtli-Erinnerung: 5 Minuten vor jeder Ämtli-Zeit poppt der Hinweis gross und pulsierend über allem auf (auch im Vollbild). Antippen = weg, zur Ämtli-Zeit verschwindet er sowieso.'},
   {id:'2026-09-18-uebung-bearbeiten', datum:'2026-09-18', fuer:'lehrer', text:'Übungen direkt bearbeiten: «✏️ Bearbeiten» bei jeder Übung — Texte & Lösungen als Formularfelder (nach Aufgabe gruppiert, mit Suche) oder im Code-Modus. Mit Vorschau, Syntaxprüfung und «↩️ Vorherige Version». Kopien in anderen Klassen werden automatisch mitaktualisiert, auch bei «Datei ersetzen».'},
   {id:'2026-09-18-fach-gaeste', datum:'2026-09-18', fuer:'lehrer', text:'Fach-Gäste (z.B. Elena und Letizia in Mathe): erscheinen in Abgabe-Checklisten, Vergessen-Zähler und Live-Klasse nur bei Mathe, in Spielen per «👭 Gäste»-Schalter, im Sitzplan nur von Hand — auch als zweite Person auf einem besetzten Platz.'},
   {id:'2026-09-18-quiz-punkte-plus', datum:'2026-09-18', fuer:'alle', text:'Klassen-Quiz: Nach jeder Frage siehst du gross, wie viele Punkte du dazubekommen hast. Und «mitmachen» klappt jetzt zuverlässig.'},
@@ -10760,6 +10772,55 @@ function aemtliScheduleHide(zeit){
     if(host) host.innerHTML = '';
   }, ms + 500);
 }
+
+/* 5 Minuten vor jeder Ämtli-Zeit poppt bei der Lehrperson ein grosser,
+   pulsierender Hinweis über allem auf (auch über Übungen im Vollbild). Ein
+   Klick macht ihn weg (merkt sich der Browser pro Tag+Uhrzeit), zur Ämtli-Zeit
+   verschwindet er ohnehin. Ein Timer für die ganze Sitzung, egal welche Seite. */
+var AEMTLI_GROSS_MIN = 5;
+var aemtliGrossTimer = null;
+function aemtliGrossStart(){
+  if(aemtliGrossTimer) return;
+  aemtliGrossTimer = setInterval(aemtliGrossCheck, 15000);
+  aemtliGrossCheck();
+}
+function aemtliGrossWeg(){
+  var el = document.getElementById('aeGross');
+  if(el) el.remove();
+}
+function aemtliGrossCheck(){
+  if(!state.profile || state.profile.role !== 'teacher' || !aemtliState.loaded){ aemtliGrossWeg(); return; }
+  var info = null;
+  try{ info = aemtliHeute(aemtliState.cfg); }catch(e){ info = null; }
+  if(!info || !info.zeit){ aemtliGrossWeg(); return; }
+  var p = info.zeit.split(':').map(Number);
+  var ziel = new Date(); ziel.setHours(p[0], p[1], 0, 0);
+  var ms = ziel - Date.now();
+  var key = info.datum + ' ' + info.zeit;
+  if(ms <= 0 || ms > AEMTLI_GROSS_MIN*60000 || lsGet(LIB_PREFIX + 'aemtli_gross') === key){ aemtliGrossWeg(); return; }
+  // Im nativen Vollbild wird nur das Vollbild-Element gezeichnet - also dort hinein.
+  var host = document.fullscreenElement || document.webkitFullscreenElement || document.body;
+  var el = document.getElementById('aeGross');
+  if(el && el.parentNode === host) return;
+  if(el) el.remove();
+  var jobs = info.jobs.map(function(j){
+    return '<span class="ae-job">'+(j.a.icon||'🧹')+' '+esc(j.a.name)+': <b>'+esc(aemtliShortNames(j.team).join(' + ') || '—')+'</b></span>';
+  }).join('');
+  el = document.createElement('div');
+  el.id = 'aeGross';
+  el.className = 'ae-gross';
+  el.innerHTML = '<div class="ae-gross-box"><div class="ae-gross-icon">🧹</div>'
+    + '<h2>Ämtli um '+esc(info.zeit)+' Uhr!</h2>'
+    + '<div class="ae-gross-jobs">'+jobs+'</div>'
+    + '<div class="ae-gross-hint">Antippen zum Schliessen</div></div>';
+  el.addEventListener('click', function(){
+    lsSet(LIB_PREFIX + 'aemtli_gross', key);
+    aemtliGrossWeg();
+  });
+  host.appendChild(el);
+}
+document.addEventListener('fullscreenchange', function(){ if(aemtliGrossTimer) aemtliGrossCheck(); });
+document.addEventListener('webkitfullscreenchange', function(){ if(aemtliGrossTimer) aemtliGrossCheck(); });
 
 // Schüler-Sicht: die eigenen kommenden Ämtli-Tage.
 function aemtliMeineTermine(){
