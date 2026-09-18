@@ -875,6 +875,8 @@
   .qh-a-n{margin-left:auto;font-size:.85em;opacity:.9;}
   .qh-timer{font-family:'Baloo 2',system-ui,sans-serif;font-weight:800;font-size:clamp(40px,8vh,80px);font-variant-numeric:tabular-nums;}
   .qh-timer-hot{color:var(--bad);animation:tmPulse .8s ease-in-out infinite;}
+  .qh-timer-stopped{color:var(--text-muted);}
+  .qh-btns{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;}
   .qh-lead{display:flex;flex-wrap:wrap;gap:7px;justify-content:center;}
   /* Nummerierung per Counter: ein li mit display:flex zeigt den normalen
      Listenmarker nicht an. */
@@ -8679,6 +8681,8 @@ function quizIsRunning(s){ return !!(s && s.state && s.state !== 'idle'); }
 var quizClock = { key:'', start:0 };
 function quizSecondsLeft(s){
   if(!s || s.state !== 'frage') return 0;
+  // Gestoppt: überall bleibt die Zahl stehen, die der Beamer beim Drücken zeigte.
+  if(s.stopped) return Math.max(1, s.stopLeft||1);
   var key = String(s.qIndex)+'|'+String(s.startedAt||0);
   if(quizClock.key !== key){
     quizClock.key = key;
@@ -9002,6 +9006,7 @@ function openQuizHost(quiz){
     if(!btn) return;
     if(btn.id === 'qhNext') quizNextStep(quiz);
     else if(btn.id === 'qhReveal') quizReveal(quiz);
+    else if(btn.id === 'qhStop') quizStopTime();
     else if(btn.id === 'qhRankNext') quizRevealNextRank();
     else if(btn.id === 'qhFinish'){ if(quizLive.overlay) quizLive.overlay.close(); }
   });
@@ -9042,7 +9047,7 @@ function quizAnsweredCount(s){
 // nicht mehr neu gebaut (kein Flackern, keine verlorenen Klicks) - beide Werte
 // zieht quizHostTick punktuell nach.
 function quizHostSig(s){
-  if(s.state === 'frage') return 'frage|'+s.qIndex;
+  if(s.state === 'frage') return 'frage|'+s.qIndex+'|'+(s.stopped?1:0);
   if(s.state === 'ende') return 'ende|'+quizRevealRank(s)+'|'+((s.final||[]).length);
   return [s.state, s.qIndex, s.correctIndex, (s.stats||[]).join(','),
           quizLive.players.map(function(p){ return p.uid+':'+(p.score||0)+':'+(p.name||''); }).join(',')].join('|');
@@ -9059,7 +9064,7 @@ function paintQuizHost(quiz){
   // Mitspielenden haben geantwortet - dann muss niemand auf den Rest warten.
   if(s.state === 'frage'){
     var alleDa = quizLive.players.length > 0 && quizAnsweredCount(s) >= quizLive.players.length;
-    if(quizSecondsLeft(s) <= 0 || alleDa) quizAutoReveal(quiz);
+    if((!s.stopped && quizSecondsLeft(s) <= 0) || alleDa) quizAutoReveal(quiz);
   }
 
   var sig = quizHostSig(s);
@@ -9074,7 +9079,7 @@ function paintQuizHost(quiz){
 function quizHostTick(s){
   if(s.state !== 'frage') return;
   var t = document.querySelector('.qh-timer');
-  if(t){
+  if(t && !s.stopped){
     var left = quizSecondsLeft(s);
     t.textContent = left;
     t.classList.toggle('qh-timer-hot', left <= 5);
@@ -9100,9 +9105,13 @@ function paintQuizHostFull(quiz, stage, s){
     h += '<div class="qh-answers">'+((s.question && s.question.answers)||[]).map(function(a, i){
       return a ? '<div class="qh-a qh-a-'+i+'"><b>'+['▲','◆','●','■'][i]+'</b>'+esc(a)+'</div>' : '';
     }).join('')+'</div>';
-    h += '<div class="qh-timer'+(left<=5?' qh-timer-hot':'')+'">'+left+'</div>';
+    h += s.stopped
+      ? '<div class="qh-timer qh-timer-stopped">⏸ '+left+'</div><div class="qh-sub">Zeit gestoppt — auflösen, sobald alle so weit sind.</div>'
+      : '<div class="qh-timer'+(left<=5?' qh-timer-hot':'')+'">'+left+'</div>';
     h += '<div class="qh-count">'+count+' von '+quizLive.players.length+' geantwortet</div>';
-    h += '<button class="btn btn-primary tm-big" id="qhReveal" type="button">Auflösen</button></div>';
+    h += '<div class="qh-btns">'
+       + (s.stopped ? '' : '<button class="btn btn-ghost tm-big" id="qhStop" type="button">⏸ Zeit stoppen</button>')
+       + '<button class="btn btn-primary tm-big" id="qhReveal" type="button">Auflösen</button></div></div>';
   } else if(s.state === 'aufloesung'){
     var total = (s.stats||[]).reduce(function(a,b){ return a+b; }, 0) || 1;
     h += '<div class="qh-q"><div class="qh-qnum">Auflösung</div>';
@@ -9208,9 +9217,20 @@ function quizNextStep(quiz){
   setDoc(quizSessionRef(), {
     state:'frage', qIndex: nextIndex,
     question: { text: q.q, answers: q.a },
-    sec: q.sec || 25, startedAt: Date.now(),
+    sec: q.sec || 25, startedAt: Date.now(), stopped:false, stopLeft:0,
     correctIndex: -1, stats: [], updatedAt: serverTimestamp()
   }, {merge:true}).catch(function(err){ console.error(err); toast('Frage konnte nicht gestartet werden.'); });
+}
+
+// Zeit anhalten, wenn die Sekunden nicht reichen: der Countdown friert überall
+// ein, niemand wird gesperrt und aufgelöst wird erst per Knopf. Antworten nach
+// Ablauf der eigentlichen Zeit geben weiterhin die Grundpunkte, nur keinen Tempo-Bonus.
+function quizStopTime(){
+  if(quizBusy('stop')) return;
+  var s = quizLive.session || {};
+  if(s.state !== 'frage' || s.stopped) return;
+  setDoc(quizSessionRef(), { stopped:true, stopLeft: quizSecondsLeft(s), updatedAt: serverTimestamp() }, {merge:true})
+    .catch(function(err){ console.error(err); toast('Zeit konnte nicht gestoppt werden.'); });
 }
 
 // Einen Platz weiter nach oben verkuenden. Die Sperre verhindert, dass ein
@@ -9342,8 +9362,8 @@ function quizPlayTick(s){
   if(s.state !== 'frage') return;
   var left = quizSecondsLeft(s);
   var t = document.querySelector('.qp-timer');
-  if(t){ t.textContent = left; t.classList.toggle('qp-timer-hot', left <= 5); }
-  var over = left <= 0;
+  if(t){ t.textContent = (s.stopped ? '⏸ ' : '')+left; t.classList.toggle('qp-timer-hot', !s.stopped && left <= 5); }
+  var over = !s.stopped && left <= 0;
   Array.prototype.forEach.call(document.querySelectorAll('[data-choice]'), function(b){
     b.disabled = over || quizPlay.choice !== null;
     b.classList.toggle('qp-a-picked', quizPlay.choice === parseInt(b.getAttribute('data-choice'),10));
@@ -9351,7 +9371,8 @@ function quizPlayTick(s){
   var note = document.getElementById('qpNote');
   if(note){
     note.textContent = quizPlay.choice !== null ? 'Antwort abgeschickt ✓'
-                     : (over ? 'Zeit abgelaufen — die Auflösung kommt gleich.' : '');
+                     : (over ? 'Zeit abgelaufen — die Auflösung kommt gleich.'
+                     : (s.stopped ? 'Zeit gestoppt — nimm dir die Zeit, die du brauchst.' : ''));
     note.classList.toggle('qp-note-late', quizPlay.choice === null && over);
   }
 }
@@ -9440,7 +9461,7 @@ function ensureQuizPlayDelegation(){
     if(quizPlay.choice !== null) return;                 // eine Antwort pro Frage
     var s = quizLive.session;
     if(!s || s.state !== 'frage') return;
-    if(quizSecondsLeft(s) <= 0) return;                  // nach Ablauf zählt nichts mehr
+    if(!s.stopped && quizSecondsLeft(s) <= 0) return;   // nach Ablauf zählt nichts mehr
     var c = parseInt(btn.getAttribute('data-choice'),10);
     quizPlay.choice = c;
     playBlip();
@@ -9787,6 +9808,7 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-09-18-quiz-stopp', datum:'2026-09-18', fuer:'lehrer', text:'Klassen-Quiz: Neuer Knopf «⏸ Zeit stoppen» am Beamer — der Countdown friert ein, niemand wird gesperrt, aufgelöst wird per Knopf.'},
   {id:'2026-09-17-neuigkeiten', datum:'2026-09-17', fuer:'alle', text:'Neuer Reiter 🆕: Hier siehst du, was sich an der Library geändert hat. Leuchtet das Symbol rot, gibt es etwas Neues.'},
   {id:'2026-09-17-erinnerungen', datum:'2026-09-17', fuer:'alle', text:'Erinnerungen kommen zuverlässiger an, auch wenn der Versand sich verspätet.'},
   {id:'2026-09-17-klassen', datum:'2026-09-17', fuer:'alle', text:'Jede und jeder hat jetzt ein persönliches Login (Vorname + eigenes Passwort).'},
