@@ -1345,7 +1345,8 @@ const MAX_RESOURCE_BYTES = 8 * 1024 * 1024; // overall cap per uploaded resource
 const MAX_PDF_BYTES = 4 * 1024 * 1024; // PDFs tiefer: jeder Aufruf kostet Download-Volumen; Grösseres komprimieren oder als 🔗 Link
 // Speicher-Kontingent pro Lehrperson (alle eigenen Uploads inkl. noch
 // aufbewahrter Vorversionen). Gezählt über resourceContent.{ownerUid, bytes};
-// Inhalte von vor dieser Regel (ohne ownerUid) zählen nicht mit. Nur im
+// Inhalte von vor dieser Regel (ohne ownerUid) werden beim Öffnen von
+// ⚙️ Einstellungen einmalig nachgezählt (backfillQuotaOwner). Nur im
 // Browser geprüft — Lehrpersonen sind vertrauenswürdig, es geht ums Aufräumen.
 const TEACHER_QUOTA_BYTES = 1024 * 1024 * 1024;
 function contentBytes(content){ return typeof content === 'string' ? new Blob([content]).size : content.length; }
@@ -1362,14 +1363,79 @@ async function assertQuota(addBytes){
     throw new Error('Dein Speicher ist voll ('+fmtMB(used)+' von '+fmtMB(TEACHER_QUOTA_BYTES)+', siehe ⚙️ Einstellungen). Bitte alte Übungen/PDFs löschen oder als «🔗 Link» ablegen.');
   }
 }
+// Alte Inhalte (vor dem Kontingent hochgeladen) haben weder ownerUid noch
+// bytes und zählten darum als 0. Einmalig pro Lehrperson/Gerät: alle Übungen
+// der eigenen Klasse durchgehen, die sie hochgeladen hat (oder ohne
+// uploadedBy), und deren aktuelle + vorherige Fassung nachtragen.
+var QUOTA_BACKFILL_KEY = 'libQuotaBackfill1_';
+async function backfillQuotaOwner(){
+  var uid = state.user.uid, klasse = heimKlasse();
+  if(!klasse) return false;
+  try{ if(localStorage.getItem(QUOTA_BACKFILL_KEY+uid)) return false; }catch(e){}
+  var snap = await getDocs(kcolFor(klasse, 'resources'));
+  var ids = [];
+  snap.forEach(function(d){
+    var r = d.data();
+    if(r.linkUrl || r.externalUrl || (r.uploadedBy && r.uploadedBy !== uid)) return;
+    [resourceContentId(Object.assign({id:d.id}, r)), r.prevContentId].forEach(function(id){
+      if(id && ids.indexOf(id) < 0) ids.push(id);
+    });
+  });
+  var changed = false;
+  for(var k=0; k<ids.length; k++){
+    var ref = doc(db,'resourceContent', ids[k]);
+    var cs = await getDoc(ref);
+    if(!cs.exists() || cs.data().ownerUid) continue;
+    var n = cs.data().chunkCount || 0, bytes = 0;
+    for(var i=0;i<n;i++){
+      var c = await getContentDoc(doc(db,'resourceContent', ids[k], 'chunks', String(i)));
+      if(!c.exists()) continue;
+      var cd = c.data();
+      bytes += cd.bin ? cd.bin.toUint8Array().length : contentBytes(cd.html || '');
+    }
+    await updateDoc(ref, { ownerUid: uid, bytes: bytes });
+    changed = true;
+  }
+  try{ localStorage.setItem(QUOTA_BACKFILL_KEY+uid, '1'); }catch(e){}
+  return changed;
+}
 // Anzeige in ⚙️ Einstellungen → «💾 Mein Speicher».
 function showQuotaUsage(){
   var el = document.getElementById('setQuota');
   if(!el) return;
-  teacherUsedBytes().then(function(used){
+  paintQuotaUsage(el).then(function(){
+    return backfillQuotaOwner().then(function(changed){ if(changed && document.getElementById('setQuota')) return paintQuotaUsage(el); });
+  }).catch(function(err){ console.error(err); });
+}
+// Aufteilung PDFs / Übungen: resourceContent kennt den Typ nicht, darum über
+// die Übungen der eigenen Klasse (pdf-Flag) die Inhalts-IDs zuordnen.
+async function teacherUsedSplit(){
+  var own = await getDocs(query(collection(db,'resourceContent'), where('ownerUid','==',state.user.uid)));
+  var pdfIds = {};
+  if(heimKlasse()){
+    (await getDocs(kcolFor(heimKlasse(), 'resources'))).forEach(function(d){
+      var r = d.data();
+      if(!r.pdf) return;
+      pdfIds[resourceContentId(Object.assign({id:d.id}, r))] = true;
+      if(r.prevContentId) pdfIds[r.prevContentId] = true;
+    });
+  }
+  var res = {used:0, pdf:0, pdfN:0, html:0, htmlN:0};
+  own.forEach(function(d){
+    var b = d.data().bytes || 0;
+    res.used += b;
+    if(pdfIds[d.id]){ res.pdf += b; res.pdfN++; } else { res.html += b; res.htmlN++; }
+  });
+  return res;
+}
+function fmtMBfein(b){ return (b/1024/1024).toFixed(1).replace('.', ',')+' MB'; }
+function paintQuotaUsage(el){
+  return teacherUsedSplit().then(function(sp){
+    var used = sp.used;
     var pct = Math.min(100, Math.round(used / TEACHER_QUOTA_BYTES * 100));
     var col = pct >= 90 ? '#c0392b' : pct >= 70 ? '#e67e22' : 'var(--brand)';
     el.innerHTML = '<div style="font-size:13px;"><b>'+esc(fmtMB(used))+'</b> von '+esc(fmtMB(TEACHER_QUOTA_BYTES))+' belegt ('+pct+' %)</div>'+
+      '<div style="font-size:12px;color:var(--text-muted);margin-top:2px;">📄 PDFs: <b>'+esc(fmtMBfein(sp.pdf))+'</b> ('+sp.pdfN+') · 🧩 Übungen: <b>'+esc(fmtMBfein(sp.html))+'</b> ('+sp.htmlN+')</div>'+
       '<div style="height:8px;border-radius:4px;background:rgba(127,127,127,.2);margin:6px 0;overflow:hidden;"><div style="height:100%;width:'+pct+'%;background:'+col+';"></div></div>'+
       '<small style="color:var(--text-muted);">Zählt alle eigenen hochgeladenen Übungen und PDFs (inkl. Vorversionen). Ist er voll: Altes löschen oder grosse Dateien als «🔗 Link» ablegen.</small>';
   }).catch(function(err){ console.error(err); el.textContent = 'Konnte nicht geladen werden.'; });
