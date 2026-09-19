@@ -346,9 +346,12 @@ service cloud.firestore {
 
     // Persönliche Einstellungen: Anordnung/ausgeblendete Kacheln und Symbole
     // (einstellungen/layout) und der eigene Stundenplan (einstellungen/stundenplan).
-    // Nur die Person selbst; keine Datenvalidierung, darum kombiniert.
+    // Nur die Person selbst schreibt; keine Datenvalidierung, darum kombiniert.
+    // Den Stundenplan dürfen Lehrpersonen/Schulleitung auch lesen («Andere
+    // Lehrperson …» im Stundenplan, seit 19.09.2026).
     match /progress/{uid}/einstellungen/{docId} {
-      allow read, write: if isOwner(uid);
+      allow read: if isOwner(uid) || (docId == 'stundenplan' && canReadAll());
+      allow write: if isOwner(uid);
     }
 
     // Privater Notenrechner (progress/{uid}/noten/liste). Nur die Person

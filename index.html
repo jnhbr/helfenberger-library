@@ -1366,6 +1366,7 @@
   .stp-titel{font-family:'Baloo 2',system-ui,sans-serif;font-weight:800;font-size:17px;}
   .stp-tabs{display:inline-flex;background:var(--surface-2);border-radius:999px;padding:4px;gap:4px;flex-wrap:wrap;}
   .stp-tab{border:none;background:transparent;border-radius:999px;padding:7px 14px;font-weight:700;font-size:13.5px;color:var(--text-muted);cursor:pointer;}
+  .stp-lpwahl{border:1px solid var(--border, rgba(0,0,0,.12));background:var(--surface);color:var(--text);border-radius:999px;padding:7px 12px;font-weight:700;font-size:13.5px;margin-left:8px;max-width:100%;}
   .stp-tab.on{background:var(--surface);color:var(--text);box-shadow:0 2px 8px -3px rgba(0,0,0,.25);}
   .stp-hinweis{background:color-mix(in srgb, var(--brand) 10%, var(--surface));border-radius:12px;padding:9px 12px;font-size:13px;margin-bottom:12px;}
   .stp-leerplan{text-align:center;padding:14px 10px 18px;color:var(--text-muted);font-size:14px;}
@@ -11947,6 +11948,7 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-09-19-stundenplan-andere-lp', datum:'2026-09-19', fuer:'lehrer', text:'👀 Stundenplan: Mit «Andere Lehrperson …» siehst du den persönlichen Stundenplan einer Kollegin oder eines Kollegen (nur ansehen). Dein eigener ist umgekehrt für die anderen Lehrpersonen sichtbar, nicht für Schüler:innen.'},
   {id:'2026-09-19-alle-klassen', datum:'2026-09-19', fuer:'lehrer', text:'🏫 Jetzt sind alle Sek-Klassen dabei. Unter 🏫 oben ganz unten gibt es das Pulldown «Fachlehrpersonen (FLP) & ISF» – jede FLP und jedes ISF hat eine eigene Seite, darin nochmals ein Pulldown für die 4 Praktikant:innen.'},
   {id:'2026-09-19-gruppen', datum:'2026-09-19', fuer:'lehrer', text:'👥 Gruppen: Im Kalender unter «👥 Gruppen» pro Fach eigene Gruppen bilden – Klasse aufklappen, Schüler:innen ankreuzen, auch aus mehreren Klassen. Beim neuen Eintrag bei «Für» die Gruppe wählen: dann sehen ihn alle in dieser Gruppe, dazu im Fach deine Übungen.'},
   {id:'2026-09-19-login-kuerzel', datum:'2026-09-19', fuer:'alle', text:'🔑 Anmelden geht jetzt auch mit deinem Schul-Kürzel (z. B. «anhe») statt dem Vornamen.'},
@@ -15966,7 +15968,33 @@ function stpKochSlots(zeiten, k){
 // Klassen fürs Feld «Klasse» im persönlichen Plan der Lehrperson (kl).
 var STP_KLASSEN = ['E1a','E1b','E1c','G1a','G1b','E2a','E2b','E2c','G2a','G2b','E3a','E3b','G3a','G3b'];
 var STP_FREI_FARBEN = ['#0EA5E9','#F43F5E','#14B8A6','#F59E0B','#6366F1','#84CC16','#EC4899','#64748B'];
-var stp = { klasse:null, eigen:null, geladen:false, klasseName:null, ansicht:null, bearbeiten:false, tag:null };
+var stp = { klasse:null, eigen:null, geladen:false, klasseName:null, ansicht:null, bearbeiten:false, tag:null,
+            lpListe:null, lpUid:null, lp:null };
+
+// Persönliche Pläne der anderen Lehrpersonen: nur ansehen (Ansicht 'lp').
+function stpLpListeLaden(){
+  if(stp.lpListe) return Promise.resolve(stp.lpListe);
+  return getDocs(query(collection(db, 'students'), where('role', '==', 'teacher'))).then(function(q){
+    stp.lpListe = q.docs.filter(function(d){ return d.id !== state.user.uid; }).map(function(d){
+      var s = d.data();
+      return { uid:d.id, name:s.nachname || s.displayName || s.username || '?', k:s.klasse || '' };
+    }).sort(function(a, b){ return a.name.localeCompare(b.name, 'de'); });
+    return stp.lpListe;
+  });
+}
+function stpLpZeigen(uid){
+  stp.lpUid = uid; stp.lp = null; stp.ansicht = 'lp'; stp.bearbeiten = false;
+  stpZeichnen();
+  getDoc(doc(db, 'progress', uid, 'einstellungen', 'stundenplan')).then(function(s){
+    var d = s.exists() ? s.data() : null;
+    if(stp.lpUid !== uid) return;
+    stp.lp = { zeiten:stpZeitenAktuell(d && d.zeiten), zellen:(d && d.zellen) || {} };
+    stpZeichnen();
+  }).catch(function(err){
+    console.error('Stundenplan LP', err);
+    if(stp.lpUid === uid){ stp.lp = { zeiten:null, zellen:{} }; stpZeichnen(); toast('Stundenplan konnte nicht geladen werden.'); }
+  });
+}
 
 function stpKlasseRef(){ return kdocFor(state.klasse, 'klasseninfo', 'stundenplan'); }
 function stpEigenRef(){ return doc(db, 'progress', state.user.uid, 'einstellungen', 'stundenplan'); }
@@ -15994,6 +16022,7 @@ function stpGleich(a, b){
 function stpPlan(ansicht){
   var lehrer = state.profile.role === 'teacher';
   if(ansicht === 'klasse') return { zeiten: stp.klasse.zeiten || STP_ZEITEN_STANDARD, zelle:function(k){ return stp.klasse.zellen[k]; } };
+  if(ansicht === 'lp'){ var lp = stp.lp || { zeiten:null, zellen:{} }; return { zeiten: lp.zeiten || STP_ZEITEN_STANDARD, zelle:function(k){ return lp.zellen[k]; } }; }
   if(lehrer) return { zeiten: stp.eigen.zeiten || stp.klasse.zeiten || STP_ZEITEN_STANDARD, zelle:function(k){ return stp.eigen.zellen[k]; } };
   return {
     zeiten: stp.klasse.zeiten || STP_ZEITEN_STANDARD,
@@ -16015,7 +16044,7 @@ function stpHeute(){ var t = new Date().getDay(); return t >= 1 && t <= 5 ? t - 
 function renderStundenplan(){
   clearSubjectWatchers(); clearOverviewWatchers(); unwatchAllProgress();
   var lehrer = state.profile.role === 'teacher';
-  if(!stp.ansicht || (!lehrer && stp.ansicht === 'klasse')) stp.ansicht = 'mein';
+  if(!stp.ansicht || (!lehrer && stp.ansicht !== 'mein')) stp.ansicht = 'mein';
   var html = '<div class="back-row"><button class="btn btn-ghost btn-sm" id="backBtn">&larr; Start</button></div>';
   html += '<h2 class="page-welcome">🗓️ Stundenplan</h2>';
   html += '<div id="stpBody"><div class="empty-state">Wird geladen …</div></div>';
@@ -16032,7 +16061,9 @@ function stpZeichnen(){
   var body = document.getElementById('stpBody');
   if(!body) return;
   var lehrer = state.profile.role === 'teacher';
-  var darf = !isLeitung();
+  var fremd = stp.ansicht === 'lp';
+  var darf = !isLeitung() && !fremd;
+  if(fremd) stp.bearbeiten = false;
   var plan = stpPlan(stp.ansicht);
   var zeiten = plan.zeiten;
   var heute = stpHeute(), jetzt = stpJetztMin();
@@ -16045,6 +16076,12 @@ function stpZeichnen(){
     h += '<div class="stp-tabs">'+
       '<button type="button" class="stp-tab'+(stp.ansicht==='mein'?' on':'')+'" data-ansicht="mein">👤 Mein Stundenplan</button>'+
       '<button type="button" class="stp-tab'+(stp.ansicht==='klasse'?' on':'')+'" data-ansicht="klasse">🏫 Klasse '+esc(state.klasse)+'</button></div>';
+    if(stp.lpListe){
+      h += '<select class="stp-lpwahl" id="stpLpWahl" title="Stundenplan einer anderen Lehrperson ansehen">'+
+        '<option value="">👀 Andere Lehrperson …</option>'+
+        stp.lpListe.map(function(l){ return '<option value="'+esc(l.uid)+'"'+(fremd && stp.lpUid===l.uid?' selected':'')+'>'+esc(l.name)+(l.k ? ' ('+esc(klasseLabel(l.k))+')' : '')+'</option>'; }).join('')+
+        '</select>';
+    }
   } else {
     h += '<div class="stp-titel">Klasse '+esc(state.klasse)+' · mein Plan</div>';
   }
@@ -16057,12 +16094,16 @@ function stpZeichnen(){
 
   if(stp.bearbeiten){
     h += '<div class="stp-hinweis">'+(lehrer
-      ? (stp.ansicht === 'klasse' ? 'Tippe auf eine Lektion, um den Grobstundenplan der Klasse '+esc(state.klasse)+' zu füllen. Die Schüler:innen können danach ihre eigenen Freilektionen eintragen.' : 'Tippe auf eine Lektion, um deinen persönlichen Stundenplan zu füllen. Nur du siehst ihn.')
+      ? (stp.ansicht === 'klasse' ? 'Tippe auf eine Lektion, um den Grobstundenplan der Klasse '+esc(state.klasse)+' zu füllen. Die Schüler:innen können danach ihre eigenen Freilektionen eintragen.' : 'Tippe auf eine Lektion, um deinen persönlichen Stundenplan zu füllen. Andere Lehrpersonen können ihn ansehen, Schüler:innen nicht.')
       : 'Tippe auf eine Lektion, um sie für dich zu ändern (z. B. 🌴 Freilektion). Nur du siehst deine Änderungen.')+'</div>';
   }
   var zeilen = stpZeilen(plan);
   var hatWas = zeilen.some(function(r){ return stpBelegt(plan, r.s); });
-  if(!hatWas && !stp.bearbeiten){
+  if(fremd && !stp.lp){
+    h += '<div class="empty-state">Wird geladen …</div>';
+  } else if(fremd && !hatWas){
+    h += '<div class="stp-leerplan"><div class="stp-leer-emoji">🗓️</div><b>Noch leer.</b><br>Diese Lehrperson hat noch keinen Stundenplan eingetragen.</div>';
+  } else if(!hatWas && !stp.bearbeiten){
     h += '<div class="stp-leerplan"><div class="stp-leer-emoji">🗓️</div><b>Noch leer.</b><br>'+
       (lehrer ? 'Mit «✏️ Bearbeiten» füllst du '+(stp.ansicht==='klasse'?'den Plan der Klasse':'deinen Plan')+'.' : 'Sobald deine Lehrperson den Stundenplan eingetragen hat, erscheint er hier.')+'</div>';
   }
@@ -16122,6 +16163,12 @@ function stpZeichnen(){
   Array.prototype.forEach.call(body.querySelectorAll('[data-ansicht]'), function(b){
     b.addEventListener('click', function(){ stp.ansicht = b.getAttribute('data-ansicht'); stpZeichnen(); });
   });
+  var lw = document.getElementById('stpLpWahl');
+  if(lw) lw.addEventListener('change', function(){
+    if(lw.value) stpLpZeigen(lw.value);
+    else { stp.ansicht = 'mein'; stpZeichnen(); }
+  });
+  if(lehrer && !stp.lpListe) stpLpListeLaden().then(function(){ if(document.getElementById('stpBody')) stpZeichnen(); }).catch(function(err){ console.error('LP-Liste', err); stp.lpListe = []; });
   Array.prototype.forEach.call(body.querySelectorAll('[data-tag]'), function(b){
     b.addEventListener('click', function(){ stp.tag = parseInt(b.getAttribute('data-tag'), 10); stpZeichnen(); });
   });
