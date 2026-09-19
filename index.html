@@ -2555,14 +2555,18 @@ function openGruppeEditor(g, onChanged){
   var sel = {};
   if(g) (g.mitglieder || []).forEach(function(uid){ sel[uid] = (g.namen || {})[uid] || {n:'?', nn:'', u:'', k:''}; });
   var fach = g ? g.fach : '';
-  var fachOpts = '<option value="">— Fach wählen —</option>' + SUBJECTS.filter(function(s){ return !s.teacherOnly; }).map(function(s){
+  // Neben den festen Fächern auch eigene Fächer aus dem 🗓️ Stundenplan (z. B. «Jassen»)
+  // oder frei eingegeben. Gespeichert wird dann der Name selbst als fach.
+  var fachFest = SUBJECTS.filter(function(s){ return !s.teacherOnly; });
+  var fachOpts = '<option value="">— Fach wählen —</option>' + fachFest.map(function(s){
     return '<option value="'+s.id+'"'+(fach === s.id ? ' selected' : '')+'>'+esc(s.name)+'</option>';
-  }).join('');
+  }).join('') + '<option value="__andere">✍️ Anderes Fach …</option>';
   var klassen = KLASSEN.filter(function(k){ return k.art === 'klasse'; });
   openModal(
     '<h3>'+(g ? 'Gruppe bearbeiten' : 'Neue Gruppe')+'</h3>'+
     '<label class="modal-label">Name</label><input type="text" id="grName" maxlength="60" placeholder="z.B. Französisch Niveau A" value="'+esc(g ? g.name : '')+'">'+
     '<label class="modal-label">Fach</label><select id="grFach">'+fachOpts+'</select>'+
+    '<input type="text" id="grFachText" maxlength="30" placeholder="Fach, z. B. Jassen" hidden style="margin-top:8px;">'+
     '<label class="modal-label">Schüler:innen <span id="grAnzahl" class="gr-anzahl"></span></label>'+
     '<div class="gr-chips" id="grChips"></div>'+
     '<p class="gr-hint">Klasse aufklappen und Schüler:innen ankreuzen – auch aus mehreren Klassen.</p>'+
@@ -2575,6 +2579,38 @@ function openGruppeEditor(g, onChanged){
     '<button class="btn btn-primary btn-sm" id="modalOk" type="button">Speichern</button></div>',
     'modal-wide'
   );
+  var fachEl = document.getElementById('grFach'), fachTextEl = document.getElementById('grFachText');
+  function eigeneFaecherFuellen(){
+    var namen = [], seen = {};
+    function dazu(t){
+      t = (t || '').trim();
+      if(!t || seen[t.toLowerCase()] || fachFest.some(function(s){ return s.id === t; })) return;
+      seen[t.toLowerCase()] = true; namen.push(t);
+    }
+    if(stp.geladen) [stp.eigen, stp.klasse].forEach(function(pl){
+      Object.keys((pl && pl.zellen) || {}).forEach(function(k){ var c = pl.zellen[k]; if(c && !c.frei && !c.f) dazu(c.t); });
+    });
+    if(fach && !subjectById(fach)) dazu(fach);
+    namen.sort(function(a,b){ return a.localeCompare(b, 'de'); });
+    if(!fachEl.isConnected) return;
+    var wert = fachEl.value;
+    var alt = fachEl.querySelector('optgroup');
+    if(alt) alt.remove();
+    if(namen.length){
+      var og = document.createElement('optgroup');
+      og.label = 'Eigene Fächer (Stundenplan)';
+      og.innerHTML = namen.map(function(t){ return '<option value="'+esc(t)+'">'+esc(t)+'</option>'; }).join('');
+      fachEl.insertBefore(og, fachEl.querySelector('option[value="__andere"]'));
+    }
+    if(wert) fachEl.value = wert;
+    else if(fach && !subjectById(fach)) fachEl.value = fach;
+  }
+  eigeneFaecherFuellen();
+  if(!stp.geladen) stpLaden().then(eigeneFaecherFuellen).catch(function(err){ console.error(err); });
+  fachEl.addEventListener('change', function(){
+    fachTextEl.hidden = fachEl.value !== '__andere';
+    if(!fachTextEl.hidden) fachTextEl.focus();
+  });
   var chipsEl = document.getElementById('grChips');
   function malen(){
     var uids = Object.keys(sel);
@@ -2635,7 +2671,13 @@ function openGruppeEditor(g, onChanged){
     var errEl = document.getElementById('grErr');
     errEl.classList.remove('show');
     var name = document.getElementById('grName').value.trim();
-    var fachNeu = document.getElementById('grFach').value;
+    var fachNeu = fachEl.value;
+    if(fachNeu === '__andere'){
+      fachNeu = fachTextEl.value.trim();
+      // Eingetippter Name eines festen Fachs -> dessen ID verwenden.
+      var fest = fachFest.find(function(s){ return s.name.toLowerCase() === fachNeu.toLowerCase(); });
+      if(fest) fachNeu = fest.id;
+    }
     var uids = Object.keys(sel);
     function fehler(t){ errEl.textContent = t; errEl.classList.add('show'); }
     if(!name) return fehler('Bitte einen Namen eingeben.');
@@ -11948,6 +11990,7 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-09-19-gruppen-eigenes-fach', datum:'2026-09-19', fuer:'lehrer', text:'👥 Gruppen: Beim Fach kannst du jetzt auch eigene Fächer aus deinem Stundenplan (z. B. «Jassen») wählen oder mit «✍️ Anderes Fach …» ein neues eintippen.'},
   {id:'2026-09-19-stundenplan-andere-lp', datum:'2026-09-19', fuer:'lehrer', text:'👀 Stundenplan: Mit «Andere Lehrperson …» siehst du den persönlichen Stundenplan einer Kollegin oder eines Kollegen (nur ansehen). Dein eigener ist umgekehrt für die anderen Lehrpersonen sichtbar, nicht für Schüler:innen.'},
   {id:'2026-09-19-alle-klassen', datum:'2026-09-19', fuer:'lehrer', text:'🏫 Jetzt sind alle Sek-Klassen dabei. Unter 🏫 oben ganz unten gibt es das Pulldown «Fachlehrpersonen (FLP) & ISF» – jede FLP und jedes ISF hat eine eigene Seite, darin nochmals ein Pulldown für die 4 Praktikant:innen.'},
   {id:'2026-09-19-gruppen', datum:'2026-09-19', fuer:'lehrer', text:'👥 Gruppen: Im Kalender unter «👥 Gruppen» pro Fach eigene Gruppen bilden – Klasse aufklappen, Schüler:innen ankreuzen, auch aus mehreren Klassen. Beim neuen Eintrag bei «Für» die Gruppe wählen: dann sehen ihn alle in dieser Gruppe, dazu im Fach deine Übungen.'},
