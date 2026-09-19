@@ -739,7 +739,7 @@
   /* ---------- Klassenzimmer-Sammelseite ---------- */
   .kz-intro{color:var(--text-muted);font-size:14px;margin:0 2px 16px;}
   .kz-tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px;}
-  .kz-tile{display:flex;gap:14px;align-items:flex-start;text-align:left;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px;cursor:pointer;font:inherit;color:var(--text);}
+  .kz-tile{position:relative;display:flex;gap:14px;align-items:flex-start;text-align:left;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px;cursor:pointer;font:inherit;color:var(--text);}
   .kz-tile:hover{border-color:var(--brand);transform:translateY(-2px);box-shadow:var(--shadow);}
   .kz-tile h3{margin:0 0 4px;font-size:16px;}
   .kz-tile p{margin:0;font-size:13px;color:var(--text-muted);line-height:1.45;}
@@ -1302,10 +1302,13 @@
   body.wackeln .topbar-icons > *, body.wackeln .topbar-todo, body.wackeln .topbar-ferien, body.wackeln #stpJetzt{animation:wackelnI .22s ease-in-out infinite alternate;}
   body.wackeln .topbar-icons > *:nth-child(2n){animation-direction:alternate-reverse;}
   body.wackeln #stpJetzt{animation-name:wackelnK;}
+  body.wackeln .kz-tile{animation:wackelnK .26s ease-in-out infinite alternate;}
+  body.wackeln .kz-tile:nth-child(2n){animation-duration:.3s;animation-direction:alternate-reverse;}
+  body.wackeln .kz-tile:hover{transform:none;}
   @keyframes wackelnK{from{transform:rotate(-.8deg);}to{transform:rotate(.8deg);}}
   @keyframes wackelnI{from{transform:rotate(-3deg);}to{transform:rotate(3deg);}}
   @media (prefers-reduced-motion: reduce){
-    body.wackeln .subject-card, body.wackeln .topbar-icons > *, body.wackeln .topbar-todo, body.wackeln .topbar-ferien, body.wackeln #stpJetzt{animation:none;outline:2px dashed var(--brand);outline-offset:2px;}
+    body.wackeln .subject-card, body.wackeln .topbar-icons > *, body.wackeln .topbar-todo, body.wackeln .topbar-ferien, body.wackeln #stpJetzt, body.wackeln .kz-tile{animation:none;outline:2px dashed var(--brand);outline-offset:2px;}
   }
   body.wackeln .wackel-x{display:flex;position:absolute;top:-8px;left:-8px;z-index:3;width:24px;height:24px;border-radius:50%;background:#5B6272;color:#fff;font-size:17px;font-weight:800;line-height:1;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,.3);cursor:pointer;}
   body.wackeln .topbar-icons .wackel-x, body.wackeln .topbar-todo .wackel-x{width:19px;height:19px;font-size:14px;top:-7px;left:-7px;}
@@ -1352,6 +1355,8 @@
   .stp-slot.heute{background:color-mix(in srgb, var(--brand) 6%, transparent);}
   .stp-zeit{display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:11px;color:var(--text-muted);line-height:1.25;border-radius:12px;background:var(--surface-2);padding:4px 2px;}
   .stp-zeit b{font-size:15px;color:var(--text);}
+  .stp-zeit.extra{background:color-mix(in srgb, #D97706 12%, var(--surface-2));}
+  .stp-doppel-check{margin:10px 0 0;background:var(--surface-2);font-weight:600;}
   .stp-pause{grid-column:1/-1;text-align:center;font-size:11.5px;font-weight:700;color:var(--text-muted);padding:1px 0;background:repeating-linear-gradient(90deg, var(--border) 0 6px, transparent 6px 12px) center/100% 1px no-repeat;}
   .stp-pause.mittag{padding:6px 0;font-size:12.5px;}
   .stp-cell{--c:#94A3B8;position:relative;flex:1;min-width:0;min-height:60px;display:flex;align-items:center;gap:8px;padding:7px 8px;border-radius:12px;text-align:left;cursor:default;
@@ -11422,6 +11427,8 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-09-19-stundenplan-doppel', datum:'2026-09-19', fuer:'alle', text:'⏩ Stundenplan: Doppellektionen mit einem Häkchen eintragen. Bei WAH mit Kochen kommen die Lektionen über Mittag bzw. am Abend nach 16:55 automatisch dazu.'},
+  {id:'2026-09-19-klassenzimmer-anordnen', datum:'2026-09-19', fuer:'lehrer', text:'🏫 Klassenzimmer: Die Werkzeuge lassen sich jetzt wie die Startseite anordnen – lange drücken oder «✏️ Anordnen», ziehen, mit «−» ausblenden. Zurückholen unter ⚙️ Einstellungen › 🧩 Widgets › Klassenzimmer.'},
   {id:'2026-09-19-stundenplan-von-mir', datum:'2026-09-19', fuer:'lehrer', text:'📋 Stundenplan › Klasse › Bearbeiten: «Aus meinem Plan» übernimmt deine Lektionen mit dieser Klasse (oder ohne Klasse) aus deinem persönlichen Plan in den Klassenplan – danach frei anpassbar.'},
   {id:'2026-09-19-stundenplan-klasse', datum:'2026-09-19', fuer:'lehrer', text:'👥 Persönlicher Stundenplan: Pro Lektion lässt sich jetzt die Klasse auswählen (E1a–G3b); sie erscheint in der Lektion und im «Jetzt/Danach» auf der Startseite.'},
   {id:'2026-09-19-material-menu', datum:'2026-09-19', fuer:'alle', text:'📎 Hat eine Hausaufgabe mehrere Übungen oder PDFs, sind sie jetzt ordentlich unter «Material» zusammengefasst – draufklicken zum Aufklappen.'},
@@ -12879,41 +12886,56 @@ function vgCsv(rows){
   downloadTextFile('vergessen.csv', '﻿'+lines.join('\r\n'), 'text/csv');
 }
 
-/* ===================== 🏫 KLASSENZIMMER (Sammelseite der Werkzeuge) ===================== */
+/* ===================== 🏫 KLASSENZIMMER (Sammelseite der Werkzeuge) =====================
+   Kacheln lassen sich wie die Startseite anordnen/ausblenden (Wackelmodus,
+   Layout-Gruppe 'klassenzimmer', ausgeblendet als 'kz:<id>'). */
+var KZ_TILES = [
+  { id:'beamer',  icon:'⏱',  name:'Ruhephase',           desc:'Countdown, Lärmampel und wer gerade sprechen darf — in einem Bild.' },
+  { id:'dran',    icon:'🎲', name:'Wer ist dran?',       desc:'Faire Zufallsziehung — wer schon oft dran war, kommt seltener.' },
+  { id:'wuerfel', icon:'🎲', name:'Würfel',              desc:'1–6 Würfel am Beamer — mit Augen oder als W10, W12, W20, W100.' },
+  { id:'rad',     icon:'🎡', name:'Glücksrad',           desc:'Klasse oder eigene Liste aufs Rad — Gezogene auf Wunsch raus.' },
+  { id:'slf',     icon:'🌍', name:'Stadt Land Fluss',    desc:'Buchstaben-Drehscheibe, Kategorien und Sanduhr (1–3 Min.) mit STOPP-Knopf.' },
+  { id:'sitzplan',icon:'🪑', name:'Sitzplan',            desc:'Möbel stellen, Plätze verteilen, Regeln, Zufall und gespeicherte Varianten.' },
+  { id:'quiz',    icon:'🎮', name:'Klassen-Quiz',        desc:'Live-Quiz auf den Geräten der Klasse, Rangliste am Beamer.' },
+  { id:'pruefung',icon:'📝', name:'Prüfungen',           desc:'Online-Prüfung mit Sperre: wer sie verlässt, kommt erst wieder rein, wenn du entsperrst. Automatisch benotet.' },
+  { id:'fragen',  icon:'❓', name:'Fragebox',            desc:'Anonyme Fragen der Klasse lesen und beantworten.' },
+  { id:'umfrage', icon:'⚡', name:'Blitzumfrage',         desc:'Eine Frage, sofort am Beamer ausgewertet — auf Wunsch als Peer-Instruction-Doppelrunde.' },
+  { id:'gruppen', icon:'🎲', name:'Gruppen & Partner',    desc:'Paare und Gruppen ziehen, ohne dass immer dieselben zusammenkommen.' },
+  { id:'aemtli',  icon:'🧹', name:'Ämtliplan',            desc:'Rotiert von allein bis zu den Sommerferien, Ferienwochen fallen raus.' },
+  { id:'vergessen',icon:'🗒',name:'Vergessen-Zähler',     desc:'Wer eine Abgabe verpasst hat — automatisch aus der Abgabe-Checkliste.' }
+];
+
+function kzReihenfolge(){
+  layoutAusCache();
+  return ordneNach(KZ_TILES.map(function(t){ return t.id; }), layout.ordnung.klassenzimmer);
+}
+function kzSichtbar(){
+  return kzReihenfolge().map(function(id){ return KZ_TILES.find(function(t){ return t.id === id; }); })
+    .filter(function(t){ return t && !layoutIstAus('kz:'+t.id); });
+}
 
 function renderKlassenzimmer(){
   clearSubjectWatchers(); clearOverviewWatchers();
   aemtliLoad();   // eine Kachel weiter wird er gebraucht — bis dahin ist er da
-  var tiles = [
-    { id:'beamer',  icon:'⏱',  name:'Ruhephase',           desc:'Countdown, Lärmampel und wer gerade sprechen darf — in einem Bild.' },
-    { id:'dran',    icon:'🎲', name:'Wer ist dran?',       desc:'Faire Zufallsziehung — wer schon oft dran war, kommt seltener.' },
-    { id:'wuerfel', icon:'🎲', name:'Würfel',              desc:'1–6 Würfel am Beamer — mit Augen oder als W10, W12, W20, W100.' },
-    { id:'rad',     icon:'🎡', name:'Glücksrad',           desc:'Klasse oder eigene Liste aufs Rad — Gezogene auf Wunsch raus.' },
-    { id:'slf',     icon:'🌍', name:'Stadt Land Fluss',    desc:'Buchstaben-Drehscheibe, Kategorien und Sanduhr (1–3 Min.) mit STOPP-Knopf.' },
-    { id:'sitzplan',icon:'🪑', name:'Sitzplan',            desc:'Möbel stellen, Plätze verteilen, Regeln, Zufall und gespeicherte Varianten.' },
-    { id:'quiz',    icon:'🎮', name:'Klassen-Quiz',        desc:'Live-Quiz auf den Geräten der Klasse, Rangliste am Beamer.' },
-    { id:'pruefung',icon:'📝', name:'Prüfungen',           desc:'Online-Prüfung mit Sperre: wer sie verlässt, kommt erst wieder rein, wenn du entsperrst. Automatisch benotet.' },
-    { id:'fragen',  icon:'❓', name:'Fragebox',            desc:'Anonyme Fragen der Klasse lesen und beantworten.' },
-    { id:'umfrage', icon:'⚡', name:'Blitzumfrage',         desc:'Eine Frage, sofort am Beamer ausgewertet — auf Wunsch als Peer-Instruction-Doppelrunde.' },
-    { id:'gruppen', icon:'🎲', name:'Gruppen & Partner',    desc:'Paare und Gruppen ziehen, ohne dass immer dieselben zusammenkommen.' },
-    { id:'aemtli',  icon:'🧹', name:'Ämtliplan',            desc:'Rotiert von allein bis zu den Sommerferien, Ferienwochen fallen raus.' },
-    { id:'vergessen',icon:'🗒',name:'Vergessen-Zähler',     desc:'Wer eine Abgabe verpasst hat — automatisch aus der Abgabe-Checkliste.' }
-  ];
   var html = '';
   html += '<div class="back-row"><button class="btn btn-ghost btn-sm" id="backBtn" type="button">&larr; Startseite</button></div>';
   html += '<h2 class="page-welcome" style="margin-bottom:6px;">🏫 Klassenzimmer</h2>';
-  html += '<p class="kz-intro">Werkzeuge für den Unterricht — nur für dich sichtbar.</p>';
-  html += '<div class="kz-tiles">';
-  tiles.forEach(function(t){
-    html += '<button class="kz-tile" data-tool="'+t.id+'" type="button">';
+  html += '<p class="kz-intro">Werkzeuge für den Unterricht — nur für dich sichtbar. '+
+    '<button class="btn btn-ghost btn-sm" id="kzAnordnenBtn" type="button" title="Werkzeuge verschieben oder ausblenden (oder lange auf eine Kachel drücken)">✏️ Anordnen</button></p>';
+  html += '<div class="kz-tiles" id="kzTiles" data-sortgruppe="klassenzimmer">';
+  kzSichtbar().forEach(function(t){
+    html += '<button class="kz-tile" data-tool="'+t.id+'" data-sort="'+t.id+'" data-ausblendbar="kz:'+t.id+'" type="button">';
     html += '<div class="kz-tile-icon">'+t.icon+'</div>';
     html += '<div><h3>'+esc(t.name)+'</h3><p>'+esc(t.desc)+'</p></div></button>';
   });
   html += '</div>';
+  if(!kzSichtbar().length) html += '<div class="empty-state">Alle Werkzeuge ausgeblendet — zurückholen unter ⚙️ Einstellungen › 🧩 Widgets.</div>';
   html += '<p class="kz-intro" style="margin-top:22px;">Den <b>Live-Klassenraum</b> öffnest du direkt in einer Übung — dort oben rechts auf 📡 Live.</p>';
   renderChrome(html);
 
   document.getElementById('backBtn').addEventListener('click', goHome);
+  document.getElementById('kzAnordnenBtn').addEventListener('click', function(){ wackelnStart(); });
+  wackelMarken();
   Array.prototype.forEach.call(document.querySelectorAll('[data-tool]'), function(b){
     b.addEventListener('click', function(){
       var id = b.getAttribute('data-tool');
@@ -15092,7 +15114,7 @@ function layoutLoad(){
     layout = { ordnung:d.ordnung || {}, aus:d.aus || [] };
     try{ localStorage.setItem(LAYOUT_CACHE_KEY + state.user.uid, JSON.stringify(layout)); }catch(e){}
     applyLeiste();
-    if(state.route.name === 'home' && !document.body.classList.contains('wackeln')) render();
+    if((state.route.name === 'home' || state.route.name === 'klassenzimmer') && !document.body.classList.contains('wackeln')) render();
   }).catch(function(err){ console.error('Layout', err); });
 }
 // Sofort speichern (kein Verzögern): wer gleich danach die Seite schliesst, verliert sonst die Änderung.
@@ -15110,7 +15132,7 @@ function layoutSetAus(key, aus){
 }
 function layoutAnwenden(){
   applyLeiste();
-  if(state.route.name === 'home') render();
+  if(state.route.name === 'home' || state.route.name === 'klassenzimmer') render();
 }
 
 // Gespeicherte Reihenfolge übernehmen; Einträge, die dort (noch) fehlen — z.B.
@@ -15167,7 +15189,7 @@ function applyLeiste(){
 function sortSpeichern(cont){
   var gruppe = cont.getAttribute('data-sortgruppe');
   var dom = Array.prototype.map.call(cont.querySelectorAll(':scope > [data-sort]'), function(el){ return el.getAttribute('data-sort'); });
-  var bisher = gruppe === 'kacheln' ? kachelnReihenfolge(layoutIstLehrer()) : ordneNach(dom, layout.ordnung[gruppe]);
+  var bisher = gruppe === 'kacheln' ? kachelnReihenfolge(layoutIstLehrer()) : gruppe === 'klassenzimmer' ? kzReihenfolge() : ordneNach(dom, layout.ordnung[gruppe]);
   // Ausgeblendete (nicht im DOM) behalten ihren Platz relativ zu den Nachbarn.
   layout.ordnung[gruppe] = ordneNach(bisher, dom);
   layoutSave();
@@ -15281,7 +15303,7 @@ function sortBewegen(){
 }
 function sortAutoScroll(){
   var d = sortDrag;
-  if(!d || !d.started || d.cont.getAttribute('data-sortgruppe') !== 'kacheln') return;
+  if(!d || !d.started || ['kacheln','klassenzimmer'].indexOf(d.cont.getAttribute('data-sortgruppe')) < 0) return;
   var rand = 70, dy = 0;
   if(d.py < rand) dy = -14; else if(d.py > window.innerHeight - rand) dy = 14;
   if(dy){ window.scrollBy(0, dy); sortBewegen(); }
@@ -15339,6 +15361,10 @@ function paintWidgetDrawer(){
   h += abschnitt('Obere Leiste', leiste);
   h += abschnitt('Startseite', START_ITEMS.map(function(it){ var key = 'start:'+it.id; return {aus:layoutIstAus(key), html:zeile(key, it.label)}; }));
   if(lehrer){
+    h += abschnitt('Klassenzimmer', kzReihenfolge().map(function(id){
+      var t = KZ_TILES.find(function(x){ return x.id === id; }), key = 'kz:'+id;
+      return {aus:layoutIstAus(key), html:zeile(key, t.icon+' '+t.name)};
+    }));
     h += abschnitt('Fächer', kachelnReihenfolge(true).map(subjectById).filter(Boolean).map(function(s){
       var key = 'kacheln:'+s.id;
       return {aus:layoutIstAus(key), html:zeile(key, s.name, '<span class="wd-img" style="background:'+s.soft+'">'+s.icon+'</span>')};
@@ -15391,6 +15417,28 @@ function stpZeitenAktuell(z){
   if(z && STP_ZEITEN_ALT.indexOf(z.map(function(x){ return x.von+'-'+x.bis; }).join(',')) >= 0) return STP_ZEITEN_STANDARD;
   return z || null;
 }
+// Zusatzlektionen (z. B. Kochen in WAH): über Mittag und nach Schulschluss. Keys 'tag-m1' usw.;
+// die Zeilen erscheinen nur, wenn an irgendeinem Tag etwas drinsteht.
+var STP_EXTRA = [
+  {s:'m1', von:'11:50', bis:'12:35'}, {s:'m2', von:'12:40', bis:'13:25'},
+  {s:'a1', von:'17:00', bis:'17:45'}, {s:'a2', von:'17:50', bis:'18:35'}
+];
+function stpBelegt(plan, sl){ return [0,1,2,3,4].some(function(t){ return !stpLeer(plan.zelle(stpKey(t, sl))); }); }
+// Alle anzuzeigenden Zeilen, nach Zeit sortiert: {s (Index oder Zusatz-ID), von, bis, nr, extra}
+function stpZeilen(plan){
+  var rows = plan.zeiten.map(function(z, i){ return {s:i, von:z.von, bis:z.bis, nr:String(i+1)}; });
+  STP_EXTRA.forEach(function(x){ if(stpBelegt(plan, x.s)) rows.push({s:x.s, von:x.von, bis:x.bis, nr:'＋', extra:true}); });
+  rows.sort(function(a, b){ return stpMin(a.von) - stpMin(b.von); });
+  return rows;
+}
+// Zusatzlektionen direkt nach Lektion k (Index), wenn danach Mittag oder Schulschluss kommt.
+function stpKochSlots(zeiten, k){
+  if(!zeiten[k]) return [];
+  var ende = stpMin(zeiten[k].bis), naechste = zeiten[k+1] ? stpMin(zeiten[k+1].von) : 24*60;
+  if(naechste - ende < 40) return [];
+  return STP_EXTRA.filter(function(x){ return stpMin(x.von) >= ende && stpMin(x.bis) <= naechste; });
+}
+
 // Klassen fürs Feld «Klasse» im persönlichen Plan der Lehrperson (kl).
 var STP_KLASSEN = ['E1a','E1b','E1c','G1a','G1b','E2a','E2b','E2c','G2a','G2b','E3a','E3b','G3a','G3b'];
 var STP_FREI_FARBEN = ['#0EA5E9','#F43F5E','#14B8A6','#F59E0B','#6366F1','#84CC16','#EC4899','#64748B'];
@@ -15488,14 +15536,15 @@ function stpZeichnen(){
       ? (stp.ansicht === 'klasse' ? 'Tippe auf eine Lektion, um den Grobstundenplan der Klasse '+esc(state.klasse)+' zu füllen. Die Schüler:innen können danach ihre eigenen Freilektionen eintragen.' : 'Tippe auf eine Lektion, um deinen persönlichen Stundenplan zu füllen. Nur du siehst ihn.')
       : 'Tippe auf eine Lektion, um sie für dich zu ändern (z. B. 🌴 Freilektion). Nur du siehst deine Änderungen.')+'</div>';
   }
-  var hatWas = zeiten.some(function(z, i){ return [0,1,2,3,4].some(function(t){ return !stpLeer(plan.zelle(stpKey(t,i))); }); });
+  var zeilen = stpZeilen(plan);
+  var hatWas = zeilen.some(function(r){ return stpBelegt(plan, r.s); });
   if(!hatWas && !stp.bearbeiten){
     h += '<div class="stp-leerplan"><div class="stp-leer-emoji">🗓️</div><b>Noch leer.</b><br>'+
       (lehrer ? 'Mit «✏️ Bearbeiten» füllst du '+(stp.ansicht==='klasse'?'den Plan der Klasse':'deinen Plan')+'.' : 'Sobald deine Lehrperson den Stundenplan eingetragen hat, erscheint er hier.')+'</div>';
   }
 
-  function zelle(tag, i){
-    var key = stpKey(tag, i), c = plan.zelle(key), info = stpInfo(c), z = zeiten[i];
+  function zelle(tag, z){
+    var key = stpKey(tag, z.s), c = plan.zelle(key), info = stpInfo(c);
     var istJetzt = tag === heute && jetzt >= stpMin(z.von) && jetzt < stpMin(z.bis) && !stpLeer(c) && !c.frei;
     var eigen = plan.eigen && plan.eigen(key);
     var cls = 'stp-cell' + (info ? '' : (c && c.frei ? ' frei' : ' leer')) + (istJetzt ? ' jetzt' : '') + (eigen ? ' eigen' : '') + (stp.bearbeiten ? ' edit' : '') + (info && info.fachId && !stp.bearbeiten ? ' link' : '');
@@ -15516,30 +15565,30 @@ function stpZeichnen(){
     if(eigen) inner += '<span class="stp-eigen-tag" title="Von dir geändert">✎</span>';
     return '<button type="button" class="'+cls+'"'+st+' data-k="'+key+'">'+inner+'</button>';
   }
-  function pause(i){
-    if(i === 0) return '';
-    var gap = stpMin(zeiten[i].von) - stpMin(zeiten[i-1].bis);
+  function pause(j){
+    if(j === 0) return '';
+    var gap = stpMin(zeilen[j].von) - stpMin(zeilen[j-1].bis);
     if(gap >= 40) return '<div class="stp-pause mittag">🍽️ Mittag</div>';
     if(gap >= 15) return '<div class="stp-pause">☕ Pause</div>';
     return '';
   }
-  function zeit(i){ return '<div class="stp-zeit"><b>'+(i+1)+'</b><span>'+esc(zeiten[i].von)+'</span><span>'+esc(zeiten[i].bis)+'</span></div>'; }
+  function zeit(z){ return '<div class="stp-zeit'+(z.extra?' extra':'')+'"'+(z.extra?' title="Zusatzlektion"':'')+'><b>'+z.nr+'</b><span>'+esc(z.von)+'</span><span>'+esc(z.bis)+'</span></div>'; }
 
   if(schmal){
     h += '<div class="stp-tagwahl">'+STP_TAGE.map(function(t, d){
       return '<button type="button" class="stp-tagchip'+(d===stp.tag?' on':'')+(d===heute?' heute':'')+'" style="--tc:'+STP_TAG_FARBEN[d]+'" data-tag="'+d+'">'+t+'</button>';
     }).join('')+'</div>';
     h += '<div class="stp-tagliste">';
-    zeiten.forEach(function(z, i){ h += pause(i) + '<div class="stp-zeile">'+zeit(i)+zelle(stp.tag, i)+'</div>'; });
+    zeilen.forEach(function(z, j){ h += pause(j) + '<div class="stp-zeile">'+zeit(z)+zelle(stp.tag, z)+'</div>'; });
     h += '</div>';
   } else {
     h += '<div class="stp-grid">';
     h += '<div class="stp-ecke"></div>';
     STP_TAGE_LANG.forEach(function(t, d){ h += '<div class="stp-tag'+(d===heute?' heute':'')+'" style="--tc:'+STP_TAG_FARBEN[d]+'">'+t+(d===heute?' <small>heute</small>':'')+'</div>'; });
-    zeiten.forEach(function(z, i){
-      h += pause(i);
-      h += zeit(i);
-      for(var d = 0; d < 5; d++) h += '<div class="stp-slot'+(d===heute?' heute':'')+'">'+zelle(d, i)+'</div>';
+    zeilen.forEach(function(z, j){
+      h += pause(j);
+      h += zeit(z);
+      for(var d = 0; d < 5; d++) h += '<div class="stp-slot'+(d===heute?' heute':'')+'">'+zelle(d, z)+'</div>';
     });
     h += '</div>';
   }
@@ -15626,13 +15675,21 @@ function stpZelleBearbeiten(key){
   var lehrer = state.profile.role === 'teacher';
   var ansicht = stp.ansicht;
   var plan = stpPlan(ansicht);
-  var teile = key.split('-'), tag = +teile[0], i = +teile[1], z = plan.zeiten[i];
+  var teile = key.split('-'), tag = +teile[0];
+  var extra = STP_EXTRA.find(function(x){ return x.s === teile[1]; });
+  var i = extra ? -1 : +teile[1], z = extra || plan.zeiten[i];
   var c = plan.zelle(key) || {};
+  // Doppellektion: gleiche Lektion auch in die nächste; Kochen (WAH) zusätzlich
+  // die zwei Zusatzlektionen über Mittag bzw. nach Schulschluss.
+  var naechsteZ = !extra && plan.zeiten[i+1] ? plan.zeiten[i+1] : null;
+  var kochSlots = naechsteZ ? stpKochSlots(plan.zeiten, i+1) : [];
+  var istDoppel = !!naechsteZ && !stpLeer(c) && stpGleich(c, plan.zelle(stpKey(tag, i+1)));
+  var istKochen = istDoppel && kochSlots.length > 0 && kochSlots.every(function(x){ return stpGleich(c, plan.zelle(stpKey(tag, x.s))); });
   var schuelerEigen = !lehrer && plan.eigen && plan.eigen(key);
   var klassenZelle = stp.klasse.zellen[key];
   var fSel = c.f ? c.f : (c.t ? '__andere' : '');
   var q = function(v){ return esc(v || '').replace(/"/g, '&quot;'); };
-  var h = '<h3>'+STP_TAGE_LANG[tag]+' · '+(i+1)+'. Lektion</h3>';
+  var h = '<h3>'+STP_TAGE_LANG[tag]+' · '+(extra ? 'Zusatzlektion' : (i+1)+'. Lektion')+'</h3>';
   h += '<p style="margin:-4px 0 12px;color:var(--text-muted);font-size:13px;">'+esc(z.von)+' – '+esc(z.bis)+
        (!lehrer && !stpLeer(klassenZelle) ? ' · Klassenplan: <b>'+esc((stpInfo(klassenZelle)||{name:'Frei'}).name)+'</b>' : '')+'</p>';
   if(!lehrer) h += '<label class="stp-frei-check"><input type="checkbox" id="stpFrei"'+(c.frei?' checked':'')+'> 🌴 Hier habe ich frei (Freilektion)</label>';
@@ -15649,13 +15706,28 @@ function stpZelleBearbeiten(key){
          : '<div><label class="modal-label">Lehrperson</label><input type="text" id="stpLp" maxlength="40" placeholder="z. B. Helfenberger" value="'+q(c.lp)+'"></div>')+
        '</div>';
   h += '</div>';
+  if(naechsteZ){
+    h += '<label class="stp-frei-check stp-doppel-check"><input type="checkbox" id="stpDoppel"'+(istDoppel?' checked':'')+'> ⏩ Doppellektion (auch '+(i+2)+'. Lektion, '+esc(naechsteZ.von)+' – '+esc(naechsteZ.bis)+')</label>';
+    if(kochSlots.length){
+      var kochVon = kochSlots[0].von, kochBis = kochSlots[kochSlots.length-1].bis;
+      h += '<label class="stp-frei-check stp-doppel-check"><input type="checkbox" id="stpKochen"'+(istKochen?' checked':'')+'> 🍳 Kochen: '+kochSlots.length+' Lektionen '+
+           (plan.zeiten[i+2] ? 'über Mittag' : 'am Abend')+' dazu ('+esc(kochVon)+' – '+esc(kochBis)+')</label>';
+    }
+  }
   h += '<div class="modal-actions">';
   if(schuelerEigen) h += '<button class="btn btn-ghost btn-sm" id="stpReset" type="button" title="Eigene Änderung verwerfen">↺ Wie Klassenplan</button>';
   h += '<button class="btn btn-ghost btn-sm" id="modalCancel" type="button">Abbrechen</button>'+
        '<button class="btn btn-primary btn-sm" id="modalOk" type="button">Speichern</button></div>';
   openModal(h);
   var fach = document.getElementById('stpFach'), text = document.getElementById('stpText');
-  fach.addEventListener('change', function(){ text.hidden = fach.value !== '__andere'; if(!text.hidden) text.focus(); });
+  var doppelEl = document.getElementById('stpDoppel'), kochenEl = document.getElementById('stpKochen');
+  fach.addEventListener('change', function(){
+    text.hidden = fach.value !== '__andere'; if(!text.hidden) text.focus();
+    // WAH direkt vor Mittag/Schulschluss ist meist Kochen -> gleich vorschlagen.
+    if(fach.value === 'wah' && kochenEl){ kochenEl.checked = true; doppelEl.checked = true; }
+  });
+  if(kochenEl) kochenEl.addEventListener('change', function(){ if(kochenEl.checked) doppelEl.checked = true; });
+  if(doppelEl) doppelEl.addEventListener('change', function(){ if(!doppelEl.checked && kochenEl) kochenEl.checked = false; });
   var frei = document.getElementById('stpFrei');
   if(frei) frei.addEventListener('change', function(){ document.getElementById('stpFelder').hidden = frei.checked; });
   document.getElementById('modalCancel').addEventListener('click', closeModal);
@@ -15677,18 +15749,23 @@ function stpZelleBearbeiten(key){
       if(klEl && klEl.value) neu.kl = klEl.value;
     }
     closeModal();
-    if(ansicht === 'klasse'){
-      if(stpLeer(neu)) delete stp.klasse.zellen[key]; else stp.klasse.zellen[key] = neu;
-      stpSpeichern('klasse');
-    } else if(lehrer){
-      if(stpLeer(neu)) delete stp.eigen.zellen[key]; else stp.eigen.zellen[key] = neu;
-      stpSpeichern('mein');
-    } else {
-      // Gleich wie der Klassenplan -> keine eigene Abweichung speichern.
-      if(stpGleich(neu, klassenZelle) || (stpLeer(neu) && stpLeer(klassenZelle))) delete stp.eigen.zellen[key];
-      else stp.eigen.zellen[key] = neu;
-      stpSpeichern('mein');
-    }
+    var keys = [key];
+    if(doppelEl && doppelEl.checked) keys.push(stpKey(tag, i+1));
+    if(kochenEl && kochenEl.checked) kochSlots.forEach(function(x){ keys.push(stpKey(tag, x.s)); });
+    keys.forEach(function(k){
+      var n = JSON.parse(JSON.stringify(neu));
+      if(ansicht === 'klasse'){
+        if(stpLeer(n)) delete stp.klasse.zellen[k]; else stp.klasse.zellen[k] = n;
+      } else if(lehrer){
+        if(stpLeer(n)) delete stp.eigen.zellen[k]; else stp.eigen.zellen[k] = n;
+      } else {
+        // Gleich wie der Klassenplan -> keine eigene Abweichung speichern.
+        var kz = stp.klasse.zellen[k];
+        if(stpGleich(n, kz) || (stpLeer(n) && stpLeer(kz))) delete stp.eigen.zellen[k];
+        else stp.eigen.zellen[k] = n;
+      }
+    });
+    stpSpeichern(ansicht === 'klasse' ? 'klasse' : 'mein');
   });
 }
 
@@ -15734,8 +15811,8 @@ function stpZeitenBearbeiten(){
 
 // Startseiten-Widget «Jetzt / Als Nächstes».
 function stpNaechste(){
-  var plan = stpPlan('mein'), zeiten = plan.zeiten, heute = stpHeute(), jetzt = stpJetztMin();
-  function lektion(tag, i){ var c = plan.zelle(stpKey(tag, i)); var info = stpInfo(c); return info ? {tag:tag, i:i, c:c, info:info, z:zeiten[i]} : null; }
+  var plan = stpPlan('mein'), zeiten = stpZeilen(plan), heute = stpHeute(), jetzt = stpJetztMin();
+  function lektion(tag, i){ var z = zeiten[i], c = plan.zelle(stpKey(tag, z.s)); var info = stpInfo(c); return info ? {tag:tag, i:i, c:c, info:info, z:z} : null; }
   var aktuell = null, danach = null;
   if(heute >= 0){
     for(var i = 0; i < zeiten.length; i++){
@@ -15799,6 +15876,7 @@ window.addEventListener('resize', function(){
 
 function render(){
   clearOverviewWatchers();
+  if(wackelnAktiv() && state.route.name !== 'home' && state.route.name !== 'klassenzimmer') wackelnEnde();
   // Übung verlassen: Stand und Lernzeit ein letztes Mal sichern, Beobachtung stoppen.
   if(state.route.name !== 'resource' && syncState.resourceId){
     stopResourceSync();
