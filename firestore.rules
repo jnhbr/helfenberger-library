@@ -36,6 +36,9 @@ rules_version = '2';
 //                                                       abgehakt hat; unabhaengig von submitted.{uid} der Lehrperson
 //   progress/{uid}/eigeneEintraege/{id}             -> selbst eingetragene Kalendereintraege (gleiche Felder wie
 //                                                       calendarEntries), nur fuer die Person selbst sichtbar
+//   progress/{uid}/einstellungen/layout            -> {ordnung:{kacheln,leiste}, aus:[...]} Anordnung (nur die Person selbst)
+//   progress/{uid}/einstellungen/stundenplan       -> LP: eigener Plan {zeiten, zellen}; SuS: eigene Abweichungen {zellen}
+//   klassen/{k}/klasseninfo/stundenplan            -> Klassenplan {zeiten, zellen} (Klasse liest, LP schreibt)
 //   progress/{uid}/noten/liste                      -> {faecher:{fachId:[{id,name,note,gewicht}]}, updatedAt}
 //                                                       privater Notenrechner, nur die Person selbst
 //   progress/{uid}/pruefungsnoten/{klasse}_{pruefId} -> {fach, name, note, gewicht, pruefungId, klasse, datum}
@@ -299,6 +302,13 @@ service cloud.firestore {
     // die Lehrperson nicht. Keine Datenvalidierung, darum kann write
     // kombiniert bleiben (bei einem delete waere request.resource null).
     match /progress/{uid}/eigeneEintraege/{entryId} {
+      allow read, write: if isOwner(uid);
+    }
+
+    // Persönliche Einstellungen: Anordnung/ausgeblendete Kacheln und Symbole
+    // (einstellungen/layout) und der eigene Stundenplan (einstellungen/stundenplan).
+    // Nur die Person selbst; keine Datenvalidierung, darum kombiniert.
+    match /progress/{uid}/einstellungen/{docId} {
       allow read, write: if isOwner(uid);
     }
 
