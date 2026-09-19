@@ -83,6 +83,8 @@ rules_version = '2';
 //   loginAliases/{slug}                             -> {konten:[username]} Vorname/Kürzel -> Konten
 //   uebungsIndex/{resourceId}                       -> {klassen:[...]} in welchen Klassen die Übung (bzw. Kopien) liegt
 //   klassen/{k}/appMeta/gruppenMitglieder           -> {uids:[...]} alle Mitglieder der Gruppen dieser Seite
+//   lernphasen/{uidLehrperson}                      -> {aktiv, startMs, titel, mitglieder:[uid], namen, aus:[uid]} 📚 Lernphase
+//   lernphasen/{uidLehrperson}/praesenz/{uid}       -> {drin, ts, phase, raus, rausSeit} Lebenszeichen der Person
 //   klassen/{k}/appMeta/schulden                    -> {enabled} 💸 Schulden-Liste auf dieser Seite an/aus
 //   passwortAnfragen/{id}                           -> {uid, name, klasse, vonUid, vonName, status, neuesPasswort} (admin/passwort-reset.js)
 //   Seiten ohne Klasse: klassen/flp-<name>, isf-<name>, praktikum-<n> (FLP, ISF, Praktikum)
@@ -284,6 +286,26 @@ service cloud.firestore {
         && request.resource.data.mitglieder.size() <= 400;
       // Separat: bei einem delete ist request.resource null.
       allow delete: if isTeacher() && resource.data.ownerUid == request.auth.uid;
+    }
+
+    // 📚 Lernphase: eine pro Lehrperson (Dokument-ID = uid der Lehrperson).
+    // Schüler:innen lesen sie mit where('mitglieder','array-contains', uid)
+    // und schreiben nur ihr eigenes Lebenszeichen (praesenz/{uid}).
+    match /lernphasen/{lpUid} {
+      allow read: if canReadAll() || (isSignedIn() && request.auth.uid in resource.data.get('mitglieder', []));
+      allow create, update: if isTeacher() && lpUid == request.auth.uid
+        && request.resource.data.mitglieder is list
+        && request.resource.data.mitglieder.size() <= 400;
+      // Separat: bei einem delete ist request.resource null.
+      allow delete: if isTeacher() && lpUid == request.auth.uid;
+
+      match /praesenz/{uid} {
+        allow read: if canReadAll() || isOwner(uid);
+        allow create, update: if isOwner(uid)
+          && uid in get(/databases/$(database)/documents/lernphasen/$(lpUid)).data.get('mitglieder', []);
+        // Separat: bei einem delete ist request.resource null.
+        allow delete: if isTeacher();
+      }
     }
 
     // Wo eine Übung überall liegt (Kopien haben dieselbe ID in jeder Klasse):

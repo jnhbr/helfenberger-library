@@ -1216,6 +1216,37 @@
   .vg-item-spacer{flex:1;}
   .vg-hint{color:var(--text-muted);font-size:13px;line-height:1.55;margin:0 2px 14px;}
 
+  /* ===== 📚 Lernphase (Seitenleiste der Lehrperson) ===== */
+  .lph-panel{position:fixed;left:0;top:0;bottom:0;width:260px;z-index:1400;display:flex;flex-direction:column;background:var(--surface);border-right:1px solid var(--border);box-shadow:8px 0 30px -18px rgba(0,0,0,.35);font-size:14px;}
+  body.lph-offen{padding-left:260px;}
+  @media (max-width:900px){ body.lph-offen{padding-left:0;} }
+  .lph-head{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;padding:14px 12px 8px 16px;}
+  .lph-head small{display:block;color:var(--text-muted);font-size:12px;margin-top:2px;}
+  .lph-sum{display:flex;gap:12px;padding:0 16px 8px;font-weight:700;font-size:13px;}
+  .lph-bad{color:var(--bad);}
+  .lph-sort{margin:0 12px 8px;padding:6px 8px;border:1px solid var(--border);border-radius:8px;background:var(--surface-2);color:var(--text);font:inherit;font-size:13px;}
+  .lph-list{flex:1;overflow-y:auto;padding:0 8px 8px;}
+  .lph-gruppe{font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted);padding:10px 8px 4px;}
+  .lph-row{display:flex;align-items:center;gap:9px;padding:6px 8px;border-radius:8px;}
+  .lph-row.rot{background:var(--bad-soft);}
+  .lph-dot{flex:none;width:12px;height:12px;border-radius:50%;background:var(--good);}
+  .lph-row.rot .lph-dot{background:var(--bad);animation:lphGlow 1s ease-in-out infinite;}
+  @keyframes lphGlow{0%,100%{box-shadow:0 0 0 0 color-mix(in srgb, var(--bad) 70%, transparent);}50%{box-shadow:0 0 0 6px color-mix(in srgb, var(--bad) 0%, transparent);}}
+  .lph-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;}
+  .lph-name small{display:block;font-size:11.5px;color:var(--text-muted);}
+  .lph-row.rot .lph-name small{color:var(--bad);font-weight:600;}
+  .lph-aus{opacity:.55;}
+  .lph-mini{flex:none;border:none;background:transparent;cursor:pointer;font-size:14px;padding:3px 5px;border-radius:6px;color:var(--text);}
+  .lph-mini:hover{background:var(--surface-2);}
+  .lph-row .lph-mini{opacity:0;}
+  .lph-row:hover .lph-mini,.lph-aus .lph-mini{opacity:1;}
+  @media (hover:none){ .lph-row .lph-mini{opacity:1;} }
+  .lph-leer{color:var(--text-muted);padding:12px 8px;}
+  .lph-foot{padding:10px 12px;border-top:1px solid var(--border);}
+  .lph-tab{position:fixed;left:0;top:50%;transform:translateY(-50%);z-index:1400;border:1px solid var(--border);border-left:none;border-radius:0 12px 12px 0;background:var(--surface);padding:12px 8px;cursor:pointer;font-size:20px;display:flex;flex-direction:column;align-items:center;gap:4px;box-shadow:4px 0 16px -8px rgba(0,0,0,.35);}
+  .lph-tab b{font-size:12px;color:#fff;background:var(--bad);border-radius:999px;padding:1px 7px;}
+  .lph-tab.rot{animation:lphGlow 1s ease-in-out infinite;}
+  .topbar-lernphase{font-size:12.5px;font-weight:700;padding:4px 10px;border-radius:999px;background:var(--good-soft);color:var(--good);white-space:nowrap;}
   /* ===== 📝 Prüfungsmodus ===== */
   .topbar-pruefung{background:#E63950;}
   .topbar-pruefung-alarm{background:#B3122B;animation:prAlarm 1s ease-in-out infinite;}
@@ -4377,6 +4408,7 @@ onAuthStateChanged(auth, async function(user){
     stopQuizWatcher();
     stopUmfrageWatcher();
     stopPruefungWatcher();
+    stopLernphaseWatcher();
     applyPencilEggVisibility();
     render();
     return;
@@ -4422,6 +4454,7 @@ onAuthStateChanged(auth, async function(user){
     startQuizWatcher();
     startUmfrageWatcher();
     startPruefungWatcher();
+    startLernphaseWatcher();
     gruppenMitgliederNachtragen().catch(function(err){ console.error('Gruppen-Mitglieder', err); });
     setTimeout(einfuehrungPruefen, 1500);
     setTimeout(pwHinweis, 4000);
@@ -4530,6 +4563,7 @@ function renderChrome(innerHtml){
   html += '<button class="topbar-quiz" id="quizJoinBtn" type="button" hidden>🎮 Quiz läuft — mitmachen</button>';
   html += '<button class="topbar-quiz topbar-umfrage" id="umfrageJoinBtn" type="button" hidden>⚡ Umfrage läuft — abstimmen</button>';
   html += '<button class="topbar-quiz topbar-pruefung" id="pruefungBtn" type="button" hidden>📝 Prüfung</button>';
+  html += '<span class="topbar-lernphase" id="lernphaseBadge" title="Lernphase: Bleib hier in der Library" hidden>📚 Lernphase</span>';
   html += '<div class="topbar-spacer"></div>';
   html += '<div class="topbar-user">';
   if(isTeacher || isLeitung()){ html += '<button class="btn btn-ghost btn-sm topbar-klasse'+(isFremdeKlasse()?' fremd':'')+'" id="klasseBtn" type="button" title="Klasse wechseln">🏫 '+esc(klasseLabel())+' ▾</button>'; }
@@ -12615,6 +12649,8 @@ const NEUIGKEITEN = [
   {id:'2026-09-19-sikore-ziel-tempo', datum:'2026-09-19', fuer:'alle', text:'🧮 SIKORE-Trainer: Neu mit 🎯 Wochenziel (fehlerfreie Reihen pro Woche, Ziel selbst wählbar) und ⏱ Tempo-Modus – eine Reihe gegen die Uhr, deine Bestzeit pro Level wird gespeichert. Steigst du nach einer SIKORE-Prüfung ein Level auf, wird gefeiert! 🎉'},
   {id:'2026-09-19-sikore-uebersicht-lp', datum:'2026-09-19', fuer:'lehrer', text:'📊 SIKORE-Übersicht (im SIKORE-Trainer oder unter Prüfungen): pro Schüler:in aktuelles Level mit Auf-/Abstieg, auf welchem Level geübt wird, Wochenziel, Total und Bestzeit.'},
   {id:'2026-09-19-sikore', datum:'2026-09-19', fuer:'alle', text:'🧮 Neu in Mathe: der Ordner «SIKORE – Sicher Kopfrechnen». Dort rechnest du Kettenrechnungen auf deinem Level – immer wieder neue. Am Zeilenende hilft dir die Quersumme, mit «Kontrollieren» siehst du sofort, was stimmt. Deine SIKORE-Noten findest du im 🎶 Notenrechner unter Mathematik in einem eigenen Pulldown.'},
+  {id:'2026-09-19-lernphase-lp', datum:'2026-09-19', fuer:'lehrer', text:'📚 Klassenzimmer › Lernphase: Für die Klasse oder eine 👥 Gruppe starten. Links öffnet sich eine Übersicht (einklappbar, nach Gruppen sortierbar): grün = in der Library, rot leuchtend = anderer Tab, anderes Fenster/Programm oder keine Verbindung, mit «raus seit» und wie oft. Niemand wird gesperrt. Kranke mit 🙈 ausblenden.'},
+  {id:'2026-09-19-lernphase', datum:'2026-09-19', fuer:'alle', text:'📚 Lernphase: Steht oben «📚 Lernphase», sieht die Lehrperson, ob du hier in der Library bist. Wechselst du in einen anderen Tab oder ein anderes Programm, sieht sie das.'},
   {id:'2026-09-19-sikore-lp', datum:'2026-09-19', fuer:'lehrer', text:'🧮 Prüfungen › «Neue SIKORE-Prüfung»: Alle aus der Matheklasse erscheinen mit einem Level (1–39). Ab dem zweiten Mal schlägt die Library das Level vor: Note unter 4 → eins tiefer, über 5 → eins höher. Online im Prüfungsmodus (für jede Person eigene Reihen, automatisch korrigiert, Folgefehler wählbar) oder auf Papier (Blätter pro Person drucken, Anzahl Richtige eintragen). Reihen, Länge, Zeit, Massstab und Gewichtung frei einstellbar.'},
   {id:'2026-09-19-passwort-anfrage', datum:'2026-09-19', fuer:'lehrer', text:'🔑 Passwort vergessen? ⚙️ Einstellungen → «Passwort einer Schüler:in zurücksetzen»: Anfrage stellen – sobald das neue Passwort gesetzt ist, steht es dort (und du bekommst beim Anmelden einen Hinweis).'},
   {id:'2026-09-19-pruefung-mehrere-uebungen', datum:'2026-09-19', fuer:'lehrer', text:'🧩 Baukasten: Aufgaben lassen sich jetzt aus mehreren Übungen zusammenstellen («Aus Übung …»).'},
@@ -14166,6 +14202,7 @@ var KZ_TILES = [
   { id:'slf',     icon:'🌍', name:'Stadt Land Fluss',    desc:'Buchstaben-Drehscheibe, Kategorien und Sanduhr (1–3 Min.) mit STOPP-Knopf.' },
   { id:'sitzplan',icon:'🪑', name:'Sitzplan',            desc:'Möbel stellen, Plätze verteilen, Regeln, Zufall und gespeicherte Varianten.' },
   { id:'quiz',    icon:'🎮', name:'Klassen-Quiz',        desc:'Live-Quiz auf den Geräten der Klasse, Rangliste am Beamer.' },
+  { id:'lernphase',icon:'📚', name:'Lernphase',          desc:'Links siehst du live, wer in der Library ist — wer rausgeht, leuchtet rot. Ohne Sperre.' },
   { id:'pruefung',icon:'📝', name:'Prüfungen',           desc:'Online-Prüfung mit Sperre: wer sie verlässt, kommt erst wieder rein, wenn du entsperrst. Automatisch benotet.' },
   { id:'fragen',  icon:'❓', name:'Fragebox',            desc:'Anonyme Fragen der Klasse lesen und beantworten.' },
   { id:'umfrage', icon:'⚡', name:'Blitzumfrage',         desc:'Eine Frage, sofort am Beamer ausgewertet — auf Wunsch als Peer-Instruction-Doppelrunde.' },
@@ -14215,6 +14252,7 @@ function renderKlassenzimmer(){
       else if(id === 'slf') openBeamerTools('slf');
       else if(id === 'sitzplan'){ state.route = {name:'sitzplan'}; render(); }
       else if(id === 'quiz'){ state.route = {name:'quiz'}; render(); }
+      else if(id === 'lernphase') openLernphase();
       else if(id === 'pruefung'){ state.route = {name:'pruefungen'}; render(); }
       else if(id === 'fragen') openFragebox();
       else if(id === 'umfrage') openUmfrageSetup();
@@ -14222,6 +14260,349 @@ function renderKlassenzimmer(){
       else if(id === 'aemtli'){ aemtliUi.view = 'plan'; aemtliUi.scrollTo = 'now'; state.route = {name:'aemtliplan'}; render(); }
       else if(id === 'vergessen'){ state.route = {name:'vergessen'}; render(); }
     });
+  });
+}
+
+/* ===================== 📚 LERNPHASE =====================
+   Die Lehrperson startet im Klassenzimmer eine Lernphase für die Klasse oder
+   eine ihrer 👥 Gruppen. Links öffnet sich eine Seitenleiste (#lphPanel hängt
+   an <body>, damit kein render() sie wegräumt): grün = die Library ist bei der
+   Person gerade sichtbar und im Vordergrund, rot = anderer Tab/anderes
+   Fenster/Programm, Library zu oder keine Verbindung. Niemand wird gesperrt —
+   es ist nur eine Anzeige. Kranke lassen sich ausblenden (gilt nur für diese
+   Lernphase).
+
+   Daten: lernphasen/{uidLehrperson}                -> {aktiv, startMs, titel, mitglieder:[uid], namen:{uid:name}, aus:[uid]}
+          lernphasen/{uidLehrperson}/praesenz/{uid} -> {drin, ts, phase (= startMs), raus (Anzahl), rausSeit}
+   Schüler:innen finden ihre Lernphase mit where('mitglieder','array-contains', uid)
+   (ein where, kein Index) und melden alle 20 s ein Lebenszeichen, bei jedem
+   Wechsel sofort. Beim Beenden löscht die Lehrperson alles wieder. */
+var LPH_HB_MS = 20000;        // Lebenszeichen der Schüler:innen
+var LPH_STALE_MS = 60000;     // so lange nichts gehört = «keine Verbindung»
+var LPH_SORT_KEY = 'lib_lernphase_sort';
+var lph = { unsub:null, aktiv:null, hb:null, drin:null, erste:false, blurT:null,
+            phase:null, phaseUnsub:null, praes:{}, empfangen:{}, rausLokal:{}, praesUnsub:null,
+            panel:null, tab:null, offen:true, tick:null, gruppen:null };
+
+function lphMs(ts){ return ts && ts.toMillis ? ts.toMillis() : (typeof ts === 'number' ? ts : 0); }
+function lphRef(lpUid){ return doc(db, 'lernphasen', lpUid); }
+function lphPraesCol(lpUid){ return collection(db, 'lernphasen', lpUid, 'praesenz'); }
+
+function startLernphaseWatcher(){
+  stopLernphaseWatcher();
+  if(!state.user || !state.profile || isLeitung()) return;
+  if(state.profile.role === 'teacher'){ lphLehrerWatch(); return; }
+  lph.unsub = onSnapshot(query(collection(db, 'lernphasen'), where('mitglieder', 'array-contains', state.user.uid)), function(snap){
+    var akt = null;
+    snap.forEach(function(d){
+      var x = d.data();
+      if(x.aktiv && (!akt || (x.startMs || 0) > (akt.startMs || 0))) akt = Object.assign({id:d.id}, x);
+    });
+    var vorher = lph.aktiv;
+    if(akt && (!vorher || vorher.id !== akt.id || vorher.startMs !== akt.startMs)){
+      lph.aktiv = akt; lph.drin = null; lph.erste = true;
+      lphSchuelerStart();
+      if(!vorher) toast('📚 Lernphase: Bleib hier in der Library.');
+    } else if(akt){
+      lph.aktiv = akt;
+    } else if(vorher){
+      lph.aktiv = null;
+      lphSchuelerStopp();
+    }
+    updateLernphaseBanner();
+  }, function(err){ console.error('Lernphasen-Listener', err); });
+}
+function stopLernphaseWatcher(){
+  if(lph.unsub){ lph.unsub(); lph.unsub = null; }
+  lph.aktiv = null;
+  lphSchuelerStopp();
+  if(lph.phaseUnsub){ lph.phaseUnsub(); lph.phaseUnsub = null; }
+  lphPanelZu();
+  lph.phase = null;
+  updateLernphaseBanner();
+}
+
+/* ---------- Schüler:in: Lebenszeichen ---------- */
+
+function lphIstDrin(){ return document.visibilityState === 'visible' && document.hasFocus(); }
+function lphMelden(heartbeat, erzwungenRaus){
+  if(!lph.aktiv || !state.user) return;
+  var drin = erzwungenRaus ? false : lphIstDrin();
+  if(!heartbeat && drin === lph.drin) return;
+  var data = { drin:drin, ts:serverTimestamp(), phase:lph.aktiv.startMs || 0 };
+  if(lph.erste){ data.raus = drin ? 0 : 1; if(!drin) data.rausSeit = serverTimestamp(); lph.erste = false; }
+  else if(lph.drin !== false && !drin){ data.raus = increment(1); data.rausSeit = serverTimestamp(); }
+  lph.drin = drin;
+  fsSetDoc(doc(db, 'lernphasen', lph.aktiv.id, 'praesenz', state.user.uid), data, {merge:true})
+    .catch(function(err){ console.error('Lernphase: Meldung', err); });
+}
+function lphWechsel(){ lphMelden(false); }
+// Ein Klick in eine Übung (iframe) löst am Fenster «blur» aus, obwohl die
+// Library im Vordergrund bleibt — darum kurz warten und hasFocus() fragen.
+function lphBlur(){ clearTimeout(lph.blurT); lph.blurT = setTimeout(lphWechsel, 300); }
+function lphPagehide(){ lphMelden(true, true); }
+function lphSchuelerStart(){
+  lphSchuelerStopp(true);
+  document.addEventListener('visibilitychange', lphWechsel);
+  window.addEventListener('focus', lphWechsel);
+  window.addEventListener('blur', lphBlur);
+  window.addEventListener('pagehide', lphPagehide);
+  lph.hb = setInterval(function(){ lphMelden(true); }, LPH_HB_MS);
+  lphMelden(true);
+}
+function lphSchuelerStopp(nurListener){
+  document.removeEventListener('visibilitychange', lphWechsel);
+  window.removeEventListener('focus', lphWechsel);
+  window.removeEventListener('blur', lphBlur);
+  window.removeEventListener('pagehide', lphPagehide);
+  if(lph.hb){ clearInterval(lph.hb); lph.hb = null; }
+  clearTimeout(lph.blurT);
+  if(!nurListener) lph.drin = null;
+}
+function updateLernphaseBanner(){
+  var el = document.getElementById('lernphaseBadge');
+  if(!el) return;
+  el.hidden = !(lph.aktiv && state.profile && state.profile.role !== 'teacher');
+}
+
+/* ---------- Lehrperson ---------- */
+
+function lphLehrerWatch(){
+  lph.phaseUnsub = onSnapshot(lphRef(state.user.uid), function(snap){
+    var x = snap.exists() ? snap.data() : null;
+    if(!x || !x.aktiv){
+      lph.phase = null;
+      if(lph.praesUnsub){ lph.praesUnsub(); lph.praesUnsub = null; }
+      lph.praes = {}; lph.empfangen = {}; lph.rausLokal = {};
+      lphPanelZu();
+      return;
+    }
+    var neu = !lph.phase || lph.phase.startMs !== x.startMs;
+    lph.phase = x;
+    if(neu){ lph.offen = true; lph.praes = {}; lph.empfangen = {}; lph.rausLokal = {}; }
+    if(!lph.praesUnsub){
+      lph.praesUnsub = onSnapshot(lphPraesCol(state.user.uid), function(ps){
+        var jetzt = Date.now();
+        ps.docChanges().forEach(function(ch){
+          var uid = ch.doc.id;
+          if(ch.type === 'removed'){ delete lph.praes[uid]; delete lph.empfangen[uid]; delete lph.rausLokal[uid]; return; }
+          var d = ch.doc.data(), alt = lph.praes[uid];
+          lph.praes[uid] = d;
+          lph.empfangen[uid] = jetzt;
+          if(d.drin) delete lph.rausLokal[uid];
+          else if(!alt || alt.drin || !lph.rausLokal[uid]) lph.rausLokal[uid] = (alt && alt.drin) ? jetzt : (lphMs(d.rausSeit) || jetzt);
+        });
+        lphPaint();
+      }, function(err){ console.error('Lernphase: Präsenz', err); });
+    }
+    lphPaint();
+  }, function(err){ console.error('Lernphase', err); });
+}
+
+function lphStatus(uid){
+  var p = lph.praes[uid];
+  if(!p || p.phase !== lph.phase.startMs) return {rot:true, text:'noch nicht da'};
+  var jetzt = Date.now();
+  if(jetzt - (lph.empfangen[uid] || 0) > LPH_STALE_MS || jetzt - lphMs(p.ts) > 5 * LPH_STALE_MS) return {rot:true, text:'keine Verbindung', raus:p.raus || 0};
+  if(!p.drin){
+    var seit = lph.rausLokal[uid] || lphMs(p.rausSeit) || jetzt;
+    return {rot:true, text:'raus seit '+pruefZeitText(jetzt - seit), raus:p.raus || 0};
+  }
+  return {rot:false, text:'', raus:p.raus || 0};
+}
+
+function lphSortGet(){ try{ return localStorage.getItem(LPH_SORT_KEY) || ''; }catch(e){ return ''; } }
+function lphSortSet(v){ try{ localStorage.setItem(LPH_SORT_KEY, v); }catch(e){} }
+
+function lphZeile(uid, name, ausgeblendet){
+  if(ausgeblendet){
+    return '<div class="lph-row lph-aus"><span class="lph-name">'+esc(name)+'</span>'+
+      '<button class="lph-mini" data-lph-ein="'+esc(uid)+'" type="button" title="Wieder einblenden">👁</button></div>';
+  }
+  var st = lphStatus(uid);
+  var info = st.text + (st.raus ? (st.text ? ' · ' : '') + st.raus + '× raus' : '');
+  return '<div class="lph-row'+(st.rot ? ' rot' : '')+'"><span class="lph-dot"></span>'+
+    '<span class="lph-name">'+esc(name)+(info ? '<small>'+esc(info)+'</small>' : '')+'</span>'+
+    '<button class="lph-mini" data-lph-aus="'+esc(uid)+'" type="button" title="Ausblenden (z. B. krank)">🙈</button></div>';
+}
+
+function lphPaint(){
+  if(!lph.phase || !state.profile || state.profile.role !== 'teacher'){ lphPanelZu(); return; }
+  var p = lph.phase, namen = p.namen || {}, aus = p.aus || [];
+  var sichtbar = (p.mitglieder || []).filter(function(u){ return aus.indexOf(u) < 0; });
+  var nameVon = function(u){ return namen[u] || '?'; };
+  var abc = function(a, b){ return nameVon(a).localeCompare(nameVon(b), 'de'); };
+  sichtbar.sort(abc);
+  var rot = sichtbar.filter(function(u){ return lphStatus(u).rot; }).length;
+
+  if(!lph.tab){
+    lph.tab = document.createElement('button');
+    lph.tab.type = 'button';
+    lph.tab.className = 'lph-tab';
+    lph.tab.title = 'Lernphase anzeigen';
+    lph.tab.addEventListener('click', function(){ lph.offen = true; lphPaint(); });
+    document.body.appendChild(lph.tab);
+  }
+  lph.tab.hidden = lph.offen;
+  lph.tab.classList.toggle('rot', rot > 0);
+  lph.tab.innerHTML = '📚' + (rot ? '<b>'+rot+'</b>' : '');
+
+  if(!lph.offen){
+    if(lph.panel){ lph.panel.remove(); lph.panel = null; }
+    document.body.classList.remove('lph-offen');
+    lphTickStart();
+    return;
+  }
+  if(!lph.panel){
+    lph.panel = document.createElement('aside');
+    lph.panel.className = 'lph-panel';
+    lph.panel.addEventListener('click', lphPanelKlick);
+    lph.panel.addEventListener('change', function(e){
+      if(e.target.id === 'lphSort'){ lphSortSet(e.target.value); lphPaint(); }
+    });
+    document.body.appendChild(lph.panel);
+    if(!lph.gruppen){
+      lph.gruppen = [];
+      loadMeineGruppen().then(function(list){ lph.gruppen = list; lphPaint(); }).catch(function(err){ console.error(err); });
+    }
+  }
+  document.body.classList.add('lph-offen');
+
+  // Sortieren: A–Z oder nach den 👥 Gruppen eines Fachs.
+  var faecher = [];
+  (lph.gruppen || []).forEach(function(g){ if(faecher.indexOf(g.fach) < 0) faecher.push(g.fach); });
+  var sort = lphSortGet();
+  if(sort && faecher.indexOf(sort) < 0) sort = '';
+
+  var h = '<div class="lph-head"><div><b>📚 Lernphase</b><small>'+esc(p.titel || '')+'</small></div>'+
+    '<button class="lph-mini" data-lph="zu" type="button" title="Einklappen">⟨</button></div>';
+  h += '<div class="lph-sum"><span class="lph-ok">🟢 '+(sichtbar.length - rot)+' drin</span><span class="lph-bad">🔴 '+rot+' raus</span></div>';
+  if(faecher.length){
+    h += '<select class="lph-sort" id="lphSort"><option value="">Sortieren: A–Z</option>';
+    faecher.forEach(function(f){ h += '<option value="'+esc(f)+'"'+(f === sort ? ' selected' : '')+'>👥 Gruppen '+esc(subjectName(f))+'</option>'; });
+    h += '</select>';
+  }
+  h += '<div class="lph-list">';
+  if(!sichtbar.length) h += '<div class="lph-leer">Alle ausgeblendet.</div>';
+  if(sort){
+    var gesehen = {};
+    (lph.gruppen || []).filter(function(g){ return g.fach === sort; }).forEach(function(g){
+      var drin = sichtbar.filter(function(u){ return (g.mitglieder || []).indexOf(u) >= 0; });
+      if(!drin.length) return;
+      h += '<div class="lph-gruppe">'+esc(g.name)+'</div>';
+      drin.forEach(function(u){ gesehen[u] = true; h += lphZeile(u, nameVon(u)); });
+    });
+    var rest = sichtbar.filter(function(u){ return !gesehen[u]; });
+    if(rest.length){
+      h += '<div class="lph-gruppe">Ohne Gruppe</div>';
+      rest.forEach(function(u){ h += lphZeile(u, nameVon(u)); });
+    }
+  } else {
+    sichtbar.forEach(function(u){ h += lphZeile(u, nameVon(u)); });
+  }
+  if(aus.length){
+    h += '<div class="lph-gruppe">Ausgeblendet ('+aus.length+')</div>';
+    aus.slice().sort(abc).forEach(function(u){ h += lphZeile(u, nameVon(u), true); });
+  }
+  h += '</div>';
+  h += '<div class="lph-foot"><button class="btn btn-ghost btn-sm" data-lph="ende" type="button">⏹ Lernphase beenden</button></div>';
+  var list = lph.panel.querySelector('.lph-list'), scroll = list ? list.scrollTop : 0;
+  lph.panel.innerHTML = h;
+  var neuList = lph.panel.querySelector('.lph-list');
+  if(neuList) neuList.scrollTop = scroll;
+  lphTickStart();
+}
+
+function lphTickStart(){
+  if(lph.tick) return;
+  lph.tick = setInterval(function(){ if(lph.phase) lphPaint(); }, 5000);
+}
+function lphPanelZu(){
+  if(lph.panel){ lph.panel.remove(); lph.panel = null; }
+  if(lph.tab){ lph.tab.remove(); lph.tab = null; }
+  if(lph.tick){ clearInterval(lph.tick); lph.tick = null; }
+  document.body.classList.remove('lph-offen');
+}
+
+function lphPanelKlick(e){
+  var b = e.target.closest('button');
+  if(!b || !lph.phase) return;
+  var ref = lphRef(state.user.uid);
+  if(b.hasAttribute('data-lph-aus')){
+    updateDoc(ref, {aus: arrayUnion(b.getAttribute('data-lph-aus'))}).catch(function(err){ console.error(err); toast('Konnte nicht ausblenden.'); });
+  } else if(b.hasAttribute('data-lph-ein')){
+    updateDoc(ref, {aus: arrayRemove(b.getAttribute('data-lph-ein'))}).catch(function(err){ console.error(err); toast('Konnte nicht einblenden.'); });
+  } else if(b.getAttribute('data-lph') === 'zu'){
+    lph.offen = false; lphPaint();
+  } else if(b.getAttribute('data-lph') === 'ende'){
+    uiConfirm('Lernphase beenden?', 'Die Übersicht wird geschlossen und die Anzeige bei allen gelöscht.', 'Beenden', lphBeenden, true);
+  }
+}
+
+function lphPraesenzLoeschen(){
+  var uid = state.user.uid;
+  return getDocs(lphPraesCol(uid)).then(function(snap){
+    var docs = snap.docs, jobs = [];
+    for(var i = 0; i < docs.length; i += 400){
+      var b = writeBatch();
+      docs.slice(i, i + 400).forEach(function(d){ b.delete(d.ref); });
+      jobs.push(b.commit());
+    }
+    return Promise.all(jobs);
+  });
+}
+function lphBeenden(){
+  var uid = state.user.uid;
+  deleteDoc(lphRef(uid)).then(lphPraesenzLoeschen).then(function(){ toast('📚 Lernphase beendet.'); })
+    .catch(function(err){ console.error(err); toast('Lernphase konnte nicht beendet werden.'); });
+}
+
+function openLernphase(){
+  if(lph.phase){ lph.offen = true; lphPaint(); return; }
+  openModal(
+    '<h3>📚 Lernphase starten</h3>'+
+    '<p>Links siehst du, wer gerade in der Library ist. Rot leuchtet, wer in einem anderen Tab, Fenster oder Programm ist oder keine Verbindung hat. Niemand wird gesperrt.</p>'+
+    '<label class="modal-label" for="lphFuer">Für</label>'+
+    '<select class="modal-input" id="lphFuer"><option value="">Ganze Klasse '+esc(klasseLabel())+'</option></select>'+
+    '<div class="modal-actions">'+
+      '<button class="btn btn-ghost btn-sm" id="modalCancel" type="button">Abbrechen</button>'+
+      '<button class="btn btn-primary btn-sm" id="modalOk" type="button">Starten</button>'+
+    '</div>'
+  );
+  var sel = document.getElementById('lphFuer'), meine = [];
+  loadMeineGruppen().then(function(list){
+    meine = list; lph.gruppen = list;
+    if(!document.getElementById('lphFuer')) return;
+    list.forEach(function(g){
+      var o = document.createElement('option');
+      o.value = g.id; o.textContent = '👥 ' + g.name + ' (' + gruppeKurz(g) + ')';
+      sel.appendChild(o);
+    });
+  }).catch(function(err){ console.error(err); });
+  document.getElementById('modalCancel').addEventListener('click', closeModal);
+  document.getElementById('modalOk').addEventListener('click', function(){
+    var gid = sel.value, g = meine.filter(function(x){ return x.id === gid; })[0];
+    var okBtn = document.getElementById('modalOk');
+    okBtn.disabled = true;
+    var laden = g
+      ? Promise.resolve({ titel:'👥 ' + g.name, mitglieder:(g.mitglieder || []).slice(), namen:Object.keys(g.namen || {}).reduce(function(acc, u){
+          var n = g.namen[u] || {}; acc[u] = (n.n || '?') + (n.nn ? ' ' + n.nn.charAt(0) + '.' : '') + (n.k ? ' (' + n.k + ')' : ''); return acc; }, {}) })
+      : klasseRosterLoad().then(function(list){
+          list = ohneGaeste(list);
+          var namen = {};
+          list.forEach(function(s){ namen[s.uid] = s.displayName || s.vorname || '?'; });
+          return { titel:'Klasse ' + klasseLabel(), mitglieder:list.map(function(s){ return s.uid; }), namen:namen };
+        });
+    laden.then(function(x){
+      if(!x.mitglieder.length){ okBtn.disabled = false; toast('Niemand in dieser Auswahl.'); return; }
+      return lphPraesenzLoeschen().catch(function(){}).then(function(){
+        return setDoc(lphRef(state.user.uid), {
+          aktiv:true, startMs:Date.now(), start:serverTimestamp(), titel:x.titel,
+          mitglieder:x.mitglieder.slice(0, 400), namen:x.namen, aus:[],
+          klasse:state.klasse, ownerName:state.profile.displayName || ''
+        });
+      }).then(function(){ closeModal(); lph.offen = true; toast('📚 Lernphase gestartet.'); });
+    }).catch(function(err){ console.error(err); okBtn.disabled = false; toast('Lernphase konnte nicht gestartet werden.'); });
   });
 }
 
