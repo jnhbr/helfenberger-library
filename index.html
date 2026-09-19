@@ -254,6 +254,9 @@
 
   .resource-list{display:flex;flex-direction:column;gap:12px;}
   .resource-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:16px 18px;box-shadow:var(--shadow);display:flex;align-items:center;gap:16px;flex-wrap:wrap;transition:border-color .15s ease, box-shadow .15s ease;}
+  .resource-card.sk-karte{width:100%;font:inherit;color:inherit;text-align:left;cursor:pointer;}
+  .resource-card.sk-karte:hover{border-color:var(--brand);}
+  .sk-karte-pfeil{font-size:26px;line-height:1;color:var(--text-muted);flex-shrink:0;}
   .resource-card.current{border-color:var(--bad);box-shadow:var(--shadow), inset 4px 0 0 var(--bad);}
   .resource-info{flex:1;min-width:200px;}
   .resource-info h4{margin:0 0 4px;font-size:15.5px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
@@ -6735,6 +6738,12 @@ function toggleCurrent(resources, r){
 }
 
 function resourceCardHtml(r, index, total, isTeacher){
+  if(r.sikore){
+    // Ganze Karte ist der Knopf (kein separates «Öffnen»).
+    return '<button type="button" class="resource-card sk-karte" id="open-'+r.id+'"><div class="resource-info"><h4>'+esc(r.title)+'</h4>'+
+      '<div class="resource-meta">Kettenrechnungen auf deinem Level · immer wieder neue · Quersumme als Hilfe</div></div>'+
+      '<span class="sk-karte-pfeil" aria-hidden="true">›</span></button>';
+  }
   if(r.virtual){
     return '<div class="resource-card" id="card-'+r.id+'"><div class="resource-info"><h4>'+esc(r.title)+'</h4>'+
       '<div class="resource-meta">'+(r.sikore ? 'Immer neue Kettenrechnungen · selbst kontrollieren · Quersumme als Hilfe' : 'LMVZ · '+(r.linkUrl ? 'Online-Übung' : 'öffnet in neuem Tab'))+'</div></div>'+
@@ -12602,6 +12611,7 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-09-19-sikore-direkt', datum:'2026-09-19', fuer:'alle', text:'🧮 SIKORE ist jetzt kein Ordner mehr: In Mathe einfach auf «SIKORE – Sicher Kopfrechnen» tippen, und der Trainer startet direkt.'},
   {id:'2026-09-19-sikore-ziel-tempo', datum:'2026-09-19', fuer:'alle', text:'🧮 SIKORE-Trainer: Neu mit 🎯 Wochenziel (fehlerfreie Reihen pro Woche, Ziel selbst wählbar) und ⏱ Tempo-Modus – eine Reihe gegen die Uhr, deine Bestzeit pro Level wird gespeichert. Steigst du nach einer SIKORE-Prüfung ein Level auf, wird gefeiert! 🎉'},
   {id:'2026-09-19-sikore-uebersicht-lp', datum:'2026-09-19', fuer:'lehrer', text:'📊 SIKORE-Übersicht (im SIKORE-Trainer oder unter Prüfungen): pro Schüler:in aktuelles Level mit Auf-/Abstieg, auf welchem Level geübt wird, Wochenziel, Total und Bestzeit.'},
   {id:'2026-09-19-sikore', datum:'2026-09-19', fuer:'alle', text:'🧮 Neu in Mathe: der Ordner «SIKORE – Sicher Kopfrechnen». Dort rechnest du Kettenrechnungen auf deinem Level – immer wieder neue. Am Zeilenende hilft dir die Quersumme, mit «Kontrollieren» siehst du sofort, was stimmt. Deine SIKORE-Noten findest du im 🎶 Notenrechner unter Mathematik in einem eigenen Pulldown.'},
@@ -16946,7 +16956,7 @@ function pruefDetailsLehrer(p, uid){
    gespeichert werden. Eine Reihe: Startzahl, dann laenge Rechnungen, jede
    rechnet mit dem vorherigen Ergebnis weiter; in Viererzeilen, am Zeilenende
    steht die Quersumme des Ergebnisses als Kontrollhilfe.
-   - Mathe › 🧮 SIKORE (virtueller Ordner, sikoreVirtuell): Trainer zum Üben,
+   - Mathe › 🧮 SIKORE (virtuelle Übung direkt im Fach, sikoreVirtuell): Trainer zum Üben,
      vorgewählt auf dem eigenen Level (sikoreMeinLevel), frei wechselbar.
    - Prüfungen › «🧮 Neue SIKORE-Prüfung»: pruefungen/{id} mit art 'sikore',
      levels {uid: level}, cfg {reihen, laenge, folgefehler, quersumme},
@@ -17188,13 +17198,12 @@ function sikoreStufenHtml(aktiv, eigenes){
   return h + '</div>';
 }
 
-/* ---------- Mathe › 🧮 SIKORE: virtueller Ordner + Trainer ---------- */
-var SIKORE_ORDNER = 'sikore_ordner';
+/* ---------- Mathe › 🧮 SIKORE: virtuelle Übung (direkt im Fach) + Trainer ---------- */
 function sikoreVirtuell(){
   return {
-    folders:[{id:SIKORE_ORDNER, subject:'mathe', parentId:null, name:'🧮 SIKORE – Sicher Kopfrechnen', order:-2000, virtual:true}],
-    resources:[{id:'sikore_trainer', subject:'mathe', folderId:SIKORE_ORDNER, order:0, virtual:true, sikore:true,
-      title:'🧮 SIKORE-Trainer: Kettenrechnungen auf deinem Level'}]
+    folders:[],
+    resources:[{id:'sikore_trainer', subject:'mathe', folderId:null, order:-2000, virtual:true, sikore:true,
+      title:'🧮 SIKORE – Sicher Kopfrechnen'}]
   };
 }
 // Eigenes Level (Schüler:in): jüngste SIKORE-Note (mit Auf-/Abstieg) oder
