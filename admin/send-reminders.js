@@ -93,23 +93,21 @@ async function main(){
   );
 
   // Seit Herbst 2026 hat jede Klasse ihren eigenen Kalender
-  // (klassen/{klasse}/calendarEntries). Jedes Gerät bekommt nur die Einträge
-  // der Klasse seiner Besitzerin/seines Besitzers (students/{uid}.klasse).
-  var KLASSEN = ['G3b', 'G3a', 'E1c'];
-  var bodyByKlasse = {}, entriesByKlasse = {}, entryCount = 0;
-  for(const klasse of KLASSEN){
-    var snap = await db.collection('klassen').doc(klasse).collection('calendarEntries').where('dueDate', '==', dueDate).get();
+  // (klassen/{klasse}/calendarEntries), seit 19.09.2026 auch jede FLP/ISF/
+  // Praktikums-Seite. Klassen-Einträge gehen an die Schüler:innen dieser
+  // Klasse, Gruppen-Einträge (gruppeId + mitglieder) nur an die Mitglieder —
+  // egal in welcher Klasse sie sind.
+  var seiten = await db.collection('klassen').listDocuments();
+  var entriesByKlasse = {}, gruppenEintraege = [], entryCount = 0;
+  for(const ref of seiten){
+    var snap = await ref.collection('calendarEntries').where('dueDate', '==', dueDate).get();
     entryCount += snap.size;
-    if(snap.empty) continue;
-    var lines = [];
-    entriesByKlasse[klasse] = [];
     snap.forEach(function(doc){
       var e = doc.data();
-      entriesByKlasse[klasse].push(e);
-      lines.push('• ' + (TYPE_LABELS[e.type] || e.type) + ': ' + e.title);
+      e.seite = ref.id;
+      if(e.gruppeId && Array.isArray(e.mitglieder)) gruppenEintraege.push(e);
+      else (entriesByKlasse[ref.id] = entriesByKlasse[ref.id] || []).push(e);
     });
-    bodyByKlasse[klasse] = lines.join('\n');
-    console.log('Erinnerung ' + klasse + ' für ' + dueDate + ':\n' + bodyByKlasse[klasse]);
   }
   if(!force){
     await logRef.update({ entryCount: entryCount });
@@ -119,20 +117,23 @@ async function main(){
     return;
   }
   var title = 'Morgen fällig';
+  function zeile(e){ return '• ' + (TYPE_LABELS[e.type] || e.type) + ': ' + e.title; }
 
   var studentsSnap = await db.collection('students').get();
-  var klasseByUid = {}, bodyByUid = {};
+  var bodyByUid = {};
   studentsSnap.forEach(function(d){
     var st = d.data();
-    klasseByUid[d.id] = st.klasse || 'G3b';
+    var liste = (entriesByKlasse[st.klasse || 'G3b'] || []).slice();
     // Fach-Gäste (students/{uid}.nurFach) bekommen nur Einträge ihres Fachs.
-    if(st.nurFach){
-      bodyByUid[d.id] = (entriesByKlasse[klasseByUid[d.id]] || [])
-        .filter(function(e){ return e.subject === st.nurFach; })
-        .map(function(e){ return '• ' + (TYPE_LABELS[e.type] || e.type) + ': ' + e.title; })
-        .join('\n');
-    }
+    if(st.nurFach) liste = liste.filter(function(e){ return e.subject === st.nurFach; });
+    // Gruppen-Einträge: Mitglieder + die Lehrperson(en) der Seite.
+    gruppenEintraege.forEach(function(e){
+      var dabei = e.mitglieder.indexOf(d.id) >= 0 || (st.role === 'teacher' && st.klasse === e.seite);
+      if(dabei && liste.indexOf(e) < 0) liste.push(e);
+    });
+    if(liste.length) bodyByUid[d.id] = liste.map(zeile).join('\n');
   });
+  console.log('Erinnerung für ' + dueDate + ': ' + entryCount + ' Einträge, ' + Object.keys(bodyByUid).length + ' Personen');
 
   var devicesSnap = await db.collectionGroup('devices').get();
   console.log('Registrierte Geräte: ' + devicesSnap.size);
@@ -142,7 +143,7 @@ async function main(){
     var sub = deviceDoc.data();
     if(!sub || !sub.endpoint || !sub.keys){ continue; }
     var ownerUid = deviceDoc.ref.parent.parent ? deviceDoc.ref.parent.parent.id : null;
-    var body = (ownerUid in bodyByUid) ? bodyByUid[ownerUid] : bodyByKlasse[klasseByUid[ownerUid]];
+    var body = bodyByUid[ownerUid];
     if(!body){ continue; }
     try{
       await webpush.sendNotification(

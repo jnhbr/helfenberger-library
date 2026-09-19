@@ -363,6 +363,26 @@
   .cal-res-pick label{display:flex;align-items:center;gap:8px;font-size:14px;padding:3px 0;}
   .cal-res-pick .cal-res-empty{font-size:13px;color:var(--text-muted);padding:3px 0;}
   .cal-sub-btn{margin-top:6px;margin-left:8px;}
+  .cal-gruppe-tag{display:inline-block;font-size:11.5px;font-weight:600;padding:1px 7px;border-radius:999px;background:var(--surface-2);color:var(--text-muted);margin-left:2px;}
+  .gr-hint{font-size:13px;color:var(--text-muted);margin:6px 0 10px;}
+  .gr-liste{display:flex;flex-direction:column;gap:8px;margin-bottom:6px;}
+  .gr-row{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:10px 12px;border:1px solid var(--border);border-radius:12px;}
+  .gr-row-info{display:flex;flex-direction:column;min-width:0;}
+  .gr-row-info small{color:var(--text-muted);}
+  .gr-row-actions{display:flex;gap:6px;}
+  .gr-anzahl{font-weight:400;color:var(--text-muted);}
+  .gr-chips{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 6px;max-height:140px;overflow:auto;}
+  .gr-chip{display:inline-flex;align-items:center;gap:4px;padding:3px 4px 3px 10px;border-radius:999px;background:var(--surface-2);font-size:13px;}
+  .gr-chip small{color:var(--text-muted);}
+  .gr-chip button{border:0;background:transparent;cursor:pointer;font-size:15px;line-height:1;padding:0 4px;color:inherit;}
+  .gr-leer{font-size:13px;color:var(--text-muted);}
+  .gr-klassen{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:6px;align-items:start;max-height:46vh;overflow:auto;}
+  .gr-klasse{border:1px solid var(--border);border-radius:10px;padding:6px 10px;}
+  .gr-klasse > summary{cursor:pointer;}
+  .gr-klasse .gr-cnt{color:var(--brand);font-weight:700;}
+  .gr-klasse .gr-body{margin-top:6px;}
+  .gr-schueler{display:flex;flex-direction:column;}
+  .cal-fuer-hint{font-size:12.5px;color:var(--text-muted);margin-top:4px;}
   .submission-toolbar{display:flex;justify-content:flex-end;margin-top:10px;}
   .submission-list{max-height:calc(85vh - 170px);overflow-y:auto;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:2px 16px;margin:10px 0;align-content:start;}
   .submission-row{display:flex;align-items:center;gap:8px;font-size:14.5px;padding:4px 2px;min-width:0;}
@@ -1014,6 +1034,10 @@
   .settings-list{max-height:45vh;overflow:auto;}
   .klassen-wahl{display:flex;flex-direction:column;gap:8px;}
   .klassen-wahl .btn{justify-content:flex-start;text-align:left;}
+  .klassen-wahl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));}
+  .klassen-wahl-mehr{margin-top:14px;border-top:1px solid var(--border);padding-top:10px;}
+  .klassen-wahl-mehr > summary{cursor:pointer;font-weight:600;padding:4px 0;}
+  .klassen-wahl-mehr > .klassen-wahl{margin-top:8px;}
   .topbar-badge{position:absolute;top:-3px;right:-3px;min-width:17px;height:17px;border-radius:999px;background:var(--bad);color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;padding:0 4px;}
   .topbar-offline{background:var(--bad-soft);color:var(--bad);border-radius:999px;padding:5px 12px;font-size:12px;font-weight:700;flex-shrink:0;}
   /* Kein transform:scale hier: der Knopf sitzt in einer umbrechenden Flex-Zeile,
@@ -1421,7 +1445,7 @@ import {
 import {
   initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
   getFirestore, doc, getDoc, getDocFromCache, getDocs, collection, query, where, onSnapshot, serverTimestamp, increment,
-  setDoc as fsSetDoc, updateDoc as fsUpdateDoc, deleteDoc as fsDeleteDoc, writeBatch as fsWriteBatch, Bytes
+  setDoc as fsSetDoc, updateDoc as fsUpdateDoc, deleteDoc as fsDeleteDoc, writeBatch as fsWriteBatch, Bytes, deleteField
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 
 /* =====================================================================
@@ -1625,14 +1649,40 @@ try{
    mit derselben ID in einer anderen Klasse.
    Schüler:innen sehen nur ihre Klasse (Custom Claim `klasse`, firestore.rules).
    Lehrpersonen können über den Klassen-Knopf oben in andere Klassen wechseln;
-   dort wird vor jeder Änderung nachgefragt (klasseWriteGuard). */
+   dort wird vor jeder Änderung nachgefragt (klasseWriteGuard).
+   Seit 19.09.2026 alle Sek-Klassen. Fachlehrpersonen (art 'flp'), ISF ('isf')
+   und Praktikant:innen ('praktikum') haben keine Klasse, sondern eine eigene
+   Seite mit gleichem Aufbau (klassen/flp-zweifel/... usw.); ihre Schüler:innen
+   kommen über 👥 Gruppen dazu (siehe GRUPPEN). */
+function kl(id, lp, extra){ return Object.assign({id:id, art:'klasse', lp:lp, nominativ:'deine Lehrperson', dativ:'deiner Lehrperson'}, extra || {}); }
+function seite(art, id, lp){ return {id:id, art:art, lp:lp, nominativ:'deine Lehrperson', dativ:'deiner Lehrperson'}; }
 const KLASSEN = [
-  {id:'G3b', lp:'Helfenberger', nominativ:'Herr Helfenberger', dativ:'Herrn Helfenberger'},
-  {id:'G3a', lp:'Schläpfer', nominativ:'deine Lehrperson', dativ:'deiner Lehrperson'},
-  {id:'E1c', lp:'Schoch', nominativ:'deine Lehrperson', dativ:'deiner Lehrperson'}
+  kl('G1a', 'Fischer'), kl('G1b', 'Alder / Bommeli'), kl('G2a', 'Frey'), kl('G2b', 'Straub'),
+  kl('G3a', 'Schläpfer'), kl('G3b', 'Helfenberger', {nominativ:'Herr Helfenberger', dativ:'Herrn Helfenberger'}),
+  kl('E1a', 'Stoller'), kl('E1b', 'Steinbrüchel'), kl('E1c', 'Schoch'),
+  kl('E2a', 'Städler'), kl('E2b', 'Rhiner'), kl('E2c', 'Lopez'),
+  kl('E3a', 'Rutishauser'), kl('E3b', 'Stolz'),
+  seite('flp', 'flp-zweifel', 'Zweifel'), seite('flp', 'flp-ledergerber', 'Ledergerber'), seite('flp', 'flp-weber', 'Weber'),
+  seite('flp', 'flp-giger', 'Giger'), seite('flp', 'flp-strebel', 'Strebel'), seite('flp', 'flp-herforth', 'Herforth'),
+  seite('flp', 'flp-hugentobler', 'Hugentobler'), seite('flp', 'flp-hauser', 'Hauser'), seite('flp', 'flp-rechsteiner', 'Rechsteiner'),
+  seite('flp', 'flp-gierszewski', 'Gierszewski'), seite('flp', 'flp-baechi', 'Bächi'), seite('flp', 'flp-rolfsmeyer', 'Rolfsmeyer'),
+  seite('flp', 'flp-haeberli', 'Häberli'),
+  seite('isf', 'isf-theus', 'Theus'), seite('isf', 'isf-peter', 'Peter'),
+  seite('praktikum', 'praktikum-1', 'Praktikant 1'), seite('praktikum', 'praktikum-2', 'Praktikant 2'),
+  seite('praktikum', 'praktikum-3', 'Praktikant 3'), seite('praktikum', 'praktikum-4', 'Praktikant 4')
 ];
 const KLASSE_ANSICHT_KEY = 'hl_klasseAnsicht'; // sessionStorage: gewählte Klasse der Lehrperson (nur dieser Tab)
-function klasseInfo(id){ return KLASSEN.filter(function(k){ return k.id === (id || state.klasse); })[0] || KLASSEN[0]; }
+function klasseInfo(id){
+  id = id || state.klasse;
+  return KLASSEN.filter(function(k){ return k.id === id; })[0] || kl(id || '?', '');
+}
+function istKlasse(id){ return klasseInfo(id).art === 'klasse'; }
+// Anzeigename: Klassen mit Kürzel (G3b), die übrigen Seiten mit Namen (Zweifel · FLP).
+function klasseLabel(id){
+  var k = klasseInfo(id);
+  if(k.art === 'klasse') return k.id;
+  return k.lp + (k.art === 'isf' ? ' · ISF' : k.art === 'flp' ? ' · FLP' : '');
+}
 function lpNominativ(){ return klasseInfo().nominativ; }
 function lpDativ(){ return klasseInfo().dativ; }
 function kdoc(){ return doc.apply(null, [db, 'klassen', state.klasse].concat([].slice.call(arguments))); }
@@ -1707,11 +1757,11 @@ function klasseWriteGuard(refs){
     ov.style.zIndex = '4000';
     ov.innerHTML = '<div class="modal" role="dialog" aria-modal="true">'+
       '<h3>⚠️ Richtige Klasse?</h3>'+
-      '<p>Du bist gerade in der Klasse <b>'+esc(state.klasse)+'</b>, nicht in deiner eigenen Klasse ('+esc(state.profile.klasse)+'). '+
-      'Soll die Änderung wirklich in der <b>'+esc(state.klasse)+'</b> gespeichert werden?</p>'+
+      '<p>Du bist gerade in <b>'+esc(klasseLabel())+'</b>, nicht auf deiner eigenen Seite ('+esc(klasseLabel(state.profile.klasse))+'). '+
+      'Soll die Änderung wirklich in <b>'+esc(klasseLabel())+'</b> gespeichert werden?</p>'+
       '<div class="modal-actions">'+
         '<button class="btn btn-ghost btn-sm" data-a="no" type="button">Abbrechen</button>'+
-        '<button class="btn btn-primary btn-sm" data-a="yes" type="button">Ja, in '+esc(state.klasse)+' speichern</button>'+
+        '<button class="btn btn-primary btn-sm" data-a="yes" type="button">Ja, in '+esc(klasseLabel())+' speichern</button>'+
       '</div></div>';
     (document.fullscreenElement || document.body).appendChild(ov);
     function done(ok){
@@ -1949,24 +1999,30 @@ async function loadCalendarEntries(){
 function eigeneEintraegeCol(){ return collection(db, 'progress', state.user.uid, 'eigeneEintraege'); }
 
 function calendarEntryRef(entry){
-  return entry.private ? doc(eigeneEintraegeCol(), entry.id) : kdoc('calendarEntries', entry.id);
+  if(entry.private) return doc(eigeneEintraegeCol(), entry.id);
+  return entry.quelle ? kdocFor(entry.quelle, 'calendarEntries', entry.id) : kdoc('calendarEntries', entry.id);
 }
 
 // Klassen-Einträge + (für Schüler:innen) die eigenen, gemeinsam sortiert.
 async function loadMyCalendarEntries(){
   var jobs = [loadCalendarEntries()];
-  if(state.profile.role !== 'teacher'){
+  var schueler = state.profile.role !== 'teacher';
+  if(schueler){
     jobs.push(getDocs(eigeneEintraegeCol()).then(function(snap){
       var out = [];
       snap.forEach(function(d){ out.push(Object.assign({id:d.id}, d.data(), {private:true})); });
       return out;
     }).catch(function(err){ console.error('Eigene Einträge nicht lesbar', err); return []; }));
+    // Einträge meiner Gruppen auf den Seiten anderer Lehrpersonen (👥 GRUPPEN).
+    if(!isLeitung()) jobs.push(loadGruppenEintraege().catch(function(err){ console.error(err); return []; }));
   }
   var res = await Promise.all(jobs);
+  // Gruppen-Einträge der eigenen Klasse nur, wenn man in der Gruppe ist.
+  if(schueler && !isLeitung()) res[0] = res[0].filter(eintragFuerMich);
   // Fach-Gäste (z.B. nur in Mathe dabei) sehen von der Klasse nur ihr Fach.
-  var nurFach = state.profile.role !== 'teacher' && state.profile.nurFach;
+  var nurFach = schueler && state.profile.nurFach;
   if(nurFach) res[0] = res[0].filter(function(e){ return e.subject === nurFach; });
-  var all = res[0].concat(res[1] || []);
+  var all = res[0].concat(res[1] || [], res[2] || []);
   all.sort(function(a,b){
     if(a.dueDate !== b.dueDate) return (a.dueDate||'').localeCompare(b.dueDate||'');
     return (a.createdAt && a.createdAt.toMillis ? a.createdAt.toMillis() : 0) - (b.createdAt && b.createdAt.toMillis ? b.createdAt.toMillis() : 0);
@@ -2028,13 +2084,15 @@ function calendarEntryLineHtml(e, isTeacher, roster){
   html += '<div class="cal-entry-date">'+fmtDueDate(e.dueDate)+'<span class="cal-entry-weekday">'+esc(weekdayLabel(e.dueDate))+'</span></div>';
   html += '<div class="cal-entry-body">';
   html += '<div class="cal-entry-title"><span class="cal-entry-type">'+meta.icon+' '+esc(meta.label)+'</span>'+(s?' · '+esc(s.name):'')+
+    (e.gruppeName ? ' <span class="cal-gruppe-tag" title="Nur für diese Gruppe">👥 '+esc(e.gruppeName)+'</span>' : '')+
+    (e.quelle ? ' <span class="cal-gruppe-tag">'+esc(klasseInfo(e.quelle).lp)+'</span>' : '')+
     (e.private ? ' <span class="cal-private-tag" title="Diesen Eintrag siehst nur du">🔒 nur für dich</span>' : '')+'</div>';
   html += '<div class="cal-entry-text">'+esc(e.title)+'</div>';
   if(e.description){ html += '<div class="cal-entry-desc">'+esc(e.description)+'</div>'; }
   var links = calendarEntryResources(e);
   if(links.length){
     var linksHtml = '<div class="cal-res-links">' + links.map(function(l){
-      return '<button class="btn btn-ghost btn-sm cal-open-res-btn" type="button" data-resource-id="'+esc(l.id)+'">▶ '+(l.title ? esc(l.title) : 'Zur Übung')+'</button>';
+      return '<button class="btn btn-ghost btn-sm cal-open-res-btn" type="button" data-resource-id="'+esc(l.id)+'"'+(e.quelle ? ' data-klasse="'+esc(e.quelle)+'"' : '')+'>▶ '+(l.title ? esc(l.title) : 'Zur Übung')+'</button>';
     }).join('') + '</div>';
     // Ab zwei Links zusammengeklappt, sonst wird der Eintrag unübersichtlich.
     html += links.length >= 2
@@ -2126,6 +2184,7 @@ function uiCalendarEntryForm(existing, onSaved){
     (isPrivate ? '<p>🔒 Diesen Eintrag siehst nur du.</p>' : '')+
     '<label class="modal-label">Art</label><select id="calType">'+typeOptions+'</select>'+
     '<label class="modal-label">Fach</label><select id="calSubject">'+subjectOptions+'</select>'+
+    (isPrivate ? '' : '<label class="modal-label">Für</label><select id="calFuer"></select><div class="cal-fuer-hint" id="calFuerHint"></div>')+
     '<label class="modal-label">Titel</label><input type="text" id="calTitle" maxlength="120" value="'+esc(existing?existing.title:'')+'" placeholder="z.B. Seite 42, Aufgabe 3–5">'+
     '<label class="modal-label">Datum</label><input type="date" id="calDate" value="'+esc(existing?existing.dueDate:todayStr())+'">'+
     '<label class="modal-label">Details (optional)</label><textarea id="calDesc" rows="3" maxlength="500" placeholder="Weitere Angaben …">'+esc(existing?existing.description||'':'')+'</textarea>'+
@@ -2183,7 +2242,39 @@ function uiCalendarEntryForm(existing, onSaved){
     }
   });
   loadResourceOptionsFor(subjectEl.value);
-  subjectEl.addEventListener('change', function(){ selectedLinks = {}; selectedOrder = []; loadResourceOptionsFor(subjectEl.value); });
+  subjectEl.addEventListener('change', function(){ selectedLinks = {}; selectedOrder = []; loadResourceOptionsFor(subjectEl.value); fuerFuellen(); });
+
+  // «Für»: ganze Klasse oder eine meiner Gruppen im gewählten Fach (👥 GRUPPEN).
+  // Nur Gruppen, die zu dieser Seite gehören — dort liegen ihre Einträge.
+  var fuerEl = document.getElementById('calFuer');
+  var fuerHint = document.getElementById('calFuerHint');
+  var seiteId = existing && existing.quelle ? existing.quelle : state.klasse;
+  var ganzeKlasseMoeglich = istKlasse(seiteId);
+  var meineGruppen = [];
+  function fuerKey(){ return LIB_PREFIX+'fuer_'+seiteId+'_'+(subjectEl.value || '-'); }
+  function fuerFuellen(){
+    if(!fuerEl) return;
+    var passend = meineGruppen.filter(function(g){ return g.fach === subjectEl.value && (g.ownerKlasse || state.profile.klasse) === seiteId; });
+    var h = ganzeKlasseMoeglich ? '<option value="">Ganze Klasse '+esc(seiteId)+'</option>' : '';
+    h += passend.map(function(g){ return '<option value="'+esc(g.id)+'">👥 '+esc(g.name)+' ('+(g.mitglieder||[]).length+')</option>'; }).join('');
+    if(existing && existing.gruppeId && !passend.some(function(g){ return g.id === existing.gruppeId; })){
+      h += '<option value="'+esc(existing.gruppeId)+'">👥 '+esc(existing.gruppeName || 'Gruppe')+' (bisher)</option>';
+    }
+    if(!h) h = '<option value="">— keine Gruppe in diesem Fach —</option>';
+    fuerEl.innerHTML = h;
+    var wunsch = existing ? (existing.gruppeId || '') : lsGet(fuerKey());
+    if(wunsch !== null && fuerEl.querySelector('option[value="'+(window.CSS && CSS.escape ? CSS.escape(wunsch) : wunsch)+'"]')) fuerEl.value = wunsch;
+    if(fuerHint){
+      fuerHint.textContent = !subjectEl.value ? 'Gruppen gibt es pro Fach – zuerst ein Fach wählen.'
+        : (!passend.length ? 'Noch keine Gruppe für dieses Fach – im Kalender unter «👥 Gruppen» anlegen.' : '');
+    }
+  }
+  if(fuerEl){
+    fuerFuellen();
+    if(state.profile.role === 'teacher' && !isLeitung()){
+      loadMeineGruppen().then(function(list){ meineGruppen = list; fuerFuellen(); }).catch(function(err){ console.error(err); });
+    }
+  }
 
   document.getElementById('modalOk').addEventListener('click', async function(){
     var errEl = document.getElementById('calErr');
@@ -2200,6 +2291,17 @@ function uiCalendarEntryForm(existing, onSaved){
     if(!title){ errEl.textContent='Bitte einen Titel eingeben.'; errEl.classList.add('show'); titleEl.focus(); return; }
     if(!dueDate){ errEl.textContent='Bitte ein Datum wählen.'; errEl.classList.add('show'); return; }
     var data = { type:type, subject:subject, title:title.slice(0,120), description:description.slice(0,500), dueDate:dueDate, resourceId:resourceId, resourceTitle:resourceTitle, resources:resources };
+    if(fuerEl){
+      var gid = fuerEl.value;
+      if(!gid && !ganzeKlasseMoeglich){ errEl.textContent='Bitte eine Gruppe wählen (unter «👥 Gruppen» im Kalender anlegen).'; errEl.classList.add('show'); return; }
+      var gruppe = meineGruppen.filter(function(g){ return g.id === gid; })[0];
+      if(gruppe){
+        data.gruppeId = gruppe.id; data.gruppeName = gruppe.name; data.mitglieder = (gruppe.mitglieder || []).slice();
+      } else if(!gid && existing && existing.gruppeId){
+        data.gruppeId = deleteField(); data.gruppeName = deleteField(); data.mitglieder = deleteField();
+      }
+      if(!existing) lsSet(fuerKey(), gid);
+    }
     try{
       if(existing){
         await setDoc(calendarEntryRef(existing), data, {merge:true});
@@ -2232,6 +2334,13 @@ async function loadStudentRoster(){
     if((data.username||'').toLowerCase() === 'schueler') return;
     students.push(Object.assign({uid:d.id}, data));
   });
+  // Lehrperson: Mitglieder der Gruppen dieser Seite aus anderen Klassen als Gäste.
+  if(state.profile.role === 'teacher'){
+    var da = {};
+    students.forEach(function(s){ da[s.uid] = true; });
+    try{ students = students.concat(await gruppenGaeste(state.klasse, da)); }
+    catch(err){ console.error('Gruppen-Gäste nicht ladbar', err); }
+  }
   students.sort(function(a,b){ return (a.displayName||'').localeCompare(b.displayName||'', 'de'); });
   return students;
 }
@@ -2251,7 +2360,7 @@ function ohneGaeste(list){ return (list||[]).filter(function(s){ return !gastFac
 function hatGaeste(list){ return (list||[]).some(function(s){ return !!gastFach(s); }); }
 // Wer gehört zu einem Kalender-Eintrag bzw. einer Übung dieses Fachs?
 function rosterFuerFach(list, subject){
-  return (list||[]).filter(function(s){ var f = gastFach(s); return !f || f === subject; });
+  return (list||[]).filter(function(s){ var f = gastFach(s); return !f || f === subject || (s.gastFaecher||[]).indexOf(subject) >= 0; });
 }
 function gaesteDabei(){ return lsGet(LIB_PREFIX+'gaeste_an') === '1'; }
 function gaesteOptional(list){ return gaesteDabei() ? (list||[]) : ohneGaeste(list); }
@@ -2272,20 +2381,392 @@ function wireGaesteToggle(btn, onChange){
   });
 }
 
+/* ===================== 👥 GRUPPEN =====================
+   Jede Lehrperson (auch FLP, ISF, Praktikum) bildet pro Fach eigene Gruppen
+   aus Schüler:innen beliebiger Klassen. gruppen/{id}:
+     {ownerUid, ownerName, ownerKlasse (Seite der LP), fach, name,
+      mitglieder:[uid], namen:{uid:{n:Vorname, nn:Nachname, u:Benutzername, k:Klasse}},
+      createdAt, updatedAt}
+   Kalender-Einträge für eine Gruppe liegen auf der Seite der Lehrperson
+   (klassen/{ownerKlasse}/calendarEntries) mit gruppeId, gruppeName und einer
+   KOPIE von mitglieder — darüber finden Schüler:innen anderer Klassen sie
+   (where('mitglieder','array-contains', uid), siehe firestore.rules). Ändert
+   sich eine Gruppe, werden die mitglieder all ihrer Einträge nachgeführt.
+   Mitglieder aus anderen Klassen erscheinen auf der Seite der Lehrperson wie
+   Fach-Gäste (nurFach/gastFaecher = Fach der Gruppe, gruppenGast:true): in
+   Abgabe-Checkliste, Lernstand, Sitzplan (von Hand), Namen-Spielen (👭).
+   Wer in einer Gruppe ist, sieht zusätzlich im Fach die Übungen der Seite der
+   Lehrperson (Route 'gruppenfach'). */
+function gruppenCol(){ return collection(db, 'gruppen'); }
+var gruppenCache = { member:null, memberUid:null };
+
+function gruppenSort(list){
+  list.sort(function(a,b){
+    return subjectName(a.fach).localeCompare(subjectName(b.fach), 'de') || (a.name||'').localeCompare(b.name||'', 'de');
+  });
+  return list;
+}
+function gruppenAusSnap(snap){
+  var out = [];
+  snap.forEach(function(d){ out.push(Object.assign({id:d.id}, d.data())); });
+  return gruppenSort(out);
+}
+function loadMeineGruppen(){
+  return getDocs(query(gruppenCol(), where('ownerUid','==',state.user.uid))).then(gruppenAusSnap);
+}
+function loadSeitenGruppen(klasse){
+  return getDocs(query(gruppenCol(), where('ownerKlasse','==',klasse))).then(gruppenAusSnap);
+}
+// Schüler:in: in welchen Gruppen bin ich? (einmal pro Sitzung)
+function loadMitgliedGruppen(force){
+  if(!force && gruppenCache.member && gruppenCache.memberUid === state.user.uid) return Promise.resolve(gruppenCache.member);
+  return getDocs(query(gruppenCol(), where('mitglieder','array-contains', state.user.uid))).then(function(snap){
+    gruppenCache.member = gruppenAusSnap(snap);
+    gruppenCache.memberUid = state.user.uid;
+    return gruppenCache.member;
+  }).catch(function(err){ console.error('Gruppen nicht lesbar', err); return []; });
+}
+
+// Gehört diese Schüler:in zu einem Kalender-Eintrag (bzw. dessen Abgabe-Checkliste)?
+function gehoertZuEintrag(stu, e){
+  if(e && e.gruppeId && Array.isArray(e.mitglieder)) return e.mitglieder.indexOf(stu.uid) >= 0;
+  if(stu.gruppenGast) return false;              // Gäste sehen nur Einträge ihrer Gruppe
+  var f = gastFach(stu);
+  return !f || f === (e && e.subject);
+}
+function rosterFuerEintrag(list, e){ return (list||[]).filter(function(s){ return gehoertZuEintrag(s, e); }); }
+// Schüler:innen-Sicht: Gruppen-Einträge der eigenen Klasse nur, wenn man dabei ist.
+function eintragFuerMich(e){
+  return !(e.gruppeId && Array.isArray(e.mitglieder)) || e.mitglieder.indexOf(state.user.uid) >= 0;
+}
+
+// Einträge meiner Gruppen, die auf Seiten ANDERER Lehrpersonen liegen.
+async function loadGruppenEintraege(){
+  var gruppen = await loadMitgliedGruppen();
+  var seiten = [];
+  gruppen.forEach(function(g){
+    if(g.ownerKlasse && g.ownerKlasse !== state.klasse && seiten.indexOf(g.ownerKlasse) < 0) seiten.push(g.ownerKlasse);
+  });
+  var res = await Promise.all(seiten.map(function(k){
+    return getDocs(query(kcolFor(k, 'calendarEntries'), where('mitglieder','array-contains', state.user.uid))).then(function(snap){
+      var out = [];
+      snap.forEach(function(d){ out.push(Object.assign({id:d.id}, d.data(), {quelle:k})); });
+      return out;
+    }).catch(function(err){ console.error('Gruppen-Einträge nicht lesbar ('+k+')', err); return []; });
+  }));
+  return [].concat.apply([], res);
+}
+
+// Mitglieder aus anderen Klassen als Gäste für den Roster der Seite `klasse`.
+async function gruppenGaeste(klasse, schonDa){
+  var gruppen = await loadSeitenGruppen(klasse);
+  var gaeste = {};
+  gruppen.forEach(function(g){
+    (g.mitglieder || []).forEach(function(uid){
+      if(schonDa[uid]) return;
+      var n = (g.namen || {})[uid] || {};
+      var gs = gaeste[uid];
+      if(!gs){
+        gs = gaeste[uid] = { uid:uid, vorname:n.n || '?', nachname:n.nn || '', username:n.u || '', klasse:n.k || '',
+                             role:'student', nurFach:g.fach, gastFaecher:[], gruppenGast:true };
+      }
+      if(gs.gastFaecher.indexOf(g.fach) < 0) gs.gastFaecher.push(g.fach);
+    });
+  });
+  var list = Object.keys(gaeste).map(function(uid){ return gaeste[uid]; });
+  // «Elena (E3b)»; bei gleichem Vornamen + Klasse zusätzlich die Initiale.
+  var zaehl = {};
+  list.forEach(function(s){ var key = s.vorname+'|'+s.klasse; zaehl[key] = (zaehl[key]||0) + 1; });
+  list.forEach(function(s){
+    var doppelt = zaehl[s.vorname+'|'+s.klasse] > 1 && s.nachname;
+    s.displayName = s.vorname + (doppelt ? ' '+s.nachname.charAt(0)+'.' : '') + (s.klasse ? ' ('+s.klasse+')' : '');
+  });
+  return list;
+}
+
+function gruppeKurz(g){
+  return subjectName(g.fach)+' · '+(g.mitglieder||[]).length+' Schüler:innen';
+}
+
+function openGruppenVerwaltung(onChanged){
+  onChanged = onChanged || function(){};
+  openModal(
+    '<h3>👥 Meine Gruppen</h3>'+
+    '<p class="gr-hint">Pro Fach eigene Gruppen – auch aus mehreren Klassen. Postest du eine Hausaufgabe für eine Gruppe, sehen sie alle Schüler:innen dieser Gruppe (und im Fach deine Übungen).</p>'+
+    '<div id="grListe" class="gr-liste"><div class="empty-state">Wird geladen …</div></div>'+
+    '<div class="modal-actions"><button class="btn btn-ghost btn-sm" id="modalCancel" type="button">Schliessen</button>'+
+    '<button class="btn btn-primary btn-sm" id="grNeuBtn" type="button">+ Neue Gruppe</button></div>',
+    'modal-wide'
+  );
+  document.getElementById('modalCancel').addEventListener('click', function(){ closeModal(); onChanged(); });
+  document.getElementById('grNeuBtn').addEventListener('click', function(){ openGruppeEditor(null, onChanged); });
+  loadMeineGruppen().then(function(list){
+    var box = document.getElementById('grListe');
+    if(!box) return;
+    if(!list.length){ box.innerHTML = '<div class="empty-state">Noch keine Gruppen. Leg unten die erste an.</div>'; return; }
+    box.innerHTML = list.map(function(g){
+      return '<div class="gr-row"><div class="gr-row-info"><b>'+esc(g.name)+'</b><small>'+esc(gruppeKurz(g))+
+        (g.ownerKlasse && g.ownerKlasse !== state.profile.klasse ? ' · Seite '+esc(klasseLabel(g.ownerKlasse)) : '')+'</small></div>'+
+        '<div class="gr-row-actions"><button class="btn btn-ghost btn-sm" type="button" data-gr-edit="'+esc(g.id)+'">Bearbeiten</button>'+
+        '<button class="btn btn-ghost btn-sm" type="button" data-gr-del="'+esc(g.id)+'">Löschen</button></div></div>';
+    }).join('');
+    box.querySelectorAll('[data-gr-edit]').forEach(function(b){
+      b.addEventListener('click', function(){
+        var g = list.find(function(x){ return x.id === b.getAttribute('data-gr-edit'); });
+        if(g) openGruppeEditor(g, onChanged);
+      });
+    });
+    box.querySelectorAll('[data-gr-del]').forEach(function(b){
+      b.addEventListener('click', function(){
+        var g = list.find(function(x){ return x.id === b.getAttribute('data-gr-del'); });
+        if(!g) return;
+        uiConfirm('Gruppe «'+g.name+'» löschen?', 'Bisherige Einträge für diese Gruppe bleiben in deinem Kalender, sind für die Schüler:innen aus anderen Klassen aber nicht mehr sichtbar.', 'Löschen', async function(){
+          try{ await deleteDoc(doc(gruppenCol(), g.id)); toast('Gruppe gelöscht.'); }
+          catch(err){ console.error(err); toast('Löschen fehlgeschlagen.'); }
+          openGruppenVerwaltung(onChanged);
+        }, true);
+      });
+    });
+  }).catch(function(err){
+    console.error(err);
+    var box = document.getElementById('grListe');
+    if(box) box.innerHTML = '<div class="empty-state">Gruppen konnten nicht geladen werden.</div>';
+  });
+}
+
+var gruppenRosterCache = {};   // Klasse -> Schüler:innen (nur für den Editor)
+function klassenListeFuerGruppe(klasse){
+  if(gruppenRosterCache[klasse]) return Promise.resolve(gruppenRosterCache[klasse]);
+  return getDocs(query(collection(db,'students'), where('klasse','==',klasse))).then(function(snap){
+    var out = [];
+    snap.forEach(function(d){
+      var s = d.data();
+      if(s.role !== 'student' || (s.username||'').toLowerCase() === 'schueler') return;
+      out.push({ uid:d.id, n:s.displayName || s.username || '?', nn:s.nachname || '', u:s.username || '', k:klasse });
+    });
+    out.sort(function(a,b){ return a.n.localeCompare(b.n, 'de') || a.nn.localeCompare(b.nn, 'de'); });
+    gruppenRosterCache[klasse] = out;
+    return out;
+  });
+}
+
+function openGruppeEditor(g, onChanged){
+  var sel = {};
+  if(g) (g.mitglieder || []).forEach(function(uid){ sel[uid] = (g.namen || {})[uid] || {n:'?', nn:'', u:'', k:''}; });
+  var fach = g ? g.fach : '';
+  var fachOpts = '<option value="">— Fach wählen —</option>' + SUBJECTS.filter(function(s){ return !s.teacherOnly; }).map(function(s){
+    return '<option value="'+s.id+'"'+(fach === s.id ? ' selected' : '')+'>'+esc(s.name)+'</option>';
+  }).join('');
+  var klassen = KLASSEN.filter(function(k){ return k.art === 'klasse'; });
+  openModal(
+    '<h3>'+(g ? 'Gruppe bearbeiten' : 'Neue Gruppe')+'</h3>'+
+    '<label class="modal-label">Name</label><input type="text" id="grName" maxlength="60" placeholder="z.B. Französisch Niveau A" value="'+esc(g ? g.name : '')+'">'+
+    '<label class="modal-label">Fach</label><select id="grFach">'+fachOpts+'</select>'+
+    '<label class="modal-label">Schüler:innen <span id="grAnzahl" class="gr-anzahl"></span></label>'+
+    '<div class="gr-chips" id="grChips"></div>'+
+    '<p class="gr-hint">Klasse aufklappen und Schüler:innen ankreuzen – auch aus mehreren Klassen.</p>'+
+    '<div class="gr-klassen">'+klassen.map(function(k){
+      return '<details class="gr-klasse" data-k="'+esc(k.id)+'"><summary><b>'+esc(k.id)+'</b> · '+esc(k.lp)+' <span class="gr-cnt" data-cnt="'+esc(k.id)+'"></span></summary>'+
+        '<div class="gr-body"><div class="empty-state">Wird geladen …</div></div></details>';
+    }).join('')+'</div>'+
+    '<div class="login-err" id="grErr"></div>'+
+    '<div class="modal-actions"><button class="btn btn-ghost btn-sm" id="modalCancel" type="button">Abbrechen</button>'+
+    '<button class="btn btn-primary btn-sm" id="modalOk" type="button">Speichern</button></div>',
+    'modal-wide'
+  );
+  var chipsEl = document.getElementById('grChips');
+  function malen(){
+    var uids = Object.keys(sel);
+    document.getElementById('grAnzahl').textContent = uids.length ? '('+uids.length+' ausgewählt)' : '';
+    uids.sort(function(a,b){ return (sel[a].k+sel[a].n).localeCompare(sel[b].k+sel[b].n, 'de'); });
+    chipsEl.innerHTML = uids.length ? uids.map(function(uid){
+      var s = sel[uid];
+      return '<span class="gr-chip">'+esc(s.n)+(s.nn ? ' '+esc(s.nn.charAt(0))+'.' : '')+' <small>'+esc(s.k)+'</small>'+
+        '<button type="button" data-gr-weg="'+esc(uid)+'" title="Entfernen" aria-label="Entfernen">×</button></span>';
+    }).join('') : '<span class="gr-leer">Noch niemand ausgewählt.</span>';
+    klassen.forEach(function(k){
+      var n = uids.filter(function(uid){ return sel[uid].k === k.id; }).length;
+      var el = modalEl.querySelector('[data-cnt="'+k.id+'"]');
+      if(el) el.textContent = n ? '('+n+')' : '';
+    });
+    modalEl.querySelectorAll('.gr-check').forEach(function(cb){ cb.checked = !!sel[cb.value]; });
+  }
+  chipsEl.addEventListener('click', function(ev){
+    var b = ev.target.closest && ev.target.closest('[data-gr-weg]');
+    if(!b) return;
+    delete sel[b.getAttribute('data-gr-weg')];
+    malen();
+  });
+  modalEl.querySelectorAll('.gr-klasse').forEach(function(det){
+    det.addEventListener('toggle', function(){
+      if(!det.open || det.getAttribute('data-geladen')) return;
+      det.setAttribute('data-geladen', '1');
+      var k = det.getAttribute('data-k'), body = det.querySelector('.gr-body');
+      klassenListeFuerGruppe(k).then(function(list){
+        if(!list.length){ body.innerHTML = '<div class="empty-state">Keine Schüler:innen gefunden.</div>'; return; }
+        body.innerHTML = '<div class="submission-toolbar"><button class="btn btn-ghost btn-sm" type="button" data-alle="1">☑ Ganze Klasse</button>'+
+          '<button class="btn btn-ghost btn-sm" type="button" data-alle="0">☐ Niemand</button></div>'+
+          '<div class="gr-schueler">'+list.map(function(s){
+            return '<label class="submission-row"><input type="checkbox" class="gr-check" value="'+esc(s.uid)+'"'+(sel[s.uid]?' checked':'')+'> <span>'+esc(s.n)+' '+esc(s.nn)+'</span></label>';
+          }).join('')+'</div>';
+        var byUid = {};
+        list.forEach(function(s){ byUid[s.uid] = s; });
+        body.addEventListener('change', function(ev){
+          var cb = ev.target;
+          if(!cb.classList || !cb.classList.contains('gr-check')) return;
+          var s = byUid[cb.value];
+          if(cb.checked) sel[s.uid] = {n:s.n, nn:s.nn, u:s.u, k:s.k}; else delete sel[s.uid];
+          malen();
+        });
+        body.querySelectorAll('[data-alle]').forEach(function(b){
+          b.addEventListener('click', function(){
+            var an = b.getAttribute('data-alle') === '1';
+            list.forEach(function(s){ if(an) sel[s.uid] = {n:s.n, nn:s.nn, u:s.u, k:s.k}; else delete sel[s.uid]; });
+            malen();
+          });
+        });
+      }).catch(function(err){ console.error(err); body.innerHTML = '<div class="empty-state">Klasse konnte nicht geladen werden.</div>'; });
+    });
+  });
+  malen();
+  document.getElementById('modalCancel').addEventListener('click', function(){ openGruppenVerwaltung(onChanged); });
+  document.getElementById('modalOk').addEventListener('click', async function(){
+    var errEl = document.getElementById('grErr');
+    errEl.classList.remove('show');
+    var name = document.getElementById('grName').value.trim();
+    var fachNeu = document.getElementById('grFach').value;
+    var uids = Object.keys(sel);
+    function fehler(t){ errEl.textContent = t; errEl.classList.add('show'); }
+    if(!name) return fehler('Bitte einen Namen eingeben.');
+    if(!fachNeu) return fehler('Bitte ein Fach wählen.');
+    if(!uids.length) return fehler('Bitte mindestens eine Schüler:in auswählen.');
+    if(uids.length > 400) return fehler('Höchstens 400 Schüler:innen pro Gruppe.');
+    var btn = document.getElementById('modalOk');
+    btn.disabled = true;
+    var id = g ? g.id : 'grp_'+Date.now()+'_'+Math.random().toString(36).slice(2,8);
+    var ownerKlasse = (g && g.ownerKlasse) || state.profile.klasse;
+    var data = {
+      ownerUid: state.user.uid, ownerName: state.profile.displayName || state.profile.username || '',
+      ownerKlasse: ownerKlasse, fach: fachNeu, name: name.slice(0, 60),
+      mitglieder: uids, namen: sel,
+      createdAt: (g && g.createdAt) || serverTimestamp(), updatedAt: serverTimestamp()
+    };
+    try{
+      // Ganz ersetzen (kein merge): sonst blieben entfernte Namen in der Map stehen.
+      await setDoc(doc(gruppenCol(), id), data);
+      if(g) await gruppeEintraegeNachfuehren(id, ownerKlasse, data);
+      toast(g ? 'Gruppe gespeichert.' : 'Gruppe «'+data.name+'» angelegt.');
+      klasseRosterReset();
+      openGruppenVerwaltung(onChanged);
+    }catch(err){
+      console.error(err);
+      btn.disabled = false;
+      fehler('Konnte nicht gespeichert werden.');
+    }
+  });
+}
+
+function klasseRosterReset(){ klasseRoster.loaded = false; }
+
+// Mitglieder/Name in allen Kalender-Einträgen der Gruppe nachführen.
+async function gruppeEintraegeNachfuehren(id, ownerKlasse, data){
+  var snap = await getDocs(query(kcolFor(ownerKlasse, 'calendarEntries'), where('gruppeId','==',id)));
+  if(snap.empty) return;
+  var docs = [];
+  snap.forEach(function(d){ docs.push(d.ref); });
+  for(var i = 0; i < docs.length; i += 400){
+    var b = writeBatch();
+    docs.slice(i, i+400).forEach(function(ref){ b.update(ref, { mitglieder:data.mitglieder, gruppeName:data.name }); });
+    await b.commit();
+  }
+}
+
+// Schüler:innen-Sicht im Fach: Übungen der Lehrpersonen meiner Gruppen.
+function gruppenFachHtmlLaden(subjectId){
+  var box = document.getElementById('gruppenFach');
+  if(!box || state.profile.role === 'teacher') return;
+  loadMitgliedGruppen().then(function(list){
+    var hier = list.filter(function(g){ return g.fach === subjectId && g.ownerKlasse && g.ownerKlasse !== state.klasse; });
+    if(!hier.length || !document.getElementById('gruppenFach')) return;
+    box.innerHTML = '<div class="section-label">👥 Deine Gruppen</div>' + hier.map(function(g){
+      return '<div class="resource-card"><div class="resource-info"><h4>'+esc(g.name)+'</h4>'+
+        '<div class="resource-meta">Übungen von '+esc(g.ownerName || klasseInfo(g.ownerKlasse).lp)+'</div></div>'+
+        '<div class="resource-actions"><button class="btn btn-primary btn-sm" type="button" data-grfach="'+esc(g.id)+'">Öffnen</button></div></div>';
+    }).join('');
+    box.querySelectorAll('[data-grfach]').forEach(function(b){
+      b.addEventListener('click', function(){
+        state.route = {name:'gruppenfach', gruppeId:b.getAttribute('data-grfach'), subject:subjectId};
+        render();
+      });
+    });
+  });
+}
+
+function renderGruppenFach(){
+  clearOverviewWatchers(); clearSubjectWatchers(); unwatchAllProgress();
+  var r = state.route, s = subjectById(r.subject);
+  var html = '<div class="back-row"><button class="btn btn-ghost btn-sm" id="backBtn">&larr; '+esc(s ? s.name : 'Zurück')+'</button></div>';
+  html += '<h2 id="grFachTitel">👥 Gruppe</h2>';
+  html += '<div id="resourceList" class="resource-list"><div class="empty-state">Wird geladen …</div></div>';
+  renderChrome(html);
+  document.getElementById('backBtn').addEventListener('click', function(){ goSubject(r.subject); });
+  loadMitgliedGruppen().then(async function(list){
+    var g = list.find(function(x){ return x.id === r.gruppeId; });
+    var listEl = document.getElementById('resourceList');
+    if(!listEl) return;
+    if(!g){ listEl.innerHTML = '<div class="empty-state">Diese Gruppe gibt es nicht mehr.</div>'; return; }
+    var t = document.getElementById('grFachTitel');
+    if(t) t.textContent = '👥 '+g.name+' · '+(g.ownerName || klasseInfo(g.ownerKlasse).lp);
+    var res = await Promise.all([
+      getDocs(query(kcolFor(g.ownerKlasse, 'folders'), where('subject','==',g.fach))),
+      getDocs(query(kcolFor(g.ownerKlasse, 'resources'), where('subject','==',g.fach)))
+    ]);
+    if(state.route.name !== 'gruppenfach' || state.route.gruppeId !== g.id) return;
+    var folders = {}, resources = [];
+    res[0].forEach(function(d){ folders[d.id] = Object.assign({id:d.id}, d.data()); });
+    res[1].forEach(function(d){ resources.push(Object.assign({id:d.id}, d.data())); });
+    if(!resources.length){ listEl.innerHTML = '<div class="empty-state">Hier gibt es noch keine Übungen.</div>'; return; }
+    function pfad(fid){
+      var teile = [], guard = 0, f = folders[fid];
+      while(f && guard++ < 20){ teile.unshift(f.name); f = folders[f.parentId]; }
+      return teile.join(' / ');
+    }
+    var gruppiert = {};
+    resources.forEach(function(x){ var p = x.folderId ? pfad(x.folderId) : ''; (gruppiert[p] = gruppiert[p] || []).push(x); });
+    var html = '';
+    Object.keys(gruppiert).sort(function(a,b){ return a.localeCompare(b, 'de'); }).forEach(function(p){
+      var liste = gruppiert[p];
+      sortResources(liste);
+      if(p) html += '<div class="section-label">📁 '+esc(p)+'</div>';
+      html += liste.map(function(x){ return resourceCardHtml(x, 0, 1, false); }).join('');
+    });
+    listEl.innerHTML = html;
+    resources.forEach(function(x){
+      if(!x.pdf && !x.externalUrl) watchProgress(x.id, function(p){ updateResourceBar(x.id, p); });
+      var b = document.getElementById('open-'+x.id);
+      if(b) b.addEventListener('click', function(){ goResource(x); });
+    });
+  }).catch(function(err){
+    console.error(err);
+    var listEl = document.getElementById('resourceList');
+    if(listEl) listEl.innerHTML = '<div class="empty-state">Übungen konnten nicht geladen werden.</div>';
+  });
+}
+
 // Abgabe-Checkliste (nur Lehrperson): pro Hausaufgaben-Eintrag ankreuzen, wer
 // bereits abgegeben hat. Gespeichert direkt auf dem Kalender-Eintrag unter
 // submitted.{uid}=true/false, per updateDoc mit Dot-Notation - das ändert
 // gezielt nur das eine Feld des verschachtelten Objekts, ohne die Abgaben
 // anderer Schüler:innen zu überschreiben.
 function submittedCountLabel(entry, roster){
-  roster = rosterFuerFach(roster, entry.subject);
+  roster = rosterFuerEintrag(roster, entry);
   if(!roster || !roster.length) return '';
   var done = roster.filter(function(s){ return entry.submitted && entry.submitted[s.uid]; }).length;
   return done+' / '+roster.length+' abgegeben';
 }
 
 function uiSubmissionChecklist(entry, roster, onChanged){
-  roster = rosterFuerFach(roster, entry.subject);   // Fach-Gäste nur im eigenen Fach
+  roster = rosterFuerEintrag(roster, entry);   // Gruppe bzw. Fach-Gäste nur im eigenen Fach
   var rows = roster.map(function(stu){
     var checked = entry.submitted && entry.submitted[stu.uid];
     return '<label class="submission-row"><input type="checkbox" class="sub-check" data-uid="'+esc(stu.uid)+'"'+(checked?' checked':'')+'> <span>'+esc(stu.displayName||stu.username)+'</span></label>';
@@ -2370,8 +2851,9 @@ function wireCalendarResourceLinks(container){
   Array.prototype.forEach.call(container.querySelectorAll('.cal-open-res-btn'), function(btn){
     btn.addEventListener('click', async function(){
       var rid = btn.getAttribute('data-resource-id');
+      var quelle = btn.getAttribute('data-klasse');
       try{
-        var snap = await getDoc(kdoc('resources', rid));
+        var snap = await getDoc(quelle ? kdocFor(quelle, 'resources', rid) : kdoc('resources', rid));
         if(!snap.exists()){ toast('Diese Übung wurde entfernt.'); return; }
         goResource(Object.assign({id:rid}, snap.data()));
       }catch(err){ console.error(err); toast('Übung konnte nicht geöffnet werden.'); }
@@ -2548,12 +3030,15 @@ function renderKalender(){
   var isTeacher = state.profile.role === 'teacher';
   var html = '<div class="back-row"><button class="btn btn-ghost btn-sm" id="backBtn">&larr; Start</button></div>';
   html += '<h2>📅 Kalender</h2>';
-  html += '<div class="back-row"><button class="btn btn-primary btn-sm" id="calNewBtn" type="button">'+(isTeacher ? '+ Neuer Eintrag' : '+ Eigene Hausaufgabe eintragen')+'</button></div>';
+  html += '<div class="back-row"><button class="btn btn-primary btn-sm" id="calNewBtn" type="button">'+(isTeacher ? '+ Neuer Eintrag' : '+ Eigene Hausaufgabe eintragen')+'</button>'+
+    (isTeacher && !isLeitung() ? '<button class="btn btn-ghost btn-sm" id="calGruppenBtn" type="button">👥 Gruppen</button>' : '')+'</div>';
   html += '<div id="kalenderBody"><div class="empty-state">Wird geladen …</div></div>';
   renderChrome(html);
   document.getElementById('backBtn').addEventListener('click', goHome);
   var newBtn = document.getElementById('calNewBtn');
   if(newBtn){ newBtn.addEventListener('click', function(){ uiCalendarEntryForm(null, renderKalender); }); }
+  var grBtn = document.getElementById('calGruppenBtn');
+  if(grBtn){ grBtn.addEventListener('click', function(){ openGruppenVerwaltung(renderKalender); }); }
 
   Promise.all([loadMyCalendarEntries(), isTeacher ? loadStudentRoster() : Promise.resolve(null), erledigtLoad()]).then(function(res){
     var entries = res[0], roster = res[1];
@@ -3491,16 +3976,30 @@ function toggleTheme(){
 function slugName(name){
   return name.trim().toLowerCase()
     .replace(/ä/g,'ae').replace(/ö/g,'oe').replace(/ü/g,'ue').replace(/ß/g,'ss')
-    .replace(/[^a-z0-9-]/g,'');
+    .replace(/é|è|ê/g,'e').replace(/[^a-z0-9-]/g,'');
+}
+
+// Seit 19.09.2026 (alle Klassen): Anmelden mit Vorname ODER Schul-Kürzel
+// (z.B. «anhe» bzw. «anhe@sekaltnau.ch»). Welche Konten zu einem Vornamen/
+// Kürzel gehören, steht in loginAliases/{slug} = {konten:[...]} (vom Admin-
+// Skript geschrieben; ohne Anmeldung einzeln lesbar, aber nicht auflistbar).
+async function loginKandidaten(slug){
+  var liste = (LOGIN_ALIASES[slug] || []).slice();
+  try{
+    var snap = await getDoc(doc(db, 'loginAliases', slug));
+    if(snap.exists() && Array.isArray(snap.data().konten)) liste = liste.concat(snap.data().konten);
+  }catch(e){ /* offline oder Regel fehlt: dann nur der eingetippte Name */ }
+  if(!liste.length) liste = [slug];
+  return liste.filter(function(k, i){ return k && liste.indexOf(k) === i; });
 }
 
 async function doLogin(rawName, password){
-  var slug = slugName(rawName);
+  var slug = slugName(String(rawName || '').split('@')[0]);
   if(!slug){ throw new Error('leer'); }
   // Nach jedem Login landet die Lehrperson wieder in der eigenen Klasse.
   try{ sessionStorage.removeItem(KLASSE_ANSICHT_KEY); sessionStorage.removeItem(LEITUNG_ANSICHT_KEY); }catch(e){}
   await setPersistence(auth, browserLocalPersistence);
-  var kandidaten = LOGIN_ALIASES[slug] || [slug];
+  var kandidaten = await loginKandidaten(slug);
   var lastErr = null;
   for(var i=0; i<kandidaten.length; i++){
     try{
@@ -3634,10 +4133,10 @@ function renderLogin(){
     '<div class="login-wrap"><div class="login-card">'+
     '<div class="login-logo"><img src="assets/logo.png" alt="" onerror="this.style.display=\'none\'"></div>'+
     '<h1>Helfenberger\'s Library</h1>'+
-    '<p class="sub">Melde dich mit deinem Vornamen und deinem Passwort an.</p>'+
+    '<p class="sub">Melde dich mit deinem Vornamen (oder deinem Schul-Kürzel) und deinem Passwort an.</p>'+
     '<div class="login-err" id="loginErr"></div>'+
     '<form id="loginForm">'+
-    '<input type="text" id="loginName" placeholder="Vorname" autocomplete="username" autocapitalize="words" autofocus>'+
+    '<input type="text" id="loginName" placeholder="Vorname oder Kürzel" autocomplete="username" autocapitalize="words" autofocus>'+
     '<input type="password" id="loginPass" placeholder="Passwort" autocomplete="current-password">'+
     '<button type="submit" class="btn btn-primary">Anmelden</button>'+
     '</form>'+
@@ -3695,7 +4194,7 @@ function renderChrome(innerHtml){
   html += '<button class="topbar-quiz topbar-pruefung" id="pruefungBtn" type="button" hidden>📝 Prüfung</button>';
   html += '<div class="topbar-spacer"></div>';
   html += '<div class="topbar-user">';
-  if(isTeacher || isLeitung()){ html += '<button class="btn btn-ghost btn-sm topbar-klasse'+(isFremdeKlasse()?' fremd':'')+'" id="klasseBtn" type="button" title="Klasse wechseln">🏫 '+esc(state.klasse)+' ▾</button>'; }
+  if(isTeacher || isLeitung()){ html += '<button class="btn btn-ghost btn-sm topbar-klasse'+(isFremdeKlasse()?' fremd':'')+'" id="klasseBtn" type="button" title="Klasse wechseln">🏫 '+esc(klasseLabel())+' ▾</button>'; }
   html += '<span>Hallo, <b>'+esc(state.profile.displayName)+'</b></span>';
   html += '<span class="topbar-offline" id="offlineBadge" hidden>📶 Offline</span>';
   if(IS_TEST_SITE){ html += '<span class="topbar-offline">🧪 Testseite</span>'; }
@@ -3716,9 +4215,9 @@ function renderChrome(innerHtml){
   html += '<div class="push-popover" id="pushPopover" hidden></div>';
   if(isTeacher && !isLeitung()){ html += '<div class="todo-popover" id="todoPopover" hidden></div>'; }
   var fremdBanner = isLeitung()
-    ? '<div class="klasse-fremd-banner"><span>👀 <b>Schulleitung – nur Ansicht.</b> Klasse <b>'+esc(state.klasse)+'</b> ('+esc(klasseInfo().lp)+'), '+(isTeacher?'Ansicht der Lehrperson':'Ansicht der Schüler:innen')+'. Es wird nichts gespeichert.</span><button class="btn btn-sm btn-primary" id="leitungAnsichtBtn" type="button">'+(isTeacher?'🎒 Zur Schüleransicht':'🧑‍🏫 Zur Lehreransicht')+'</button></div>'
+    ? '<div class="klasse-fremd-banner"><span>👀 <b>Schulleitung – nur Ansicht.</b> <b>'+esc(klasseLabel())+'</b> ('+esc(klasseInfo().lp)+'), '+(isTeacher?'Ansicht der Lehrperson':'Ansicht der Schüler:innen')+'. Es wird nichts gespeichert.</span><button class="btn btn-sm btn-primary" id="leitungAnsichtBtn" type="button">'+(isTeacher?'🎒 Zur Schüleransicht':'🧑‍🏫 Zur Lehreransicht')+'</button></div>'
     : isFremdeKlasse()
-    ? '<div class="klasse-fremd-banner"><span>👀 Du bist in der Klasse <b>'+esc(state.klasse)+'</b> ('+esc(klasseInfo().lp)+'). Änderungen werden hier gespeichert.</span><button class="btn btn-sm btn-primary" id="klasseHeimBtn" type="button">Zurück zur '+esc(state.profile.klasse)+'</button></div>'
+    ? '<div class="klasse-fremd-banner"><span>👀 Du bist in '+(istKlasse()?'der Klasse <b>'+esc(state.klasse)+'</b> ('+esc(klasseInfo().lp)+')':'<b>'+esc(klasseLabel())+'</b>')+'. Änderungen werden hier gespeichert.</span><button class="btn btn-sm btn-primary" id="klasseHeimBtn" type="button">Zurück zu '+esc(klasseLabel(state.profile.klasse))+'</button></div>'
     : '';
   html += '<div class="content">'+fremdBanner+(isTeacher && !isLeitung() ? '<div id="pflanzenBanner"></div>' : '')+innerHtml+'</div>';
   app.innerHTML = html;
@@ -4196,15 +4695,27 @@ function uiInfo(title, description){
    (sessionStorage) — nach einem neuen Login oder App-Start landet man wieder
    in der eigenen Klasse. */
 function openKlassenWahl(){
-  var h = '<h3>🏫 Klasse wechseln</h3><div class="klassen-wahl">';
-  KLASSEN.forEach(function(k){
+  function knopf(k){
     var aktiv = k.id === state.klasse;
     var eigene = k.id === state.profile.klasse && !isLeitung();
-    h += '<button class="btn '+(aktiv?'btn-primary':'btn-ghost')+'" type="button" data-klasse="'+esc(k.id)+'">'+
-         '<span><b>'+esc(k.id)+'</b> · '+esc(k.lp)+(eigene?' (deine Klasse)':'')+(aktiv?' ✓':'')+'</span></button>';
-  });
-  h += '</div><div class="modal-actions"><button class="btn btn-ghost btn-sm" id="modalCancel" type="button">Schliessen</button></div>';
-  openModal(h);
+    var titel = k.art === 'klasse' ? '<b>'+esc(k.id)+'</b> · '+esc(k.lp) : '<b>'+esc(k.lp)+'</b>'+(k.art === 'isf' ? ' · ISF' : '');
+    return '<button class="btn '+(aktiv?'btn-primary':'btn-ghost')+'" type="button" data-klasse="'+esc(k.id)+'">'+
+         '<span>'+titel+(eigene?(k.art === 'klasse' ? ' (deine Klasse)' : ' (deine Seite)'):'')+(aktiv?' ✓':'')+'</span></button>';
+  }
+  function art(a){ return KLASSEN.filter(function(k){ return k.art === a; }); }
+  // Offen, wenn man gerade dort ist (oder dort zuhause).
+  function offen(list){ return list.some(function(k){ return k.id === state.klasse || k.id === state.profile.klasse; }) ? ' open' : ''; }
+  var flpIsf = art('flp').concat(art('isf')), prakt = art('praktikum');
+  var h = '<h3>🏫 Klasse wechseln</h3><div class="klassen-wahl klassen-wahl-grid">';
+  art('klasse').forEach(function(k){ h += knopf(k); });
+  h += '</div>';
+  h += '<details class="klassen-wahl-mehr"'+offen(flpIsf.concat(prakt))+'><summary>🎓 Fachlehrpersonen (FLP) &amp; ISF</summary><div class="klassen-wahl klassen-wahl-grid">';
+  flpIsf.forEach(function(k){ h += knopf(k); });
+  h += '</div><details class="klassen-wahl-mehr"'+offen(prakt)+'><summary>🧑‍🎓 Praktikant:innen</summary><div class="klassen-wahl klassen-wahl-grid">';
+  prakt.forEach(function(k){ h += knopf(k); });
+  h += '</div></details></details>';
+  h += '<div class="modal-actions"><button class="btn btn-ghost btn-sm" id="modalCancel" type="button">Schliessen</button></div>';
+  openModal(h, 'modal-wide');
   document.getElementById('modalCancel').addEventListener('click', closeModal);
   modalEl.querySelectorAll('[data-klasse]').forEach(function(btn){
     btn.addEventListener('click', function(){ wechsleKlasse(btn.getAttribute('data-klasse')); });
@@ -4254,7 +4765,11 @@ async function loadKlassenAbgleich(force){
   if(!force && settingsCache.data && settingsCache.klasse === home && Date.now() - settingsCache.at < 60000){
     return settingsCache.data;
   }
-  var snaps = await Promise.all(KLASSEN.map(function(k){ return getDocs(kcolFor(k.id, 'resources')); }));
+  // Eigene Seite ganz, bei den anderen (seit allen Klassen über 30 Seiten)
+  // nur die empfohlenen Übungen — spart Tausende Lesezugriffe.
+  var snaps = await Promise.all(KLASSEN.map(function(k){
+    return getDocs(k.id === home ? kcolFor(k.id, 'resources') : query(kcolFor(k.id, 'resources'), where('empfohlen','==',true)));
+  }));
   var hiddenSnap = await getDoc(kdocFor(home, 'appMeta', 'vorschlaege')).catch(function(){ return null; });
   var hidden = (hiddenSnap && hiddenSnap.exists() && hiddenSnap.data().hidden) || {};
   var byKlasse = {};
@@ -4304,7 +4819,7 @@ async function uebungZuMir(r, quelle, heim){
     if(r.externalUrl) copy.externalUrl = r.externalUrl;
     if(r.pdf) copy.pdf = true;
     await setDoc(ref, copy);
-    toast('«'+copy.title+'» ist jetzt bei dir in '+subjectName(r.subject)+' ('+home+').');
+    toast('«'+copy.title+'» ist jetzt bei dir in '+subjectName(r.subject)+' ('+klasseLabel(home)+').');
   } else {
     var alt = resourceContentId(heim);
     var patch = { contentId:resourceContentId(r), prevContentId:alt, fileName:r.fileName || heim.fileName || '', replacedAt:serverTimestamp() };
@@ -4312,7 +4827,7 @@ async function uebungZuMir(r, quelle, heim){
     if(heim.originKlasse === quelle) patch.originVersion = r.version || 0;
     await updateDoc(ref, patch);
     if(heim.prevContentId && heim.prevContentId !== alt && heim.prevContentId !== patch.contentId) deleteContentIfUnused(heim.prevContentId);
-    toast('«'+(heim.title || heim.fileName)+'» ist in '+home+' jetzt auf dem neuen Stand.');
+    toast('«'+(heim.title || heim.fileName)+'» ist in '+klasseLabel(home)+' jetzt auf dem neuen Stand.');
   }
   settingsCache.at = 0;
 }
@@ -4337,7 +4852,7 @@ function paintHeimButtons(list){
       {
         b.className = 'btn btn-primary btn-sm';
         b.textContent = art === 'neu' ? '📥 Duplizieren' : '🔄 Aktualisieren';
-        b.title = art === 'neu' ? 'Kopie in deiner Klasse '+home+' anlegen' : 'Deine Fassung in '+home+' durch diese ersetzen';
+        b.title = art === 'neu' ? 'Kopie bei dir ('+klasseLabel(home)+') anlegen' : 'Deine Fassung in '+klasseLabel(home)+' durch diese ersetzen';
         b.addEventListener('click', function(){
           function los(){
             b.disabled = true;
@@ -4352,7 +4867,7 @@ function paintHeimButtons(list){
           }
           if(art === 'neu') los();
           else uiConfirm('🔄 Aktualisieren?',
-            'Deine Fassung von «'+(heim.title || heim.fileName)+'» in der '+home+' wird durch die Fassung aus der '+state.klasse+' ('+klasseInfo().lp+') ersetzt. Titel, Ort und Übungsstände bleiben, die bisherige Fassung bleibt als «Vorherige Version» erhalten.',
+            'Deine Fassung von «'+(heim.title || heim.fileName)+'» in '+klasseLabel(home)+' wird durch die Fassung aus '+klasseLabel()+' ('+klasseInfo().lp+') ersetzt. Titel, Ort und Übungsstände bleiben, die bisherige Fassung bleibt als «Vorherige Version» erhalten.',
             'Aktualisieren', los);
         });
       }
@@ -4383,7 +4898,7 @@ function openSettings(){
   var isTeacher = state.profile.role === 'teacher';
   var h = '<h3>⚙️ Einstellungen</h3>';
   h += '<p style="margin:0;color:var(--text-muted);font-size:13px;">Angemeldet als <b>'+esc(state.profile.displayName)+'</b>'+
-       (isLeitung() ? ' (Schulleitung, nur Ansicht) · Klasse '+esc(state.klasse) : isTeacher ? ' (Lehrperson, '+esc(state.profile.klasse)+')' : ' · Klasse '+esc(state.klasse))+'</p>';
+       (isLeitung() ? ' (Schulleitung, nur Ansicht) · Klasse '+esc(state.klasse) : isTeacher ? ' (Lehrperson, '+esc(klasseLabel(state.profile.klasse))+')' : ' · Klasse '+esc(state.klasse))+'</p>';
   h += '<div class="settings-section"><h4>Konto</h4><div class="settings-actions">'+
        '<button class="btn btn-ghost btn-sm" id="setPwBtn" type="button">🔑 Passwort ändern</button>'+
        '<button class="btn btn-danger btn-sm" id="setLogoutBtn" type="button">Abmelden</button></div></div>';
@@ -4412,7 +4927,7 @@ function paintSettingsAbgleich(force){
     vEl.innerHTML = d.liste.length ? d.liste.map(function(e, i){
       var r = e.r;
       return '<div class="settings-row"><div class="grow"><b>'+esc(r.title || r.fileName)+'</b>'+
-        '<small>'+esc(subjectName(r.subject))+' · von '+esc(klasseInfo(r.quelle).lp)+' ('+esc(r.quelle)+')'+(e.art === 'anders' ? ' · neue Fassung' : '')+'</small></div>'+
+        '<small>'+esc(subjectName(r.subject))+' · von '+esc(klasseInfo(r.quelle).lp)+(istKlasse(r.quelle) ? ' ('+esc(r.quelle)+')' : '')+(e.art === 'anders' ? ' · neue Fassung' : '')+'</small></div>'+
         '<button class="btn btn-ghost btn-sm" type="button" data-v-open="'+i+'" title="Ansehen">👁️</button>'+
         '<button class="btn btn-ghost btn-sm" type="button" data-v-hide="'+i+'">Ausblenden</button>'+
         '<button class="btn btn-primary btn-sm" type="button" data-v-add="'+i+'">'+(e.art === 'neu' ? '📥 Duplizieren' : '🔄 Aktualisieren')+'</button></div>';
@@ -5238,9 +5753,11 @@ function renderSubject(subjectId, folderId){
   }
 
   html += '<div id="resourceList" class="resource-list"><div class="empty-state">Wird geladen …</div></div>';
+  if(!isTeacher) html += '<div id="gruppenFach" class="resource-list"></div>';
 
   renderChrome(html);
   document.getElementById('backBtn').addEventListener('click', goHome);
+  if(!isTeacher && !isLeitung()) gruppenFachHtmlLaden(subjectId);
   var diktatAnalyseBtn = document.getElementById('diktatAnalyseBtn');
   if(diktatAnalyseBtn){
     diktatAnalyseBtn.addEventListener('click', function(){
@@ -5344,6 +5861,9 @@ function renderFolderContents(){
       ? 'Die Datei landet im Ordner <b>'+esc(folderById(here).name)+'</b>.'
       : 'Die Datei landet direkt im Fach <b>'+esc(s.name)+'</b>.';
   }
+
+  var grFachEl = document.getElementById('gruppenFach');
+  if(grFachEl) grFachEl.hidden = !!here;   // Gruppen-Übungen nur auf der Fach-Hauptebene
 
   var folders = foldersIn(here);
   var resources = resourcesIn(here);
@@ -11427,6 +11947,10 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-09-19-alle-klassen', datum:'2026-09-19', fuer:'lehrer', text:'🏫 Jetzt sind alle Sek-Klassen dabei. Unter 🏫 oben ganz unten gibt es das Pulldown «Fachlehrpersonen (FLP) & ISF» – jede FLP und jedes ISF hat eine eigene Seite, darin nochmals ein Pulldown für die 4 Praktikant:innen.'},
+  {id:'2026-09-19-gruppen', datum:'2026-09-19', fuer:'lehrer', text:'👥 Gruppen: Im Kalender unter «👥 Gruppen» pro Fach eigene Gruppen bilden – Klasse aufklappen, Schüler:innen ankreuzen, auch aus mehreren Klassen. Beim neuen Eintrag bei «Für» die Gruppe wählen: dann sehen ihn alle in dieser Gruppe, dazu im Fach deine Übungen.'},
+  {id:'2026-09-19-login-kuerzel', datum:'2026-09-19', fuer:'alle', text:'🔑 Anmelden geht jetzt auch mit deinem Schul-Kürzel (z. B. «anhe») statt dem Vornamen.'},
+  {id:'2026-09-19-gruppen-sus', datum:'2026-09-19', fuer:'alle', text:'👥 Bist du in einer Gruppe einer anderen Lehrperson (z. B. Mathe in einer anderen Klasse), siehst du ihre Hausaufgaben jetzt in deinem Kalender – und im Fach unten unter «Deine Gruppen» ihre Übungen.'},
   {id:'2026-09-19-stundenplan-doppel', datum:'2026-09-19', fuer:'alle', text:'⏩ Stundenplan: Doppellektionen mit einem Häkchen eintragen. Bei WAH mit Kochen kommen die Lektionen über Mittag bzw. am Abend nach 16:55 automatisch dazu.'},
   {id:'2026-09-19-klassenzimmer-anordnen', datum:'2026-09-19', fuer:'lehrer', text:'🏫 Klassenzimmer: Die Werkzeuge lassen sich jetzt wie die Startseite anordnen – lange drücken oder «✏️ Anordnen», ziehen, mit «−» ausblenden. Zurückholen unter ⚙️ Einstellungen › 🧩 Widgets › Klassenzimmer.'},
   {id:'2026-09-19-stundenplan-von-mir', datum:'2026-09-19', fuer:'lehrer', text:'📋 Stundenplan › Klasse › Bearbeiten: «Aus meinem Plan» übernimmt deine Lektionen mit dieser Klasse (oder ohne Klasse) aus deinem persönlichen Plan in den Klassenplan – danach frei anpassbar.'},
@@ -12761,7 +13285,7 @@ function vgRows(){
   rel.sort(function(a,b){ return b.dueDate.localeCompare(a.dueDate); });
   var rows = vergessen.roster.map(function(s){
     var items = rel.filter(function(e){
-      if(gastFach(s) && e.subject !== gastFach(s)) return false;   // Fach-Gast
+      if(!gehoertZuEintrag(s, e)) return false;   // Gruppe bzw. Fach-Gast
       if(e.submitted && e.submitted[s.uid]) return false;
       if(e.excused && e.excused[s.uid]) return false;
       return true;
@@ -15893,6 +16417,7 @@ function render(){
   if(!state.profile){ app.innerHTML = '<div class="spinner-wrap">Lädt …</div>'; return; }
   if(state.route.name === 'home'){ renderHome(); return; }
   if(state.route.name === 'subject'){ renderSubject(state.route.subject, state.route.folderId || null); return; }
+  if(state.route.name === 'gruppenfach'){ renderGruppenFach(); return; }
   if(state.route.name === 'resource'){ renderResource(state.route.resource); return; }
   if(state.route.name === 'diktatauswertung'){ renderDiktatAuswertung(); return; }
   if(state.route.name === 'lernstand'){ renderLernstandUebersicht(); return; }

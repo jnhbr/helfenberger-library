@@ -1,4 +1,6 @@
 /**
+ * VERALTET seit 19.09.2026 — Konten jetzt mit admin/schule-konten.js.
+ *
  * Helfenberger's Library — Umstellung auf mehrere Klassen (Herbst 2026)
  *
  *   node klassen-accounts.js vorbereiten <Schuelerliste.xlsx>
@@ -238,6 +240,10 @@ async function regeln(file) {
 }
 
 async function main() {
+  // Seit 19.09.2026 (alle Klassen, FLP/ISF/Praktikum, Login mit Kürzel) laufen
+  // Konten nur noch über schule-konten.js — dieses Skript kennt nur G3b/G3a/E1c
+  // und würde Benutzernamen/Passwörter anders vergeben.
+  throw new Error('Veraltet: bitte admin/schule-konten.js verwenden (pruefen | konten | verteilen).');
   const [modus, liste, ...nur] = process.argv.slice(2);
   if (!modus || !liste) { console.log('Aufruf: node klassen-accounts.js vorbereiten|umstellen|konten <Schuelerliste.xlsx>'); process.exit(1); }
   const schueler = leseListe(liste);

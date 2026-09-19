@@ -77,6 +77,11 @@ rules_version = '2';
 // (resources.contentId zeigt darauf, Kopien in mehreren Klassen teilen ihn).
 //   lehrer/{uid}/todos/{todoId}                     -> private To-dos jeder Lehrperson
 //   students/{uid}.klasse                           -> Klasse der Person
+//   gruppen/{id}                                    -> {ownerUid, ownerName, ownerKlasse, fach, name, mitglieder:[uid],
+//                                                       namen:{uid:{n,nn,u,k}}} 👥 Gruppen (siehe index.html)
+//   klassen/{k}/calendarEntries/{id}.gruppeId/.mitglieder -> Eintrag nur für diese Gruppe
+//   loginAliases/{slug}                             -> {konten:[username]} Vorname/Kürzel -> Konten
+//   Seiten ohne Klasse: klassen/flp-<name>, isf-<name>, praktikum-<n> (FLP, ISF, Praktikum)
 //   students/{uid}.nurFach                          -> optional, z.B. 'mathe': Fach-Gast aus einer anderen
 //                                                       Klasse, nur in diesem Fach dabei (siehe index.html)
 //
@@ -129,20 +134,28 @@ service cloud.firestore {
     // ===================== KLASSEN =====================
     match /klassen/{klasse} {
 
+      // Übungslisten sind für alle Angemeldeten lesbar (seit 19.09.2026):
+      // Mitglieder einer 👥 Gruppe sehen die Übungen der Seite ihrer Lehrperson,
+      // auch wenn sie in einer anderen Klasse sind. Die Inhalte selbst
+      // (resourceContent) waren schon immer für alle Angemeldeten lesbar.
       match /resources/{resourceId} {
-        allow read: if inKlasseLesen(klasse);
+        allow read: if isSignedIn();
         allow create, update: if isTeacher();
         allow delete: if isTeacher();
       }
 
       match /folders/{folderId} {
-        allow read: if inKlasseLesen(klasse);
+        allow read: if isSignedIn();
         allow create, update: if isTeacher();
         allow delete: if isTeacher();
       }
 
+      // Gruppen-Einträge tragen eine Kopie der Mitglieder (mitglieder:[uid]);
+      // Mitglieder aus anderen Klassen lesen sie mit
+      // where('mitglieder','array-contains', uid).
       match /calendarEntries/{entryId} {
-        allow read: if inKlasseLesen(klasse);
+        allow read: if inKlasseLesen(klasse)
+          || (isSignedIn() && request.auth.uid in resource.data.get('mitglieder', []));
         allow create, update: if isTeacher();
         allow delete: if isTeacher();
       }
@@ -237,6 +250,32 @@ service cloud.firestore {
           allow write: if isTeacher();
         }
       }
+    }
+
+    // 👥 Gruppen (pro Lehrperson und Fach, Schüler:innen aus beliebigen Klassen).
+    // Lehrpersonen lesen alle, Schüler:innen nur die eigenen (array-contains).
+    // Ändern/Löschen nur die Lehrperson, der die Gruppe gehört.
+    match /gruppen/{gruppeId} {
+      allow read: if canReadAll() || (isSignedIn() && request.auth.uid in resource.data.mitglieder);
+      allow create: if isTeacher()
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.mitglieder is list
+        && request.resource.data.mitglieder.size() <= 400;
+      allow update: if isTeacher()
+        && resource.data.ownerUid == request.auth.uid
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.mitglieder is list
+        && request.resource.data.mitglieder.size() <= 400;
+      // Separat: bei einem delete ist request.resource null.
+      allow delete: if isTeacher() && resource.data.ownerUid == request.auth.uid;
+    }
+
+    // Login mit Vorname oder Schul-Kürzel: loginAliases/{slug} = {konten:[...]}.
+    // Vor der Anmeldung einzeln lesbar (get), aber nicht auflistbar; schreibt
+    // nur das Admin-Skript.
+    match /loginAliases/{slug} {
+      allow get: if true;
+      allow list, write: if false;
     }
 
     // Private To-dos jeder Lehrperson. Keine Datenvalidierung, darum kombiniert.
