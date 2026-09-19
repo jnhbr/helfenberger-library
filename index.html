@@ -1221,6 +1221,7 @@
   body.lph-offen{padding-left:260px;}
   @media (max-width:900px){ body.lph-offen{padding-left:0;} }
   .lph-head{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;padding:14px 12px 8px 16px;}
+  .lph-head > span{flex:none;display:flex;}
   .lph-head small{display:block;color:var(--text-muted);font-size:12px;margin-top:2px;}
   .lph-sum{display:flex;gap:12px;padding:0 16px 8px;font-weight:700;font-size:13px;}
   .lph-bad{color:var(--bad);}
@@ -12649,6 +12650,7 @@ const NEUIGKEITEN = [
   {id:'2026-09-19-sikore-ziel-tempo', datum:'2026-09-19', fuer:'alle', text:'🧮 SIKORE-Trainer: Neu mit 🎯 Wochenziel (fehlerfreie Reihen pro Woche, Ziel selbst wählbar) und ⏱ Tempo-Modus – eine Reihe gegen die Uhr, deine Bestzeit pro Level wird gespeichert. Steigst du nach einer SIKORE-Prüfung ein Level auf, wird gefeiert! 🎉'},
   {id:'2026-09-19-sikore-uebersicht-lp', datum:'2026-09-19', fuer:'lehrer', text:'📊 SIKORE-Übersicht (im SIKORE-Trainer oder unter Prüfungen): pro Schüler:in aktuelles Level mit Auf-/Abstieg, auf welchem Level geübt wird, Wochenziel, Total und Bestzeit.'},
   {id:'2026-09-19-sikore', datum:'2026-09-19', fuer:'alle', text:'🧮 Neu in Mathe: der Ordner «SIKORE – Sicher Kopfrechnen». Dort rechnest du Kettenrechnungen auf deinem Level – immer wieder neue. Am Zeilenende hilft dir die Quersumme, mit «Kontrollieren» siehst du sofort, was stimmt. Deine SIKORE-Noten findest du im 🎶 Notenrechner unter Mathematik in einem eigenen Pulldown.'},
+  {id:'2026-09-19-pip-vordergrund', datum:'2026-09-19', fuer:'lehrer', text:'📌 Immer im Vordergrund: In der Lernphase (📌 oben in der Seitenleiste) und in einer Prüfung («📌 Immer im Vordergrund») öffnet sich ein kleines Fenster, das über allen Programmen bleibt — auch wenn du am Laptop etwas anderes machst. Wer raus bzw. gesperrt ist, leuchtet dort rot. Geht in Safari, Chrome und Edge; Grösse und Position des Fensters kannst du selbst ziehen.'},
   {id:'2026-09-19-lernphase-lp', datum:'2026-09-19', fuer:'lehrer', text:'📚 Klassenzimmer › Lernphase: Für die Klasse oder eine 👥 Gruppe starten. Links öffnet sich eine Übersicht (einklappbar, nach Gruppen sortierbar): grün = in der Library, rot leuchtend = anderer Tab, anderes Fenster/Programm oder keine Verbindung, mit «raus seit» und wie oft. Niemand wird gesperrt. Kranke mit 🙈 ausblenden.'},
   {id:'2026-09-19-lernphase', datum:'2026-09-19', fuer:'alle', text:'📚 Lernphase: Steht oben «📚 Lernphase», sieht die Lehrperson, ob du hier in der Library bist. Wechselst du in einen anderen Tab oder ein anderes Programm, sieht sie das.'},
   {id:'2026-09-19-sikore-lp', datum:'2026-09-19', fuer:'lehrer', text:'🧮 Prüfungen › «Neue SIKORE-Prüfung»: Alle aus der Matheklasse erscheinen mit einem Level (1–39). Ab dem zweiten Mal schlägt die Library das Level vor: Note unter 4 → eins tiefer, über 5 → eins höher. Online im Prüfungsmodus (für jede Person eigene Reihen, automatisch korrigiert, Folgefehler wählbar) oder auf Papier (Blätter pro Person drucken, Anzahl Richtige eintragen). Reihen, Länge, Zeit, Massstab und Gewichtung frei einstellbar.'},
@@ -14263,6 +14265,113 @@ function renderKlassenzimmer(){
   });
 }
 
+/* ===================== 📌 IMMER IM VORDERGRUND =====================
+   Kleines Fenster über allen Programmen, damit die Lehrperson am Laptop
+   weiterarbeiten kann und trotzdem sieht, wer raus ist (Lernphase) bzw. wer
+   gesperrt ist (Prüfung). Safari kennt kein Document-Picture-in-Picture, darum
+   wird die Übersicht jede Sekunde in ein <canvas> gezeichnet und dessen Stream
+   als Video im Bild-in-Bild gezeigt — geht so in Safari, Chrome und Edge.
+   Nur Anzeige, nicht klickbar. */
+var pipv = { art:null, id:null, canvas:null, video:null, timer:null, offen:false };
+
+function pipMoeglich(){
+  var v = document.createElement('video');
+  return !!((document.pictureInPictureEnabled || v.webkitSupportsPresentationMode) && HTMLCanvasElement.prototype.captureStream);
+}
+function pipRefresh(){
+  if(!pipv.canvas) return;
+  if(pipv.art === 'lph') lphPipZeichnen();
+  else if(pipv.art === 'pruef') pruefPipZeichnen();
+}
+function pipStarten(art, id){
+  if(!pipMoeglich()){ uiInfo('Geht in diesem Browser nicht', 'Das Fenster im Vordergrund gibt es in Safari, Chrome und Edge auf dem Laptop oder iPad.'); return; }
+  if(pipv.video && pipv.art === art && pipv.id === (id || null)){ pipAnfordern(); return; }
+  pipStoppen();
+  var c = document.createElement('canvas'), v = document.createElement('video');
+  c.width = 640; c.height = 360;
+  pipv = { art:art, id:id || null, canvas:c, video:v, timer:null, offen:false };
+  pipRefresh();
+  v.muted = true; v.playsInline = true; v.autoplay = true;
+  v.setAttribute('playsinline', ''); v.setAttribute('muted', '');
+  v.style.cssText = 'position:fixed;right:0;bottom:0;width:2px;height:2px;opacity:.01;pointer-events:none;';
+  v.srcObject = c.captureStream();
+  document.body.appendChild(v);
+  v.addEventListener('leavepictureinpicture', function(){ if(pipv.video === v) pipStoppen(); });
+  v.addEventListener('webkitpresentationmodechanged', function(){
+    if(pipv.video === v && pipv.offen && v.webkitPresentationMode === 'inline') pipStoppen();
+  });
+  pipv.timer = setInterval(pipRefresh, 1000);
+  pipRefresh();
+  var pl = v.play(); if(pl && pl.catch) pl.catch(function(){});
+  pipAnfordern();
+}
+function pipAnfordern(){
+  var v = pipv.video;
+  if(!v) return;
+  var los = function(){
+    var pr;
+    try{
+      if(v.requestPictureInPicture) pr = v.requestPictureInPicture();
+      else { v.webkitSetPresentationMode('picture-in-picture'); pr = Promise.resolve(); }
+    }catch(e){ pr = Promise.reject(e); }
+    Promise.resolve(pr).then(function(){ if(pipv.video === v) pipv.offen = true; })
+      .catch(function(err){ console.error('Bild-in-Bild', err); toast('📌 Bitte nochmals klicken, dann öffnet sich das Fenster.'); });
+  };
+  if(v.readyState >= 1) los();
+  else v.addEventListener('loadedmetadata', los, {once:true});
+}
+function pipStoppen(){
+  var v = pipv.video;
+  clearInterval(pipv.timer);
+  pipv = { art:null, id:null, canvas:null, video:null, timer:null, offen:false };
+  if(!v) return;
+  try{
+    if(document.pictureInPictureElement === v) document.exitPictureInPicture().catch(function(){});
+    else if(v.webkitPresentationMode === 'picture-in-picture') v.webkitSetPresentationMode('inline');
+  }catch(e){}
+  try{ if(v.srcObject) v.srcObject.getTracks().forEach(function(t){ t.stop(); }); }catch(e){}
+  v.srcObject = null;
+  v.remove();
+}
+function pipRund(x, l, o, b, h, r){
+  x.beginPath();
+  x.moveTo(l + r, o); x.arcTo(l + b, o, l + b, o + h, r); x.arcTo(l + b, o + h, l, o + h, r);
+  x.arcTo(l, o + h, l, o, r); x.arcTo(l, o, l + b, o, r); x.closePath();
+}
+// eintraege: [{name, art:'rot'|'orange'|'gruen'|'grau', info}] — Rote zuerst.
+function pipZeichnen(titel, sub, eintraege, leerText){
+  var c = pipv.canvas; if(!c) return;
+  var W = 640, SP = 2, ZH = 40, KOPF = 86, RAND = 16, GAP = 10;
+  var rang = {rot:0, orange:1, gruen:2, grau:3};
+  var FARBE = {rot:'#ff4d4f', orange:'#ff9f40', gruen:'#3ecf6e', grau:'#6b7080'};
+  var liste = eintraege.slice().sort(function(a, b){ return (rang[a.art] - rang[b.art]) || a.name.localeCompare(b.name, 'de'); });
+  var H = Math.max(200, Math.min(1400, KOPF + Math.max(1, Math.ceil(liste.length / SP)) * ZH + 12));
+  if(c.width !== W) c.width = W;
+  if(c.height !== H) c.height = H;
+  var x = c.getContext('2d'), font = '-apple-system, BlinkMacSystemFont, "Segoe UI", Karla, sans-serif';
+  var rot = liste.filter(function(e){ return e.art === 'rot'; }).length, puls = Math.floor(Date.now() / 1000) % 2 === 0;
+  x.fillStyle = rot && puls ? '#3a1d20' : '#1b1d22'; x.fillRect(0, 0, W, H);
+  x.textBaseline = 'middle'; x.textAlign = 'left';
+  x.fillStyle = '#ffffff'; x.font = '700 27px ' + font; x.fillText(titel, RAND, 30, W - 2 * RAND);
+  x.fillStyle = '#b9bdc7'; x.font = '500 18px ' + font; x.fillText(sub, RAND, 62, W - 2 * RAND);
+  if(!liste.length){ x.fillStyle = '#b9bdc7'; x.fillText(leerText || '', RAND, KOPF + 20, W - 2 * RAND); return; }
+  var bw = (W - 2 * RAND - GAP * (SP - 1)) / SP;
+  liste.forEach(function(e, i){
+    var l = RAND + (i % SP) * (bw + GAP), o = KOPF + Math.floor(i / SP) * ZH, h = ZH - 6, f = FARBE[e.art];
+    if(e.art === 'rot' || e.art === 'orange'){
+      x.globalAlpha = e.art === 'rot' ? (puls ? .5 : .28) : .25;
+      x.fillStyle = f; pipRund(x, l, o, bw, h, 9); x.fill();
+      x.globalAlpha = 1;
+    }
+    x.fillStyle = f; x.beginPath(); x.arc(l + 16, o + h / 2, 7, 0, Math.PI * 2); x.fill();
+    var info = e.info || '', iw = 0;
+    x.font = '600 15px ' + font;
+    if(info){ iw = Math.min(bw * .5, x.measureText(info).width); x.textAlign = 'right'; x.fillStyle = e.art === 'grau' ? '#8a8f9c' : '#ffffff'; x.fillText(info, l + bw - 10, o + h / 2, bw * .5); x.textAlign = 'left'; }
+    x.font = '700 19px ' + font; x.fillStyle = e.art === 'grau' ? '#9aa0ad' : '#ffffff';
+    x.fillText(e.name, l + 30, o + h / 2, Math.max(40, bw - 44 - iw));
+  });
+}
+
 /* ===================== 📚 LERNPHASE =====================
    Die Lehrperson startet im Klassenzimmer eine Lernphase für die Klasse oder
    eine ihrer 👥 Gruppen. Links öffnet sich eine Seitenleiste (#lphPanel hängt
@@ -14475,7 +14584,8 @@ function lphPaint(){
   if(sort && faecher.indexOf(sort) < 0) sort = '';
 
   var h = '<div class="lph-head"><div><b>📚 Lernphase</b><small>'+esc(p.titel || '')+'</small></div>'+
-    '<button class="lph-mini" data-lph="zu" type="button" title="Einklappen">⟨</button></div>';
+    '<span><button class="lph-mini" data-lph="pip" type="button" title="Immer im Vordergrund — auch wenn du in einem anderen Programm arbeitest">📌</button>'+
+    '<button class="lph-mini" data-lph="zu" type="button" title="Einklappen">⟨</button></span></div>';
   h += '<div class="lph-sum"><span class="lph-ok">🟢 '+(sichtbar.length - rot)+' drin</span><span class="lph-bad">🔴 '+rot+' raus</span></div>';
   if(faecher.length){
     h += '<select class="lph-sort" id="lphSort"><option value="">Sortieren: A–Z</option>';
@@ -14511,6 +14621,18 @@ function lphPaint(){
   var neuList = lph.panel.querySelector('.lph-list');
   if(neuList) neuList.scrollTop = scroll;
   lphTickStart();
+  if(pipv.art === 'lph') pipRefresh();
+}
+
+function lphPipZeichnen(){
+  if(!lph.phase){ pipStoppen(); return; }
+  var p = lph.phase, namen = p.namen || {}, aus = p.aus || [];
+  var liste = (p.mitglieder || []).filter(function(u){ return aus.indexOf(u) < 0; }).map(function(u){
+    var st = lphStatus(u);
+    return {name:namen[u] || '?', art:st.rot ? 'rot' : 'gruen', info:st.rot ? st.text : ''};
+  });
+  var rot = liste.filter(function(e){ return e.art === 'rot'; }).length;
+  pipZeichnen('📚 Lernphase' + (p.titel ? ' · ' + p.titel : ''), '🟢 ' + (liste.length - rot) + ' drin   🔴 ' + rot + ' raus', liste, 'Alle ausgeblendet.');
 }
 
 function lphTickStart(){
@@ -14518,6 +14640,7 @@ function lphTickStart(){
   lph.tick = setInterval(function(){ if(lph.phase) lphPaint(); }, 5000);
 }
 function lphPanelZu(){
+  if(pipv.art === 'lph') pipStoppen();
   if(lph.panel){ lph.panel.remove(); lph.panel = null; }
   if(lph.tab){ lph.tab.remove(); lph.tab = null; }
   if(lph.tick){ clearInterval(lph.tick); lph.tick = null; }
@@ -14532,6 +14655,8 @@ function lphPanelKlick(e){
     updateDoc(ref, {aus: arrayUnion(b.getAttribute('data-lph-aus'))}).catch(function(err){ console.error(err); toast('Konnte nicht ausblenden.'); });
   } else if(b.hasAttribute('data-lph-ein')){
     updateDoc(ref, {aus: arrayRemove(b.getAttribute('data-lph-ein'))}).catch(function(err){ console.error(err); toast('Konnte nicht einblenden.'); });
+  } else if(b.getAttribute('data-lph') === 'pip'){
+    pipStarten('lph');
   } else if(b.getAttribute('data-lph') === 'zu'){
     lph.offen = false; lphPaint();
   } else if(b.getAttribute('data-lph') === 'ende'){
@@ -14879,6 +15004,7 @@ function startPruefungWatcher(){
   }, function(err){ console.error('Prüfungs-Listener', err); });
 }
 function stopPruefungWatcher(){
+  if(pipv.art === 'pruef') pipStoppen();
   if(pruef.unsub){ pruef.unsub(); pruef.unsub = null; }
   Object.keys(pruef.mineUnsubs).forEach(function(k){ pruef.mineUnsubs[k](); });
   Object.keys(pruef.teilUnsubs).forEach(function(k){ pruef.teilUnsubs[k](); });
@@ -15984,6 +16110,7 @@ function pruefResultatZeigen(p){
 /* ---------- Lehrperson: Übersicht & Verwaltung ---------- */
 
 function pruefRefreshTeacherView(){
+  if(pipv.art === 'pruef') pipRefresh();
   if(state.route.name === 'pruefungen'){ pruefListeZeichnen(); return; }
   if(state.route.name === 'pruefung'){ pruefMonitorZeichnen(); }
 }
@@ -17093,6 +17220,7 @@ function pruefMonitorZeichnen(){
   if(p.status === 'offen') h += '<button class="btn btn-danger btn-sm" data-a="beenden" type="button">⏹ Beenden</button>';
   if(p.status === 'beendet' && !skPapier) h += '<button class="btn btn-ghost btn-sm" data-a="oeffnen" type="button">▶️ Wieder öffnen</button>'+
     '<button class="btn '+(p.resultateFrei ? 'btn-ghost' : 'btn-primary')+' btn-sm" data-a="resultate" type="button">'+(p.resultateFrei ? '🙈 Resultate verbergen' : '📣 Resultate freigeben')+'</button>';
+  if(!skPapier) h += '<button class="btn btn-ghost btn-sm" data-a="pip" type="button" title="Kleines Fenster, das immer im Vordergrund bleibt — auch wenn du in einem anderen Programm arbeitest">📌 Immer im Vordergrund</button>';
   if(!skPapier) h += '<button class="btn btn-ghost btn-sm" data-a="vorschau" type="button">👀 Ausprobieren</button>';
   if(pruefArt(p) === 'sikore') h += '<button class="btn btn-ghost btn-sm" data-a="sikoreDruck" type="button">🖨️ Blätter drucken</button>';
   h += '<button class="btn btn-ghost btn-sm" data-a="bearbeiten" type="button">✏️ Bearbeiten</button>';
@@ -17109,9 +17237,7 @@ function pruefMonitorZeichnen(){
     return;
   }
   if(!teil || !roster){ el.innerHTML = h + '<div class="empty-state">Klasse wird geladen …</div>'; pruefMonitorVerdrahten(p); return; }
-  if(pruefArt(p) === 'sikore') roster = roster.filter(function(s){ return p.levels && p.levels[s.uid]; });
-  var rows = roster.map(function(s){ return {uid:s.uid, name:s.displayName || s.username || s.uid, t:teil[s.uid] || null}; });
-  Object.keys(teil).forEach(function(uid){ if(!rows.some(function(r){ return r.uid === uid; })) rows.push({uid:uid, name:teil[uid].name || uid, t:teil[uid]}); });
+  var rows = pruefMonitorZeilen(p, teil, roster);
   var z = {ab:0, gesperrt:0, laeuft:0, nix:0}, notenListe = [];
   rows.forEach(function(r){
     var st = pruefTeilStatus(r.t);
@@ -17152,6 +17278,31 @@ function pruefMonitorZeichnen(){
   el.innerHTML = h;
   pruefMonitorVerdrahten(p);
 }
+function pruefMonitorZeilen(p, teil, roster){
+  if(pruefArt(p) === 'sikore') roster = roster.filter(function(s){ return p.levels && p.levels[s.uid]; });
+  var rows = roster.map(function(s){ return {uid:s.uid, name:s.displayName || s.username || s.uid, t:teil[s.uid] || null}; });
+  Object.keys(teil).forEach(function(uid){ if(!rows.some(function(r){ return r.uid === uid; })) rows.push({uid:uid, name:teil[uid].name || uid, t:teil[uid]}); });
+  return rows;
+}
+function pruefPipZeichnen(){
+  var p = pruefById(pipv.id);
+  if(!p){ pipZeichnen('📝 Prüfung', 'Nicht gefunden (andere Klasse gewählt?)', []); return; }
+  var teil = pruef.teil[p.id], roster = pruefRosterCache.list && rosterFuerFach(pruefRosterCache.list, pruefFach(p));
+  if(!teil || !roster){ pipZeichnen('📝 ' + p.titel, 'Wird geladen …', []); return; }
+  var anzahl = pruefAnzahl(p), z = {laeuft:0, gesperrt:0, ab:0};
+  var liste = pruefMonitorZeilen(p, teil, roster).map(function(r){
+    var t = r.t, st = pruefTeilStatus(t), art = 'grau', info = '';
+    if(st.cls === 'gesperrt'){ art = 'rot'; info = '🔒 gesperrt'; z.gesperrt++; }
+    else if(st.cls === 'weg'){ art = 'orange'; info = 'keine Verbindung'; z.laeuft++; }
+    else if(st.cls === 'frei'){ art = 'orange'; info = 'entsperrt'; z.laeuft++; }
+    else if(st.cls === 'laeuft'){ art = 'gruen'; info = p.diktat ? (t.beantwortet || 0) + ' Wörter' : (t.beantwortet || 0) + '/' + anzahl; z.laeuft++; }
+    else if(st.cls === 'ab'){ info = '✅ abgegeben'; z.ab++; }
+    else info = 'nicht gestartet';
+    if(t && t.verstoesse && t.verstoesse.length && art !== 'grau') info += ' · ⚠️' + t.verstoesse.length;
+    return {name:r.name, art:art, info:info};
+  });
+  pipZeichnen('📝 ' + p.titel, '🟢 ' + z.laeuft + ' schreiben   🔒 ' + z.gesperrt + ' gesperrt   ✅ ' + z.ab + ' abgegeben', liste, 'Niemand in der Liste.');
+}
 function pruefMonitorVerdrahten(p){
   var el = document.getElementById('prMon');
   el.onclick = function(e){
@@ -17171,6 +17322,7 @@ function pruefMonitorVerdrahten(p){
     else if(a === 'oeffnen') updateDoc(pruefRef(p.id), {status:'offen'}).catch(pruefFehler);
     else if(a === 'resultate') pruefResultateUmschalten(p);
     else if(a === 'vorschau') pruefStarten(p, false, true);
+    else if(a === 'pip') pipStarten('pruef', p.id);
     else if(a === 'bearbeiten'){ if(pruefArt(p) === 'sikore') sikoreEditor(p); else pruefEditor(p); }
     else if(a === 'sikoreDruck') sikoreDruckDialog(p);
     else if(a === 'punkte') pruefAufgabenPunkte(p);
