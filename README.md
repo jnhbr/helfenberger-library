@@ -216,3 +216,10 @@ Die vorher gebaute Version (Claude-Artefakt, `localStorage`-basiert) bleibt best
 weiterhin pro Gerät, synchronisiert aber nicht zwischen Geräten und aktualisiert neue Übungen nicht
 automatisch. Diese neue Firebase-Version ersetzt sie für den produktiven Einsatz; die alte kann als
 Fallback dienen, falls du z. B. offline testen willst.
+
+## Admin-Skripte (Ordner `admin/`, lokal mit `serviceAccountKey.json`)
+
+- `node backup.js [--ohne-inhalte]` — ganze Datenbank als JSONL nach `~/Desktop/Claude/Library-Unterlagen/Backups/<Datum>/` (wöchentlich empfohlen).
+- `node restore.js <backup-ordner> <pfad-präfix> [--ja]` — einzelne Dokumente/Sammlungen aus einer Sicherung zurückspielen (ohne `--ja` nur anzeigen).
+- `node passwort-reset.js [--ja]` — Passwort-Anfragen der Lehrpersonen (⚙️ in der App) abarbeiten. Automatisch: `admin/workflows-vorlage/passwort-anfragen.yml` ins Live-Repo nach `.github/workflows/` legen.
+- `node schuljahr.js vorlage|plan|ausfuehren <datei.json> [--ja]` — Schuljahreswechsel (Klassen ziehen weiter, 3. Klassen schliessen ab; macht vorher eine Sicherung).

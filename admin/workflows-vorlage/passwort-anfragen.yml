@@ -1,0 +1,27 @@
+# Vorlage — gehört ins LIVE-Repo nach .github/workflows/ (wird von der
+# nächtlichen Freigabe nicht dorthin kopiert). Arbeitet die Passwort-Anfragen
+# der Lehrpersonen alle 15 Minuten zwischen 7 und 18 Uhr ab, ohne dass Jan
+# etwas tun muss. Nutzt dasselbe Secret wie die täglichen Erinnerungen.
+name: Passwort-Anfragen
+
+on:
+  schedule:
+    - cron: '*/15 5-16 * * 1-5'   # Mo–Fr, ca. 7–18 Uhr Schweizer Zeit
+  workflow_dispatch:
+
+jobs:
+  passwort-reset:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install dependencies
+        working-directory: admin
+        run: npm install --omit=dev
+      - name: Anfragen abarbeiten
+        working-directory: admin
+        env:
+          FIREBASE_SERVICE_ACCOUNT_KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_KEY }}
+        run: node passwort-reset.js --ja

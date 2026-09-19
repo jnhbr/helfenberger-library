@@ -23,6 +23,13 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Library">
+<!-- Firebase schon laden, während der Browser noch die Seite liest (die Imports stehen erst weit unten). -->
+<link rel="preconnect" href="https://www.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://firestore.googleapis.com" crossorigin>
+<link rel="preconnect" href="https://identitytoolkit.googleapis.com" crossorigin>
+<link rel="modulepreload" href="https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js" crossorigin>
+<link rel="modulepreload" href="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js" crossorigin>
+<link rel="modulepreload" href="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js" crossorigin>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Karla:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap">
@@ -376,6 +383,7 @@
   .gr-chip small{color:var(--text-muted);}
   .gr-chip button{border:0;background:transparent;cursor:pointer;font-size:15px;line-height:1;padding:0 4px;color:inherit;}
   .gr-leer{font-size:13px;color:var(--text-muted);}
+  .gr-treffer{display:flex;flex-direction:column;max-height:30vh;overflow:auto;border:1px solid var(--border);border-radius:10px;padding:4px 10px;margin-top:6px;}
   .gr-klassen{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:6px;align-items:start;max-height:46vh;overflow:auto;}
   .gr-klasse{border:1px solid var(--border);border-radius:10px;padding:6px 10px;}
   .gr-klasse > summary{cursor:pointer;}
@@ -1032,6 +1040,16 @@
   .settings-row .grow{flex:1;min-width:0;}
   .settings-row small{display:block;color:var(--text-muted);}
   .settings-list{max-height:45vh;overflow:auto;}
+  .einf-icon{font-size:46px;text-align:center;line-height:1.1;margin-top:4px;}
+  .einf-text{text-align:center;line-height:1.5;margin:6px 4px 12px;}
+  .einf-dots{display:flex;justify-content:center;gap:6px;margin-bottom:4px;}
+  .einf-dots span{width:8px;height:8px;border-radius:50%;background:var(--border);}
+  .einf-dots span.on{background:var(--brand);}
+  .pw-neu{font-family:ui-monospace,Menlo,monospace;font-size:15px;color:var(--brand);}
+  .stat-tab{width:100%;border-collapse:collapse;font-size:13.5px;}
+  .stat-tab th{text-align:left;font-weight:600;color:var(--text-muted);font-size:12px;padding:4px 6px;}
+  .stat-tab td{padding:5px 6px;border-top:1px solid var(--border);vertical-align:middle;}
+  .stat-tab tr.stat-sum td{font-weight:700;}
   .klassen-wahl{display:flex;flex-direction:column;gap:8px;}
   .klassen-wahl .btn{justify-content:flex-start;text-align:left;}
   .klassen-wahl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));}
@@ -1213,6 +1231,21 @@
   .pr-lock-icon{font-size:64px;}
   .pr-grund{font-size:13px;}
   .modal.pr-modal{max-width:640px;}
+  .modal.pr-modal.pr-modal-breit{max-width:860px;}
+  .pr-bk-row{display:grid;grid-template-columns:28px 1fr auto;gap:8px;align-items:start;padding:8px;border:1px solid var(--border);border-radius:10px;}
+  .pr-bk-f{min-width:0;} .pr-bk-f > div:last-child{overflow-wrap:anywhere;}
+  .pr-bk-akt{display:flex;flex-direction:column;align-items:flex-end;gap:4px;}
+  .pr-bk-akt .btn{padding:2px 8px;}
+  .pr-bk-als{width:auto;max-width:230px;padding:4px 8px;font-size:13px;}
+  .pr-bk-opts{font-size:12.5px;color:var(--text-muted);margin-top:3px;}
+  .pr-bk-opts .btn{padding:0 6px;}
+  .pr-bk-poolliste{max-height:32vh;margin-top:8px;}
+  .pr-bk-pool{display:grid;grid-template-columns:36px 1fr;gap:8px;align-items:start;padding:6px 8px;border:1px dashed var(--border);border-radius:10px;font-size:14px;}
+  .pr-bk-pool > div{min-width:0;overflow-wrap:anywhere;}
+  .pr-bk-eigen{margin-top:12px;border-top:1px solid var(--border);padding-top:8px;}
+  .pr-bk-eigen > summary{cursor:pointer;font-weight:600;}
+  .pr-druck{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0;}
+  @media (max-width:560px){ .pr-bk-row{grid-template-columns:24px 1fr;} .pr-bk-akt{grid-column:2;flex-direction:row;justify-content:space-between;} .pr-druck{grid-template-columns:1fr;} }
   .pr-regeln{display:flex;flex-direction:column;gap:8px;background:var(--surface-2);border-radius:var(--radius-sm);padding:12px 14px;margin:0 0 16px;font-size:14px;line-height:1.45;}
   .pr-hinweis{font-size:13px;color:var(--text-muted);}
   .pr-kats{display:flex;flex-wrap:wrap;gap:6px 14px;margin:0 0 12px;font-size:14px;}
@@ -1446,7 +1479,7 @@ import {
 import {
   initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
   getFirestore, doc, getDoc, getDocFromCache, getDocs, collection, query, where, onSnapshot, serverTimestamp, increment,
-  setDoc as fsSetDoc, updateDoc as fsUpdateDoc, deleteDoc as fsDeleteDoc, writeBatch as fsWriteBatch, Bytes, deleteField
+  setDoc as fsSetDoc, updateDoc as fsUpdateDoc, deleteDoc as fsDeleteDoc, writeBatch as fsWriteBatch, Bytes, deleteField, arrayUnion, arrayRemove
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 
 /* =====================================================================
@@ -2322,7 +2355,20 @@ function uiCalendarEntryForm(existing, onSaved){
   });
 }
 
-async function loadStudentRoster(){
+// Einmal pro Klasse und 5 Minuten laden (wird an über zehn Stellen gebraucht);
+// jede:r Aufrufer:in bekommt eigene Kopien, darf sie also verändern.
+var rosterCache = { klasse:null, at:0, promise:null };
+function loadStudentRoster(force){
+  if(force || !rosterCache.promise || rosterCache.klasse !== state.klasse || Date.now() - rosterCache.at > 5*60*1000){
+    var p = ladeStudentRoster();
+    rosterCache = { klasse:state.klasse, at:Date.now(), promise:p };
+    p.catch(function(){ if(rosterCache.promise === p) rosterCache.promise = null; });
+  }
+  return rosterCache.promise.then(function(list){ return list.map(function(s){ return Object.assign({}, s); }); });
+}
+function rosterCacheLeeren(){ rosterCache.promise = null; }
+
+async function ladeStudentRoster(){
   // Nur die offene Klasse; die Rolle wird hier gefiltert statt in der Abfrage
   // (zwei where() hätten einen zusammengesetzten Index gebraucht).
   var stuSnap = await getDocs(query(collection(db,'students'), where('klasse','==',state.klasse)));
@@ -2522,7 +2568,7 @@ function openGruppenVerwaltung(onChanged){
         var g = list.find(function(x){ return x.id === b.getAttribute('data-gr-del'); });
         if(!g) return;
         uiConfirm('Gruppe «'+g.name+'» löschen?', 'Bisherige Einträge für diese Gruppe bleiben in deinem Kalender, sind für die Schüler:innen aus anderen Klassen aber nicht mehr sichtbar.', 'Löschen', async function(){
-          try{ await deleteDoc(doc(gruppenCol(), g.id)); toast('Gruppe gelöscht.'); }
+          try{ await deleteDoc(doc(gruppenCol(), g.id)); await gruppenMitgliederSync(g.ownerKlasse || state.profile.klasse); toast('Gruppe gelöscht.'); }
           catch(err){ console.error(err); toast('Löschen fehlgeschlagen.'); }
           openGruppenVerwaltung(onChanged);
         }, true);
@@ -2569,7 +2615,9 @@ function openGruppeEditor(g, onChanged){
     '<input type="text" id="grFachText" maxlength="30" placeholder="Fach, z. B. Jassen" hidden style="margin-top:8px;">'+
     '<label class="modal-label">Schüler:innen <span id="grAnzahl" class="gr-anzahl"></span></label>'+
     '<div class="gr-chips" id="grChips"></div>'+
-    '<p class="gr-hint">Klasse aufklappen und Schüler:innen ankreuzen – auch aus mehreren Klassen.</p>'+
+    '<input type="search" id="grSuche" placeholder="🔍 Schüler:in suchen – Vorname, Nachname oder Kürzel" autocomplete="off" style="margin-top:4px;">'+
+    '<div class="gr-treffer" id="grTreffer" hidden></div>'+
+    '<p class="gr-hint">… oder Klasse aufklappen und Schüler:innen ankreuzen – auch aus mehreren Klassen.</p>'+
     '<div class="gr-klassen">'+klassen.map(function(k){
       return '<details class="gr-klasse" data-k="'+esc(k.id)+'"><summary><b>'+esc(k.id)+'</b> · '+esc(k.lp)+' <span class="gr-cnt" data-cnt="'+esc(k.id)+'"></span></summary>'+
         '<div class="gr-body"><div class="empty-state">Wird geladen …</div></div></details>';
@@ -2632,6 +2680,44 @@ function openGruppeEditor(g, onChanged){
     var b = ev.target.closest && ev.target.closest('[data-gr-weg]');
     if(!b) return;
     delete sel[b.getAttribute('data-gr-weg')];
+    malen();
+  });
+  // Suche über alle Klassen: lädt die Klassenlisten erst beim ersten Tippen.
+  var sucheEl = document.getElementById('grSuche'), trefferEl = document.getElementById('grTreffer');
+  var alleLaden = null, trefferByUid = {};
+  function alleSchueler(){
+    if(!alleLaden) alleLaden = Promise.all(klassen.map(function(k){
+      return klassenListeFuerGruppe(k.id).catch(function(err){ console.error(err); return []; });
+    })).then(function(r){ return [].concat.apply([], r); });
+    return alleLaden;
+  }
+  function suchen(){
+    var t = sucheEl.value.trim().toLowerCase();
+    if(t.length < 2){ trefferEl.hidden = true; trefferEl.innerHTML = ''; return; }
+    trefferEl.hidden = false;
+    if(!trefferEl.innerHTML) trefferEl.innerHTML = '<div class="empty-state">Wird geladen …</div>';
+    var woerter = t.split(/\s+/);
+    alleSchueler().then(function(alle){
+      if(sucheEl.value.trim().toLowerCase() !== t) return;
+      var hits = alle.filter(function(x){
+        var text = (x.n+' '+x.nn+' '+x.u+' '+x.k).toLowerCase();
+        return woerter.every(function(w){ return text.indexOf(w) >= 0; });
+      });
+      trefferByUid = {};
+      hits.forEach(function(x){ trefferByUid[x.uid] = x; });
+      trefferEl.innerHTML = hits.length ? hits.slice(0, 30).map(function(x){
+        return '<label class="submission-row"><input type="checkbox" class="gr-check" value="'+esc(x.uid)+'"'+(sel[x.uid]?' checked':'')+'> <span>'+esc(x.n)+' '+esc(x.nn)+' <small style="color:var(--text-muted);">'+esc(x.k)+'</small></span></label>';
+      }).join('') + (hits.length > 30 ? '<div class="gr-hint">… und '+(hits.length-30)+' weitere – genauer suchen.</div>' : '')
+        : '<div class="empty-state">Niemand gefunden.</div>';
+    });
+  }
+  sucheEl.addEventListener('input', suchen);
+  trefferEl.addEventListener('change', function(ev){
+    var cb = ev.target;
+    if(!cb.classList || !cb.classList.contains('gr-check')) return;
+    var x = trefferByUid[cb.value];
+    if(!x) return;
+    if(cb.checked) sel[x.uid] = {n:x.n, nn:x.nn, u:x.u, k:x.k}; else delete sel[x.uid];
     malen();
   });
   modalEl.querySelectorAll('.gr-klasse').forEach(function(det){
@@ -2697,6 +2783,7 @@ function openGruppeEditor(g, onChanged){
     try{
       // Ganz ersetzen (kein merge): sonst blieben entfernte Namen in der Map stehen.
       await setDoc(doc(gruppenCol(), id), data);
+      await gruppenMitgliederSync(ownerKlasse);
       if(g) await gruppeEintraegeNachfuehren(id, ownerKlasse, data);
       toast(g ? 'Gruppe gespeichert.' : 'Gruppe «'+data.name+'» angelegt.');
       klasseRosterReset();
@@ -2709,7 +2796,32 @@ function openGruppeEditor(g, onChanged){
   });
 }
 
-function klasseRosterReset(){ klasseRoster.loaded = false; }
+function klasseRosterReset(){ klasseRoster.loaded = false; rosterCacheLeeren(); }
+
+// Wer sieht die Übungen der Seite `klasse`, ohne in der Klasse zu sein?
+// klassen/{k}/appMeta/gruppenMitglieder = {uids:[...]}: alle Mitglieder aller
+// Gruppen dieser Seite — firestore.rules (inGruppeVon) prüft damit resources
+// und folders. Nach jeder Gruppenänderung neu berechnet.
+async function gruppenMitgliederSync(klasse){
+  if(!klasse) return;
+  var gruppen = await loadSeitenGruppen(klasse);
+  var uids = [];
+  gruppen.forEach(function(g){ (g.mitglieder || []).forEach(function(u){ if(uids.indexOf(u) < 0) uids.push(u); }); });
+  await setDoc(kdocFor(klasse, 'appMeta', 'gruppenMitglieder'), { uids:uids, updatedAt:serverTimestamp() });
+}
+// Gruppen von vor dem 19.09.2026 (bzw. vom Admin-Skript) haben die Liste noch
+// nicht: einmal pro Sitzung für die eigenen Gruppen nachtragen.
+var gruppenMitgliederGeprueft = false;
+async function gruppenMitgliederNachtragen(){
+  if(gruppenMitgliederGeprueft || state.profile.role !== 'teacher' || isLeitung()) return;
+  gruppenMitgliederGeprueft = true;
+  var seiten = [];
+  (await loadMeineGruppen()).forEach(function(g){ if(g.ownerKlasse && seiten.indexOf(g.ownerKlasse) < 0) seiten.push(g.ownerKlasse); });
+  for(var i = 0; i < seiten.length; i++){
+    var snap = await getDoc(kdocFor(seiten[i], 'appMeta', 'gruppenMitglieder'));
+    if(!snap.exists()) await gruppenMitgliederSync(seiten[i]);
+  }
+}
 
 // Mitglieder/Name in allen Kalender-Einträgen der Gruppe nachführen.
 async function gruppeEintraegeNachfuehren(id, ownerKlasse, data){
@@ -3711,6 +3823,42 @@ var debtLoadToken = 0;
 
 function coinIsTeacher(){ return !!(state.profile && state.profile.role === 'teacher'); }
 
+// 💸 pro Seite ein-/ausschaltbar: klassen/{k}/appMeta/schulden = {enabled}.
+// Ohne Eintrag nur in der G3b an (dort ist die Funktion entstanden).
+var schulden = { klasse:null, an:false };
+function schuldenLaden(){
+  var k = state.klasse;
+  schulden = { klasse:k, an: k === 'G3b' };
+  return getDoc(kdoc('appMeta', 'schulden')).then(function(snap){
+    if(schulden.klasse !== k) return;
+    if(snap.exists() && typeof snap.data().enabled === 'boolean') schulden.an = snap.data().enabled;
+  }).catch(function(err){ console.error(err); });
+}
+function schuldenSchalten(an){
+  return setDoc(kdoc('appMeta', 'schulden'), { enabled:!!an }, {merge:true}).then(function(){
+    schulden.an = !!an;
+    startDebtWatch();
+    toast(an ? '💸 Schulden-Liste eingeschaltet.' : '💸 Schulden-Liste ausgeschaltet.');
+  });
+}
+// «Schulden bei …»: Name der Klassenlehrperson(en) dieser Seite
+// (students/{uid} mit role 'teacher' und derselben klasse).
+var klpNameCache = {};
+function klassenLpName(){
+  var k = state.klasse, info = klasseInfo(k);
+  if(info.dativ && info.dativ !== 'deiner Lehrperson') return Promise.resolve(info.dativ);
+  if(klpNameCache[k]) return Promise.resolve(klpNameCache[k]);
+  return getDocs(query(collection(db,'students'), where('klasse','==',k))).then(function(snap){
+    var namen = [];
+    snap.forEach(function(d){
+      var x = d.data();
+      if(x.role === 'teacher') namen.push(((x.vorname || '')+' '+(x.displayName || '')).trim());
+    });
+    klpNameCache[k] = namen.filter(Boolean).join(' / ') || info.dativ;
+    return klpNameCache[k];
+  }).catch(function(err){ console.error(err); return info.dativ; });
+}
+
 var coinHover = makeHoverPanel({
   trigger: function(){ return document.getElementById('coinBtn'); },
   isOpen: function(){
@@ -3759,6 +3907,8 @@ function fmtDebtDate(ms){
 function startDebtWatch(){
   stopDebtWatch();
   if(!state.user) return;
+  if(schulden.klasse !== state.klasse){ schuldenLaden().then(startDebtWatch); return; }
+  if(!schulden.an){ updateCoinButton(); return; }
   if(state.profile && state.profile.role === 'teacher'){ loadTeacherDebtCount(); return; }
   myDebtUnsub = onSnapshot(kdoc('debts', state.user.uid), function(snap){
     myDebt.entries = snap.exists() ? normalizeDebtEntries(snap.data()) : [];
@@ -3788,7 +3938,10 @@ function updateCoinButton(){
   if(!btn) return;
   var badge = document.getElementById('coinBadge');
   var isTeacher = state.profile && state.profile.role === 'teacher';
-  if(isTeacher){
+  if(!schulden.an){
+    btn.hidden = true;
+    if(badge) badge.hidden = true;
+  } else if(isTeacher){
     btn.hidden = false;
     btn.title = teacherDebtCount ? teacherDebtCount+' mit offenen Schulden' : 'Schulden verwalten';
     if(badge){ badge.hidden = !teacherDebtCount; badge.textContent = teacherDebtCount ? String(teacherDebtCount) : ''; }
@@ -3817,11 +3970,15 @@ function openCoinBubble(){
   document.body.insertAdjacentHTML('beforeend',
     '<div class="coin-bubble" id="coinBubble">'+
       '<button type="button" class="coin-bubble-close" id="coinBubbleClose" aria-label="Schliessen">×</button>'+
-      '<h4>Du schuldest '+esc(lpDativ())+'</h4>'+
+      '<h4 id="coinBubbleTitel">Schulden bei '+esc(lpDativ())+'</h4>'+
       '<div class="coin-bubble-total">'+esc(fmtChf(myDebt.total))+'</div>'+
       '<ul class="coin-list">'+items+'</ul>'+
     '</div>');
   document.getElementById('coinBubbleClose').addEventListener('click', closeCoinBubble);
+  klassenLpName().then(function(name){
+    var t = document.getElementById('coinBubbleTitel');
+    if(t) t.textContent = 'Schulden bei '+name;
+  });
   setTimeout(function(){ document.addEventListener('click', onOutsideCoinClick); }, 0);
 }
 function closeCoinBubble(){
@@ -3889,10 +4046,16 @@ function renderDebtOverview(rows){
       debtors.map(debtRowHtml).join('')+
       (rest.length ? '<div class="debt-divider">Ohne Schulden</div>'+rest.map(debtRowHtml).join('') : '')+
     '</div>'+
-    '<div class="modal-actions"><button class="btn btn-primary btn-sm" id="modalOk" type="button">Fertig</button></div>',
+    '<div class="modal-actions"><button class="btn btn-ghost btn-sm" id="debtAusBtn" type="button">💸 Funktion ausschalten</button>'+
+    '<button class="btn btn-primary btn-sm" id="modalOk" type="button">Fertig</button></div>',
     'modal-wide'
   );
   document.getElementById('modalOk').addEventListener('click', closeModal);
+  document.getElementById('debtAusBtn').addEventListener('click', function(){
+    uiConfirm('💸 Schulden-Liste ausschalten?', 'Das Symbol verschwindet in '+klasseLabel()+' für alle. Die Einträge bleiben gespeichert. Wieder einschalten: ⚙️ Einstellungen.', 'Ausschalten', function(){
+      schuldenSchalten(false).catch(function(err){ console.error(err); toast('Hat nicht geklappt.'); });
+    });
+  });
   Array.prototype.forEach.call(document.querySelectorAll('.debt-open'), function(b){
     b.addEventListener('click', function(){
       var uid = b.getAttribute('data-uid');
@@ -4106,9 +4269,19 @@ onAuthStateChanged(auth, async function(user){
       await signOut(auth);
       return;
     }
+    var profil = snap.data();
+    // Ohne Klasse nie still irgendwo landen (früher: G3b) — sonst würde ein
+    // unvollständiges Konto in einer fremden Klasse lesen und schreiben.
+    if(!profil.klasse){
+      if(profil.role === 'leitung') profil.klasse = KLASSEN[0].id;
+      else {
+        toast('Dein Konto ist noch keiner Klasse zugeordnet – bitte bei Herrn Helfenberger melden.');
+        await signOut(auth);
+        return;
+      }
+    }
     lastAuthedUid = user.uid;
-    state.profile = snap.data();
-    if(!state.profile.klasse) state.profile.klasse = 'G3b';
+    state.profile = profil;
     state.klasse = state.profile.klasse;
     if(state.profile.role === 'leitung'){
       var ansicht = null;
@@ -4130,6 +4303,9 @@ onAuthStateChanged(auth, async function(user){
     startQuizWatcher();
     startUmfrageWatcher();
     startPruefungWatcher();
+    gruppenMitgliederNachtragen().catch(function(err){ console.error('Gruppen-Mitglieder', err); });
+    setTimeout(einfuehrungPruefen, 1500);
+    setTimeout(pwHinweis, 4000);
     // Ämtliplan gleich nach dem Anmelden im Hintergrund holen. Er ist winzig,
     // wird von Startseiten-Hinweis, Besen und Plan gleichermassen gebraucht —
     // und ohne dieses Vorladen sah man beim ersten Öffnen des Plans erst ein
@@ -4737,36 +4913,91 @@ function uiInfo(title, description){
    alten Klasse hängen bleiben. Die Wahl gilt nur für diesen Tab
    (sessionStorage) — nach einem neuen Login oder App-Start landet man wieder
    in der eigenen Klasse. */
+// «⭐ Meine Seiten» oben: eigene Seite, die Klassen aus dem persönlichen
+// 🗓️ Stundenplan (Lektionen mit Klasse) und die zuletzt besuchten Seiten.
+// Darüber ein Suchfeld (Klasse, Lehrperson) über alle ~33 Seiten.
+var KLASSEN_ZULETZT_KEY = LIB_PREFIX+'klassen_zuletzt';
+function klassenZuletzt(){ try{ return JSON.parse(lsGet(KLASSEN_ZULETZT_KEY) || '[]') || []; }catch(e){ return []; } }
+function meineSeiten(){
+  var ids = [];
+  function dazu(id){ if(id && ids.indexOf(id) < 0 && KLASSEN.some(function(k){ return k.id === id; })) ids.push(id); }
+  if(!isLeitung()) dazu(state.profile.klasse);
+  var zellen = (stp.geladen && stp.eigen && stp.eigen.zellen) || {};
+  Object.keys(zellen).map(function(k){ return zellen[k] && zellen[k].kl; }).filter(Boolean).sort().forEach(dazu);
+  klassenZuletzt().forEach(dazu);
+  return ids.map(function(id){ return klasseInfo(id); });
+}
 function openKlassenWahl(){
   function knopf(k){
     var aktiv = k.id === state.klasse;
     var eigene = k.id === state.profile.klasse && !isLeitung();
-    var titel = k.art === 'klasse' ? '<b>'+esc(k.id)+'</b> · '+esc(k.lp) : '<b>'+esc(k.lp)+'</b>'+(k.art === 'isf' ? ' · ISF' : '');
-    return '<button class="btn '+(aktiv?'btn-primary':'btn-ghost')+'" type="button" data-klasse="'+esc(k.id)+'">'+
+    var titel = k.art === 'klasse' ? '<b>'+esc(k.id)+'</b> · '+esc(k.lp) : '<b>'+esc(k.lp)+'</b>'+(k.art === 'isf' ? ' · ISF' : k.art === 'flp' ? ' · FLP' : '');
+    var such = (k.id+' '+k.lp+' '+(k.art === 'klasse' ? '' : k.art)).toLowerCase();
+    return '<button class="btn '+(aktiv?'btn-primary':'btn-ghost')+'" type="button" data-klasse="'+esc(k.id)+'" data-such="'+esc(such)+'">'+
          '<span>'+titel+(eigene?(k.art === 'klasse' ? ' (deine Klasse)' : ' (deine Seite)'):'')+(aktiv?' ✓':'')+'</span></button>';
   }
   function art(a){ return KLASSEN.filter(function(k){ return k.art === a; }); }
   // Offen, wenn man gerade dort ist (oder dort zuhause).
   function offen(list){ return list.some(function(k){ return k.id === state.klasse || k.id === state.profile.klasse; }) ? ' open' : ''; }
-  var flpIsf = art('flp').concat(art('isf')), prakt = art('praktikum');
-  var h = '<h3>🏫 Klasse wechseln</h3><div class="klassen-wahl klassen-wahl-grid">';
+  var flpIsf = art('flp').concat(art('isf')), prakt = art('praktikum'), meine = meineSeiten();
+  var h = '<h3>🏫 Klasse wechseln</h3>';
+  h += '<input type="search" id="kwSuche" placeholder="🔍 Klasse oder Lehrperson suchen …" autocomplete="off" style="margin-bottom:10px;">';
+  if(meine.length){
+    h += '<div class="kw-teil"><div class="section-label" style="margin:0 0 6px;">⭐ Meine Seiten</div><div class="klassen-wahl klassen-wahl-grid">';
+    meine.forEach(function(k){ h += knopf(k); });
+    h += '</div></div>';
+  }
+  h += '<div class="kw-teil"><div class="section-label" style="margin:12px 0 6px;">Alle Klassen</div><div class="klassen-wahl klassen-wahl-grid">';
   art('klasse').forEach(function(k){ h += knopf(k); });
-  h += '</div>';
-  h += '<details class="klassen-wahl-mehr"'+offen(flpIsf.concat(prakt))+'><summary>🎓 Fachlehrpersonen (FLP) &amp; ISF</summary><div class="klassen-wahl klassen-wahl-grid">';
+  h += '</div></div>';
+  h += '<details class="klassen-wahl-mehr kw-teil"'+offen(flpIsf.concat(prakt))+'><summary>🎓 Fachlehrpersonen (FLP) &amp; ISF</summary><div class="klassen-wahl klassen-wahl-grid">';
   flpIsf.forEach(function(k){ h += knopf(k); });
-  h += '</div><details class="klassen-wahl-mehr"'+offen(prakt)+'><summary>🧑‍🎓 Praktikant:innen</summary><div class="klassen-wahl klassen-wahl-grid">';
+  h += '</div><details class="klassen-wahl-mehr kw-teil"'+offen(prakt)+'><summary>🧑‍🎓 Praktikant:innen</summary><div class="klassen-wahl klassen-wahl-grid">';
   prakt.forEach(function(k){ h += knopf(k); });
   h += '</div></details></details>';
+  h += '<div class="empty-state" id="kwLeer" hidden>Nichts gefunden.</div>';
   h += '<div class="modal-actions"><button class="btn btn-ghost btn-sm" id="modalCancel" type="button">Schliessen</button></div>';
   openModal(h, 'modal-wide');
   document.getElementById('modalCancel').addEventListener('click', closeModal);
   modalEl.querySelectorAll('[data-klasse]').forEach(function(btn){
     btn.addEventListener('click', function(){ wechsleKlasse(btn.getAttribute('data-klasse')); });
   });
+  var suche = document.getElementById('kwSuche');
+  var offenVorher = [].map.call(modalEl.querySelectorAll('details.kw-teil'), function(d){ return d.open; });
+  function filtern(){
+    var t = suche.value.trim().toLowerCase();
+    var gesehen = {}, treffer = [];
+    modalEl.querySelectorAll('[data-klasse]').forEach(function(btn){
+      var id = btn.getAttribute('data-klasse');
+      // Bei der Suche jede Seite nur einmal zeigen (nicht in «Meine Seiten» und unten).
+      var passt = !t || (btn.getAttribute('data-such').indexOf(t) >= 0 && !gesehen[id]);
+      if(t && passt){ gesehen[id] = true; treffer.push(btn); }
+      btn.hidden = !passt;
+    });
+    modalEl.querySelectorAll('details.kw-teil').forEach(function(d, i){ d.open = t ? true : offenVorher[i]; });
+    modalEl.querySelectorAll('.kw-teil').forEach(function(teil){
+      var sichtbar = [].some.call(teil.querySelectorAll('[data-klasse]'), function(b){ return !b.hidden; });
+      teil.hidden = !!t && !sichtbar;
+    });
+    document.getElementById('kwLeer').hidden = !t || treffer.length > 0;
+    return treffer;
+  }
+  suche.addEventListener('input', filtern);
+  suche.addEventListener('keydown', function(e){
+    if(e.key !== 'Enter') return;
+    var treffer = filtern();
+    if(treffer.length === 1) wechsleKlasse(treffer[0].getAttribute('data-klasse'));
+  });
+  if(window.matchMedia && window.matchMedia('(pointer:fine)').matches) suche.focus();
 }
 function wechsleKlasse(id){
   if(!state.profile || (state.profile.role !== 'teacher' && !isLeitung())) return;
   if(id === state.klasse){ closeModal(); return; }
+  if(id !== state.profile.klasse){
+    var zuletzt = klassenZuletzt().filter(function(x){ return x !== id; });
+    zuletzt.unshift(id);
+    lsSet(KLASSEN_ZULETZT_KEY, JSON.stringify(zuletzt.slice(0, 4)));
+  }
   try{
     if(id === state.profile.klasse && !isLeitung()) sessionStorage.removeItem(KLASSE_ANSICHT_KEY);
     else sessionStorage.setItem(KLASSE_ANSICHT_KEY, id);
@@ -4862,6 +5093,7 @@ async function uebungZuMir(r, quelle, heim){
     if(r.externalUrl) copy.externalUrl = r.externalUrl;
     if(r.pdf) copy.pdf = true;
     await setDoc(ref, copy);
+    indexDazu(r.id, home);
     toast('«'+copy.title+'» ist jetzt bei dir in '+subjectName(r.subject)+' ('+klasseLabel(home)+').');
   } else {
     var alt = resourceContentId(heim);
@@ -4869,7 +5101,7 @@ async function uebungZuMir(r, quelle, heim){
     if(r.externalUrl) patch.externalUrl = r.externalUrl;
     if(heim.originKlasse === quelle) patch.originVersion = r.version || 0;
     await updateDoc(ref, patch);
-    if(heim.prevContentId && heim.prevContentId !== alt && heim.prevContentId !== patch.contentId) deleteContentIfUnused(heim.prevContentId);
+    if(heim.prevContentId && heim.prevContentId !== alt && heim.prevContentId !== patch.contentId) deleteContentIfUnused(heim.prevContentId, r.id);
     toast('«'+(heim.title || heim.fileName)+'» ist in '+klasseLabel(home)+' jetzt auf dem neuen Stand.');
   }
   settingsCache.at = 0;
@@ -4945,9 +5177,24 @@ function openSettings(){
   h += '<div class="settings-section"><h4>Konto</h4><div class="settings-actions">'+
        '<button class="btn btn-ghost btn-sm" id="setPwBtn" type="button">🔑 Passwort ändern</button>'+
        '<button class="btn btn-danger btn-sm" id="setLogoutBtn" type="button">Abmelden</button></div></div>';
-  if(isTeacher){
+  if(isTeacher && !isLeitung()){
     h += '<div class="settings-section"><h4>💾 Mein Speicher</h4><div id="setQuota"><div class="empty-state" style="padding:10px;">Wird geladen …</div></div></div>';
     if(heimKlasse()) h += '<div class="settings-section"><h4>⭐ Von Lehrern empfohlen</h4><div class="settings-list" id="setVorschlaege"><div class="empty-state" style="padding:10px;">Wird geladen …</div></div></div>';
+    h += '<div class="settings-section"><h4>💸 Schulden-Liste</h4><p style="margin:0 0 8px;color:var(--text-muted);font-size:12.5px;">Kleine Beträge (z. B. Schoggibrötli), die Schüler:innen dir schulden – Symbol 💸 oben. Gilt für '+esc(klasseLabel())+'.</p>'+
+         '<div class="settings-actions"><button class="btn btn-ghost btn-sm" id="setSchuldenBtn" type="button">'+(schulden.an ? 'Ausschalten' : 'Einschalten')+'</button></div></div>';
+  }
+  if(isTeacher && !isLeitung()){
+    h += '<div class="settings-section"><h4>🔑 Passwort vergessen?</h4><div class="settings-actions"><button class="btn btn-ghost btn-sm" id="setPwAnfBtn" type="button">'+(istJan() ? 'Passwort-Anfragen (alle)' : 'Passwort einer Schüler:in zurücksetzen')+'</button></div></div>';
+  }
+  if(isTeacher || isLeitung()){
+    h += '<div class="settings-section"><h4>❓ Hilfe</h4><div class="settings-actions">'+
+         '<a class="btn btn-ghost btn-sm" href="'+HILFE_URL+'" target="_blank" rel="noopener">📖 Anleitung für Lehrpersonen</a>'+
+         '<button class="btn btn-ghost btn-sm" id="setEinfBtn" type="button">👋 Einführung</button></div></div>';
+  } else {
+    h += '<div class="settings-section"><h4>❓ Hilfe</h4><div class="settings-actions"><button class="btn btn-ghost btn-sm" id="setEinfBtn" type="button">👋 Einführung</button></div></div>';
+  }
+  if(darfSchulStatistik()){
+    h += '<div class="settings-section"><h4>📊 Schule</h4><div class="settings-actions"><button class="btn btn-ghost btn-sm" id="setStatBtn" type="button">📊 Übersicht: Nutzung &amp; Speicher</button></div></div>';
   }
   h += '<div class="settings-section"><h4>🧩 Widgets</h4><p style="margin:0 0 8px;color:var(--text-muted);font-size:12.5px;">Ausgeblendete '+(isTeacher?'Fächer und ':'')+'Symbole der oberen Leiste wieder hinzufügen. Verschieben und Ausblenden: «✏️ Anordnen» (oder lange auf eine Kachel drücken).</p><div class="settings-actions">'+
        '<button class="btn btn-primary btn-sm" id="setWidgetsBtn" type="button">🧩 Widgets'+(layoutAusAnzahl()?' ('+layoutAusAnzahl()+' ausgeblendet)':'')+'</button>'+
@@ -4959,22 +5206,224 @@ function openSettings(){
   document.getElementById('setAnordnenBtn').addEventListener('click', function(){ closeModal(); wackelnStart(); });
   document.getElementById('setPwBtn').addEventListener('click', uiChangePassword);
   document.getElementById('setLogoutBtn').addEventListener('click', function(){ closeModal(); doLogout(); });
-  if(isTeacher){ if(heimKlasse()) paintSettingsAbgleich(false); showQuotaUsage(); }
+  document.getElementById('setEinfBtn').addEventListener('click', function(){ closeModal(); openEinfuehrung(); });
+  var pwAnfBtn = document.getElementById('setPwAnfBtn');
+  if(pwAnfBtn) pwAnfBtn.addEventListener('click', openPasswortAnfragen);
+  var statBtn = document.getElementById('setStatBtn');
+  if(statBtn) statBtn.addEventListener('click', openSchulStatistik);
+  var schuldenBtn = document.getElementById('setSchuldenBtn');
+  if(schuldenBtn) schuldenBtn.addEventListener('click', function(){
+    schuldenBtn.disabled = true;
+    schuldenSchalten(!schulden.an).then(function(){
+      schuldenBtn.textContent = schulden.an ? 'Ausschalten' : 'Einschalten';
+    }, function(err){ console.error(err); if(!err || err.code !== 'klasse/abgebrochen') toast('Hat nicht geklappt.'); })
+      .then(function(){ schuldenBtn.disabled = false; });
+  });
+  if(isTeacher && !isLeitung()){ if(heimKlasse()) paintSettingsAbgleich(false); showQuotaUsage(); }
 }
 
+/* ===================== 📊 SCHUL-ÜBERSICHT (Schulleitung, Jan) =====================
+   Nur auf Knopfdruck (liest alle students, streaks und resourceContent-Köpfe,
+   also einige hundert Dokumente): pro Klasse, wie viele in den letzten 7 Tagen
+   geübt haben (streaks/{uid}.days), und pro Lehrperson der belegte Speicher
+   (resourceContent.ownerUid/bytes, wie «💾 Mein Speicher»). */
+function istJan(){ return !!(state.profile && state.profile.role === 'teacher' && !isLeitung() && state.profile.username === 'helfenberger'); }
+function darfSchulStatistik(){ return isLeitung() || istJan(); }
+
+/* ===================== 🔑 PASSWORT-ANFRAGEN =====================
+   Lehrpersonen fragen für eine Schülerin / einen Schüler ein neues Passwort an:
+   passwortAnfragen/{id} = {uid, name, klasse, vonUid, vonName, status:'offen', am}.
+   admin/passwort-reset.js (von Hand oder per GitHub Action) setzt ein neues,
+   gut lesbares Passwort und trägt es ein (status 'erledigt', neuesPasswort) —
+   die anfragende Lehrperson sieht es hier und löscht die Anfrage mit
+   «✓ Weitergegeben». Jan sieht alle Anfragen (firestore.rules: isJan()). */
+function pwCol(){ return collection(db, 'passwortAnfragen'); }
+function pwLaden(){
+  return getDocs(istJan() ? pwCol() : query(pwCol(), where('vonUid', '==', state.user.uid))).then(function(snap){
+    var out = [];
+    snap.forEach(function(d){ out.push(Object.assign({id:d.id}, d.data())); });
+    out.sort(function(a, b){ return (pruefMs(b.am) || 0) - (pruefMs(a.am) || 0); });
+    return out;
+  });
+}
+// Beim Anmelden: fertige Passwörter melden (nur die eigenen Anfragen).
+function pwHinweis(){
+  if(!state.profile || state.profile.role !== 'teacher' || isLeitung()) return;
+  pwLaden().then(function(list){
+    var fertig = list.filter(function(a){ return a.status === 'erledigt' && a.vonUid === state.user.uid; });
+    var offenJan = istJan() ? list.filter(function(a){ return a.status === 'offen'; }).length : 0;
+    if(fertig.length) toast('🔑 Neues Passwort bereit für '+fertig.map(function(a){ return a.name; }).join(', ')+' – ⚙️ Einstellungen.');
+    else if(offenJan) toast('🔑 '+offenJan+' offene Passwort-Anfrage'+(offenJan === 1 ? '' : 'n')+' – node admin/passwort-reset.js --ja');
+  }).catch(function(err){ console.error('Passwort-Anfragen', err); });
+}
+function openPasswortAnfragen(){
+  openModal('<h3>🔑 Passwort zurücksetzen</h3>'+
+    '<p class="pr-hinweis">Hat eine Schülerin oder ein Schüler das Passwort vergessen? Anfrage stellen – sobald das neue Passwort gesetzt ist, steht es hier. Gib es persönlich weiter; ändern kann man es danach unter ⚙️ Einstellungen.</p>'+
+    '<div class="pr-grid2"><select id="pwWer" class="modal-input"><option value="">Schüler:innen werden geladen …</option></select>'+
+    '<button class="btn btn-primary btn-sm" id="pwSenden" type="button" disabled>Anfrage senden</button></div>'+
+    '<h4 class="pr-h4">'+(istJan() ? 'Alle Anfragen' : 'Meine Anfragen')+'</h4><div id="pwListe" class="settings-list"><div class="empty-state">Wird geladen …</div></div>'+
+    (istJan() ? '<p class="pr-hinweis">Abarbeiten: <code>node admin/passwort-reset.js --ja</code> (oder automatisch per GitHub Action, Vorlage in admin/workflows-vorlage/).</p>' : '')+
+    '<div class="modal-actions"><button class="btn btn-ghost btn-sm" id="modalCancel" type="button">Schliessen</button></div>', 'modal-wide');
+  document.getElementById('modalCancel').addEventListener('click', closeModal);
+  var werEl = document.getElementById('pwWer'), sendBtn = document.getElementById('pwSenden'), roster = [];
+  loadStudentRoster().then(function(list){
+    roster = list;
+    if(!document.getElementById('pwWer')) return;
+    werEl.innerHTML = '<option value="">– Schüler:in wählen ('+esc(klasseLabel())+') –</option>' + list.map(function(x){
+      return '<option value="'+esc(x.uid)+'">'+esc((x.displayName || x.username || '?') + (x.nachname ? ' ' + x.nachname : '') + (x.gruppenGast && x.klasse ? ' ('+x.klasse+')' : ''))+'</option>';
+    }).join('');
+    sendBtn.disabled = false;
+  }).catch(function(err){ console.error(err); werEl.innerHTML = '<option value="">Konnte nicht geladen werden</option>'; });
+  function liste(){
+    pwLaden().then(function(list){
+      var el = document.getElementById('pwListe');
+      if(!el) return;
+      el.innerHTML = list.length ? list.map(function(a){
+        var st = a.status === 'erledigt' ? 'Neues Passwort: <b class="pw-neu">'+esc(a.neuesPasswort || '')+'</b>'
+          : a.status === 'fehler' ? '⚠️ '+esc(a.fehler || 'Fehler') : '⏳ offen';
+        var loeschen = a.status === 'erledigt' ? '✓ Weitergegeben' : (a.status === 'fehler' ? 'Löschen' : 'Zurückziehen');
+        return '<div class="settings-row"><div class="grow"><b>'+esc(a.name || '?')+'</b> <small>'+esc(klasseLabel(a.klasse || ''))+
+          (istJan() && a.vonUid !== state.user.uid ? ' · von '+esc(a.vonName || '?') : '')+'</small><small>'+st+'</small></div>'+
+          '<button class="btn btn-ghost btn-sm" type="button" data-pwweg="'+esc(a.id)+'">'+loeschen+'</button></div>';
+      }).join('') : '<div class="empty-state" style="padding:10px;">Keine Anfragen.</div>';
+      el.querySelectorAll('[data-pwweg]').forEach(function(b){
+        b.addEventListener('click', function(){
+          b.disabled = true;
+          deleteDoc(doc(pwCol(), b.getAttribute('data-pwweg'))).then(liste, function(err){ console.error(err); b.disabled = false; toast('Hat nicht geklappt.'); });
+        });
+      });
+    }).catch(function(err){
+      console.error(err);
+      var el = document.getElementById('pwListe');
+      if(el) el.innerHTML = '<div class="empty-state" style="padding:10px;">Konnte nicht geladen werden.</div>';
+    });
+  }
+  sendBtn.addEventListener('click', function(){
+    var x = roster.filter(function(r){ return r.uid === werEl.value; })[0];
+    if(!x){ werEl.focus(); return; }
+    sendBtn.disabled = true;
+    var id = 'pw_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 6);
+    setDoc(doc(pwCol(), id), {
+      uid:x.uid, name:(x.displayName || x.username || '?') + (x.nachname ? ' ' + x.nachname : ''), klasse:x.klasse || state.klasse,
+      vonUid:state.user.uid, vonName:state.profile.displayName || state.profile.username || '', status:'offen', am:serverTimestamp()
+    }).then(function(){ toast('Anfrage gesendet.'); werEl.value = ''; liste(); }, function(err){ console.error(err); toast('Anfrage konnte nicht gesendet werden.'); })
+      .then(function(){ sendBtn.disabled = false; });
+  });
+  liste();
+}
+async function openSchulStatistik(){
+  openModal('<h3>📊 Übersicht Schule</h3><div class="empty-state">Wird geladen …</div>', 'modal-wide');
+  try{
+    var res = await Promise.all([
+      getDocs(collection(db, 'students')),
+      getDocs(collection(db, 'streaks')),
+      getDocs(collection(db, 'resourceContent'))
+    ]);
+  }catch(err){
+    console.error(err);
+    openModal('<h3>📊 Übersicht Schule</h3><p>Konnte nicht geladen werden.</p><div class="modal-actions"><button class="btn btn-primary btn-sm" id="modalOk" type="button">Ok</button></div>');
+    document.getElementById('modalOk').addEventListener('click', closeModal);
+    return;
+  }
+  var tage = [];
+  for(var i = 0; i < 7; i++){ var d = new Date(); d.setDate(d.getDate() - i); tage.push(localDateStr(d)); }
+  var aktiv = {};
+  res[1].forEach(function(snap){
+    var days = snap.data().days || {};
+    if(tage.some(function(t){ return (days[t] || 0) > 0; })) aktiv[snap.id] = true;
+  });
+  var proKlasse = {}, lehrer = {};
+  res[0].forEach(function(snap){
+    var x = snap.data();
+    if(x.role === 'teacher'){ lehrer[snap.id] = { name:((x.vorname || '')+' '+(x.displayName || x.username || '')).trim(), klasse:x.klasse || '', bytes:0, n:0 }; return; }
+    if(x.role !== 'student' || (x.username || '').toLowerCase() === 'schueler' || !x.klasse) return;
+    var k = proKlasse[x.klasse] = proKlasse[x.klasse] || { alle:0, aktiv:0 };
+    k.alle++;
+    if(aktiv[snap.id]) k.aktiv++;
+  });
+  var ohne = { name:'Ohne Zuordnung (ältere Inhalte)', klasse:'', bytes:0, n:0 }, gesamtBytes = 0;
+  res[2].forEach(function(snap){
+    var x = snap.data(), b = x.bytes || 0;
+    gesamtBytes += b;
+    var l = (x.ownerUid && lehrer[x.ownerUid]) || ohne;
+    l.bytes += b; l.n++;
+  });
+  function balken(pct){ return '<div style="height:6px;border-radius:3px;background:rgba(127,127,127,.2);overflow:hidden;min-width:60px;"><div style="height:100%;width:'+Math.min(100, pct)+'%;background:var(--brand);"></div></div>'; }
+  var klassenIds = KLASSEN.filter(function(k){ return k.art === 'klasse'; }).map(function(k){ return k.id; });
+  Object.keys(proKlasse).forEach(function(k){ if(klassenIds.indexOf(k) < 0) klassenIds.push(k); });
+  var sumAlle = 0, sumAktiv = 0;
+  var h = '<h3>📊 Übersicht Schule</h3>';
+  h += '<div class="settings-section"><h4>Wer hat in den letzten 7 Tagen geübt?</h4><table class="stat-tab"><tr><th>Klasse</th><th>Lehrperson</th><th>geübt</th><th></th></tr>';
+  klassenIds.forEach(function(id){
+    var k = proKlasse[id];
+    if(!k) return;
+    sumAlle += k.alle; sumAktiv += k.aktiv;
+    var pct = k.alle ? Math.round(k.aktiv / k.alle * 100) : 0;
+    h += '<tr><td><b>'+esc(klasseLabel(id))+'</b></td><td>'+esc(klasseInfo(id).lp)+'</td><td>'+k.aktiv+' / '+k.alle+' ('+pct+' %)</td><td>'+balken(pct)+'</td></tr>';
+  });
+  h += '<tr class="stat-sum"><td colspan="2">Ganze Schule</td><td>'+sumAktiv+' / '+sumAlle+' ('+(sumAlle ? Math.round(sumAktiv / sumAlle * 100) : 0)+' %)</td><td></td></tr></table>';
+  h += '<p class="gr-hint">Gezählt wird, wer an mindestens einem der letzten 7 Tage eine Übung offen hatte (Lern-Serie 🔥).</p></div>';
+  var liste = Object.keys(lehrer).map(function(uid){ return lehrer[uid]; }).filter(function(l){ return l.n; });
+  liste.sort(function(a, b){ return b.bytes - a.bytes; });
+  if(ohne.n) liste.push(ohne);
+  h += '<div class="settings-section"><h4>Speicher pro Lehrperson (je 1 GB)</h4><table class="stat-tab"><tr><th>Lehrperson</th><th>Seite</th><th>belegt</th><th></th></tr>';
+  liste.forEach(function(l){
+    h += '<tr><td>'+esc(l.name)+'</td><td>'+esc(l.klasse ? klasseLabel(l.klasse) : '')+'</td><td>'+esc(fmtMB(l.bytes))+' <small style="color:var(--text-muted);">('+l.n+')</small></td><td>'+(l === ohne ? '' : balken(l.bytes / TEACHER_QUOTA_BYTES * 100))+'</td></tr>';
+  });
+  if(!liste.length) h += '<tr><td colspan="4">Noch nichts hochgeladen.</td></tr>';
+  h += '<tr class="stat-sum"><td colspan="2">Total Übungen &amp; PDFs</td><td>'+esc(fmtMB(gesamtBytes))+'</td><td></td></tr></table>';
+  h += '<p class="gr-hint">Gezählt bei der Person, die hochgeladen hat (inkl. Vorversionen). Kopien in anderen Klassen zählen nicht doppelt.</p></div>';
+  h += '<div class="modal-actions"><button class="btn btn-primary btn-sm" id="modalOk" type="button">Schliessen</button></div>';
+  openModal(h, 'modal-wide');
+  document.getElementById('modalOk').addEventListener('click', closeModal);
+}
+
+// Fächer, die ich laut persönlichem 🗓️ Stundenplan unterrichte.
+function meineFaecher(){
+  var out = [], zellen = (stp.geladen && stp.eigen && stp.eigen.zellen) || {};
+  Object.keys(zellen).forEach(function(k){ var c = zellen[k]; if(c && c.f && out.indexOf(c.f) < 0) out.push(c.f); });
+  return out;
+}
+var vorschlagFilter = null;   // 'meine' | 'alle' | Fach-ID (gilt für diese Sitzung)
 function paintSettingsAbgleich(force){
+  if(!stp.geladen){ stpLaden().then(function(){ paintSettingsAbgleich(force); }, function(){ stp.geladen = true; paintSettingsAbgleich(force); }); return; }
   loadKlassenAbgleich(force).then(function(d){
     setSettingsBadge(d);
     var vEl = document.getElementById('setVorschlaege');
     if(!vEl) return;
-    vEl.innerHTML = d.liste.length ? d.liste.map(function(e, i){
-      var r = e.r;
+    // Filter nach Fach: zuerst die eigenen Fächer (aus dem Stundenplan).
+    var meine = meineFaecher();
+    if(!vorschlagFilter) vorschlagFilter = meine.length ? 'meine' : 'alle';
+    if(vorschlagFilter === 'meine' && !meine.length) vorschlagFilter = 'alle';
+    var zaehl = {};
+    d.liste.forEach(function(e){ zaehl[e.r.subject] = (zaehl[e.r.subject] || 0) + 1; });
+    var nMeine = d.liste.filter(function(e){ return meine.indexOf(e.r.subject) >= 0; }).length;
+    var faecher = Object.keys(zaehl).sort(function(a, b){
+      return (meine.indexOf(b) >= 0) - (meine.indexOf(a) >= 0) || subjectName(a).localeCompare(subjectName(b), 'de');
+    });
+    var sichtbar = d.liste.map(function(e, i){ return {e:e, i:i}; }).filter(function(x){
+      if(vorschlagFilter === 'alle') return true;
+      if(vorschlagFilter === 'meine') return meine.indexOf(x.e.r.subject) >= 0;
+      return x.e.r.subject === vorschlagFilter;
+    });
+    if(vorschlagFilter === 'alle') sichtbar.sort(function(a, b){
+      return (meine.indexOf(b.e.r.subject) >= 0) - (meine.indexOf(a.e.r.subject) >= 0) || a.i - b.i;
+    });
+    var filterHtml = d.liste.length ? '<select id="setVFach" style="margin-bottom:8px;">'+
+      (meine.length ? '<option value="meine"'+(vorschlagFilter === 'meine' ? ' selected' : '')+'>Meine Fächer ('+nMeine+')</option>' : '')+
+      '<option value="alle"'+(vorschlagFilter === 'alle' ? ' selected' : '')+'>Alle Fächer ('+d.liste.length+')</option>'+
+      faecher.map(function(f){ return '<option value="'+esc(f)+'"'+(vorschlagFilter === f ? ' selected' : '')+'>'+(meine.indexOf(f) >= 0 ? '⭐ ' : '')+esc(subjectName(f))+' ('+zaehl[f]+')</option>'; }).join('')+
+      '</select>' : '';
+    vEl.innerHTML = filterHtml + (sichtbar.length ? sichtbar.map(function(x){
+      var e = x.e, i = x.i, r = e.r;
       return '<div class="settings-row"><div class="grow"><b>'+esc(r.title || r.fileName)+'</b>'+
         '<small>'+esc(subjectName(r.subject))+' · von '+esc(klasseInfo(r.quelle).lp)+(istKlasse(r.quelle) ? ' ('+esc(r.quelle)+')' : '')+(e.art === 'anders' ? ' · neue Fassung' : '')+'</small></div>'+
         '<button class="btn btn-ghost btn-sm" type="button" data-v-open="'+i+'" title="Ansehen">👁️</button>'+
         '<button class="btn btn-ghost btn-sm" type="button" data-v-hide="'+i+'">Ausblenden</button>'+
         '<button class="btn btn-primary btn-sm" type="button" data-v-add="'+i+'">'+(e.art === 'neu' ? '📥 Duplizieren' : '🔄 Aktualisieren')+'</button></div>';
-    }).join('') : '<div class="empty-state" style="padding:10px;">Keine neuen Empfehlungen.</div>';
+    }).join('') : '<div class="empty-state" style="padding:10px;">'+(d.liste.length ? 'In diesem Fach gibt es keine neuen Empfehlungen.' : 'Keine neuen Empfehlungen.')+'</div>');
+    var fachSel = document.getElementById('setVFach');
+    if(fachSel) fachSel.addEventListener('change', function(){ vorschlagFilter = fachSel.value; paintSettingsAbgleich(false); });
 
     function wire(sel, fn){
       modalEl.querySelectorAll('['+sel+']').forEach(function(btn){
@@ -5027,15 +5476,7 @@ function goLiveToken(){
   try{ return localStorage.getItem(GO_LIVE_TOKEN_KEY) || ''; }catch(e){ return ''; }
 }
 
-// Solange die Klassen-Umstellung aussteht, würde "Jetzt live" den neuen Code
-// vor den neuen Passwörtern/Regeln veröffentlichen. Nach der Umstellung auf
-// false setzen (admin/klassen-accounts.js umstellen).
-const KLASSEN_UMSTELLUNG_AUSSTEHEND = false;
 function confirmGoLive(){
-  if(KLASSEN_UMSTELLUNG_AUSSTEHEND){
-    uiInfo('Noch nicht live schalten', 'Die Klassen-Umstellung (neue Logins, G3a/E1c) ist noch nicht abgeschlossen. Sie wird zusammen mit den neuen Passwörtern und Regeln live geschaltet.');
-    return;
-  }
   if(!goLiveToken()){ askGoLiveToken(); return; }
   uiConfirm('🚀 Jetzt live schalten?',
     'Der zuletzt gepushte Stand der Testseite wird sofort auf die Live-Seite übernommen. Nach ca. 1–2 Minuten sehen ihn die Schüler:innen (nach dem Neuladen).',
@@ -6259,10 +6700,11 @@ async function replaceResource(r, file){
 // Änderung automatisch mitgezogen; Kopien, die bewusst eine andere Fassung
 // haben (z.B. «Ignorieren» gewählt), bleiben unberührt.
 async function syncedResourceEntries(r){
-  var snaps = await Promise.all(KLASSEN.map(function(k){ return getDoc(kdocFor(k.id, 'resources', r.id)); }));
+  var klassen = await uebungKlassen(r.id);
+  var snaps = await Promise.all(klassen.map(function(k){ return getDoc(kdocFor(k, 'resources', r.id)); }));
   var all = [];
   snaps.forEach(function(snap, i){
-    if(snap.exists()) all.push({ klasse:KLASSEN[i].id, ref:kdocFor(KLASSEN[i].id, 'resources', r.id), data:Object.assign({id:r.id}, snap.data()) });
+    if(snap.exists()) all.push({ klasse:klassen[i], ref:kdocFor(klassen[i], 'resources', r.id), data:Object.assign({id:r.id}, snap.data()) });
   });
   var own = all.filter(function(e){ return e.klasse === state.klasse; })[0];
   var cid = own ? resourceContentId(own.data) : resourceContentId(r);
@@ -6307,7 +6749,7 @@ async function publishResourceContent(r, htmlText, fileName){
   });
   var dropped = repointEntries(batch, sync, newContentId, sync.contentId, fileName);
   await batch.commit();
-  dropped.forEach(deleteContentIfUnused);
+  dropped.forEach(function(cid){ deleteContentIfUnused(cid, r.id); });
 }
 
 // Tauscht aktuelle und vorherige Fassung (nochmals klicken = wieder zurück).
@@ -6321,7 +6763,7 @@ async function restorePreviousContent(r){
   var batch = writeBatch(db);
   var dropped = repointEntries(batch, sync, prev, sync.contentId, null);
   await batch.commit();
-  dropped.forEach(deleteContentIfUnused);
+  dropped.forEach(function(cid){ deleteContentIfUnused(cid, r.id); });
 }
 
 // PDFs liegen als rohe Bytes (Firestore-Typ Bytes, Feld `bin`) in denselben
@@ -6872,45 +7314,81 @@ async function deleteResource(r){
     toast('Löschen fehlgeschlagen.');
     return;
   }
-  deleteContentIfUnused(resourceContentId(r));
-  if(r.prevContentId) deleteContentIfUnused(r.prevContentId);
+  indexWeg(r.id, state.klasse);
+  deleteContentIfUnused(resourceContentId(r), r.id);
+  if(r.prevContentId) deleteContentIfUnused(r.prevContentId, r.id);
 }
 
 // Inhalt einer Übung: resources.contentId, bei alten Einträgen die eigene ID.
 function resourceContentId(r){ return r.contentId || r.id; }
 
-// true, solange irgendeine Übung (in irgendeiner Klasse) diesen Inhalt nutzt.
-// Im Zweifel (Abfrage scheitert) gilt er als genutzt — lieber ein verwaister
-// Inhalt als eine Übung ohne Inhalt.
-async function contentStillUsed(contentId){
+/* Wo liegt Übung rid überall? uebungsIndex/{rid} = {klassen:[...]}.
+   Kopien behalten die ID der Übung, und jeder Inhalt gehört zu genau einer
+   Übungs-ID (contentId = rid bzw. rid_<zeit>). Darum reicht es, die Übung rid
+   in den aufgeführten Klassen nachzuschauen, statt alle ~33 Seiten abzufragen.
+   Fehlt der Eintrag (Übungen von vor dem 19.09.2026), wird einmal alles
+   durchsucht und der Eintrag angelegt. Hochladen/Duplizieren ergänzt die
+   Klasse, Löschen nimmt sie wieder raus (eine Klasse zu viel schadet nicht). */
+// Die Live-Seite kennt bis zur nächtlichen Freigabe nur diese drei Klassen und
+// führt den Index nicht nach — sie werden darum immer mitgeprüft.
+// Kann weg, sobald die Live-Seite den Index kennt (ab 21.09.2026).
+var INDEX_ALT_KLASSEN = ['G3b', 'G3a', 'E1c'];
+function uebungsIndexRef(rid){ return doc(db, 'uebungsIndex', rid); }
+function indexDazu(rid, klasse){
+  return setDoc(uebungsIndexRef(rid), { klassen: arrayUnion(klasse) }, {merge:true})
+    .catch(function(err){ console.error('Übungs-Index', err); });
+}
+function indexWeg(rid, klasse){
+  return setDoc(uebungsIndexRef(rid), { klassen: arrayRemove(klasse) }, {merge:true})
+    .catch(function(err){ console.error('Übungs-Index', err); });
+}
+async function uebungKlassen(rid){
+  var liste = null;
   try{
-    var checks = KLASSEN.map(function(k){
-      return getDocs(query(kcolFor(k.id, 'resources'), where('contentId','==',contentId)))
-        .then(function(snap){ return !snap.empty; });
-    });
-    // Als «vorherige Version» aufbewahrte Inhalte gelten ebenfalls als genutzt.
-    KLASSEN.forEach(function(k){
-      checks.push(getDocs(query(kcolFor(k.id, 'resources'), where('prevContentId','==',contentId)))
-        .then(function(snap){ return !snap.empty; }));
-    });
-    // Einträge ohne contentId nutzen den Inhalt mit ihrer eigenen ID.
-    KLASSEN.forEach(function(k){
-      checks.push(getDoc(kdocFor(k.id, 'resources', contentId)).then(function(snap){ return snap.exists() && !snap.data().contentId; }));
-    });
-    // Die alte, klassenlose Liste (bis zur Umstellung von der Live-Seite
-    // genutzt). Nach der Umstellung ist sie leer bzw. nicht mehr lesbar.
-    checks.push(getDoc(doc(db, 'resources', contentId)).then(function(snap){ return snap.exists(); }, function(){ return false; }));
-    var res = await Promise.all(checks);
-    return res.some(Boolean);
+    var snap = await getDoc(uebungsIndexRef(rid));
+    if(snap.exists() && Array.isArray(snap.data().klassen)) liste = snap.data().klassen.slice();
+  }catch(err){ console.error('Übungs-Index', err); }
+  if(liste){
+    INDEX_ALT_KLASSEN.concat([state.klasse]).forEach(function(k){ if(liste.indexOf(k) < 0) liste.push(k); });
+    return liste;
+  }
+  var snaps = await Promise.all(KLASSEN.map(function(k){ return getDoc(kdocFor(k.id, 'resources', rid)); }));
+  var gefunden = KLASSEN.filter(function(k, i){ return snaps[i].exists(); }).map(function(k){ return k.id; });
+  if(gefunden.length && state.profile.role === 'teacher' && !isLeitung()){
+    setDoc(uebungsIndexRef(rid), { klassen: gefunden }, {merge:true}).catch(function(err){ console.error('Übungs-Index', err); });
+  }
+  if(gefunden.indexOf(state.klasse) < 0) gefunden.push(state.klasse);
+  return gefunden;
+}
+
+// true, solange irgendeine Übung (in irgendeiner Klasse) diesen Inhalt nutzt
+// (als aktuelle oder als «vorherige» Fassung). Im Zweifel (Abfrage scheitert)
+// gilt er als genutzt — lieber ein verwaister Inhalt als eine Übung ohne Inhalt.
+async function contentStillUsed(contentId, rid){
+  if(!rid) return true;
+  try{
+    var klassen = await uebungKlassen(rid);
+    // In Sechserpaketen: meistens ist der Inhalt gleich in den ersten Klassen
+    // noch in Gebrauch, dann spart das die restlichen Lesezugriffe.
+    for(var i = 0; i < klassen.length; i += 6){
+      var snaps = await Promise.all(klassen.slice(i, i+6).map(function(k){ return getDoc(kdocFor(k, 'resources', rid)); }));
+      var genutzt = snaps.some(function(snap){
+        if(!snap.exists()) return false;
+        var d = snap.data();
+        return resourceContentId(Object.assign({id:rid}, d)) === contentId || d.prevContentId === contentId;
+      });
+      if(genutzt) return true;
+    }
+    return false;
   }catch(err){
     console.error(err);
     return true;
   }
 }
 
-async function deleteContentIfUnused(contentId){
+async function deleteContentIfUnused(contentId, rid){
   try{
-    if(await contentStillUsed(contentId)) return;
+    if(await contentStillUsed(contentId, rid)) return;
     var contentSnap = await getDoc(doc(db,'resourceContent', contentId));
     if(!contentSnap.exists()) return;
     var chunkCount = contentSnap.data().chunkCount || 0;
@@ -6979,7 +7457,7 @@ function askAddLink(subjectId, folderId){
       uploadedAt: serverTimestamp(),
       uploadedBy: state.user.uid,
       version: 0
-    }).then(function(){ toast('«'+title+'» wurde hinzugefügt.'); })
+    }).then(function(){ indexDazu(resId, state.klasse); toast('«'+title+'» wurde hinzugefügt.'); })
       .catch(function(err){ console.error(err); toast('Hinzufügen fehlgeschlagen.'); });
   }
   document.getElementById('modalOk').addEventListener('click', submit);
@@ -7042,6 +7520,7 @@ async function doUpload(subjectId, folderId, file, title){
       batch.set(doc(db,'resourceContent', resId, 'chunks', String(i)), chunk);
     });
     await batch.commit();
+    indexDazu(resId, state.klasse);   // separat: darf das Hochladen nie scheitern lassen
     toast('«'+title+'» wurde veröffentlicht.');
   }catch(err){
     console.error(err);
@@ -11990,6 +12469,18 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-09-19-passwort-anfrage', datum:'2026-09-19', fuer:'lehrer', text:'🔑 Passwort vergessen? ⚙️ Einstellungen → «Passwort einer Schüler:in zurücksetzen»: Anfrage stellen – sobald das neue Passwort gesetzt ist, steht es dort (und du bekommst beim Anmelden einen Hinweis).'},
+  {id:'2026-09-19-pruefung-mehrere-uebungen', datum:'2026-09-19', fuer:'lehrer', text:'🧩 Baukasten: Aufgaben lassen sich jetzt aus mehreren Übungen zusammenstellen («Aus Übung …»).'},
+  {id:'2026-09-19-pruefung-druck-design', datum:'2026-09-19', fuer:'lehrer', text:'🖨️ Gedruckte Prüfungen im Prüfungs-Design der Sek Altnau (Logo-Kopf, Name/Klasse/Datum/Punkte, «Aufgabe n – …»); Word ist jetzt eine echte .docx.'},
+  {id:'2026-09-19-pruefung-baukasten-druck', datum:'2026-09-19', fuer:'lehrer', text:'📝 Prüfungen: «🧩 Baukasten» – Aufgaben selbst zusammenstellen und ordnen, pro Aufgabe den Typ wählen (wie in der Übung, 🔤 selbst hinschreiben, ☑️ Auswahl, ✍️ frei formulieren) und eigene Aufgaben ergänzen. «🖨️ Drucken»: Prüfung und Lösungsblatt als PDF oder Word für Prüfungen auf Papier.'},
+  {id:'2026-09-19-einfuehrung', datum:'2026-09-19', fuer:'alle', text:'👋 Neu dabei? Beim ersten Anmelden zeigt dir eine kurze Einführung, was die Library kann – jederzeit wieder unter ⚙️ Einstellungen → «👋 Einführung».'},
+  {id:'2026-09-19-hilfe', datum:'2026-09-19', fuer:'lehrer', text:'📖 Anleitung für Lehrpersonen: ⚙️ Einstellungen → «📖 Anleitung für Lehrpersonen» (hilfe.html – der Link lässt sich auch einfach weiterschicken).'},
+  {id:'2026-09-19-klassenwahl-suche', datum:'2026-09-19', fuer:'lehrer', text:'🏫 Klasse wechseln: Zuoberst «⭐ Meine Seiten» (deine Seite, die Klassen aus deinem Stundenplan, zuletzt besuchte) und ein Suchfeld für Klasse oder Lehrperson (Enter springt beim einzigen Treffer direkt hin).'},
+  {id:'2026-09-19-gruppen-suche', datum:'2026-09-19', fuer:'lehrer', text:'👥 Gruppen: Schüler:innen lassen sich jetzt über ein Suchfeld quer durch alle Klassen finden (Vorname, Nachname oder Kürzel).'},
+  {id:'2026-09-19-empfohlen-fach', datum:'2026-09-19', fuer:'lehrer', text:'⭐ Von Lehrern empfohlen: Filter nach Fach – standardmässig deine Fächer aus dem Stundenplan, bei «Alle Fächer» stehen sie zuoberst.'},
+  {id:'2026-09-19-schulden-klasse', datum:'2026-09-19', fuer:'lehrer', text:'💸 Schulden-Liste pro Klasse ein-/ausschaltbar (⚙️ Einstellungen), neu nur in der G3b standardmässig an. Schüler:innen sehen «Schulden bei» mit dem Namen der Klassenlehrperson.'},
+  {id:'2026-09-19-uebungen-sichtbar', datum:'2026-09-19', fuer:'lehrer', text:'🔒 Die Übungen einer Seite sehen nur noch die eigene Klasse, Lehrpersonen und die Mitglieder deiner 👥 Gruppen. Löschen und Ersetzen von Übungen geht schneller.'},
+  {id:'2026-09-19-schul-statistik', datum:'2026-09-19', fuer:'lehrer', text:'📊 Für die Schulleitung: ⚙️ Einstellungen → «📊 Übersicht» zeigt pro Klasse, wer in den letzten 7 Tagen geübt hat, und den Speicher pro Lehrperson.'},
   {id:'2026-09-19-gruppen-eigenes-fach', datum:'2026-09-19', fuer:'lehrer', text:'👥 Gruppen: Beim Fach kannst du jetzt auch eigene Fächer aus deinem Stundenplan (z. B. «Jassen») wählen oder mit «✍️ Anderes Fach …» ein neues eintippen.'},
   {id:'2026-09-19-stundenplan-andere-lp', datum:'2026-09-19', fuer:'lehrer', text:'👀 Stundenplan: Mit «Andere Lehrperson …» siehst du den persönlichen Stundenplan einer Kollegin oder eines Kollegen (nur ansehen). Dein eigener ist umgekehrt für die anderen Lehrpersonen sichtbar, nicht für Schüler:innen.'},
   {id:'2026-09-19-alle-klassen', datum:'2026-09-19', fuer:'lehrer', text:'🏫 Jetzt sind alle Sek-Klassen dabei. Unter 🏫 oben ganz unten gibt es das Pulldown «Fachlehrpersonen (FLP) & ISF» – jede FLP und jedes ISF hat eine eigene Seite, darin nochmals ein Pulldown für die 4 Praktikant:innen.'},
@@ -12011,7 +12502,6 @@ const NEUIGKEITEN = [
   {id:'2026-09-18-pdf-4mb-cache', datum:'2026-09-18', fuer:'lehrer', text:'📄 PDFs neu max. 4 MB (grössere komprimieren oder als «🔗 Link» ablegen). Übungen und PDFs werden pro Gerät nur noch einmal heruntergeladen und danach aus dem Speicher geöffnet – spart Firebase-Kontingent und lädt schneller.'},
   {id:'2026-09-18-mehrere-links-aktuell', datum:'2026-09-18', fuer:'alle', text:'📘 Bei Hausaufgaben können jetzt mehrere Übungen oder PDFs verlinkt sein – und pro Fach können mehrere Themen gleichzeitig rot als «Aktuell» markiert sein.'},
   {id:'2026-09-18-pdf-link', datum:'2026-09-18', fuer:'lehrer', text:'📄 PDFs: Einfach ins gleiche Feld wie die Übungsseiten ziehen (max. 4 MB, gespeichert ohne Aufschlag). Neu auch «🔗 Link hinzufügen» – z.B. für ein PDF aus iCloud/OneDrive: es wird nur der Link gespeichert, öffnet in neuem Tab. Beides lässt sich wie Übungen bei Hausaufgaben verlinken.'},
-  {id:'2026-09-18-gaeste-pruefung', datum:'2026-09-18', fuer:'lehrer', text:'Fach-Gäste (z.B. Elena und Letizia) erscheinen bei Prüfungen nur noch in Mathe-Prüfungen — in der Live-Übersicht und bei ihnen selbst.'},
   {id:'2026-09-18-pruefung-formate', datum:'2026-09-18', fuer:'lehrer', text:'📝 Prüfungen: Beim Erstellen wählst du jetzt die Aufgabenformate — ✍️ Frei formulieren, 🔤 Selbst hinschreiben (ohne Auswahl), ☑️ Auswählen, 🔗 Zuordnen & Ordnen. Standard 30/40/20/10 %, frei änderbar. Hat die Übung zu wenig Kurzantwort-Fragen, werden Auswahlfragen mit kurzer Antwort und Zuordnungs-Paare automatisch zu Fragen ohne Auswahl umgewandelt (kleine Tippfehler zählen als richtig).'},
   {id:'2026-09-18-fluestern-alle', datum:'2026-09-18', fuer:'lehrer', text:'🗣 Flüstern: Mit «Alle hinzufügen» darf die ganze Klasse auf einmal flüstern.'},
   {id:'2026-09-18-pruefung-massstab-bloom', datum:'2026-09-18', fuer:'lehrer', text:'📝 Prüfungen: Notenmassstab pro Prüfung wählbar — DBK linear (Standard), DBK mit reduzierter 6, Bestehensgrenze (Note 4 bei x %), Fehlerabzug (mit «Fehler für eine 6») oder eigene Punktetabelle. Beim Erstellen Niveau G/E wählen: Die Fragen werden nach Bloom verteilt (G 50/35/15, E 30/40/30 % Erinnern/Verstehen/Anwenden, anpassbar) und nach Bereichen und Aufgabentypen gemischt. Jede Aufgabe bekommt einen Punktevorschlag (halbe Punkte möglich), unter «🧮 Aufgaben & Punkte» änderbar. Karteikarten der Übung werden zu offenen Fragen, vorkorrigiert über Stichwörter der Musterlösung. In den Details gibst du volle, keine oder Teilpunkte.'},
@@ -12024,16 +12514,13 @@ const NEUIGKEITEN = [
   {id:'2026-09-18-mathe-tastatur-weiter', datum:'2026-09-18', fuer:'alle', text:'Mathe-Übungen: Den Taschenrechner 🧮 kannst du jetzt auch mit der Tastatur bedienen (Ziffern, + − * /, Enter). Und wenn du eine Übung wieder öffnest, landest du direkt bei der Aufgabe, bei der du aufgehört hast — auch auf einem anderen Gerät.'},
   {id:'2026-09-18-schulleitung', datum:'2026-09-18', fuer:'lehrer', text:'Neues Login «Schulleitung»: sieht alle Klassen, wahlweise als Lehrperson oder als Schüler:in (Knopf im gelben Band), kann aber nichts verändern.'},
   {id:'2026-09-18-lmvz-mathe', datum:'2026-09-18', fuer:'alle', text:'Mathe: Alle Online-Übungen aus den Lehrmitteln Mathematik 1, 2 und 3 sind jetzt drin — sortiert nach Kapitel und Unterkapitel, unter «Onlineübungen» nach Niveau I, II und III. Auch im Vollbild.'},
-  {id:'2026-09-18-aemtli-stuhl', datum:'2026-09-18', fuer:'lehrer', text:'Ämtli-Erinnerung: am Dienstag steht zusätzlich gross «AUFSTUHLEN», am Freitag «NICHT aufstuhlen».'},
   {id:'2026-09-18-aemtli-gross', datum:'2026-09-18', fuer:'lehrer', text:'Ämtli-Erinnerung: 5 Minuten vor jeder Ämtli-Zeit poppt der Hinweis gross und pulsierend über allem auf (auch im Vollbild). Antippen = weg, zur Ämtli-Zeit verschwindet er sowieso.'},
   {id:'2026-09-18-uebung-bearbeiten', datum:'2026-09-18', fuer:'lehrer', text:'Übungen direkt bearbeiten: «✏️ Bearbeiten» bei jeder Übung — Texte & Lösungen als Formularfelder (nach Aufgabe gruppiert, mit Suche) oder im Code-Modus. Mit Vorschau, Syntaxprüfung und «↩️ Vorherige Version». Kopien in anderen Klassen werden automatisch mitaktualisiert, auch bei «Datei ersetzen».'},
-  {id:'2026-09-18-fach-gaeste', datum:'2026-09-18', fuer:'lehrer', text:'Fach-Gäste (z.B. Elena und Letizia in Mathe): erscheinen in Abgabe-Checklisten, Vergessen-Zähler und Live-Klasse nur bei Mathe, in Spielen per «👭 Gäste»-Schalter, im Sitzplan nur von Hand — auch als zweite Person auf einem besetzten Platz.'},
   {id:'2026-09-18-quiz-punkte-plus', datum:'2026-09-18', fuer:'alle', text:'Klassen-Quiz: Nach jeder Frage siehst du gross, wie viele Punkte du dazubekommen hast. Und «mitmachen» klappt jetzt zuverlässig.'},
   {id:'2026-09-18-quiz-stopp', datum:'2026-09-18', fuer:'lehrer', text:'Klassen-Quiz: Neuer Knopf «⏸ Zeit stoppen» am Beamer — der Countdown friert ein, niemand wird gesperrt, aufgelöst wird per Knopf.'},
   {id:'2026-09-17-neuigkeiten', datum:'2026-09-17', fuer:'alle', text:'Neuer Reiter 🆕: Hier siehst du, was sich an der Library geändert hat. Leuchtet das Symbol rot, gibt es etwas Neues.'},
   {id:'2026-09-17-erinnerungen', datum:'2026-09-17', fuer:'alle', text:'Erinnerungen kommen zuverlässiger an, auch wenn der Versand sich verspätet.'},
   {id:'2026-09-17-klassen', datum:'2026-09-17', fuer:'alle', text:'Jede und jeder hat jetzt ein persönliches Login (Vorname + eigenes Passwort).'},
-  {id:'2026-09-17-klassen-lp', datum:'2026-09-17', fuer:'lehrer', text:'Mehrere Klassen (G3b, G3a, E1c): Klassenwechsel über den 🏫-Knopf oben, Einstellungen mit Übungs-Vorschlägen und Aktualisierungen.'},
   {id:'2026-09-17-pflanzen', datum:'2026-09-17', fuer:'lehrer', text:'🪴 Pflanzen-Giesserinnerung mit rotem Band bis abgehakt; Giessplan berücksichtigt Wochenenden und Ferien.'},
   {id:'2026-09-17-slf', datum:'2026-09-17', fuer:'lehrer', text:'Klassenzimmer: Stadt Land Fluss mit Drehscheibe, Kategorien, Sanduhr und STOPP.'},
   {id:'2026-09-17-datei-ersetzen', datum:'2026-09-17', fuer:'lehrer', text:'«Datei ersetzen» für hochgeladene HTML-Übungen: Inhalt tauschen, Titel, Ort und Lernstände bleiben.'},
@@ -12064,6 +12551,9 @@ function neuLoadSeen(force){
   return neuState.loading;
 }
 function neuIstNeu(n, seen){
+  // Seite, auf der die Neuigkeiten noch nie geöffnet wurden (neue Klasse):
+  // der ganze bisherige Verlauf gilt nicht als neu (dafür gibt es 👋 Einführung).
+  if(!seen || !Object.keys(seen).length) return false;
   var t = seen && seen[n.id];
   return !t || (Date.now() - t) < NEU_TAGE * 86400000;
 }
@@ -12100,7 +12590,9 @@ function renderNeuigkeiten(){
     // Lehrperson in der eigenen Klasse: Uhr für noch nicht gestartete Einträge starten.
     if(isTeacher && !isFremdeKlasse()){
       var patch = {}, jetzt = Date.now(), neuGestartet = false;
-      NEUIGKEITEN.forEach(function(n){ if(!seen[n.id]){ patch[n.id] = jetzt; neuGestartet = true; } });
+      // Erstes Mal auf dieser Seite: alles Bisherige gleich als «Nüme so neu».
+      var start = Object.keys(seen).length ? jetzt : jetzt - (NEU_TAGE + 1) * 86400000;
+      NEUIGKEITEN.forEach(function(n){ if(!seen[n.id]){ patch[n.id] = start; neuGestartet = true; } });
       if(neuGestartet){
         setDoc(kdoc('appMeta', 'neuigkeiten'), { seen: patch }, {merge:true})
           .catch(function(err){ console.error('Neuigkeiten speichern', err); });
@@ -12140,6 +12632,67 @@ function paintNeuigkeiten(liste, seen, vorher, isTeacher){
   }
   h += '</div>';
   host.innerHTML = h;
+}
+
+/* ---------- 👋 Einführung für neue Konten ----------
+   Einmal pro Person ein paar Seiten «Das kann die Library» (gemerkt unter
+   progress/{uid}/einstellungen/einfuehrung, gilt also auf allen Geräten).
+   Wer schon vor dem 19.09.2026 dabei war (G3b, G3a, E1c), bekommt sie nicht
+   automatisch. Jederzeit wieder: ⚙️ Einstellungen → «👋 Einführung». */
+var EINFUEHRUNG_ALTE_KLASSEN = ['G3b', 'G3a', 'E1c'];
+var HILFE_URL = 'hilfe.html';
+function einfuehrungRef(){ return doc(db, 'progress', state.user.uid, 'einstellungen', 'einfuehrung'); }
+function einfuehrungPruefen(){
+  if(!state.profile || !state.user || isLeitung() || EINFUEHRUNG_ALTE_KLASSEN.indexOf(state.profile.klasse) >= 0) return;
+  getDoc(einfuehrungRef()).then(function(snap){
+    if(snap.exists() || !state.user) return;
+    // Nicht über einen offenen Dialog oder eine Übung legen — dann eben beim nächsten Mal.
+    if(modalEl.classList.contains('show') || !state.route || state.route.name !== 'home') return;
+    openEinfuehrung();
+  }).catch(function(err){ console.error('Einführung', err); });
+}
+function einfuehrungSeiten(){
+  if(state.profile.role === 'teacher') return [
+    ['👋', 'Willkommen in der Library', 'Übungen, Hausaufgaben, Stundenplan und Werkzeuge für den Unterricht – für deine Klasse bzw. (FLP, ISF) für deine eigene Seite. Deine Schüler:innen melden sich mit Vorname oder Schul-Kürzel und ihrem Passwort an.'],
+    ['📚', 'Übungen und PDFs ablegen', 'Fach öffnen und die HTML-Übung oder das PDF (max. 4 MB) ins Feld ziehen – oder «🔗 Link hinzufügen». Mit Ordnern sortieren. Du hast 1 GB Speicher (Anzeige unter ⚙️ Einstellungen).'],
+    ['📅', 'Kalender und 👥 Gruppen', 'Im 📅 Kalender Hausaufgaben, Prüfungen und Erinnerungen eintragen und Übungen oder PDFs verlinken. Unter «👥 Gruppen» stellst du Schüler:innen aus mehreren Klassen zusammen und wählst die Gruppe beim Eintrag unter «Für».'],
+    ['🏫', 'Andere Seiten und ⭐ Empfehlungen', 'Mit 🏫 oben schaust du bei anderen Klassen und Lehrpersonen hinein (gelbes Band = nicht deine Seite). «☆ Empfehlen» schlägt eine Übung allen vor; Vorschläge der anderen übernimmst du unter ⚙️ Einstellungen.'],
+    ['🎯', 'Klassenzimmer', 'Der Knopf «🏫 Klassenzimmer» auf der Startseite öffnet die Beamer-Werkzeuge: Sitzplan, Klassen-Quiz, Blitzumfrage, Online-Prüfungen, Würfel, Glücksrad und mehr.'],
+    ['❓', 'Hilfe', 'Die ausführliche Anleitung: <a href="'+HILFE_URL+'" target="_blank" rel="noopener">Hilfe für Lehrpersonen öffnen</a>. Was neu ist, steht unter 🆕. Diese Einführung findest du jederzeit wieder unter ⚙️ Einstellungen.']
+  ];
+  return [
+    ['👋', 'Willkommen in der Library', 'Hier findest du die Übungen deiner Lehrpersonen, deine Hausaufgaben und deinen Stundenplan.'],
+    ['📚', 'Üben', 'Tippe auf ein Fach und öffne eine Übung. Dein Fortschritt wird automatisch gespeichert – auch wenn du später an einem anderen Gerät weitermachst.'],
+    ['📅', 'Hausaufgaben', 'Auf der Startseite siehst du, was ansteht. Im 📅 Kalender hakst du Erledigtes ab und kannst eigene Einträge machen.'],
+    ['⭐', 'Die Symbole oben', '🗓️ Stundenplan · 🔔 Erinnerungen · 🔥 Lern-Serie · ❓ anonyme Fragebox · 🆕 Neuigkeiten. Kacheln und Symbole verschiebst du, indem du lange draufdrückst.'],
+    ['🔑', 'Dein Konto', 'Unter ⚙️ Einstellungen kannst du dein Passwort ändern. Gib es niemandem weiter. Diese Einführung findest du dort auch wieder.']
+  ];
+}
+function openEinfuehrung(){
+  var seiten = einfuehrungSeiten(), i = 0;
+  function fertig(){
+    closeModal();
+    if(state.user) setDoc(einfuehrungRef(), { gesehen:serverTimestamp() }).catch(function(err){ console.error('Einführung', err); });
+  }
+  function malen(){
+    var sd = seiten[i], letzte = i === seiten.length - 1;
+    openModal(
+      '<div class="einf-icon">'+sd[0]+'</div>'+
+      '<h3 style="text-align:center;">'+esc(sd[1])+'</h3>'+
+      '<p class="einf-text">'+sd[2]+'</p>'+
+      '<div class="einf-dots">'+seiten.map(function(x, j){ return '<span'+(j === i ? ' class="on"' : '')+'></span>'; }).join('')+'</div>'+
+      '<div class="modal-actions">'+
+        (letzte ? '' : '<button class="btn btn-ghost btn-sm" id="einfSkip" type="button">Überspringen</button>')+
+        (i ? '<button class="btn btn-ghost btn-sm" id="einfBack" type="button">Zurück</button>' : '')+
+        '<button class="btn btn-primary btn-sm" id="einfNext" type="button">'+(letzte ? 'Los geht\'s!' : 'Weiter')+'</button>'+
+      '</div>'
+    );
+    var skip = document.getElementById('einfSkip'), back = document.getElementById('einfBack');
+    if(skip) skip.addEventListener('click', fertig);
+    if(back) back.addEventListener('click', function(){ i--; malen(); });
+    document.getElementById('einfNext').addEventListener('click', function(){ if(letzte) fertig(); else { i++; malen(); } });
+  }
+  malen();
 }
 
 /* ---------- 🧹 Besen in der Kopfzeile (nur Klasse) ---------- */
@@ -14465,6 +15018,48 @@ function pruefBildSauber(s){
 // Sortiert: Erinnern → Verstehen → Anwenden, darin nach Bereich und Original.
 // Liefert die öffentlichen Fragen (ohne Lösung), die Lösungen und die Bilder getrennt.
 var PRUEF_LV = ['erinnern', 'verstehen', 'anwenden'];
+function pruefKatNamen(info){
+  var katName = {};
+  (info.kategorien || []).forEach(function(k){ katName[k.id] = k.name; });
+  return katName;
+}
+// Sammelt die Bilder (SVG) einer Prüfung; gleiche Bilder nur einmal.
+function pruefBildSammler(){
+  var liste = [], nr = {};
+  return { liste:liste, add:function(svg, sauber){
+    if(!nr.hasOwnProperty(svg)){ nr[svg] = liste.length; liste.push(sauber ? svg : pruefBildSauber(svg)); }
+    return nr[svg];
+  }};
+}
+// Eine Frage der Übung (f) → öffentliche Prüfungsfrage q (ohne Lösung) + Lösung L.
+function pruefFrageBauen(f, lv, id, katName, bild, rnd){
+  var q = {id:id, typ:f.typ, kat:katName[f.kat] || f.kat || '', frage:f.frage || ''};
+  if(f.typ !== 'diktat') q.bloom = lv || pruefBloom(f);
+  if(f.kontext) q.kontext = f.kontext;
+  if(f.bild) q.bild = bild.add(f.bild);
+  var L = {punkte:pruefPunkteVorschlag(f)};
+  if(f.typ === 'mc'){ q.optionen = f.optionen; L.loesung = f.loesung; L.anzeige = f.optionen[f.loesung] || ''; }
+  else if(f.typ === 'tf'){ L.loesung = f.loesung; L.anzeige = f.loesung ? 'Wahr' : 'Falsch'; }
+  else if(f.typ === 'text'){ L.loesung = f.loesung; L.anzeige = f.loesung[0] || ''; if(f.locker) L.locker = true; }
+  else if(f.typ === 'offen'){ L.loesung = f.loesung; L.stichworte = pruefStichworte(f.loesung, f.begriff); L.anzeige = f.loesung; }
+  else if(f.typ === 'diktat'){ L.text = f.text; L.alt = f.alt || []; L.punkte = pruefDiktatTokens(f.text.join(' ')).length || 1; L.anzeige = ''; }
+  else if(f.typ === 'zahl'){ q.einheit = f.einheit || ''; L.loesung = f.loesung; L.anzeige = String(f.loesung.wert).replace('.', ',') + (f.einheit ? ' ' + f.einheit : ''); }
+  else if(f.typ === 'zuordnen'){
+    var perm = pruefMischen(f.rechts.map(function(r, j){ return j; }), rnd);
+    q.links = f.links; q.rechts = perm.map(function(j){ return f.rechts[j]; });
+    L.loesung = f.links.map(function(l, li){ return perm.indexOf(li); });
+    L.anzeige = f.links.map(function(l, li){ return l + ' → ' + f.rechts[li]; }).join('; ');
+  }
+  else if(f.typ === 'reihenfolge'){
+    var pm = pruefMischen(f.items.map(function(r, j){ return j; }), rnd);
+    q.items = pm.map(function(j){ return f.items[j]; });
+    L.loesung = f.items.map(function(it, j){ return pm.indexOf(j); });
+    L.anzeige = f.items.join(' → ');
+  }
+  L.typ = f.typ;
+  if(f.typ !== 'diktat') q.punkte = L.punkte;
+  return {q:q, L:L};
+}
 function pruefBankPool(info, kats, mitUmwandeln){
   var pool = [];
   info.fragen.forEach(function(f, i){
@@ -14524,41 +15119,14 @@ function pruefBankZiehen(info, kats, anzahl, seed, bloomPct, formPct){
     zieheBeide(function(){ return true; }, offen);
   }
   gezogen.sort(function(a, b){ return (lvIdx[a.lv] - lvIdx[b.lv]) || (katIdx[a.f.kat] - katIdx[b.f.kat]) || (a.i - b.i) || (a.um - b.um); });
-  var katName = {};
-  info.kategorien.forEach(function(k){ katName[k.id] = k.name; });
-  var bilder = [], bildNr = {}, fragen = [], loesungen = {};
+  var katName = pruefKatNamen(info), bild = pruefBildSammler(), fragen = [], loesungen = {};
   gezogen.forEach(function(x, i){
-    var f = x.f, id = 'q' + i;
-    var q = {id:id, typ:f.typ, kat:katName[f.kat] || f.kat, frage:f.frage || ''};
-    if(f.typ !== 'diktat') q.bloom = x.lv;
-    if(f.kontext) q.kontext = f.kontext;
-    if(f.bild){
-      if(!bildNr.hasOwnProperty(f.bild)){ bildNr[f.bild] = bilder.length; bilder.push(pruefBildSauber(f.bild)); }
-      q.bild = bildNr[f.bild];
-    }
-    var L = {punkte:pruefPunkteVorschlag(f)};
-    if(f.typ === 'mc'){ q.optionen = f.optionen; L.loesung = f.loesung; L.anzeige = f.optionen[f.loesung] || ''; }
-    else if(f.typ === 'tf'){ L.loesung = f.loesung; L.anzeige = f.loesung ? 'Wahr' : 'Falsch'; }
-    else if(f.typ === 'text'){ L.loesung = f.loesung; L.anzeige = f.loesung[0] || ''; if(f.locker) L.locker = true; }
-    else if(f.typ === 'offen'){ L.loesung = f.loesung; L.stichworte = pruefStichworte(f.loesung, f.begriff); L.anzeige = f.loesung; }
-    else if(f.typ === 'diktat'){ L.text = f.text; L.alt = f.alt || []; L.punkte = pruefDiktatTokens(f.text.join(' ')).length || 1; L.anzeige = ''; }
-    else if(f.typ === 'zahl'){ q.einheit = f.einheit || ''; L.loesung = f.loesung; L.anzeige = String(f.loesung.wert).replace('.', ',') + (f.einheit ? ' ' + f.einheit : ''); }
-    else if(f.typ === 'zuordnen'){
-      var perm = pruefMischen(f.rechts.map(function(r, j){ return j; }), rnd);
-      q.links = f.links; q.rechts = perm.map(function(j){ return f.rechts[j]; });
-      L.loesung = f.links.map(function(l, li){ return perm.indexOf(li); });
-      L.anzeige = f.links.map(function(l, li){ return l + ' → ' + f.rechts[li]; }).join('; ');
-    }
-    else if(f.typ === 'reihenfolge'){
-      var pm = pruefMischen(f.items.map(function(r, j){ return j; }), rnd);
-      q.items = pm.map(function(j){ return f.items[j]; });
-      L.loesung = f.items.map(function(it, j){ return pm.indexOf(j); });
-      L.anzeige = f.items.join(' → ');
-    }
-    L.typ = f.typ;
-    if(f.typ !== 'diktat') q.punkte = L.punkte;
-    fragen.push(q); loesungen[id] = L;
+    var b = pruefFrageBauen(x.f, x.lv, 'q' + i, katName, bild, rnd);
+    b.q.src = x.i;
+    if(x.um) b.q.als = 'text';
+    fragen.push(b.q); loesungen[b.q.id] = b.L;
   });
+  var bilder = bild.liste;
   return {fragen:fragen, loesungen:loesungen, bilder:bilder};
 }
 
@@ -14907,7 +15475,7 @@ function pruefStatusBadge(p){
 }
 // Kurzbeschreibung: Übung · Anzahl · Bereiche · (Einstellungen der Übung)
 function pruefBeschreibung(p, lang){
-  var c = p.cfg || {}, teile = [p.resourceTitel || ''];
+  var c = p.cfg || {}, teile = [(p.resourceTitel || '') + (c.quellen && c.quellen.length ? ' + ' + c.quellen.map(function(x){ return x.titel; }).join(', ') : '')];
   if(p.diktat) teile.push('✍️ Diktat · ' + (p.woerterInfo || '?') + ' Wörter');
   else teile.push(pruefAnzahl(p) + ' Fragen' + (pruefArt(p) === 'bank' && p.maxPunkte ? ' (' + pruefZahlText(p.maxPunkte) + ' Punkte)' : '') + (c.niveau ? ' · Niveau ' + c.niveau : ''));
   if(+p.zeitMin > 0) teile.push('⏱ ' + p.zeitMin + ' Min.');
@@ -15166,7 +15734,8 @@ async function pruefEditor(p){
       var zh = document.getElementById('prZiehHint');
       if(zh) zh.textContent = neuZiehen
         ? 'Die Fragen werden beim Speichern so gezogen (Erinnern → Verstehen → Anwenden). Punkte und Bloom-Stufe jeder Frage kannst du danach unter «🧮 Aufgaben & Punkte» ändern.'
-        : 'Die bisher gezogenen Fragen und deine Punkte bleiben. Änderst du oben etwas, wird beim Speichern neu gezogen.';
+        : (c.baukasten ? 'Die im 🧩 Baukasten zusammengestellten Aufgaben bleiben. Änderst du oben etwas, wird beim Speichern neu gezogen und die Zusammenstellung ersetzt.'
+          : 'Die bisher gezogenen Fragen und deine Punkte bleiben. Änderst du oben etwas, wird beim Speichern neu gezogen.');
       maxInfoZeichnen();
     }
     var fsBtn = document.getElementById('prFormStd');
@@ -15329,6 +15898,603 @@ async function pruefAufgabenPunkte(p){
   });
 }
 
+/* ---------- Lehrperson: 🧩 Baukasten ----------
+   Die Prüfung selbst zusammensetzen: Aufgaben aus der Übung einzeln
+   hinzufügen/entfernen/verschieben, pro Aufgabe den Aufgabentyp wählen
+   (wie in der Übung, 🔤 selbst hinschreiben, ☑️ Auswahl, ✍️ frei formulieren)
+   und eigene Aufgaben ergänzen. Nur solange die Prüfung ein Entwurf ist.
+   Gespeichert wird genau wie beim Ziehen: fragen/bilder im Prüfungsdokument,
+   Lösungen in intern/loesung. q.src = Index der Frage in der Übung, q.als =
+   gewählter Typ, q.eigen = eigene Aufgabe (so findet der Baukasten sie wieder). */
+var PRUEF_ALS = [
+  {id:'orig', name:'wie in der Übung'},
+  {id:'text', name:'🔤 selbst hinschreiben'},
+  {id:'mc', name:'☑️ Auswahl (4 Antworten)'},
+  {id:'offen', name:'✍️ frei formulieren'}
+];
+// Kurze Antworten eines Bereichs — Material für falsche Auswahl-Antworten.
+function pruefKurzAntworten(info, kat){
+  var out = [], seen = {};
+  function dazu(t){ t = String(t || '').trim(); var k = pruefNorm(t); if(pruefKurzeAntwort(t) && !seen[k]){ seen[k] = 1; out.push(t); } }
+  // zuerst echte Kurzantworten, dann Antworten aus Auswahl/Zuordnen
+  info.fragen.forEach(function(f){ if(f.kat === kat && f.typ === 'text') dazu((f.loesung || [])[0]); });
+  info.fragen.forEach(function(f){
+    if(f.kat !== kat) return;
+    if(f.typ === 'mc') (f.optionen || []).forEach(dazu);
+    else if(f.typ === 'zuordnen') (f.rechts || []).forEach(dazu);
+  });
+  return out;
+}
+function pruefAntwortText(f){
+  if(f.typ === 'mc') return (f.optionen || [])[f.loesung] || '';
+  if(f.typ === 'text') return (f.loesung || [])[0] || '';
+  if(f.typ === 'offen') return String(f.loesung || '');
+  if(f.typ === 'zahl') return f.loesung ? String(f.loesung.wert).replace('.', ',') + (f.einheit ? ' ' + f.einheit : '') : '';
+  if(f.typ === 'tf') return f.loesung ? 'Wahr' : 'Falsch';
+  return '';
+}
+// Frage f als Typ `als` — Liste von Übungsfragen (Zuordnen → selbst hinschreiben
+// ergibt eine Frage pro Paar), leer = geht bei dieser Frage nicht.
+function pruefAlsTyp(f, als, info, rnd){
+  if(!als || als === 'orig' || als === f.typ) return [f];
+  var basis = {kat:f.kat};
+  if(f.kontext) basis.kontext = f.kontext;
+  if(f.bild) basis.bild = f.bild;
+  if(f.bloom) basis.bloom = f.bloom;
+  var antwort = pruefAntwortText(f);
+  if(als === 'text'){
+    if(f.typ === 'mc' || f.typ === 'zuordnen') return pruefUmwandeln(f);
+    if(f.typ === 'offen' && pruefKurzeAntwort(antwort)) return [Object.assign({}, basis, {typ:'text', frage:f.frage, loesung:pruefVarianten(antwort), locker:true})];
+    return [];
+  }
+  if(als === 'offen'){
+    if(f.typ === 'tf') return [Object.assign({}, basis, {typ:'offen', frage:'Stimmt diese Aussage? Begründe. — ' + f.frage, loesung:antwort})];
+    if(['mc', 'text', 'zahl'].indexOf(f.typ) >= 0 && antwort) return [Object.assign({}, basis, {typ:'offen', frage:f.frage, loesung:antwort})];
+    return [];
+  }
+  if(als === 'mc'){
+    if(['text', 'offen'].indexOf(f.typ) < 0 || !pruefKurzeAntwort(antwort)) return [];
+    var falsch = pruefKurzAntworten(info, f.kat).filter(function(t){ return pruefNorm(t) !== pruefNorm(antwort); });
+    if(falsch.length < 3) return [];
+    var opts = pruefMischen([antwort].concat(pruefMischen(falsch, rnd).slice(0, 3)), rnd);
+    return [Object.assign({}, basis, {typ:'mc', frage:f.frage, optionen:opts, loesung:opts.indexOf(antwort)})];
+  }
+  return [];
+}
+function pruefAlsMoeglich(f, info){
+  var rnd = pruefRng(1);
+  return PRUEF_ALS.filter(function(a){ return a.id === 'orig' || (a.id !== f.typ && pruefAlsTyp(f, a.id, info, rnd).length); });
+}
+// Eigene Aufgabe (im Baukasten geschrieben) → Übungsfrage.
+function pruefEigeneFrage(e){
+  if(e.typ === 'text') return {typ:'text', kat:'eigen', frage:e.frage, loesung:pruefVarianten(e.loesung), locker:true};
+  return {typ:'offen', kat:'eigen', frage:e.frage, loesung:e.loesung};
+}
+
+async function pruefBaukasten(p){
+  if(p.status !== 'entwurf'){ uiInfo('🧩 Baukasten', 'Die Prüfung wurde schon freigegeben – die Aufgaben bleiben, wie sie sind. Punkte lassen sich weiterhin unter «🧮 Aufgaben & Punkte» ändern.'); return; }
+  openModal('<h3>🧩 Baukasten</h3><p class="pr-hinweis">Übung und Lösungen werden geladen …</p>', 'pr-modal pr-modal-breit');
+  var loes = {};
+  try{ loes = await pruefLoesungLaden(p.id); }catch(err){ console.error(err); }
+  // Mehrere Übungen: infos[contentId] = ausgelesene Fragen; die Hauptübung ist p.contentId,
+  // Aufgaben aus anderen Übungen tragen q.srcC (deren contentId).
+  var LEER = {art:'bank', fragen:[], kategorien:[]}, infos = {}, titel = {};
+  async function infoLaden(cid){
+    if(infos[cid]) return infos[cid];
+    var r = null;
+    try{ r = await pruefProbe(cid); }catch(err){ console.error(err); }
+    infos[cid] = r && r.art === 'bank' && !r.diktat ? r : LEER;
+    return infos[cid];
+  }
+  titel[p.contentId] = p.resourceTitel || 'Übung';
+  await infoLaden(p.contentId);
+  var weitere = [];
+  (p.fragen || []).forEach(function(q){ if(q.srcC && weitere.indexOf(q.srcC) < 0) weitere.push(q.srcC); });
+  for(var wi = 0; wi < weitere.length; wi++) await infoLaden(weitere[wi]);
+  (p.cfg && p.cfg.quellen || []).forEach(function(x){ titel[x.cid] = x.titel; });
+  function infoVon(b){ return infos[b.cid] || LEER; }
+  function katVon(b){ return pruefKatNamen(infoVon(b)); }
+  // Übungen der Seite für «Aus Übung …» (nur Liste, ausgelesen wird erst bei Auswahl)
+  var uebListe = [];
+  try{
+    (await getDocs(kcol('resources'))).forEach(function(d){
+      var r = Object.assign({id:d.id}, d.data()), sj = subjectById(r.subject);
+      if(r.linkUrl || r.externalUrl || r.pdf || (sj && (sj.teacherOnly || sj.id === 'berufswahl'))) return;
+      uebListe.push(r);
+      titel[resourceContentId(r)] = titel[resourceContentId(r)] || r.title || r.fileName || 'Übung';
+    });
+  }catch(err){ console.error(err); }
+  uebListe.sort(function(a, b){ return subjectName(a.subject).localeCompare(subjectName(b.subject), 'de') || (a.title || '').localeCompare(b.title || '', 'de', {numeric:true}); });
+  var quelle = p.contentId, info = infos[quelle], katName = pruefKatNamen(info);
+
+  // Bausteine aus der bestehenden Prüfung: {i, f, als, punkte} | {eigen:{typ,frage,loesung}, punkte} | {fix:{q,L}}
+  var bs = [], zuletzt = null;
+  (p.fragen || []).forEach(function(q){
+    var L = loes[q.id] || {}, pk = +q.punkte > 0 ? +q.punkte : (L.punkte || 1);
+    if(q.eigen){ bs.push({eigen:{typ:q.typ, frage:q.frage, loesung:L.typ === 'text' ? (L.anzeige || '') : String(L.loesung || '')}, punkte:pk}); zuletzt = null; return; }
+    var cid = q.srcC || p.contentId, qi = infos[cid] || LEER;
+    var i = q.src != null ? q.src : -1, f = qi.fragen[i];
+    if(!f && !q.srcC){
+      // ältere Prüfung ohne q.src: über den Fragetext wiederfinden
+      i = qi.fragen.findIndex(function(x){ return x.frage === q.frage && (x.typ === q.typ || (q.typ === 'text' && x.typ === 'mc')); });
+      f = qi.fragen[i];
+    }
+    if(!f){ bs.push({fix:{q:q, L:L}, punkte:pk}); zuletzt = null; return; }
+    var als = q.als || (q.typ === f.typ ? 'orig' : q.typ);
+    // Zuordnen → selbst hinschreiben: mehrere Fragen, ein Baustein
+    if(zuletzt && zuletzt.cid === cid && zuletzt.i === i && zuletzt.als === als && als !== 'orig') return;
+    zuletzt = {cid:cid, i:i, f:f, als:als, punkte:pk};
+    // Umgewandelte Auswahlfrage genau so behalten, wie sie ist (gleiche falsche Antworten).
+    if(als === 'mc' && f.typ !== 'mc' && q.optionen) zuletzt.v = [Object.assign({}, f, {typ:'mc', frage:q.frage, optionen:q.optionen, loesung:L.loesung})];
+    bs.push(zuletzt);
+  });
+  var filterKat = '', suche = '';
+
+  function bausteinText(b){
+    if(b.eigen) return b.eigen.frage;
+    if(b.fix) return b.fix.q.frage;
+    return b.f.frage || (b.f.links ? 'Zuordnen: ' + b.f.links.slice(0, 3).join(', ') + ' …' : b.f.items ? 'Reihenfolge: ' + b.f.items.slice(0, 3).join(', ') + ' …' : '');
+  }
+  // Umgewandelte Fassungen einmal berechnen und merken — gespeichert wird genau das Angezeigte.
+  function bausteinVarianten(b){
+    if(b.als === 'orig') return [b.f];
+    if(!b.v) b.v = pruefAlsTyp(b.f, b.als, infoVon(b), pruefRng(Math.floor(Math.random() * 2147483646) + 1));
+    return b.v;
+  }
+  function anzahlFragen(b){ return b.f && b.als === 'text' && b.f.typ === 'zuordnen' ? pruefUmwandeln(b.f).length : 1; }
+  function summe(){ return Math.round(bs.reduce(function(s, b){ return s + b.punkte * anzahlFragen(b); }, 0) * 100) / 100; }
+  function benutzt(){ var u = {}; bs.forEach(function(b){ if(b.f) u[b.cid + '|' + b.i] = 1; }); return u; }
+
+  function listeHtml(){
+    if(!bs.length) return '<div class="empty-state">Noch keine Aufgaben – unten hinzufügen.</div>';
+    return bs.map(function(b, k){
+      var typ;
+      if(b.f){
+        typ = '<select class="modal-input pr-bk-als" data-als="'+k+'">' + pruefAlsMoeglich(b.f, infoVon(b)).map(function(a){
+          return '<option value="'+a.id+'"'+(b.als === a.id ? ' selected' : '')+'>'+esc(a.id === 'orig' ? (PRUEF_TYPEN[b.f.typ] || b.f.typ) + ' (wie Übung)' : a.name)+'</option>';
+        }).join('') + '</select>';
+      } else if(b.eigen){
+        typ = '<select class="modal-input pr-bk-als" data-eigtyp="'+k+'"><option value="offen"'+(b.eigen.typ !== 'text' ? ' selected' : '')+'>✍️ frei formulieren</option><option value="text"'+(b.eigen.typ === 'text' ? ' selected' : '')+'>🔤 selbst hinschreiben</option></select>';
+      } else typ = '<span class="pr-badge">'+esc(PRUEF_TYPEN[b.fix.q.typ] || b.fix.q.typ)+'</span>';
+      var n = anzahlFragen(b), opts = '';
+      if(b.f && b.als === 'mc'){
+        var mv = bausteinVarianten(b)[0];
+        if(mv) opts = '<div class="pr-bk-opts">'+mv.optionen.map(function(o, j){ return j === mv.loesung ? '<b>'+esc(o)+' ✓</b>' : esc(o); }).join(' · ')+
+          ' <button class="btn btn-ghost btn-sm" data-neumisch="'+k+'" type="button" title="andere falsche Antworten">🎲</button></div>';
+      }
+      return '<div class="pr-bk-row"><span class="pr-ap-nr">'+(k+1)+'.</span>'+
+        '<div class="pr-bk-f"><div class="pr-ap-meta">'+typ+'<small>'+esc(b.f ? (katVon(b)[b.f.kat] || b.f.kat || '') + (b.cid !== p.contentId ? ' · 📚 ' + (titel[b.cid] || 'andere Übung') : '') : b.eigen ? '✏️ eigene Aufgabe' : (b.fix.q.kat || ''))+(n > 1 ? ' · ergibt '+n+' Fragen' : '')+'</small></div>'+
+        '<div>'+esc(bausteinText(b))+'</div>'+opts+'</div>'+
+        '<div class="pr-bk-akt"><label class="pr-ap-p"><input type="number" class="modal-input" data-pk="'+k+'" min="0.5" max="50" step="0.5" value="'+b.punkte+'"><span>P.'+(n > 1 ? ' je' : '')+'</span></label>'+
+        '<span><button class="btn btn-ghost btn-sm" data-hoch="'+k+'" type="button" title="nach oben"'+(k ? '' : ' disabled')+'>↑</button>'+
+        '<button class="btn btn-ghost btn-sm" data-runter="'+k+'" type="button" title="nach unten"'+(k < bs.length - 1 ? '' : ' disabled')+'>↓</button>'+
+        '<button class="btn btn-ghost btn-sm" data-weg="'+k+'" type="button" title="entfernen">✕</button></span></div></div>';
+    }).join('');
+  }
+  function poolHtml(){
+    var u = benutzt(), t = suche.trim().toLowerCase();
+    var liste = info.fragen.map(function(f, i){ return {f:f, i:i}; }).filter(function(x){
+      if(u[quelle + '|' + x.i] || x.f.typ === 'diktat') return false;
+      if(filterKat && x.f.kat !== filterKat) return false;
+      return !t || JSON.stringify([x.f.frage, x.f.optionen, x.f.links, x.f.rechts, x.f.items, x.f.loesung]).toLowerCase().indexOf(t) >= 0;
+    });
+    if(!info.fragen.length) return '<div class="empty-state">Aus dieser Übung lassen sich keine Fragen auslesen (geht mit Prüfungsvorbereitungen/Quiz und Mathe-Übungen) – eigene Aufgaben gehen trotzdem.</div>';
+    if(!liste.length) return '<div class="empty-state">Keine weiteren Fragen'+(filterKat || t ? ' für diese Auswahl' : '')+'.</div>';
+    return liste.slice(0, 80).map(function(x){
+      return '<div class="pr-bk-pool"><button class="btn btn-ghost btn-sm" data-dazu="'+x.i+'" type="button" title="zur Prüfung">＋</button>'+
+        '<div><span class="pr-badge">'+esc(PRUEF_TYPEN[x.f.typ] || x.f.typ)+'</span> <small>'+esc(katName[x.f.kat] || x.f.kat || '')+' · '+esc(PRUEF_BLOOM.filter(function(bl){ return bl.id === pruefBloom(x.f); }).map(function(bl){ return bl.icon; }).join(''))+'</small><div>'+
+        esc(x.f.frage || (x.f.links ? 'Zuordnen: ' + x.f.links.join(', ') : x.f.items ? 'Reihenfolge: ' + x.f.items.join(', ') : ''))+'</div></div></div>';
+    }).join('') + (liste.length > 80 ? '<p class="pr-hinweis">… und '+(liste.length - 80)+' weitere – mit Bereich oder Suche eingrenzen.</p>' : '');
+  }
+  function zeichnen(){
+    var el = document.getElementById('prBkListe');
+    if(!el) return;
+    el.innerHTML = listeHtml();
+    document.getElementById('prBkPool').innerHTML = poolHtml();
+    document.getElementById('prBkKopf').innerHTML = bs.length + ' Aufgaben · <b>' + pruefZahlText(summe()) + '</b> Punkte';
+  }
+
+  var h = '<h3>🧩 Baukasten: '+esc(p.titel)+'</h3>';
+  h += '<p class="pr-hinweis">Aufgaben zusammenstellen, ordnen und pro Aufgabe den Typ wählen. Die Reihenfolge hier gilt auch für den Druck (online wird sie pro Person gemischt, falls eingestellt).</p>';
+  h += '<p class="pr-hinweis" id="prBkKopf"></p>';
+  h += '<div class="pr-ap" id="prBkListe"></div>';
+  h += '<h4 class="pr-h4">➕ Aufgaben hinzufügen</h4>';
+  h += '<label class="modal-label">Aus Übung</label><select id="prBkQuelle" class="modal-input">' + (function(){
+    var o = '', fach = null, hatHaupt = false;
+    uebListe.forEach(function(r){
+      var cid = resourceContentId(r), fn = subjectName(r.subject);
+      if(fn !== fach){ o += (fach !== null ? '</optgroup>' : '') + '<optgroup label="'+esc(fn)+'">'; fach = fn; }
+      if(cid === p.contentId) hatHaupt = true;
+      o += '<option value="'+esc(cid)+'"'+(cid === p.contentId ? ' selected' : '')+'>'+esc((cid === p.contentId ? '⭐ ' : '') + (r.title || r.fileName || r.id))+'</option>';
+    });
+    o += fach !== null ? '</optgroup>' : '';
+    return (hatHaupt ? '' : '<option value="'+esc(p.contentId)+'" selected>⭐ '+esc(titel[p.contentId])+'</option>') + o;
+  })() + '</select>';
+  h += '<div class="pr-grid2"><select id="prBkKat" class="modal-input"><option value="">Alle Bereiche</option>' + (info.kategorien || []).map(function(k){
+    return '<option value="'+esc(k.id)+'">'+esc(k.name)+'</option>'; }).join('') + '</select>'+
+    '<input type="search" id="prBkSuche" class="modal-input" placeholder="🔍 in den Fragen suchen" autocomplete="off"></div>';
+  h += '<div class="pr-ap pr-bk-poolliste" id="prBkPool"></div>';
+  h += '<details class="pr-bk-eigen"><summary>✏️ Eigene Aufgabe schreiben</summary>'+
+    '<label class="modal-label">Aufgabe</label><textarea id="prBkEF" class="modal-input" rows="2" maxlength="600" placeholder="z. B. Erkläre, warum …"></textarea>'+
+    '<label class="modal-label">Musterlösung</label><textarea id="prBkEL" class="modal-input" rows="2" maxlength="600" placeholder="für die Korrektur und das Lösungsblatt"></textarea>'+
+    '<div class="pr-grid2"><select id="prBkET" class="modal-input"><option value="offen">✍️ frei formulieren</option><option value="text">🔤 selbst hinschreiben (kurz)</option></select>'+
+    '<button class="btn btn-primary btn-sm" id="prBkEDazu" type="button">＋ Hinzufügen</button></div></details>';
+  h += '<div class="modal-actions"><button class="btn btn-ghost btn-sm" id="modalCancel" type="button">Abbrechen</button><button class="btn btn-primary btn-sm" id="modalOk" type="button">Speichern</button></div>';
+  openModal(h, 'pr-modal pr-modal-breit');
+  zeichnen();
+  var host = modalEl.querySelector('.pr-modal');
+  document.getElementById('prBkKat').addEventListener('change', function(){ filterKat = this.value; document.getElementById('prBkPool').innerHTML = poolHtml(); });
+  document.getElementById('prBkQuelle').addEventListener('change', async function(){
+    var cid = this.value, pool = document.getElementById('prBkPool');
+    pool.innerHTML = '<div class="empty-state">🔎 Übung wird ausgelesen …</div>';
+    var neu = await infoLaden(cid);
+    if(document.getElementById('prBkQuelle').value !== cid) return;
+    quelle = cid; info = neu; katName = pruefKatNamen(info); filterKat = '';
+    document.getElementById('prBkKat').innerHTML = '<option value="">Alle Bereiche</option>' + (info.kategorien || []).map(function(k){
+      return '<option value="'+esc(k.id)+'">'+esc(k.name)+'</option>'; }).join('');
+    pool.innerHTML = poolHtml();
+  });
+  document.getElementById('prBkSuche').addEventListener('input', function(){ suche = this.value; document.getElementById('prBkPool').innerHTML = poolHtml(); });
+  host.addEventListener('click', function(e){
+    var b = e.target.closest('button'); if(!b) return;
+    var k;
+    if((k = b.getAttribute('data-hoch')) != null){ k = +k; var x = bs[k]; bs[k] = bs[k-1]; bs[k-1] = x; zeichnen(); }
+    else if((k = b.getAttribute('data-runter')) != null){ k = +k; var y = bs[k]; bs[k] = bs[k+1]; bs[k+1] = y; zeichnen(); }
+    else if((k = b.getAttribute('data-weg')) != null){ bs.splice(+k, 1); zeichnen(); }
+    else if((k = b.getAttribute('data-neumisch')) != null){ bs[+k].v = null; zeichnen(); }
+    else if((k = b.getAttribute('data-dazu')) != null){
+      var f = info.fragen[+k];
+      bs.push({cid:quelle, i:+k, f:f, als:'orig', punkte:pruefPunkteVorschlag(f)});
+      zeichnen();
+      var liste = document.getElementById('prBkListe'); liste.scrollTop = liste.scrollHeight;
+    }
+    else if(b.id === 'prBkEDazu'){
+      var fr = document.getElementById('prBkEF').value.trim(), lo = document.getElementById('prBkEL').value.trim(), ty = document.getElementById('prBkET').value;
+      if(!fr){ document.getElementById('prBkEF').focus(); return; }
+      if(!lo){ toast('Bitte eine Musterlösung angeben (für Korrektur und Lösungsblatt).'); document.getElementById('prBkEL').focus(); return; }
+      if(ty === 'text' && !pruefKurzeAntwort(lo)){ toast('«Selbst hinschreiben» braucht eine kurze Antwort (höchstens 4 Wörter) – sonst «frei formulieren» wählen.'); return; }
+      bs.push({eigen:{typ:ty, frage:fr, loesung:lo}, punkte:ty === 'text' ? 1 : 2});
+      document.getElementById('prBkEF').value = ''; document.getElementById('prBkEL').value = '';
+      zeichnen();
+    }
+  });
+  host.addEventListener('change', function(e){
+    var k = e.target.getAttribute('data-als');
+    if(k != null){
+      var b = bs[+k]; b.als = e.target.value; b.v = null;
+      var v = bausteinVarianten(b)[0];
+      if(v) b.punkte = pruefPunkteVorschlag(v);
+      zeichnen(); return;
+    }
+    k = e.target.getAttribute('data-eigtyp');
+    if(k != null){
+      var eb = bs[+k];
+      if(e.target.value === 'text' && !pruefKurzeAntwort(eb.eigen.loesung)){ toast('Die Musterlösung ist zu lang für «selbst hinschreiben».'); e.target.value = 'offen'; return; }
+      eb.eigen.typ = e.target.value; zeichnen();
+    }
+  });
+  host.addEventListener('input', function(e){
+    var k = e.target.getAttribute('data-pk');
+    if(k == null) return;
+    var v = Math.round(parseFloat(String(e.target.value).replace(',', '.')) * 2) / 2;
+    if(v > 0){ bs[+k].punkte = v; document.getElementById('prBkKopf').innerHTML = bs.length + ' Aufgaben · <b>' + pruefZahlText(summe()) + '</b> Punkte'; }
+  });
+  document.getElementById('modalCancel').addEventListener('click', closeModal);
+  document.getElementById('modalOk').addEventListener('click', async function(){
+    if(!bs.length){ toast('Mindestens eine Aufgabe.'); return; }
+    var rnd = pruefRng(p.seed || 1), bild = pruefBildSammler(), fragen = [], loesungen = {};
+    function neu(q, L, punkte){
+      q.id = 'q' + fragen.length; L.punkte = punkte; q.punkte = punkte;
+      fragen.push(q); loesungen[q.id] = L;
+    }
+    bs.forEach(function(b){
+      if(b.fix){
+        var q = JSON.parse(JSON.stringify(b.fix.q)), L = JSON.parse(JSON.stringify(b.fix.L));
+        if(q.bild != null && (p.bilder || [])[q.bild] != null) q.bild = bild.add(p.bilder[q.bild], true); else delete q.bild;
+        neu(q, L, b.punkte); return;
+      }
+      if(b.eigen){
+        var r = pruefFrageBauen(pruefEigeneFrage(b.eigen), null, '', {eigen:'Eigene Aufgabe'}, bild, rnd);
+        r.q.eigen = true;
+        neu(r.q, r.L, b.punkte); return;
+      }
+      bausteinVarianten(b).forEach(function(v){
+        var r = pruefFrageBauen(v, null, '', katVon(b), bild, rnd);
+        r.q.src = b.i; if(b.als !== 'orig') r.q.als = b.als;
+        if(b.cid !== p.contentId) r.q.srcC = b.cid;
+        if(v.locker) r.L.locker = true;
+        neu(r.q, r.L, b.punkte);
+      });
+    });
+    var maxP = Math.round(Object.keys(loesungen).reduce(function(s, id){ return s + loesungen[id].punkte; }, 0) * 100) / 100;
+    var quellen = [];
+    bs.forEach(function(b){ if(b.f && b.cid !== p.contentId && !quellen.some(function(x){ return x.cid === b.cid; })) quellen.push({cid:b.cid, titel:titel[b.cid] || 'Übung'}); });
+    var upd = {fragen:fragen, bilder:bild.liste, maxPunkte:maxP, 'cfg.anzahl':fragen.length, 'cfg.baukasten':true, 'cfg.quellen':quellen};
+    if(JSON.stringify(upd).length > 900000){ toast('Zu viele/zu grosse Aufgaben – bitte weniger wählen.'); return; }
+    this.disabled = true;
+    try{
+      await writeBatch().update(pruefRef(p.id), upd).set(loesRef(p.id), {loesungen:loesungen}).commit();
+      pruef.loes[p.id] = loesungen;
+      closeModal();
+      toast('Prüfung gespeichert: ' + fragen.length + ' Fragen, ' + pruefZahlText(maxP) + ' Punkte.');
+    }catch(err){ this.disabled = false; pruefFehler(err); }
+  });
+}
+
+/* ---------- Lehrperson: 🖨️ Prüfung drucken (PDF / Word) ----------
+   Im Prüfungs-Design der Sekundarschule Altnau (wie das Skill «pruefung-design»
+   bzw. dessen build_pruefung.js): A4, Ränder 2 cm, Calibri 11 pt, Zeilenabstand
+   1,5; Kopf mit Logo (135×75 px) und «Fach · Klasse» / «Prüfung: Titel» (15 pt
+   fett) / «Thema · Zeit · Total»; Tabelle Name/Klasse/Datum/Punkte (Kopfzeile
+   F2F2F2 fett); pro Aufgabe «Aufgabe n – Titel» (12 pt fett) mit «(______ / N)»
+   kursiv rechts, Aufgabenstellung, Leerraum. Lösungsblatt: gleiche Seiten, Kopf
+   «Lösungen: …», NUR die Lösungen rot (C00000).
+   Word = echte .docx, gebaut mit derselben docx-Bibliothek wie das Skill (wird
+   erst beim ersten Word-Export von jsdelivr geladen). PDF = Druckansicht im
+   gleichen Layout in einem neuen Tab («Drucken → Als PDF sichern»), also kein
+   Druckdialog in der Library selbst. Reihenfolge = gespeicherte (Baukasten). */
+var DOCX_URL = 'https://cdn.jsdelivr.net/npm/docx@9.7.1/dist/index.mjs';
+var PRUEF_LOESUNG_FARBE = 'C00000';
+function pruefDruckDialog(p){
+  openModal('<h3>🖨️ Prüfung drucken</h3>'+
+    '<p class="pr-hinweis">«'+esc(p.titel)+'» auf Papier – im Prüfungs-Design der Sek Altnau. Das Lösungsblatt hat dieselben Seiten, nur die Lösungen sind rot.</p>'+
+    '<div class="pr-druck">'+
+      '<button class="btn btn-primary btn-sm" data-dr="pdf" type="button">📄 Prüfung als PDF</button>'+
+      '<button class="btn btn-ghost btn-sm" data-dr="word" type="button">📝 Prüfung als Word</button>'+
+      '<button class="btn btn-ghost btn-sm" data-dr="pdf-l" type="button">📄 Lösungsblatt als PDF</button>'+
+      '<button class="btn btn-ghost btn-sm" data-dr="word-l" type="button">📝 Lösungsblatt als Word</button>'+
+    '</div>'+
+    '<p class="pr-hinweis">PDF öffnet eine Druckansicht in einem neuen Tab: dort «Drucken» → «Als PDF sichern» oder direkt drucken. Word lädt eine .docx-Datei herunter, die du noch anpassen kannst.</p>'+
+    '<div class="modal-actions"><button class="btn btn-ghost btn-sm" id="modalCancel" type="button">Schliessen</button></div>');
+  document.getElementById('modalCancel').addEventListener('click', closeModal);
+  modalEl.querySelectorAll('[data-dr]').forEach(function(b){
+    b.addEventListener('click', function(){
+      var a = b.getAttribute('data-dr'), word = a.indexOf('word') === 0, mitL = /-l$/.test(a);
+      // PDF: Tab sofort öffnen (sonst blockt der Browser das Fenster nach dem Laden).
+      var tab = word ? null : window.open('', '_blank');
+      b.disabled = true;
+      pruefDrucken(p, word, mitL, tab).catch(function(err){
+        console.error(err);
+        if(tab) try{ tab.close(); }catch(e){}
+        toast('Drucken hat nicht geklappt.');
+      }).then(function(){ b.disabled = false; });
+    });
+  });
+}
+function pruefDruckName(p, mitL){
+  return ((mitL ? 'Loesung_' : 'Pruefung_') + (p.titel || '').replace(/^Prüfung\s+/i, '')).replace(/[äÄ]/g, 'ae').replace(/[öÖ]/g, 'oe').replace(/[üÜ]/g, 'ue').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '_') || 'Pruefung';
+}
+function pruefSvgMass(svg){
+  var w = 0, h = 0, m = /viewBox\s*=\s*["']\s*[-\d.]+[\s,]+[-\d.]+[\s,]+([\d.]+)[\s,]+([\d.]+)/i.exec(svg);
+  if(m){ w = +m[1]; h = +m[2]; }
+  var mw = /<svg[^>]*\swidth\s*=\s*["']?([\d.]+)(px)?["'\s>]/i.exec(svg), mh = /<svg[^>]*\sheight\s*=\s*["']?([\d.]+)(px)?["'\s>]/i.exec(svg);
+  if(mw && mh){ w = +mw[1]; h = +mh[1]; }
+  if(!(w > 0 && h > 0)){ w = 400; h = 300; }
+  var f = Math.min(1, 400 / w);
+  return {w:Math.round(w * f), h:Math.round(h * f)};
+}
+// SVG → PNG-Bytes für Word.
+function pruefSvgPng(svg){
+  var m = pruefSvgMass(svg);
+  if(!/xmlns\s*=/.test(svg)) svg = svg.replace(/<svg\b/i, '<svg xmlns="http://www.w3.org/2000/svg"');
+  return new Promise(function(resolve){
+    var img = new Image();
+    img.onload = function(){
+      try{
+        var c = document.createElement('canvas'), k = 2;
+        c.width = m.w * k; c.height = m.h * k;
+        var ctx = c.getContext('2d');
+        ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);
+        ctx.drawImage(img, 0, 0, c.width, c.height);
+        c.toBlob(function(blob){
+          if(!blob){ resolve(null); return; }
+          blob.arrayBuffer().then(function(buf){ resolve({data:new Uint8Array(buf), w:m.w, h:m.h}); }, function(){ resolve(null); });
+        }, 'image/png');
+      }catch(e){ console.error(e); resolve(null); }
+    };
+    img.onerror = function(){ resolve(null); };
+    img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+  });
+}
+
+// Prüfung → Config im Format von build_pruefung.js (plus bild = Index, kontext).
+function pruefDruckConfig(p, loes){
+  var c = p.cfg || {}, fragen = p.fragen || [];
+  function bst(i){ return String.fromCharCode(65 + i); }
+  var aufgaben = [];
+  if(p.diktat){
+    var L0 = loes[(fragen[0] || {}).id] || {}, woerter = +p.woerterInfo || 120;
+    aufgaben.push({titel:'Diktat', punkte:null, stellung:'Schreibe den diktierten Text sauber auf. Achte auf Gross-/Kleinschreibung und Satzzeichen.',
+      antwortzeilen:Math.min(30, Math.max(12, Math.ceil(woerter / 6))), loesung:(L0.text || []).slice()});
+  } else fragen.forEach(function(q){
+    var L = loes[q.id] || {}, pk = +q.punkte > 0 ? +q.punkte : (L.punkte || 1);
+    var a = {titel:(q.kat && !q.eigen ? q.kat : (PRUEF_TYPEN[q.typ] || 'Aufgabe')), punkte:pk, stellung:q.frage || '', antwortzeilen:2};
+    if(q.kontext) a.kontext = q.kontext;
+    if(q.bild != null && (p.bilder || [])[q.bild] != null) a.bild = q.bild;
+    if(q.typ === 'mc'){ a.optionen = (q.optionen || []).slice(); a.korrekt = L.loesung; a.antwortzeilen = 1; }
+    else if(q.typ === 'tf'){
+      a.stellung = 'Stimmt die Aussage? Kreuze an.';
+      a.tabelle = {kopf:['Aussage', 'richtig', 'falsch'], spalten:[6, 1, 1], zeilenhoehe:400,
+        zeilen:[[q.frage || '', L.loesung === true ? {loesung:'X'} : '', L.loesung === false ? {loesung:'X'} : '']]};
+      a.antwortzeilen = 1;
+    }
+    else if(q.typ === 'text'){ a.antwortzeilen = 1; if(L.anzeige) a.loesung = L.anzeige; }
+    else if(q.typ === 'zahl'){ a.antwortzeilen = 4; if(L.anzeige) a.loesung = 'Resultat: ' + L.anzeige; if(q.einheit) a.stellung += ' (in ' + q.einheit + ')'; }
+    else if(q.typ === 'offen'){ a.antwortzeilen = pk >= 3 ? 6 : 4; if(L.anzeige || L.loesung) a.loesung = String(L.anzeige || L.loesung); }
+    else if(q.typ === 'zuordnen'){
+      a.stellung = (q.frage ? q.frage + ' ' : '') + 'Schreibe den passenden Buchstaben in die Tabelle.';
+      a.tabelle = {kopf:['Begriff', 'Buchstabe', 'Zur Auswahl'], spalten:[5, 2, 5], zeilenhoehe:400,
+        zeilen:(q.links || []).map(function(l, i){ return [l, {loesung:L.loesung ? bst(L.loesung[i]) : ''}, (q.rechts || [])[i] != null ? bst(i) + ') ' + q.rechts[i] : '']; })};
+      a.antwortzeilen = 1;
+    }
+    else if(q.typ === 'reihenfolge'){
+      a.stellung = (q.frage ? q.frage + ' ' : '') + 'Nummeriere in der richtigen Reihenfolge (1 = zuerst).';
+      a.tabelle = {kopf:['Schritt', 'Nr.'], spalten:[7, 1], zeilenhoehe:400,
+        zeilen:(q.items || []).map(function(it, k){ return [it, {loesung:L.loesung ? String(L.loesung.indexOf(k) + 1) : ''}]; })};
+      a.antwortzeilen = 1;
+    }
+    aufgaben.push(a);
+  });
+  var total = p.diktat ? null : (p.maxPunkte || aufgaben.reduce(function(s, a){ return s + (a.punkte || 0); }, 0));
+  var fach = pruefFach(p) ? (subjectById(pruefFach(p)) ? subjectName(pruefFach(p)) : pruefFach(p)) : '';
+  return {
+    fach:fach, klasse:klasseLabel(),
+    titel:(p.titel || '').replace(/^Prüfung\s*[:–-]?\s*/i, '') || p.titel || 'Prüfung',
+    thema:(p.resourceTitel || '') + (c.quellen && c.quellen.length ? ' + ' + c.quellen.map(function(x){ return x.titel; }).join(', ') : ''),
+    zeitMinuten:+p.zeitMin > 0 ? +p.zeitMin : null, totalPunkte:total, diktat:!!p.diktat, aufgaben:aufgaben
+  };
+}
+function pruefDruckPunkte(x){ return String(Math.round(x * 100) / 100); }
+function pruefDruckKopfZeile3(cfg){
+  return [cfg.thema, cfg.zeitMinuten ? 'Zeit: ' + cfg.zeitMinuten + ' Minuten' : '', cfg.totalPunkte != null ? 'Total ' + pruefDruckPunkte(cfg.totalPunkte) + ' Punkte' : ''].filter(Boolean).join(' · ');
+}
+
+async function pruefDrucken(p, word, mitL, tab){
+  var loes = pruefArt(p) === 'bank' ? await pruefLoesungLaden(p.id) : {};
+  var cfg = pruefDruckConfig(p, loes), name = pruefDruckName(p, mitL);
+  if(!word){
+    var url = URL.createObjectURL(new Blob([pruefDruckHtml(cfg, mitL, p.bilder || [])], {type:'text/html;charset=utf-8'}));
+    if(tab && !tab.closed) tab.location.href = url; else window.open(url, '_blank');
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 120000);
+    return;
+  }
+  toast('Word-Datei wird erstellt …');
+  var docx = await import(DOCX_URL);
+  var logo = new Uint8Array(await (await fetch('assets/logo-pruefung.png')).arrayBuffer());
+  var pngs = {};
+  for(var i = 0; i < (p.bilder || []).length; i++) pngs[i] = await pruefSvgPng(p.bilder[i]);
+  var blob = await docx.Packer.toBlob(pruefDocx(docx, cfg, mitL, logo, pngs));
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name + '.docx';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(function(){ URL.revokeObjectURL(a.href); }, 60000);
+  toast('«' + name + '.docx» wird heruntergeladen.');
+}
+
+// Nachbau von build_pruefung.js (Skill pruefung-design) im Browser — gleiche Masse.
+function pruefDocx(D, cfg, mitL, logo, pngs){
+  var FULL = 9638, rot = PRUEF_LOESUNG_FARBE;
+  var NB = {style:D.BorderStyle.NONE, size:0, color:'FFFFFF'}, noB = {top:NB, bottom:NB, left:NB, right:NB, insideHorizontal:NB, insideVertical:NB};
+  var BB = {style:D.BorderStyle.SINGLE, size:4, color:'000000'}, blackB = {top:BB, bottom:BB, left:BB, right:BB, insideHorizontal:BB, insideVertical:BB};
+  var GRAU = {type:D.ShadingType.CLEAR, color:'auto', fill:'F2F2F2'};
+  function P(o){ return new D.Paragraph(o || {}); }
+  function T(o){ return new D.TextRun(o); }
+  function leer(){ return P({spacing:{after:60, line:240, lineRule:'auto'}}); }
+  var kopf = new D.Table({width:{size:FULL, type:D.WidthType.DXA}, columnWidths:[2400, 7238], borders:noB, rows:[new D.TableRow({cantSplit:true, children:[
+    new D.TableCell({width:{size:2400, type:D.WidthType.DXA}, borders:noB, margins:{top:0, bottom:0, left:0, right:0}, verticalAlign:D.VerticalAlign.CENTER,
+      children:[P({children:[new D.ImageRun({type:'png', data:logo, transformation:{width:135, height:75}})]})]}),
+    new D.TableCell({width:{size:7238, type:D.WidthType.DXA}, borders:noB, margins:{top:0, bottom:0, left:200, right:0}, verticalAlign:D.VerticalAlign.CENTER, children:[
+      P({spacing:{after:20}, children:[T({text:[cfg.fach, cfg.klasse].filter(Boolean).join(' · '), size:20})]}),
+      P({spacing:{after:20}, children:[T({text:(mitL ? 'Lösungen' : 'Prüfung') + ': ' + cfg.titel, bold:true, size:30})]}),
+      P({children:[T({text:pruefDruckKopfZeile3(cfg), size:20})]})
+    ]})
+  ]})]});
+  var cw = FULL / 4;
+  function metaZelle(text, k){
+    return new D.TableCell({width:{size:cw, type:D.WidthType.DXA}, borders:blackB, shading:k ? GRAU : undefined, margins:{top:80, bottom:80, left:100, right:100}, verticalAlign:D.VerticalAlign.CENTER,
+      children:[P({spacing:k ? {line:276, lineRule:'auto'} : undefined, children:[T({text:text, bold:!!k})]})]});
+  }
+  var meta = new D.Table({width:{size:FULL, type:D.WidthType.DXA}, columnWidths:[cw, cw, cw, cw], borders:blackB, rows:[
+    new D.TableRow({cantSplit:true, children:[metaZelle('Name', 1), metaZelle('Klasse', 1), metaZelle('Datum', 1), metaZelle(cfg.diktat ? 'Fehler' : 'Punkte', 1)]}),
+    new D.TableRow({cantSplit:true, children:[metaZelle(''), metaZelle(''), metaZelle(''), metaZelle(cfg.totalPunkte != null ? '______ / ' + pruefDruckPunkte(cfg.totalPunkte) : '')]})
+  ]});
+  function aufgabenTabelle(t){
+    var n = t.kopf.length, ant = t.spalten || Array(n).fill(1), sum = ant.reduce(function(a, b){ return a + b; }, 0);
+    var br = ant.map(function(a){ return Math.round(FULL * a / sum); });
+    function zelle(inh, i, k){
+      var run = k ? T({text:inh, bold:true}) : (inh && typeof inh === 'object') ? T({text:mitL ? inh.loesung : '', italics:true, color:rot}) : T({text:inh == null ? '' : String(inh)});
+      return new D.TableCell({width:{size:br[i], type:D.WidthType.DXA}, borders:blackB, shading:k ? GRAU : undefined, margins:{top:80, bottom:80, left:100, right:100}, verticalAlign:D.VerticalAlign.CENTER,
+        children:[P({spacing:{line:276, lineRule:'auto'}, children:[run]})]});
+    }
+    var rows = [new D.TableRow({cantSplit:true, children:t.kopf.map(function(k, i){ return zelle(k, i, true); })})];
+    t.zeilen.forEach(function(z){
+      var luecke = z.some(function(c){ return c && typeof c === 'object'; });
+      rows.push(new D.TableRow({cantSplit:true, height:luecke ? {value:t.zeilenhoehe || 567, rule:D.HeightRule.ATLEAST} : undefined, children:z.map(function(c, i){ return zelle(c, i, false); })}));
+    });
+    return new D.Table({width:{size:FULL, type:D.WidthType.DXA}, columnWidths:br, layout:D.TableLayoutType.FIXED, borders:blackB, rows:rows});
+  }
+  function aufgabe(a, idx){
+    var titel = new D.Table({width:{size:FULL, type:D.WidthType.DXA}, columnWidths:[7438, 2200], borders:noB, rows:[new D.TableRow({cantSplit:true, children:[
+      new D.TableCell({width:{size:7438, type:D.WidthType.DXA}, borders:noB, margins:{top:0, bottom:0, left:0, right:0}, children:[P({children:[T({text:'Aufgabe ' + (idx + 1) + ' – ' + a.titel, bold:true, size:24})]})]}),
+      new D.TableCell({width:{size:2200, type:D.WidthType.DXA}, borders:noB, margins:{top:0, bottom:0, left:0, right:0}, children:[P({alignment:D.AlignmentType.RIGHT, children:[T({text:a.punkte != null ? '(______ / ' + pruefDruckPunkte(a.punkte) + ')' : '(______ Fehler)', italics:true})]})]})
+    ]})]});
+    var body = [];
+    if(a.kontext) body.push(P({children:[T({text:a.kontext, italics:true})]}));
+    if(a.bild != null && pngs[a.bild]) body.push(P({spacing:{before:120, after:60}, children:[new D.ImageRun({type:'png', data:pngs[a.bild].data, transformation:{width:pngs[a.bild].w, height:pngs[a.bild].h}})]}));
+    body.push(P({children:[T({text:a.stellung})]}));
+    if(a.optionen){
+      var korr = [].concat(a.korrekt == null ? [] : a.korrekt);
+      a.optionen.forEach(function(o, i){
+        var ok = mitL && korr.indexOf(i) >= 0;
+        body.push(P({spacing:{before:60}, children:[ok ? T({text:'☒ ' + o, bold:true, color:rot}) : T({text:'☐ ' + o})]}));
+      });
+    }
+    if(a.tabelle) body.push(aufgabenTabelle(a.tabelle));
+    if(a.loesung != null && mitL){
+      [].concat(a.loesung).forEach(function(z){ body.push(P({spacing:{before:60, after:40, line:240, lineRule:'auto'}, children:[T({text:String(z), italics:true, color:rot})]})); });
+      body.push(leer());
+    } else {
+      for(var i = 0; i < (a.antwortzeilen == null ? 2 : a.antwortzeilen); i++) body.push(leer());
+    }
+    if(body[body.length - 1] instanceof D.Table) body.push(leer());
+    return new D.Table({width:{size:FULL, type:D.WidthType.DXA}, columnWidths:[FULL], borders:noB, rows:[new D.TableRow({cantSplit:true, children:[
+      new D.TableCell({width:{size:FULL, type:D.WidthType.DXA}, borders:noB, margins:{top:0, bottom:0, left:0, right:0}, children:[titel].concat(body)})
+    ]})]});
+  }
+  var kinder = [kopf, P({spacing:{after:200, line:240, lineRule:'auto'}}), meta, P({spacing:{after:160, line:240, lineRule:'auto'}})];
+  cfg.aufgaben.forEach(function(a, i){ kinder.push(aufgabe(a, i)); });
+  kinder.push(P({spacing:{after:280, line:240, lineRule:'auto'}}));
+  return new D.Document({
+    styles:{default:{document:{run:{font:'Calibri', size:22, color:'000000'}, paragraph:{spacing:{line:360, lineRule:'auto'}}}}},
+    sections:[{properties:{page:{size:{width:11906, height:16838}, margin:{top:1134, right:1134, bottom:1134, left:1134, header:708, footer:708, gutter:0}}}, children:kinder}]
+  });
+}
+
+// Druckansicht (PDF) im gleichen Layout wie die .docx.
+function pruefDruckHtml(cfg, mitL, bilder){
+  function e(t){ return esc(t == null ? '' : String(t)); }
+  var h = '<table class="kopf"><tr><td class="logo"><img src="' + e(location.href.replace(/[#?].*$/, '').replace(/[^\/]*$/, '')) + 'assets/logo-pruefung.png" width="135" height="75" alt=""></td>' +
+    '<td><div class="k1">' + e([cfg.fach, cfg.klasse].filter(Boolean).join(' · ')) + '</div><div class="k2">' + (mitL ? 'Lösungen' : 'Prüfung') + ': ' + e(cfg.titel) + '</div>' +
+    '<div class="k1">' + e(pruefDruckKopfZeile3(cfg)) + '</div></td></tr></table>';
+  h += '<table class="meta"><tr><th>Name</th><th>Klasse</th><th>Datum</th><th>' + (cfg.diktat ? 'Fehler' : 'Punkte') + '</th></tr>' +
+    '<tr><td></td><td></td><td></td><td>' + (cfg.totalPunkte != null ? '______ / ' + e(pruefDruckPunkte(cfg.totalPunkte)) : '') + '</td></tr></table>';
+  cfg.aufgaben.forEach(function(a, i){
+    var b = '<div class="auf"><div class="atitel"><b>Aufgabe ' + (i + 1) + ' – ' + e(a.titel) + '</b><i>' + (a.punkte != null ? '(______ / ' + e(pruefDruckPunkte(a.punkte)) + ')' : '(______ Fehler)') + '</i></div>';
+    if(a.kontext) b += '<p><i>' + e(a.kontext) + '</i></p>';
+    if(a.bild != null && bilder[a.bild] != null){ var m = pruefSvgMass(bilder[a.bild]); b += '<div class="bild" style="width:' + m.w + 'px">' + bilder[a.bild] + '</div>'; }
+    b += '<p>' + e(a.stellung) + '</p>';
+    if(a.optionen){
+      var korr = [].concat(a.korrekt == null ? [] : a.korrekt);
+      a.optionen.forEach(function(o, j){ var ok = mitL && korr.indexOf(j) >= 0; b += '<p class="opt">' + (ok ? '<span class="l"><b>☒ ' + e(o) + '</b></span>' : '☐ ' + e(o)) + '</p>'; });
+    }
+    if(a.tabelle){
+      var t = a.tabelle, sum = t.spalten.reduce(function(x, y){ return x + y; }, 0);
+      b += '<table class="tab"><tr>' + t.kopf.map(function(k, j){ return '<th style="width:' + Math.round(t.spalten[j] / sum * 100) + '%">' + e(k) + '</th>'; }).join('') + '</tr>' +
+        t.zeilen.map(function(z){ return '<tr>' + z.map(function(c){ return '<td>' + (c && typeof c === 'object' ? (mitL ? '<span class="l"><i>' + e(c.loesung) + '</i></span>' : '') : e(c)) + '</td>'; }).join('') + '</tr>'; }).join('') + '</table>';
+    }
+    if(a.loesung != null && mitL) b += [].concat(a.loesung).map(function(z){ return '<p class="lz"><span class="l"><i>' + e(z) + '</i></span></p>'; }).join('') + '<div class="leer" style="height:17pt"></div>';
+    else b += '<div class="leer" style="height:' + ((a.antwortzeilen == null ? 2 : a.antwortzeilen) * 17) + 'pt"></div>';
+    h += b + '</div>';
+  });
+  var css = '@page{size:A4;margin:2cm;}' +
+    'body{font-family:Calibri,Carlito,"Segoe UI",Arial,sans-serif;font-size:11pt;line-height:1.5;color:#000;background:#fff;margin:0;}' +
+    '.blatt{max-width:17cm;margin:0 auto;padding:16px;} @media print{.blatt{padding:0;max-width:none;} .werkzeug{display:none;}}' +
+    'p{margin:0;} table{border-collapse:collapse;width:100%;}' +
+    '.kopf td{vertical-align:middle;padding:0;} .kopf .logo{width:4.2cm;} .kopf td + td{padding-left:10pt;}' +
+    '.k1{font-size:10pt;margin-bottom:1pt;} .k2{font-size:15pt;font-weight:bold;margin-bottom:1pt;}' +
+    '.meta{margin:10pt 0 8pt;} .meta th,.meta td{border:0.5pt solid #000;padding:4pt 5pt;width:25%;text-align:left;} .meta th{background:#F2F2F2;line-height:1.15;} .meta td{height:17pt;}' +
+    '.auf{break-inside:avoid;page-break-inside:avoid;} .atitel{display:flex;justify-content:space-between;gap:10pt;} .atitel b{font-size:12pt;} .atitel i{white-space:nowrap;}' +
+    '.opt{margin-top:3pt;} .tab th,.tab td{border:0.5pt solid #000;padding:4pt 5pt;line-height:1.15;text-align:left;vertical-align:middle;} .tab th{background:#F2F2F2;} .tab td{height:20pt;}' +
+    '.bild{margin:6pt 0 3pt;max-width:100%;} .bild svg{width:100%;height:auto;display:block;}' +
+    '.l{color:#' + PRUEF_LOESUNG_FARBE + ';} .lz{margin:3pt 0 2pt;line-height:1.15;}' +
+    '.werkzeug{position:sticky;top:0;background:#fffbe6;border-bottom:1px solid #e5d58a;padding:10px 16px;font-family:system-ui,sans-serif;font-size:14px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;}' +
+    '.werkzeug button{font:inherit;font-weight:600;padding:7px 14px;border-radius:8px;border:0;background:#4361EE;color:#fff;cursor:pointer;}';
+  return '<!doctype html><html lang="de-CH"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>' + e((mitL ? 'Lösungen: ' : 'Prüfung: ') + cfg.titel) + '</title>' +
+    '<style>' + css + '</style></head><body><div class="werkzeug"><button type="button" onclick="window.print()">🖨️ Drucken / Als PDF sichern</button><span>Tipp: Im Druckdialog «Kopf- und Fusszeilen» ausschalten.</span></div>' +
+    '<div class="blatt">' + h + '</div></body></html>';
+}
+
 /* ---------- Lehrperson: Live-Übersicht ---------- */
 
 var pruefRosterCache = {klasse:null, list:null};
@@ -15390,6 +16556,8 @@ function pruefMonitorZeichnen(){
   h += '<button class="btn btn-ghost btn-sm" data-a="vorschau" type="button">👀 Ausprobieren</button>';
   h += '<button class="btn btn-ghost btn-sm" data-a="bearbeiten" type="button">✏️ Bearbeiten</button>';
   if(pruefArt(p) === 'bank' && !p.diktat) h += '<button class="btn btn-ghost btn-sm" data-a="punkte" type="button">🧮 Aufgaben & Punkte</button>';
+  if(pruefArt(p) === 'bank' && !p.diktat && p.status === 'entwurf') h += '<button class="btn btn-ghost btn-sm" data-a="baukasten" type="button">🧩 Baukasten</button>';
+  if(pruefArt(p) === 'bank') h += '<button class="btn btn-ghost btn-sm" data-a="drucken" type="button">🖨️ Drucken (PDF/Word)</button>';
   if(p.status !== 'offen') h += '<button class="btn btn-ghost btn-sm" data-a="loeschen" type="button">🗑 Löschen</button>';
   h += '</div>';
   if(!teil || !roster){ el.innerHTML = h + '<div class="empty-state">Klasse wird geladen …</div>'; pruefMonitorVerdrahten(p); return; }
@@ -15456,6 +16624,8 @@ function pruefMonitorVerdrahten(p){
     else if(a === 'vorschau') pruefStarten(p, false, true);
     else if(a === 'bearbeiten') pruefEditor(p);
     else if(a === 'punkte') pruefAufgabenPunkte(p);
+    else if(a === 'baukasten') pruefBaukasten(p);
+    else if(a === 'drucken') pruefDruckDialog(p);
     else if(a === 'alleEntsperren'){
       var batch = writeBatch();
       Object.keys(teil).forEach(function(uid){ if(teil[uid].status === 'gesperrt') batch.update(teilRef(p.id, uid), {status:'laeuft', aktiv:false, entsperrtAm:serverTimestamp()}); });

@@ -81,6 +81,10 @@ rules_version = '2';
 //                                                       namen:{uid:{n,nn,u,k}}} 👥 Gruppen (siehe index.html)
 //   klassen/{k}/calendarEntries/{id}.gruppeId/.mitglieder -> Eintrag nur für diese Gruppe
 //   loginAliases/{slug}                             -> {konten:[username]} Vorname/Kürzel -> Konten
+//   uebungsIndex/{resourceId}                       -> {klassen:[...]} in welchen Klassen die Übung (bzw. Kopien) liegt
+//   klassen/{k}/appMeta/gruppenMitglieder           -> {uids:[...]} alle Mitglieder der Gruppen dieser Seite
+//   klassen/{k}/appMeta/schulden                    -> {enabled} 💸 Schulden-Liste auf dieser Seite an/aus
+//   passwortAnfragen/{id}                           -> {uid, name, klasse, vonUid, vonName, status, neuesPasswort} (admin/passwort-reset.js)
 //   Seiten ohne Klasse: klassen/flp-<name>, isf-<name>, praktikum-<n> (FLP, ISF, Praktikum)
 //   students/{uid}.nurFach                          -> optional, z.B. 'mathe': Fach-Gast aus einer anderen
 //                                                       Klasse, nur in diesem Fach dabei (siehe index.html)
@@ -120,6 +124,11 @@ function isLeitung() {
   return isSignedIn() && request.auth.token.leitung == true;
 }
 
+// Jan (Konto helfenberger): sieht z. B. alle Passwort-Anfragen.
+function isJan() {
+  return isSignedIn() && request.auth.token.email == 'helfenberger@helfenberger-library.app';
+}
+
 function canReadAll() {
   return isTeacher() || isLeitung();
 }
@@ -131,21 +140,28 @@ function inKlasseLesen(klasse) {
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // Mitglied einer 👥 Gruppe, deren Lehrperson die Seite `klasse` gehört
+    // (hier drin definiert, weil get() den Pfad mit {database} braucht).
+    function inGruppeVon(klasse) {
+      return isSignedIn()
+        && request.auth.uid in get(/databases/$(database)/documents/klassen/$(klasse)/appMeta/gruppenMitglieder).data.get('uids', []);
+    }
+
     // ===================== KLASSEN =====================
     match /klassen/{klasse} {
 
-      // Übungslisten sind für alle Angemeldeten lesbar (seit 19.09.2026):
-      // Mitglieder einer 👥 Gruppe sehen die Übungen der Seite ihrer Lehrperson,
-      // auch wenn sie in einer anderen Klasse sind. Die Inhalte selbst
-      // (resourceContent) waren schon immer für alle Angemeldeten lesbar.
+      // Übungslisten: die eigene Klasse, Lehrpersonen/Schulleitung und die
+      // Mitglieder der 👥 Gruppen dieser Seite (auch aus anderen Klassen).
+      // Die App führt klassen/{k}/appMeta/gruppenMitglieder = {uids:[...]}
+      // bei jeder Gruppenänderung nach (gruppenMitgliederSync in index.html).
       match /resources/{resourceId} {
-        allow read: if isSignedIn();
+        allow read: if inKlasseLesen(klasse) || inGruppeVon(klasse);
         allow create, update: if isTeacher();
         allow delete: if isTeacher();
       }
 
       match /folders/{folderId} {
-        allow read: if isSignedIn();
+        allow read: if inKlasseLesen(klasse) || inGruppeVon(klasse);
         allow create, update: if isTeacher();
         allow delete: if isTeacher();
       }
@@ -268,6 +284,33 @@ service cloud.firestore {
         && request.resource.data.mitglieder.size() <= 400;
       // Separat: bei einem delete ist request.resource null.
       allow delete: if isTeacher() && resource.data.ownerUid == request.auth.uid;
+    }
+
+    // Wo eine Übung überall liegt (Kopien haben dieselbe ID in jeder Klasse):
+    // uebungsIndex/{resourceId} = {klassen:[...]}. Nur für Lehrpersonen, damit
+    // beim Löschen/Ersetzen nicht alle Seiten abgefragt werden müssen.
+    match /uebungsIndex/{resourceId} {
+      allow read: if canReadAll();
+      allow create, update: if isTeacher()
+        && request.resource.data.klassen is list
+        && request.resource.data.klassen.size() <= 100;
+      // Separat: bei einem delete ist request.resource null.
+      allow delete: if isTeacher();
+    }
+
+    // 🔑 Passwort-Anfragen der Lehrpersonen (admin/passwort-reset.js setzt das
+    // Passwort und trägt es ein). Lesen/Löschen: wer angefragt hat, und Jan.
+    // Ändern nur das Admin-Skript (Admin-SDK).
+    match /passwortAnfragen/{id} {
+      allow read: if isTeacher() && (resource.data.vonUid == request.auth.uid || isJan());
+      allow create: if isTeacher()
+        && request.resource.data.vonUid == request.auth.uid
+        && request.resource.data.status == 'offen'
+        && request.resource.data.uid is string
+        && !('neuesPasswort' in request.resource.data);
+      allow update: if false;
+      // Separat: bei einem delete ist request.resource null.
+      allow delete: if isTeacher() && (resource.data.vonUid == request.auth.uid || isJan());
     }
 
     // Login mit Vorname oder Schul-Kürzel: loginAliases/{slug} = {konten:[...]}.

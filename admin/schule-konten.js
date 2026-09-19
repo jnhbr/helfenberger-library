@@ -222,6 +222,8 @@ async function verteilen() {
       data.originVersion = typeof data.version === 'number' ? data.version : 0;
       ['current', 'prevOrder', 'version', 'empfohlen', 'prevContentId'].forEach(function (f) { delete data[f]; });
       w.set(kref.collection('resources').doc(d.id), data);
+      // uebungsIndex/{id}: wo die Übung überall liegt (siehe index.html, uebungKlassen)
+      w.set(db.collection('uebungsIndex').doc(d.id), { klassen: admin.firestore.FieldValue.arrayUnion(QUELLE_UEBUNGEN, k) }, { merge: true });
     });
     await w.close();
     console.log('verteilt ' + res.size + ' Übungen, ' + fol.size + ' Ordner -> ' + k);
