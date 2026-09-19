@@ -38,6 +38,8 @@ rules_version = '2';
 //                                                       calendarEntries), nur fuer die Person selbst sichtbar
 //   progress/{uid}/einstellungen/layout            -> {ordnung:{kacheln,leiste}, aus:[...]} Anordnung (nur die Person selbst)
 //   progress/{uid}/einstellungen/stundenplan       -> LP: eigener Plan {zeiten, zellen}; SuS: eigene Abweichungen {zellen}
+//   progress/{uid}/einstellungen/links             -> {links:[{name,url}]} eigene 🔗 Links (nur die Person selbst)
+//   schulLinks/{id}                                -> {name, url, fuer:'lehrer'|'alle'|'meta', ord, von} geteilte 🔗 Links
 //   klassen/{k}/klasseninfo/stundenplan            -> Klassenplan {zeiten, zellen} (Klasse liest, LP schreibt)
 //   progress/{uid}/noten/liste                      -> {faecher:{fachId:[{id,name,note,gewicht}]}, updatedAt}
 //                                                       privater Notenrechner, nur die Person selbst
@@ -460,6 +462,20 @@ service cloud.firestore {
       allow read: if isOwner(uid) || canReadAll();
       allow create, update: if isOwner(uid);
       // Separat, siehe oben.
+      allow delete: if isTeacher();
+    }
+
+    // 🔗 Geteilte Links (obere Leiste, seit 19.09.2026). fuer = 'lehrer' (nur
+    // Lehrpersonen/Schulleitung) oder 'alle' (auch Schüler:innen — die App
+    // fragt dort nur where fuer == 'alle' ab). _meta (fuer 'meta') merkt sich,
+    // dass die Standard-Links angelegt wurden. Jede Lehrperson darf teilen,
+    // ändern und entfernen. delete separat (request.resource ist dort null).
+    match /schulLinks/{linkId} {
+      allow read: if canReadAll() || (isSignedIn() && resource.data.fuer == 'alle');
+      allow create, update: if isTeacher()
+        && request.resource.data.name is string && request.resource.data.name.size() <= 80
+        && request.resource.data.url is string && request.resource.data.url.size() <= 500
+        && request.resource.data.fuer in ['lehrer', 'alle', 'meta'];
       allow delete: if isTeacher();
     }
 

@@ -214,6 +214,20 @@
   .topbar-bell{position:relative;font-size:17px;line-height:1;padding:7px 10px;}
   .push-popover{position:fixed;top:60px;right:18px;z-index:60;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:0 10px 30px rgba(0,0,0,.18);padding:14px 16px;width:270px;}
   .push-popover h4{margin:0 0 6px;font-size:14.5px;}
+  .links-popover{width:340px;max-width:calc(100vw - 24px);max-height:calc(100vh - 80px);overflow:auto;}
+  .links-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;}
+  .links-head h4{margin:0;}
+  .links-titel{font-size:12px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em;margin:10px 0 2px;}
+  .links-fuer{max-width:92px;font:inherit;font-size:12px;padding:3px 2px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text);}
+  .links-neu select{padding:7px 9px;border:1px solid var(--border);border-radius:8px;font:inherit;font-size:13.5px;background:var(--surface);color:var(--text);}
+  .links-liste{display:flex;flex-direction:column;gap:2px;}
+  .links-zeile{display:flex;align-items:center;gap:6px;}
+  .links-zeile a{flex:1;min-width:0;padding:8px 10px;border-radius:8px;color:var(--text);text-decoration:none;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .links-zeile a:hover{background:var(--border);}
+  .links-ext{opacity:.5;font-size:12px;}
+  .links-weg{background:none;border:0;cursor:pointer;color:var(--text-muted);font-size:15px;padding:4px 8px;}
+  .links-neu{display:flex;flex-direction:column;gap:6px;margin-top:10px;padding-top:10px;border-top:1px solid var(--border);}
+  .links-neu input{padding:7px 9px;border:1px solid var(--border);border-radius:8px;font:inherit;font-size:13.5px;background:var(--surface);color:var(--text);}
   .push-popover .push-hint{font-size:12.5px;color:var(--text-muted);margin:4px 0 10px;}
   @media (max-width:480px){
     .topbar{padding:12px 16px;gap:10px;}
@@ -3858,7 +3872,10 @@ function savePencilEgg(patch){
    Moment überdeckt, in dem es aufgeht - mit enter/leave würde es sich sofort
    wieder schliessen. Die Rechteck-Prüfung kennt dieses Problem nicht. Der
    mousemove-Handler hängt nur so lange am Dokument, wie tatsächlich ein per
-   Hover geöffnetes Fenster offen ist. */
+   Hover geöffnetes Fenster offen ist.
+
+   Seit 19.09.2026 sind die mouseenter/mouseleave-Listener an den Knöpfen
+   abgehängt: Beide Fenster öffnen sich nur noch per Klick (Wunsch Jan). */
 var HOVER_OPEN_MS = 140;   // kurze Absicht-Verzögerung: blosses Vorbeifahren öffnet nichts
 var HOVER_CLOSE_MS = 500;  // Karenz, um mit der Maus vom Knopf ins Fenster zu wechseln
 
@@ -4582,11 +4599,13 @@ function renderChrome(innerHtml){
   html += '<button class="btn btn-ghost btn-sm topbar-bell" id="themeToggleBtn" type="button" title="Darstellung">'+(currentEffectiveTheme()==='dark'?'☀️':'🌙')+'</button>';
   html += '<button class="btn btn-ghost btn-sm topbar-bell" id="pushBellBtn" type="button" title="Erinnerungen">🔔</button>';
   html += '<button class="btn btn-ghost btn-sm topbar-bell" id="stundenplanBtn" type="button" title="Stundenplan">🗓️</button>';
+  if(!isLeitung()){ html += '<button class="btn btn-ghost btn-sm topbar-bell" id="linksBtn" type="button" title="Links"'+(isTeacher || linksFuerSchueler().length ? '' : ' style="display:none;"')+'>🔗</button>'; }
   html += '</span>';
   html += '<button class="btn btn-ghost btn-sm topbar-bell" id="settingsBtn" type="button" title="Einstellungen">⚙️<span class="topbar-badge" id="settingsBadge" hidden>0</span></button>';
   html += '</div></div>';
   html += '<div class="push-popover" id="pushPopover" hidden></div>';
   if(isTeacher && !isLeitung()){ html += '<div class="todo-popover" id="todoPopover" hidden></div>'; }
+  if(!isLeitung()){ html += '<div class="push-popover links-popover" id="linksPopover" hidden></div>'; }
   var fremdBanner = isLeitung()
     ? '<div class="klasse-fremd-banner"><span>👀 <b>Schulleitung – nur Ansicht.</b> <b>'+esc(klasseLabel())+'</b> ('+esc(klasseInfo().lp)+'), '+(isTeacher?'Ansicht der Lehrperson':'Ansicht der Schüler:innen')+'. Es wird nichts gespeichert.</span><button class="btn btn-sm btn-primary" id="leitungAnsichtBtn" type="button">'+(isTeacher?'🎒 Zur Schüleransicht':'🧑‍🏫 Zur Lehreransicht')+'</button></div>'
     : isFremdeKlasse()
@@ -4611,8 +4630,6 @@ function renderChrome(innerHtml){
     // Das Panel wird bei jedem renderChrome neu aufgebaut, also immer zu starten;
     // der Firestore-Listener dahinter läuft unabhängig davon weiter.
     todoBtn.addEventListener('click', function(e){ e.stopPropagation(); toggleTodoPopover(); });
-    todoBtn.addEventListener('mouseenter', todoHover.hoverIn);
-    todoBtn.addEventListener('mouseleave', todoHover.hoverOut);
     ensureTeacherTodoWatcher();
     updateTodoButton();
   }
@@ -4626,8 +4643,6 @@ function renderChrome(innerHtml){
   var coinBtn = document.getElementById('coinBtn');
   if(coinBtn){
     coinBtn.addEventListener('click', function(e){ e.stopPropagation(); onCoinClick(); });
-    coinBtn.addEventListener('mouseenter', coinHover.hoverIn);
-    coinBtn.addEventListener('mouseleave', coinHover.hoverOut);
   }
   updateCoinButton();
 
@@ -4675,8 +4690,207 @@ function renderChrome(innerHtml){
     pop.hidden = true;
   });
   document.getElementById('stundenplanBtn').addEventListener('click', function(){ state.route = {name:'stundenplan'}; render(); });
+  var linksBtn = document.getElementById('linksBtn');
+  if(linksBtn){
+    linksBtn.addEventListener('click', function(e){
+      e.stopPropagation();
+      var pop = document.getElementById('linksPopover');
+      pop.hidden = !pop.hidden;
+      if(!pop.hidden){ linksBearbeiten = false; renderLinksPopover(); linksLoad(true); }
+    });
+    linksLoad(false);
+  }
   applyLeiste();
 }
+
+/* ===================== 🔗 LINKS (obere Leiste) =====================
+   Externe Schul-Tools (ISF-Anmeldung, Zivi-Plan, Aurora …) lassen sich nicht
+   einbetten (iframes verboten bzw. Microsoft-Login) — sie öffnen in neuem Tab.
+   - Eigene Links: progress/{uid}/einstellungen/links {links:[{name,url}]}, immer ganz ersetzt.
+   - Geteilte Links: schulLinks/{id} {name, url, fuer:'lehrer'|'alle', ord, von}.
+     'alle' sehen auch die Schüler:innen (sie fragen nur where fuer=='alle' ab,
+     das verlangen die Regeln). Jede Lehrperson darf teilen und entfernen.
+     schulLinks/_meta (fuer:'meta') merkt sich, dass die Standard-Links schon
+     einmal angelegt wurden — gelöschte kommen so nicht zurück.
+   Schüler:innen sehen das 🔗 nur, wenn es Links für alle gibt. */
+var LINKS_STANDARD = [
+  {id:'std-isf', name:'🧩 ISF-Anmeldung', url:'https://isf-anmeldung.netlify.app', fuer:'lehrer', ord:1},
+  {id:'std-zivi', name:'🗓 Zivi-Stundenplan', url:'https://zivi-stundenplan.netlify.app/login', fuer:'lehrer', ord:2},
+  {id:'std-aurora', name:'🌅 Aurora', url:'https://aurora.sbw-services.ch/#', fuer:'lehrer', ord:3}
+];
+var LINKS_FUER = { ich:'👤 Nur ich', lehrer:'🧑‍🏫 Alle Lehrpersonen', alle:'🎒 Alle (auch Schüler:innen)' };
+var linksEigen = [], linksGeteilt = null, linksUid = null, linksFehler = false, linksBearbeiten = false;
+function linksIstLehrer(){ return !!(state.profile && state.profile.role === 'teacher'); }
+function linksEigenRef(){ return doc(db, 'progress', state.user.uid, 'einstellungen', 'links'); }
+function linksFuerSchueler(){
+  return (linksUid === (state.user && state.user.uid) && linksGeteilt) ? linksGeteilt.filter(function(l){ return l.fuer === 'alle'; }) : [];
+}
+function linksGeteiltAnzeige(){
+  if(linksUid !== state.user.uid) return [];
+  if(linksFehler && linksIstLehrer()) return LINKS_STANDARD;   // Regeln noch nicht publiziert o.ä.
+  return (linksGeteilt || []).filter(function(l){ return linksIstLehrer() || l.fuer === 'alle'; });
+}
+function linksLoad(neu){
+  var uid = state.user.uid;
+  if(linksUid === uid && !neu) return;
+  var lehrer = linksIstLehrer();
+  var geteiltP = getDocs(lehrer ? collection(db, 'schulLinks') : query(collection(db, 'schulLinks'), where('fuer', '==', 'alle')));
+  var eigenP = lehrer ? getDoc(linksEigenRef()) : Promise.resolve(null);
+  geteiltP.then(function(snap){
+    var liste = [], meta = false;
+    snap.forEach(function(d){
+      var x = d.data();
+      if(d.id === '_meta'){ meta = true; return; }
+      if(x && x.url && (x.fuer === 'lehrer' || x.fuer === 'alle')) liste.push({id:d.id, name:x.name, url:x.url, fuer:x.fuer, ord:Number(x.ord) || 0});
+    });
+    if(lehrer && !meta){
+      var batch = writeBatch();
+      LINKS_STANDARD.forEach(function(l){
+        batch.set(doc(db, 'schulLinks', l.id), {name:l.name, url:l.url, fuer:l.fuer, ord:l.ord, von:'Standard'});
+        if(!liste.some(function(x){ return x.url === l.url; })) liste.push(Object.assign({}, l));
+      });
+      batch.set(doc(db, 'schulLinks', '_meta'), {name:'', url:'', fuer:'meta', ord:0});
+      batch.commit().catch(function(err){ console.error('Links (Standard)', err); });
+    }
+    liste.sort(function(a, b){ return a.ord - b.ord; });
+    return liste;
+  }).then(function(liste){ return { ok:true, liste:liste }; }, function(err){ console.error('Links', err); return { ok:false, liste:[] }; })
+  .then(function(g){
+    return eigenP.then(function(e){ return [g, e]; }, function(err){ console.error('Links (eigene)', err); return [g, null]; });
+  }).then(function(r){
+    if(!state.user || state.user.uid !== uid) return;
+    linksUid = uid; linksGeteilt = r[0].liste; linksFehler = !r[0].ok;
+    var d = r[1] && r[1].exists() ? r[1].data() : null;
+    linksEigen = (d && Array.isArray(d.links)) ? d.links.filter(function(l){ return l && l.url; }) : [];
+    var btn = document.getElementById('linksBtn');
+    if(btn && !lehrer) btn.style.display = linksFuerSchueler().length ? '' : 'none';
+    renderLinksPopover();
+  });
+}
+function linksEigenSave(liste){
+  linksEigen = liste;
+  renderLinksPopover();
+  setDoc(linksEigenRef(), { links: liste, updatedAt: serverTimestamp() })
+    .catch(function(err){ console.error(err); toast('Links konnten nicht gespeichert werden.'); });
+}
+function linksGeteiltNeu(name, url, fuer){
+  var ref = doc(collection(db, 'schulLinks'));
+  var l = {name:name, url:url, fuer:fuer, ord:Date.now(), von:state.profile.displayName || ''};
+  linksGeteilt = (linksGeteilt || []).concat([Object.assign({id:ref.id}, l)]);
+  renderLinksPopover();
+  return setDoc(ref, l).catch(function(err){
+    console.error(err); toast('Link konnte nicht geteilt werden.');
+    linksGeteilt = linksGeteilt.filter(function(x){ return x.id !== ref.id; }); renderLinksPopover();
+    throw err;
+  });
+}
+function linksGeteiltWeg(id){
+  linksGeteilt = (linksGeteilt || []).filter(function(x){ return x.id !== id; });
+  renderLinksPopover();
+  return deleteDoc(doc(db, 'schulLinks', id)).catch(function(err){ console.error(err); toast('Link konnte nicht entfernt werden.'); throw err; });
+}
+// Link zwischen «Nur ich», «Alle Lehrpersonen» und «Alle» verschieben.
+function linksFuerAendern(quelle, key, fuer){
+  if(quelle === 'eigen'){
+    var l = linksEigen[key];
+    if(!l || fuer === 'ich') return;
+    linksGeteiltNeu(l.name, l.url, fuer).then(function(){
+      linksEigenSave(linksEigen.filter(function(x){ return x !== l; }));
+    }).catch(function(){});
+    return;
+  }
+  var g = (linksGeteilt || []).find(function(x){ return x.id === key; });
+  if(!g || g.fuer === fuer) return;
+  if(fuer === 'ich'){
+    linksGeteiltWeg(key).then(function(){ linksEigenSave(linksEigen.concat([{name:g.name, url:g.url}])); }).catch(function(){});
+    return;
+  }
+  g.fuer = fuer;
+  renderLinksPopover();
+  updateDoc(doc(db, 'schulLinks', key), {fuer:fuer}).catch(function(err){ console.error(err); toast('Konnte nicht geändert werden.'); });
+}
+function linksZeile(l, quelle, key){
+  var fuer = quelle === 'eigen' ? 'ich' : l.fuer;
+  var h = '<div class="links-zeile"><a href="'+esc(l.url)+'" target="_blank" rel="noopener">'+esc(l.name || l.url)+
+    (linksIstLehrer() && fuer === 'alle' && !linksBearbeiten ? ' <span class="links-ext" title="Auch für Schüler:innen sichtbar">🎒</span>' : '')+' <span class="links-ext">↗</span></a>';
+  if(linksBearbeiten){
+    h += '<select class="links-fuer" data-q="'+quelle+'" data-k="'+esc(String(key))+'" title="Wer sieht den Link?">';
+    Object.keys(LINKS_FUER).forEach(function(k){ h += '<option value="'+k+'"'+(k === fuer ? ' selected' : '')+'>'+LINKS_FUER[k]+'</option>'; });
+    h += '</select><button class="links-weg" type="button" data-q="'+quelle+'" data-k="'+esc(String(key))+'" title="Entfernen">✕</button>';
+  }
+  return h + '</div>';
+}
+function renderLinksPopover(){
+  var host = document.getElementById('linksPopover');
+  if(!host || host.hidden) return;
+  var lehrer = linksIstLehrer();
+  if(linksUid !== state.user.uid){ host.innerHTML = '<h4>🔗 Links</h4><div class="push-hint">Lädt …</div>'; return; }
+  var geteilt = linksGeteiltAnzeige();
+  var h = '<div class="links-head"><h4>🔗 Links</h4>'+(lehrer ? '<button class="btn btn-ghost btn-sm" id="linksEditBtn" type="button">'+(linksBearbeiten ? 'Fertig' : '✏️ Bearbeiten')+'</button>' : '')+'</div>';
+  if(!lehrer){
+    h += '<div class="links-liste">'+geteilt.map(function(l){ return linksZeile(l, 'geteilt', l.id); }).join('')+'</div>';
+    host.innerHTML = h;
+    return;
+  }
+  if(linksBearbeiten) h += '<div class="push-hint" style="margin-top:0;">Bei jedem Link wählen, wer ihn sieht. Geteilte Links darf jede Lehrperson ändern und entfernen.</div>';
+  h += '<div class="links-titel">🏫 Geteilt</div><div class="links-liste">';
+  if(!geteilt.length) h += '<div class="push-hint">Keine geteilten Links.</div>';
+  var fehlerBearb = linksFehler;
+  geteilt.forEach(function(l){ h += fehlerBearb ? '<div class="links-zeile"><a href="'+esc(l.url)+'" target="_blank" rel="noopener">'+esc(l.name)+' <span class="links-ext">↗</span></a></div>' : linksZeile(l, 'geteilt', l.id); });
+  h += '</div>';
+  if(linksFehler) h += '<div class="push-hint">Geteilte Links können gerade nicht geladen werden.</div>';
+  h += '<div class="links-titel">👤 Meine</div><div class="links-liste">';
+  if(!linksEigen.length) h += '<div class="push-hint">'+(linksBearbeiten ? 'Unten einen Link hinzufügen.' : 'Noch keine eigenen Links — unter «✏️ Bearbeiten» hinzufügen.')+'</div>';
+  linksEigen.forEach(function(l, i){ h += linksZeile(l, 'eigen', i); });
+  h += '</div>';
+  if(linksBearbeiten){
+    h += '<form class="links-neu" id="linksNeuForm"><input id="linksNeuName" type="text" placeholder="Name (z.B. Intranet)" maxlength="60">'+
+      '<input id="linksNeuUrl" type="text" inputmode="url" placeholder="https://…" maxlength="500">'+
+      '<select id="linksNeuFuer">'+Object.keys(LINKS_FUER).filter(function(k){ return k === 'ich' || !linksFehler; }).map(function(k){ return '<option value="'+k+'">'+LINKS_FUER[k]+'</option>'; }).join('')+'</select>'+
+      '<button class="btn btn-primary btn-sm" type="submit">＋ Hinzufügen</button></form>';
+  }
+  host.innerHTML = h;
+  host.querySelector('#linksEditBtn').addEventListener('click', function(e){ e.stopPropagation(); linksBearbeiten = !linksBearbeiten; renderLinksPopover(); });
+  Array.prototype.forEach.call(host.querySelectorAll('a'), function(a){ a.addEventListener('click', function(){ host.hidden = true; }); });
+  Array.prototype.forEach.call(host.querySelectorAll('.links-fuer'), function(sel){
+    sel.addEventListener('change', function(){
+      var q = sel.getAttribute('data-q'), k = sel.getAttribute('data-k');
+      linksFuerAendern(q, q === 'eigen' ? Number(k) : k, sel.value);
+    });
+  });
+  Array.prototype.forEach.call(host.querySelectorAll('.links-weg'), function(b){
+    b.addEventListener('click', function(e){
+      e.stopPropagation();
+      var q = b.getAttribute('data-q'), k = b.getAttribute('data-k');
+      if(q === 'eigen'){ var i = Number(k); linksEigenSave(linksEigen.filter(function(_, j){ return j !== i; })); return; }
+      var g = (linksGeteilt || []).find(function(x){ return x.id === k; });
+      uiConfirm('Geteilten Link entfernen?', '«'+(g ? g.name : '')+'» verschwindet für '+(g && g.fuer === 'alle' ? 'alle, auch die Schüler:innen' : 'alle Lehrpersonen')+'.', 'Entfernen', function(){
+        linksGeteiltWeg(k).catch(function(){});
+      }, true);
+    });
+  });
+  var form = host.querySelector('#linksNeuForm');
+  if(form){
+    form.addEventListener('submit', function(e){
+      e.preventDefault();
+      var nameIn = host.querySelector('#linksNeuName'), urlIn = host.querySelector('#linksNeuUrl'), fuer = host.querySelector('#linksNeuFuer').value;
+      var url = urlIn.value.trim();
+      if(url && !/^[a-z]+:\/\//i.test(url)) url = 'https://' + url;
+      if(!/^https?:\/\/\S+$/i.test(url)){ toast('Bitte einen gültigen Link eingeben.'); urlIn.focus(); return; }
+      var name = nameIn.value.trim();
+      if(!name){ try{ name = new URL(url).hostname.replace(/^www\./, ''); }catch(err){ name = url; } }
+      if(fuer === 'ich') linksEigenSave(linksEigen.concat([{name:name, url:url}]));
+      else linksGeteiltNeu(name, url, fuer).catch(function(){});
+      var n = host.querySelector('#linksNeuName'); if(n) n.focus();
+    });
+  }
+}
+document.addEventListener('click', function(e){
+  var pop = document.getElementById('linksPopover');
+  if(!pop || pop.hidden) return;
+  if(!document.body.contains(e.target) || pop.contains(e.target) || e.target.closest('#linksBtn') || e.target.closest('.modal-overlay')) return;
+  pop.hidden = true;
+});
 
 /* ===================== RENDER: HOME ===================== */
 
@@ -12646,7 +12860,8 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
-  {id:'2026-09-19-kz-schultools', datum:'2026-09-19', fuer:'lehrer', text:'🔗 Klassenzimmer: Neue Kacheln für ISF-Anmeldung, Zivi-Stundenplan und Aurora – öffnen in einem neuen Tab. Wer sie nicht braucht, blendet sie mit «✏️ Anordnen» aus.'},
+  {id:'2026-09-19-klick-statt-hover', datum:'2026-09-19', fuer:'lehrer', text:'🖱️ To-do-Liste und 💸 Schulden-Fenster gehen wieder nur per Klick auf – blosses Drüberfahren mit der Maus öffnet nichts mehr.'},
+  {id:'2026-09-19-schul-links', datum:'2026-09-19', fuer:'lehrer', text:'🔗 Neues Symbol oben: Links – ISF-Anmeldung, Zivi-Stundenplan und Aurora mit einem Klick (öffnen in neuem Tab). Unter «✏️ Bearbeiten» eigene Links hinzufügen und pro Link wählen, wer ihn sieht: nur du, alle Lehrpersonen oder alle inkl. Schüler:innen. Die Kacheln im Klassenzimmer sind dafür weg.'},
   {id:'2026-09-19-sikore-direkt', datum:'2026-09-19', fuer:'alle', text:'🧮 SIKORE ist jetzt kein Ordner mehr: In Mathe einfach auf «SIKORE – Sicher Kopfrechnen» tippen, und der Trainer startet direkt.'},
   {id:'2026-09-19-sikore-ziel-tempo', datum:'2026-09-19', fuer:'alle', text:'🧮 SIKORE-Trainer: Neu mit 🎯 Wochenziel (fehlerfreie Reihen pro Woche, Ziel selbst wählbar) und ⏱ Tempo-Modus – eine Reihe gegen die Uhr, deine Bestzeit pro Level wird gespeichert. Steigst du nach einer SIKORE-Prüfung ein Level auf, wird gefeiert! 🎉'},
   {id:'2026-09-19-sikore-uebersicht-lp', datum:'2026-09-19', fuer:'lehrer', text:'📊 SIKORE-Übersicht (im SIKORE-Trainer oder unter Prüfungen): pro Schüler:in aktuelles Level mit Auf-/Abstieg, auf welchem Level geübt wird, Wochenziel, Total und Bestzeit.'},
@@ -14211,12 +14426,7 @@ var KZ_TILES = [
   { id:'umfrage', icon:'⚡', name:'Blitzumfrage',         desc:'Eine Frage, sofort am Beamer ausgewertet — auf Wunsch als Peer-Instruction-Doppelrunde.' },
   { id:'gruppen', icon:'🎲', name:'Gruppen & Partner',    desc:'Paare und Gruppen ziehen, ohne dass immer dieselben zusammenkommen.' },
   { id:'aemtli',  icon:'🧹', name:'Ämtliplan',            desc:'Rotiert von allein bis zu den Sommerferien, Ferienwochen fallen raus.' },
-  { id:'vergessen',icon:'🗒',name:'Vergessen-Zähler',     desc:'Wer eine Abgabe verpasst hat — automatisch aus der Abgabe-Checkliste.' },
-  // Externe Schul-Tools: lassen sich nicht einbetten (ISF/Aurora verbieten iframes,
-  // Aurora braucht den Microsoft-Login) — darum öffnen sie in einem neuen Tab.
-  { id:'isf',     icon:'🧩', name:'ISF-Anmeldung',       desc:'Schüler:innen fürs ISF anmelden — Tool eines Kollegen, öffnet in neuem Tab.', url:'https://isf-anmeldung.netlify.app' },
-  { id:'zivi',    icon:'🗓', name:'Zivi-Stundenplan',     desc:'Einsatzplan der Zivis — Tool eines Kollegen, öffnet in neuem Tab.', url:'https://zivi-stundenplan.netlify.app/login' },
-  { id:'aurora',  icon:'🌅', name:'Aurora',              desc:'SBW-Services, Anmeldung mit dem Schul-Microsoft-Konto — öffnet in neuem Tab.', url:'https://aurora.sbw-services.ch/#' }
+  { id:'vergessen',icon:'🗒',name:'Vergessen-Zähler',     desc:'Wer eine Abgabe verpasst hat — automatisch aus der Abgabe-Checkliste.' }
 ];
 
 function kzReihenfolge(){
@@ -14240,7 +14450,7 @@ function renderKlassenzimmer(){
   kzSichtbar().forEach(function(t){
     html += '<button class="kz-tile" data-tool="'+t.id+'" data-sort="'+t.id+'" data-ausblendbar="kz:'+t.id+'" type="button">';
     html += '<div class="kz-tile-icon">'+t.icon+'</div>';
-    html += '<div><h3>'+esc(t.name)+(t.url ? ' <span style="opacity:.55;font-weight:400;">↗</span>' : '')+'</h3><p>'+esc(t.desc)+'</p></div></button>';
+    html += '<div><h3>'+esc(t.name)+'</h3><p>'+esc(t.desc)+'</p></div></button>';
   });
   html += '</div>';
   if(!kzSichtbar().length) html += '<div class="empty-state">Alle Werkzeuge ausgeblendet — zurückholen unter ⚙️ Einstellungen › 🧩 Widgets.</div>';
@@ -14253,8 +14463,6 @@ function renderKlassenzimmer(){
   Array.prototype.forEach.call(document.querySelectorAll('[data-tool]'), function(b){
     b.addEventListener('click', function(){
       var id = b.getAttribute('data-tool');
-      var ext = KZ_TILES.find(function(t){ return t.id === id; });
-      if(ext && ext.url){ window.open(ext.url, '_blank', 'noopener'); return; }
       if(id === 'beamer') openBeamerTools('ruhe');
       else if(id === 'dran') openBeamerTools('dran');
       else if(id === 'wuerfel') openBeamerTools('wuerfel');
@@ -18468,6 +18676,7 @@ var LEISTE_ITEMS = [
   {id:'pushBellBtn', label:'🔔 Erinnerungen'},
   {id:'todoBtn', label:'📝 To-dos', rolle:'lehrer'},
   {id:'pflanzenBtn', label:'🪴 Pflanzen', rolle:'lehrer'},
+  {id:'linksBtn', label:'🔗 Links'},
   {id:'ferienInfo', label:'🚨 Ferien-Countdown'}
 ];
 var START_ITEMS = [ {id:'stpJetzt', label:'🗓️ Jetzt / Als Nächstes (Stundenplan)'} ];
