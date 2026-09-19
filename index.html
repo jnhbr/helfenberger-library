@@ -1755,7 +1755,7 @@ const SUBJECTS = [
   {id:'physik', name:'Physik', gruppe:'haupt', color:'#1E96C8', soft:'#DDEFF8', img:'assets/subject-physik.png'},
   {id:'geografie', name:'Geografie', gruppe:'haupt', color:'#2E9E5B', soft:'#DDF1E4', img:'assets/subject-geografie.png'},
   {id:'geschichte', name:'Geschichte', gruppe:'haupt', color:'#C98B1F', soft:'#F6E8CC', img:'assets/subject-geschichte.png'},
-  {id:'informatik', name:'Informatik', gruppe:'neben', color:'#D6449B', soft:'#FBDFEE', img:'assets/subject-informatik.png'},
+  {id:'informatik', name:'Medien und Informatik', gruppe:'neben', color:'#D6449B', soft:'#FBDFEE', img:'assets/subject-informatik.png'},
   {id:'isf', name:'ISF', gruppe:'neben', color:'#4D7C0F', soft:'#E6EFD6', img:'assets/subject-isf.png', full:true},
   {id:'musik', name:'Musik', gruppe:'neben', color:'#0F766E', soft:'#D5EDEA', img:'assets/subject-musik.png', full:true},
   {id:'sport', name:'Sport', gruppe:'neben', color:'#5FA829', soft:'#E4F3D9', img:'assets/subject-sport.png'},
@@ -1765,8 +1765,8 @@ const SUBJECTS = [
   {id:'berufswahl', name:'Berufswahl', gruppe:'neben', color:'#E8752C', soft:'#FBE4D4', img:'assets/subject-berufswahl.png'},
   {id:'gtz', name:'GTZ', gruppe:'frei', color:'#3D6A8A', soft:'#DCE8EF', img:'assets/subject-gtz.png'},
   {id:'fotokurs', name:'Fotokurs', gruppe:'frei', color:'#6B7280', soft:'#E7E9EE', img:'assets/subject-fotokurs.png', full:true},
-  {id:'psychologie', name:'Psychologie', gruppe:'frei', color:'#A16207', soft:'#F3E8D2', img:'assets/subject-psychologie.png', full:true},
-  {id:'freies-schreiben', name:'Freies Schreiben', gruppe:'frei', color:'#0369A1', soft:'#DCEBF5', img:'assets/subject-freies-schreiben.png', full:true}
+  {id:'psychologie', name:'ERG', gruppe:'frei', color:'#A16207', soft:'#F3E8D2', img:'assets/subject-psychologie.png', full:true},
+  {id:'freies-schreiben', name:'Zeichnen', gruppe:'frei', color:'#0369A1', soft:'#DCEBF5', img:'assets/subject-freies-schreiben.png', full:true}
 ];
 SUBJECTS.forEach(function(s){ s.icon = subjectVisual(s); });
 function subjectById(id){ return SUBJECTS.find(function(s){return s.id===id;}); }
@@ -4554,7 +4554,8 @@ var NOTEN_EXTRA_FAECHER = [
   {id:'zeichnen', name:'Zeichnen', color:'#E0A800'}
 ];
 function notenFaecher(){
-  return SUBJECTS.filter(function(s){ return !s.teacherOnly && s.id !== 'berufswahl'; })
+  // 'freies-schreiben' heisst inzwischen «Zeichnen» — die Noten laufen weiter über das bestehende Notenfach 'zeichnen'.
+  return SUBJECTS.filter(function(s){ return !s.teacherOnly && s.id !== 'berufswahl' && s.id !== 'freies-schreiben'; })
     .map(function(s){ return {id:s.id, name:s.name, color:s.color}; })
     .concat(NOTEN_EXTRA_FAECHER)
     .sort(function(a,b){ return a.name.localeCompare(b.name, 'de'); });
@@ -11411,8 +11412,10 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-09-19-fachnamen', datum:'2026-09-19', fuer:'alle', text:'🏷️ Fächer umbenannt: «Informatik» heisst jetzt «Medien und Informatik», «Freies Schreiben» heisst «Zeichnen» und «Psychologie» heisst «ERG». Deine Übungen sind noch am gleichen Ort.'},
+  {id:'2026-09-19-stundenplan-pause', datum:'2026-09-19', fuer:'alle', text:'🗓️ Stundenplan korrigiert: Am Nachmittag ist die Pause von 15:05 bis 15:20 – die letzten zwei Lektionen beginnen darum 5 Minuten später, Schluss ist um 16:55.'},
   {id:'2026-09-19-stundenplan', datum:'2026-09-19', fuer:'alle', text:'🗓️ Neu: dein Stundenplan (Symbol oben). Deine Lehrperson trägt den Klassenplan ein, du kannst danach deine eigenen Freilektionen eintragen. Auf der Startseite siehst du, was jetzt und als Nächstes kommt.'},
-  {id:'2026-09-19-anordnen', datum:'2026-09-19', fuer:'alle', text:'✏️ Kacheln und Symbole oben kannst du jetzt wie beim iPhone verschieben: lange draufdrücken, bis alles wackelt, dann ziehen. Symbole mit «−» ausblenden und unter ⚙️ Einstellungen › 🧩 Widgets zurückholen. Neue Fächer: Englisch, Französisch, ISF, Musik, TTG, WAH, Fotokurs, Psychologie, Freies Schreiben.'},
+  {id:'2026-09-19-anordnen', datum:'2026-09-19', fuer:'alle', text:'✏️ Kacheln und Symbole oben kannst du jetzt wie beim iPhone verschieben: lange draufdrücken, bis alles wackelt, dann ziehen. Symbole mit «−» ausblenden und unter ⚙️ Einstellungen › 🧩 Widgets zurückholen. Neue Fächer: Englisch, Französisch, ISF, Musik, TTG, WAH, Fotokurs, ERG, Zeichnen.'},
   {id:'2026-09-19-faecher-lp', datum:'2026-09-19', fuer:'lehrer', text:'🧩 Fächer, die dich nicht betreffen, kannst du im Wackelmodus mit «−» ausblenden (nur für dich, die Klasse sieht weiterhin alle). Im 🗓️ Stundenplan füllst du deinen eigenen Plan und den Klassenplan separat; «⏰ Lektionszeiten» beim Bearbeiten anpassen.'},
   {id:'2026-09-18-speicher-kontingent', datum:'2026-09-18', fuer:'lehrer', text:'💾 Jede Lehrperson hat neu 1 GB Speicher für eigene Übungen und PDFs (Anzeige unter ⚙️ Einstellungen → «💾 Mein Speicher»). Ist er voll: Altes löschen oder grosse Dateien als «🔗 Link» ablegen.'},
   {id:'2026-09-18-pdf-4mb-cache', datum:'2026-09-18', fuer:'lehrer', text:'📄 PDFs neu max. 4 MB (grössere komprimieren oder als «🔗 Link» ablegen). Übungen und PDFs werden pro Gerät nur noch einmal heruntergeladen und danach aus dem Speicher geöffnet – spart Firebase-Kontingent und lädt schneller.'},
@@ -15362,8 +15365,14 @@ var STP_TAG_FARBEN = ['#4361EE','#E63950','#2E9E5B','#E8752C','#8B5CF6'];
 var STP_ZEITEN_STANDARD = [
   {von:'07:30', bis:'08:15'}, {von:'08:20', bis:'09:05'}, {von:'09:20', bis:'10:05'},
   {von:'10:10', bis:'10:55'}, {von:'11:00', bis:'11:45'},
-  {von:'13:30', bis:'14:15'}, {von:'14:20', bis:'15:05'}, {von:'15:15', bis:'16:00'}, {von:'16:05', bis:'16:50'}
+  {von:'13:30', bis:'14:15'}, {von:'14:20', bis:'15:05'}, {von:'15:20', bis:'16:05'}, {von:'16:10', bis:'16:55'}
 ];
+// Bis 19.09.2026 galt am Nachmittag 10 statt 15 Min. Pause — damit gespeicherte Pläne mit den alten Standardzeiten nachziehen.
+var STP_ZEITEN_ALT = '07:30-08:15,08:20-09:05,09:20-10:05,10:10-10:55,11:00-11:45,13:30-14:15,14:20-15:05,15:15-16:00,16:05-16:50';
+function stpZeitenAktuell(z){
+  if(z && z.map(function(x){ return x.von+'-'+x.bis; }).join(',') === STP_ZEITEN_ALT) return STP_ZEITEN_STANDARD;
+  return z || null;
+}
 var STP_FREI_FARBEN = ['#0EA5E9','#F43F5E','#14B8A6','#F59E0B','#6366F1','#84CC16','#EC4899','#64748B'];
 var stp = { klasse:null, eigen:null, geladen:false, klasseName:null, ansicht:null, bearbeiten:false, tag:null };
 
@@ -15373,8 +15382,8 @@ function stpLaden(){
   var k = getDoc(stpKlasseRef()).then(function(s){ return s.exists() ? s.data() : null; }).catch(function(err){ console.error('Stundenplan Klasse', err); return null; });
   var e = getDoc(stpEigenRef()).then(function(s){ return s.exists() ? s.data() : null; }).catch(function(err){ console.error('Stundenplan eigen', err); return null; });
   return Promise.all([k, e]).then(function(r){
-    stp.klasse = { zeiten:(r[0] && r[0].zeiten) || null, zellen:(r[0] && r[0].zellen) || {} };
-    stp.eigen = { zeiten:(r[1] && r[1].zeiten) || null, zellen:(r[1] && r[1].zellen) || {} };
+    stp.klasse = { zeiten:stpZeitenAktuell(r[0] && r[0].zeiten), zellen:(r[0] && r[0].zellen) || {} };
+    stp.eigen = { zeiten:stpZeitenAktuell(r[1] && r[1].zeiten), zellen:(r[1] && r[1].zellen) || {} };
     stp.klasseName = state.klasse;
     stp.geladen = true;
   });
