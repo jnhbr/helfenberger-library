@@ -6916,7 +6916,8 @@ function renderFolderContents(){
   if(grFachEl) grFachEl.hidden = !!here;   // Gruppen-Übungen nur auf der Fach-Hauptebene
 
   var folders = foldersIn(here);
-  var resources = resourcesIn(here);
+  // imHub: SIKORE und Tipptrainer stehen im ⚡ Übungstrainer, nicht noch einmal im Fach.
+  var resources = resourcesIn(here).filter(function(r){ return !r.imHub; });
   // Virtuelle LMVZ-Einträge lassen sich weder sortieren noch bearbeiten —
   // Pfeile/Nummern gelten nur unter den echten Einträgen.
   var realFolders = folders.filter(function(f){ return !f.virtual; });
@@ -13210,6 +13211,7 @@ const NEUIGKEITEN = [
   {id:'2026-09-20-schneller-start', datum:'2026-09-20', fuer:'alle', text:'⚡ Die Startseite lädt jetzt viel schneller – die Fächer-Bilder sind zehnmal kleiner geworden, ohne dass man es sieht. Das hilft vor allem auf dem Handy und bei schwachem WLAN.'},
   {id:'2026-09-20-speicher-schneller', datum:'2026-09-20', fuer:'lehrer', text:'💾 ⚙️ Einstellungen › «💾 Mein Speicher» öffnet schneller, und der Prüfungs-Schnelltest räumt seinen Zwischenspeicher selbst auf.'},
   {id:'2026-09-20-fach-bilder', datum:'2026-09-20', fuer:'alle', text:'🎨 Mathe, Deutsch, Englisch und Französisch haben neue Bilder bekommen.'},
+  {id:'2026-09-20-trainer-sammelt', datum:'2026-09-20', fuer:'alle', text:'⚡ 🧮 SIKORE und ⌨️ der Tipptrainer stecken jetzt auch im «Übungstrainer»: In Mathe bzw. in Medien und Informatik findest du sie dort zuoberst bei den übrigen Trainings – dein Level und dein Fortschritt bleiben natürlich erhalten.'},
   {id:'2026-09-20-pruefung-art-klasse', datum:'2026-09-20', fuer:'lehrer', text:'📝 Prüfungen: nur noch ein Knopf «➕ Neue Prüfung» – die Art (📄 aus einer Übung, 🧮 SIKORE, ⌨️ Tastaturschreiben) wählst du zuoberst im Dialog. Neu stellst du dort auch die Klasse ein (die Library wechselt dann dorthin) und unter «Für», ob die ganze Klasse oder nur eine deiner 👥 Gruppen die Prüfung schreibt – die übrigen sehen sie gar nicht.'},
   {id:'2026-09-20-tipp-pruefung', datum:'2026-09-20', fuer:'lehrer', text:'⌨️ Prüfungen › «⌨️ Neue Tipp-Prüfung»: klassische Abschreibprüfung im Prüfungsmodus – alle tippen denselben Text auf Zeit (Sätze aus dem Tipptrainer oder dein eigener Text). Bewertet werden die Netto-Anschläge pro Minute (Abzug pro Fehler einstellbar), Notengrenzen für 6 und 4 wählbar; die Note landet im Notenrechner.'},
   {id:'2026-09-20-tipp-pruefung-alle', datum:'2026-09-20', fuer:'alle', text:'⌨️ Neu: Tipp-Prüfungen. Du schreibst einen Text auf Zeit ab – bei einem Fehler wartet der Cursor, bis du die richtige Taste triffst. Üben kannst du in Medien und Informatik im Tipptrainer.'},
@@ -18561,7 +18563,7 @@ function sikoreStufenHtml(aktiv, eigenes){
 function sikoreVirtuell(){
   return {
     folders:[],
-    resources:[{id:'sikore_trainer', subject:'mathe', folderId:null, order:-2000, virtual:true, sikore:true,
+    resources:[{id:'sikore_trainer', subject:'mathe', folderId:null, order:-2000, virtual:true, sikore:true, imHub:true,
       title:'🧮 SIKORE – Sicher Kopfrechnen'}]
   };
 }
@@ -18589,11 +18591,10 @@ async function sikoreMeinLevel(){
 }
 var sikoreT = null;
 function renderSikoreTrainer(r){
-  var s = subjectById(r.subject);
   var gemerkt = +lsGet('libsikore_level') || 0;
   sikoreT = {level:gemerkt || 1, eigen:null, reihen:+lsGet('libsikore_reihen') || 1, laenge:12, seed:0, data:null, ans:{}, erg:null, t0:null, tempo:lsGet('libsikore_tempo') === '1', stats:null};
   var html = '<div class="sk-wrap">';
-  html += '<div class="back-row"><button class="btn btn-ghost btn-sm" id="backBtn">&larr; '+esc(s ? s.name : 'Mathe')+'</button></div>';
+  html += '<div class="back-row"><button class="btn btn-ghost btn-sm" id="backBtn">&larr; Übungstrainer</button></div>';
   html += '<div class="sk-hero"><div class="sk-hero-deko" aria-hidden="true"><span>+</span><span>−</span><span>·</span><span>:</span><span>=</span><span>∑</span></div>'+
     '<div class="sk-hero-titel"><span class="sk-logo">SIKORE</span><span class="sk-sub">Sicher Kopfrechnen</span></div>'+
     '<p>Rechne im Kopf und schreib jedes Ergebnis ins Kästchen. Mit deinem Ergebnis rechnest du gleich weiter. Am Zeilenende steht die <b>Quersumme</b> (QS) des richtigen Ergebnisses – so merkst du selbst, ob du noch auf Kurs bist.</p></div>';
@@ -18610,7 +18611,7 @@ function renderSikoreTrainer(r){
   html += '<p class="sk-quelle">Aufgaben nach <a href="https://sikore.schiffner-tischer.de" target="_blank" rel="noopener">SIKORE</a> von Christian Schiffner-Tischer.</p>';
   html += '</div>';
   renderChrome(html);
-  document.getElementById('backBtn').addEventListener('click', function(){ goSubject(r.subject, r.folderId || null); });
+  document.getElementById('backBtn').addEventListener('click', function(){ goResource(mtHubRes(r.subject || 'mathe')); });
   document.getElementById('skLvMinus').addEventListener('click', function(){ sikoreLevelSetzen(sikoreT.level - 1); });
   document.getElementById('skLvPlus').addEventListener('click', function(){ sikoreLevelSetzen(sikoreT.level + 1); });
   document.getElementById('skTreppe').addEventListener('click', function(e){ var b = e.target.closest('[data-level]'); if(b) sikoreLevelSetzen(+b.getAttribute('data-level')); });
@@ -20142,7 +20143,19 @@ function mtFachTrainer(subject){ return MT_TRAINER.filter(function(t){ return t.
 function mtRes(t){ return {id:t.id, subject:t.fach, folderId:null, order:-1990, virtual:true, mt:true, title:t.icon+' '+t.name}; }
 // Im Fach erscheint nur die Übersicht; die einzelnen Trainer öffnet man von dort.
 function mtHubRes(subject){ return {id:'mt_hub_'+subject, subject:subject, folderId:null, order:-1999, virtual:true, mtHub:true, title:'⚡ Übungstrainer'}; }
-function mtVirtuell(subject){ return mtFachTrainer(subject).length ? [mtHubRes(subject)] : []; }
+// 🧮 SIKORE und ⌨️ Tipptrainer sind keine generativen MT_TRAINER, gehören im Fach
+// aber in denselben Übungstrainer-Ordner — hier als Kachel-Beschreibung.
+function mtZusatz(subject){
+  var z = [];
+  if(subject === 'mathe') z.push({res:sikoreVirtuell().resources[0], icon:'🧮', name:'SIKORE – Sicher Kopfrechnen',
+    kurz:'Kettenrechnungen im Kopf – immer wieder neue, mit Quersumme zur Kontrolle.',
+    grad:'linear-gradient(135deg,#1F3A5F 0%,#2C5C8F 55%,#3A7BBF 100%)', lv:SIKORE_LEVELS.length+' Level'});
+  if(subject === TIPP_SUBJECT) z.push({res:tippVirtuell(TIPP_SUBJECT)[0], icon:'⌨️', name:'Tipptrainer – 10-Finger-System',
+    kurz:'Blind tippen lernen, Lektion für Lektion.',
+    grad:'linear-gradient(135deg,#5B2A6E 0%,#A8327F 55%,#D6449B 100%)', lv:TIPP_LEKTIONEN.length+' Lektionen'});
+  return z;
+}
+function mtVirtuell(subject){ return mtFachTrainer(subject).length || mtZusatz(subject).length ? [mtHubRes(subject)] : []; }
 // Für die Lernphase («nur in dieser Übung») braucht es alle einzeln.
 function mtVirtuellAlle(){
   var faecher = [];
@@ -20152,26 +20165,36 @@ function mtVirtuellAlle(){
 
 /* ---------- Übersicht (Hub) ---------- */
 function renderMtHub(r){
-  var s = subjectById(r.subject), liste = mtFachTrainer(r.subject);
-  if(!liste.length){ goSubject(r.subject, null); return; }
+  var s = subjectById(r.subject), liste = mtFachTrainer(r.subject), zusatz = mtZusatz(r.subject);
+  if(!liste.length && !zusatz.length){ goSubject(r.subject, null); return; }
   var html = '<div class="mt-wrap">';
   html += '<div class="back-row"><button class="btn btn-ghost btn-sm" id="backBtn">&larr; '+esc(s ? s.name : 'Fach')+'</button></div>';
   html += '<div class="mt-hero" style="background:'+(s && s.color ? 'linear-gradient(135deg,'+s.color+' 0%,'+s.color+' 38%,color-mix(in srgb, '+s.color+' 58%, #ffffff) 100%)' : 'linear-gradient(135deg,#1F3A5F 0%,#2C5C8F 55%,#3A7BBF 100%)')+'">'+
-    '<div class="mt-hero-deko" aria-hidden="true">'+liste.slice(0, 6).map(function(t){ return '<span>'+esc(t.icon)+'</span>'; }).join('')+'</div>'+
+    '<div class="mt-hero-deko" aria-hidden="true">'+zusatz.concat(liste).slice(0, 6).map(function(t){ return '<span>'+esc(t.icon)+'</span>'; }).join('')+'</div>'+
     '<div class="mt-hero-titel"><span class="mt-logo">'+esc((s ? s.name : 'Fach')+'-Trainer')+'</span></div>'+
     '<p>Kurze Trainings für das, was man einfach können muss. Jeder Trainer hat eigene Level – die Aufgaben sind immer wieder neu, und du kontrollierst sofort selbst.</p></div>';
   html += '<div class="mt-kacheln">';
+  zusatz.forEach(function(z){
+    html += '<button type="button" class="mt-kachel" data-zusatz="'+esc(z.res.id)+'"><span class="mt-kachel-icon" style="background:'+z.grad+'">'+esc(z.icon)+'</span>'+
+      '<span class="mt-kachel-text"><b>'+esc(z.name)+'</b><small>'+esc(z.kurz)+'</small><small class="mt-kachel-lv">'+esc(z.lv)+'</small></span>'+
+      '<span class="sk-karte-pfeil" aria-hidden="true">›</span></button>';
+  });
   liste.forEach(function(t){
     html += '<button type="button" class="mt-kachel" data-mt="'+esc(t.id)+'"><span class="mt-kachel-icon" style="background:'+t.grad+'">'+esc(t.icon)+'</span>'+
       '<span class="mt-kachel-text"><b>'+esc(t.name)+'</b><small>'+esc(t.kurz)+'</small><small class="mt-kachel-lv">'+t.levels.length+' Level</small></span>'+
       '<span class="sk-karte-pfeil" aria-hidden="true">›</span></button>';
   });
   html += '</div>';
-  if(r.subject === 'mathe') html += '<p class="sk-quelle">Kopfrechnen mit Kettenaufgaben übst du weiterhin im 🧮 SIKORE-Trainer.</p>';
   html += '</div>';
   renderChrome(html);
   document.getElementById('backBtn').addEventListener('click', function(){ goSubject(r.subject, null); });
   document.querySelector('.mt-kacheln').addEventListener('click', function(e){
+    var z = e.target.closest('[data-zusatz]');
+    if(z){
+      var zd = zusatz.filter(function(x){ return x.res.id === z.getAttribute('data-zusatz'); })[0];
+      if(zd) goResource(zd.res);
+      return;
+    }
     var b = e.target.closest('[data-mt]'); if(!b) return;
     var t = mtDef(b.getAttribute('data-mt'));
     if(t) goResource(mtRes(t));
@@ -20748,15 +20771,14 @@ function tippSterneFuer(L, apm, gen){
 /* ---------- Trainer ---------- */
 function tippVirtuell(subject){
   if(subject !== TIPP_SUBJECT) return [];
-  return [{id:'tippen_trainer', subject:TIPP_SUBJECT, folderId:null, order:-2000, virtual:true, tippen:true, title:'⌨️ Tipptrainer – 10-Finger-System'}];
+  return [{id:'tippen_trainer', subject:TIPP_SUBJECT, folderId:null, order:-2000, virtual:true, tippen:true, imHub:true, title:'⌨️ Tipptrainer – 10-Finger-System'}];
 }
 var tippT = null;
 function renderTippTrainer(r){
-  var s = subjectById(r.subject);
   tippT = {nr:+lsGet('libtipp_lektion') || 0, schwach:null, text:'', pos:0, fehlerPos:{}, nFehler:0, anschl:{}, fehlerT:{}, t0:null, tLast:null, aktivMs:0, fertig:false,
     anzeige:lsGet('libtipp_anzeige') || 'voll', stats:null, gewaehlt:!!lsGet('libtipp_lektion')};
   var html = '<div class="tt-wrap">';
-  html += '<div class="back-row"><button class="btn btn-ghost btn-sm" id="backBtn">&larr; '+esc(s ? s.name : 'Fach')+'</button></div>';
+  html += '<div class="back-row"><button class="btn btn-ghost btn-sm" id="backBtn">&larr; Übungstrainer</button></div>';
   html += '<div class="tt-hero"><div class="tt-hero-deko" aria-hidden="true"><span>F</span><span>J</span><span>⌨</span></div>'+
     '<div class="tt-hero-titel"><span class="tt-logo">Tipptrainer</span><span class="tt-sub">10-Finger-System</span></div>'+
     '<p>Lerne Schritt für Schritt blind zu tippen – mit allen zehn Fingern, wie es Profis machen. Jede Lektion bringt ein paar neue Tasten. Schaffst du das Tempo-Ziel mit höchstens 5&nbsp;% Fehlern, ist die Lektion bestanden. Lieber regelmässig ein paar Minuten als einmal lange!</p></div>';
@@ -20775,7 +20797,7 @@ function renderTippTrainer(r){
   html += '<div class="sk-aktionen"><button class="btn btn-ghost" id="ttNeu" type="button">🔄 Neuer Text</button></div>';
   html += '</div>';
   renderChrome(html);
-  document.getElementById('backBtn').addEventListener('click', function(){ goSubject(r.subject, r.folderId || null); });
+  document.getElementById('backBtn').addEventListener('click', function(){ goResource(mtHubRes(r.subject || TIPP_SUBJECT)); });
   var anz = document.getElementById('ttAnzeige');
   anz.value = tippT.anzeige;
   anz.addEventListener('change', function(){ tippT.anzeige = this.value; lsSet('libtipp_anzeige', this.value); tippTastaturZeichnen(); tippFokus(); });
