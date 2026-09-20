@@ -13211,6 +13211,8 @@ const NEUIGKEITEN = [
   {id:'2026-09-20-schneller-start', datum:'2026-09-20', fuer:'alle', text:'⚡ Die Startseite lädt jetzt viel schneller – die Fächer-Bilder sind zehnmal kleiner geworden, ohne dass man es sieht. Das hilft vor allem auf dem Handy und bei schwachem WLAN.'},
   {id:'2026-09-20-speicher-schneller', datum:'2026-09-20', fuer:'lehrer', text:'💾 ⚙️ Einstellungen › «💾 Mein Speicher» öffnet schneller, und der Prüfungs-Schnelltest räumt seinen Zwischenspeicher selbst auf.'},
   {id:'2026-09-20-fach-bilder', datum:'2026-09-20', fuer:'alle', text:'🎨 Mathe, Deutsch, Englisch und Französisch haben neue Bilder bekommen.'},
+  {id:'2026-09-20-mt-pruefung-lp', datum:'2026-09-20', fuer:'lehrer', text:'⚡ Prüfungen › «➕ Neue Prüfung» › Art «⚡ Übungstrainer»: Aus jedem der 33 Trainer wird eine Online-Prüfung. Du wählst Trainer, Level und Anzahl Aufgaben – die Aufgaben entstehen automatisch, für jede Person mit anderen Zahlen, und werden nach der Abgabe selbständig korrigiert (ein Punkt pro Kästchen, von Hand umstellbar). Die Note landet im Notenrechner im Fach des Trainers.'},
+  {id:'2026-09-20-mt-pruefung', datum:'2026-09-20', fuer:'alle', text:'⚡ Zu den Übungstrainern kann es jetzt auch Prüfungen geben – gleiche Art von Aufgaben wie beim Üben, einfach im Prüfungsmodus. Üben lohnt sich also doppelt!'},
   {id:'2026-09-20-trainer-sammelt', datum:'2026-09-20', fuer:'alle', text:'⚡ 🧮 SIKORE und ⌨️ der Tipptrainer stecken jetzt auch im «Übungstrainer»: In Mathe bzw. in Medien und Informatik findest du sie dort zuoberst bei den übrigen Trainings – dein Level und dein Fortschritt bleiben natürlich erhalten.'},
   {id:'2026-09-20-pruefung-art-klasse', datum:'2026-09-20', fuer:'lehrer', text:'📝 Prüfungen: nur noch ein Knopf «➕ Neue Prüfung» – die Art (📄 aus einer Übung, 🧮 SIKORE, ⌨️ Tastaturschreiben) wählst du zuoberst im Dialog. Neu stellst du dort auch die Klasse ein (die Library wechselt dann dorthin) und unter «Für», ob die ganze Klasse oder nur eine deiner 👥 Gruppen die Prüfung schreibt – die übrigen sehen sie gar nicht.'},
   {id:'2026-09-20-tipp-pruefung', datum:'2026-09-20', fuer:'lehrer', text:'⌨️ Prüfungen › «⌨️ Neue Tipp-Prüfung»: klassische Abschreibprüfung im Prüfungsmodus – alle tippen denselben Text auf Zeit (Sätze aus dem Tipptrainer oder dein eigener Text). Bewertet werden die Netto-Anschläge pro Minute (Abzug pro Fehler einstellbar), Notengrenzen für 6 und 4 wählbar; die Note landet im Notenrechner.'},
@@ -15446,7 +15448,7 @@ function teilCol(pid){ return kcol('pruefungen', pid, 'teilnahmen'); }
 function teilRef(pid, uid){ return kdoc('pruefungen', pid, 'teilnahmen', uid); }
 function loesRef(pid){ return kdoc('pruefungen', pid, 'intern', 'loesung'); }
 function pruefArt(p){ return p.art || 'nativ'; }
-function pruefAnzahl(p){ if(pruefArt(p) === 'tippen') return tippPrCfg(p).text.length || 1; if(pruefArt(p) === 'sikore'){ var sc = sikoreCfg(p); return sc.reihen * sc.laenge; } return pruefArt(p) === 'bank' ? (p.fragen || []).length : ((p.cfg && p.cfg.anzahl) || 0); }
+function pruefAnzahl(p){ if(pruefArt(p) === 'tippen') return tippPrCfg(p).text.length || 1; if(pruefArt(p) === 'mt') return mtPrCfg(p).anzahl; if(pruefArt(p) === 'sikore'){ var sc = sikoreCfg(p); return sc.reihen * sc.laenge; } return pruefArt(p) === 'bank' ? (p.fragen || []).length : ((p.cfg && p.cfg.anzahl) || 0); }
 function pruefMs(ts){ return ts && ts.toMillis ? ts.toMillis() : (typeof ts === 'number' ? ts : 0); }
 function pruefById(id){ return pruef.list.find(function(p){ return p.id === id; }) || null; }
 // Fach der Prüfung (Fach der Übung, sonst Fach im Notenrechner) — für Fach-Gäste.
@@ -15757,7 +15759,7 @@ function updatePruefungBanner(){
 function pruefStartDialog(p){
   openModal(
     '<h3>📝 '+esc(p.titel)+'</h3>'+
-    '<p><b>'+(pruefArt(p) === 'tippen' ? '⌨️ Tastaturschreiben' : esc(String(pruefAnzahl(p)))+(pruefArt(p) === 'sikore' ? ' Rechnungen auf Level '+esc(String((p.levels || {})[state.user.uid] || '')) : ' Fragen'))+(+p.zeitMin > 0 ? ', '+esc(String(p.zeitMin))+' Minuten Zeit' : '')+'.</b> Deine Antworten werden laufend gespeichert, du kannst vor- und zurückblättern.'+
+    '<p><b>'+(pruefArt(p) === 'tippen' ? '⌨️ Tastaturschreiben' : esc(String(pruefAnzahl(p)))+(pruefArt(p) === 'sikore' ? ' Rechnungen auf Level '+esc(String((p.levels || {})[state.user.uid] || '')) : pruefArt(p) === 'mt' ? ' Aufgaben' : ' Fragen'))+(+p.zeitMin > 0 ? ', '+esc(String(p.zeitMin))+' Minuten Zeit' : '')+'.</b> Deine Antworten werden laufend gespeichert, du kannst vor- und zurückblättern.'+
       (+p.zeitMin > 0 ? ' Ist die Zeit um, wird automatisch abgegeben — auch wenn du gerade gesperrt bist, läuft die Zeit weiter.' : '')+'</p>'+
     '<div class="pr-regeln">'+
       '<div>🖥️ Die Prüfung läuft im <b>Vollbild</b>.</div>'+
@@ -15838,6 +15840,7 @@ async function pruefStarten(p, weiter, vorschau){
     if(pruefArt(p) === 'bank'){ pruefBankStart(p, sess, ov, saved); return; }
     if(pruefArt(p) === 'sikore'){ sikorePruefStart(p, sess, ov, saved); return; }
     if(pruefArt(p) === 'tippen'){ tippPrStart(p, sess, ov, saved); return; }
+    if(pruefArt(p) === 'mt'){ mtPrStart(p, sess, ov, saved); return; }
     var html = await loadResourceHtml(p.contentId);
     if(pruef.sess !== sess) return;
     // Ältere Pöstlergeografie zeigte nach einem Karten-Klick den Namen des
@@ -16004,6 +16007,7 @@ function pruefErzwingeAbgabe(){
   if(s && s.bank && !s.abgebenGesendet){ s.abgebenGesendet = true; pruefBankAbgeben(true); return; }
   if(s && s.sikore && !s.abgebenGesendet){ s.abgebenGesendet = true; sikorePruefAbgeben(true); return; }
   if(s && s.tippen && !s.abgebenGesendet){ s.abgebenGesendet = true; tippPrAbgeben(true, 'lp'); return; }
+  if(s && s.mtpr && !s.abgebenGesendet){ s.abgebenGesendet = true; mtPrAbgeben(true); return; }
   // Erst senden, wenn die Seite «bereit» gemeldet hat — sonst ginge die Nachricht verloren.
   if(!s || !s.frame || !s.bereit || s.abgebenGesendet) return;
   s.abgebenGesendet = true;
@@ -16822,7 +16826,7 @@ function renderPruefungen(){
   var html = '';
   html += '<div class="back-row"><button class="btn btn-ghost btn-sm" id="backBtn" type="button">&larr; Klassenzimmer</button></div>';
   html += '<h2 class="page-welcome" style="margin-bottom:6px;">📝 Prüfungen</h2>';
-  html += '<p class="kz-intro">Online-Prüfung aus einer Übung, aus 🧮 SIKORE oder als ⌨️ Abschreibprüfung — die Art wählst du in «➕ Neue Prüfung». Dort stellst du auch ein, für welche Klasse und für wen (ganze Klasse oder eine 👥 Gruppe) die Prüfung ist. Wer die Prüfung verlässt, wird gesperrt, bis du entsperrst.</p>';
+  html += '<p class="kz-intro">Online-Prüfung aus einer Übung, aus einem ⚡ Übungstrainer, aus 🧮 SIKORE oder als ⌨️ Abschreibprüfung — die Art wählst du in «➕ Neue Prüfung». Dort stellst du auch ein, für welche Klasse und für wen (ganze Klasse oder eine 👥 Gruppe) die Prüfung ist. Wer die Prüfung verlässt, wird gesperrt, bis du entsperrst.</p>';
   html += '<div class="back-row"><button class="btn btn-primary btn-sm" id="prNeu" type="button">➕ Neue Prüfung</button><button class="btn btn-ghost btn-sm" id="prSikoreUeb" type="button">📊 SIKORE-Übersicht</button></div>';
   html += '<div id="prListe"><div class="empty-state">Wird geladen …</div></div>';
   renderChrome(html);
@@ -16842,6 +16846,7 @@ function pruefBeschreibung(p, lang){
   var fuer = p.gruppeName ? '👥 ' + p.gruppeName + ' · ' : '';
   if(pruefArt(p) === 'sikore') return fuer + sikoreBeschreibung(p);
   if(pruefArt(p) === 'tippen') return fuer + tippPrBeschreibung(p);
+  if(pruefArt(p) === 'mt') return fuer + mtPrBeschreibung(p);
   var c = p.cfg || {}, teile = [(p.resourceTitel || '') + (c.quellen && c.quellen.length ? ' + ' + c.quellen.map(function(x){ return x.titel; }).join(', ') : '')];
   if(p.diktat) teile.push('✍️ Diktat · ' + (p.woerterInfo || '?') + ' Wörter');
   else teile.push(pruefAnzahl(p) + ' Fragen' + (pruefArt(p) === 'bank' && p.maxPunkte ? ' (' + pruefZahlText(p.maxPunkte) + ' Punkte)' : '') + (c.niveau ? ' · Niveau ' + c.niveau : ''));
@@ -16870,9 +16875,10 @@ function pruefListeZeichnen(){
 }
 
 /* ---------- Gemeinsamer Kopf der drei Prüfungs-Editoren ----------
-   Art (📄 Übung · 🧮 SIKORE · ⌨️ Tastaturschreiben), Klasse und «Für».
-   - Art: SIKORE und Tipp-Prüfung sind damit aus dem normalen «➕ Neue
-     Prüfung» heraus erreichbar statt über eigene Knöpfe.
+   Art (📄 Übung · ⚡ Übungstrainer · 🧮 SIKORE · ⌨️ Tastaturschreiben),
+   Klasse und «Für».
+   - Art: Übungstrainer-, SIKORE- und Tipp-Prüfung sind damit aus dem normalen
+     «➕ Neue Prüfung» heraus erreichbar statt über eigene Knöpfe.
    - Klasse: eine andere Klasse/Seite direkt im Dialog wählen. Dafür muss die
      ganze App in jene Klasse wechseln (Übungen, Klassenliste, Noten hängen
      daran) — die Wahl wird gemerkt (PRUEF_NEU_KEY) und der Dialog nach dem
@@ -16886,7 +16892,7 @@ const PRUEF_NEU_KEY = 'hl_pruefNeu';   // sessionStorage: nach dem Klassenwechse
 
 function pruefArtWahlHtml(aktiv){
   return '<label class="modal-label">Art der Prüfung</label><div class="pr-art-wahl">' +
-    [['uebung','📄 Aus einer Übung'],['sikore','🧮 SIKORE'],['tippen','⌨️ Tastaturschreiben']].map(function(a){
+    [['uebung','📄 Aus einer Übung'],['mt','⚡ Übungstrainer'],['sikore','🧮 SIKORE'],['tippen','⌨️ Tastaturschreiben']].map(function(a){
       return '<button type="button" class="btn btn-sm '+(a[0] === aktiv ? 'btn-primary' : 'btn-ghost')+'" data-prart="'+a[0]+'">'+a[1]+'</button>';
     }).join('') + '</div>';
 }
@@ -16918,6 +16924,7 @@ function pruefNeuNachWechsel(art){
     if(!pruef.geladen && Date.now() < bis){ setTimeout(warten, 150); return; }
     if(art === 'sikore') sikoreEditor(null);
     else if(art === 'tippen') tippPrEditor(null);
+    else if(art === 'mt') mtPrEditor(null);
     else pruefEditor(null);
   })();
 }
@@ -16931,6 +16938,7 @@ function pruefKopfVerdrahten(art){
       if(a === art) return;
       if(a === 'sikore') sikoreEditor(null);
       else if(a === 'tippen') tippPrEditor(null);
+      else if(a === 'mt') mtPrEditor(null);
       else pruefEditor(null);
     });
   });
@@ -18020,6 +18028,7 @@ function pruefErgebnis(p, t){
   if(!t || t.status !== 'abgegeben') return null;
   if(pruefArt(p) === 'sikore') return sikoreBewerten(p, t.uid, t.antworten);
   if(pruefArt(p) === 'tippen') return tippBewerten(p, t.antworten);
+  if(pruefArt(p) === 'mt') return mtPrBewerten(p, t.uid, t.antworten);
   if(pruefArt(p) === 'bank'){
     var loes = pruef.loes[p.id];
     return loes ? pruefBankBewerten(p, loes, t.antworten, t.korrektur) : null;
@@ -18150,7 +18159,7 @@ function pruefMonitorVerdrahten(p){
     else if(a === 'resultate') pruefResultateUmschalten(p);
     else if(a === 'vorschau') pruefStarten(p, false, true);
     else if(a === 'pip') pipStarten('pruef', p.id);
-    else if(a === 'bearbeiten'){ if(pruefArt(p) === 'sikore') sikoreEditor(p); else if(pruefArt(p) === 'tippen') tippPrEditor(p); else pruefEditor(p); }
+    else if(a === 'bearbeiten'){ if(pruefArt(p) === 'sikore') sikoreEditor(p); else if(pruefArt(p) === 'tippen') tippPrEditor(p); else if(pruefArt(p) === 'mt') mtPrEditor(p); else pruefEditor(p); }
     else if(a === 'sikoreDruck') sikoreDruckDialog(p);
     else if(a === 'punkte') pruefAufgabenPunkte(p);
     else if(a === 'baukasten') pruefBaukasten(p);
@@ -19244,18 +19253,33 @@ async function sikoreUebersicht(){
    Stand pro Trainer: progress/{uid}/resources/{trainerId} -> {name, mt:{woche,
    wRichtig, wAufgaben, richtig, aufgaben, ziel, best:{level: ms}, level,
    zuletzt}} — gleicher Pfad wie SIKORE, darum braucht es keine neue Regel in
-   firestore.rules. Bewusst ohne Prüfungsmodus: Noten laufen weiter über
-   SIKORE bzw. die normalen Prüfungen. */
+   firestore.rules. Prüfungen: Art «⚡ Übungstrainer» (mtPrEditor, ganz unten
+   in diesem Abschnitt) macht aus jedem Trainer eine Prüfung. */
 
 var MT_ZIELE = [20, 40, 60, 100, 150];
 var MT_ANZAHL = [6, 10, 15, 20];
 
 /* ---------- kleine Helfer ---------- */
-function mtZuf(a, b){ return a + Math.floor(Math.random() * (b - a + 1)); }
-function mtAus(a){ return a[Math.floor(Math.random() * a.length)]; }
+// Solange mtRng gesetzt ist, kommt der Zufall aus dem Seed der Prüfung — so
+// entstehen dieselben Aufgaben immer wieder neu (mtFragen), ohne dass eine
+// einzige Aufgabe in der Datenbank steht.
+var mtRng = null;
+function mtZufall(){ return mtRng ? mtRng() : Math.random(); }
+// Aufgaben erzeugen; mit seed reproduzierbar, ohne seed frei zufällig.
+function mtFragen(def, level, anzahl, seed){
+  var vorher = mtRng, fragen = [];
+  mtRng = seed ? pruefRng(seed) : null;
+  try{
+    var l = Math.max(1, Math.min(def.levels.length, +level || 1));
+    for(var i=0;i<anzahl;i++) fragen.push(def.gen(l));
+  } finally { mtRng = vorher; }
+  return fragen;
+}
+function mtZuf(a, b){ return a + Math.floor(mtZufall() * (b - a + 1)); }
+function mtAus(a){ return a[Math.floor(mtZufall() * a.length)]; }
 function mtMisch(a){
   var l = a.slice();
-  for(var i=l.length-1;i>0;i--){ var j = Math.floor(Math.random() * (i+1)), h = l[i]; l[i] = l[j]; l[j] = h; }
+  for(var i=l.length-1;i>0;i--){ var j = Math.floor(mtZufall() * (i+1)), h = l[i]; l[i] = l[j]; l[j] = h; }
   return l;
 }
 // Zahl als Text: höchstens 6 Nachkommastellen, ohne nutzlose Nullen.
@@ -19307,7 +19331,7 @@ function mtGen1x1(l){
   }
   if(l === 7){
     a = mtZuf(2, 10); b = mtZuf(2, 10);
-    return Math.random() < 0.5
+    return mtZufall() < 0.5
       ? {frage:a+' · ☐ = '+(a*b), felder:[{vor:'☐ =', loesung:String(b)}], tipp:(a*b)+' : '+a+' rechnen.'}
       : {frage:'☐ · '+b+' = '+(a*b), felder:[{vor:'☐ =', loesung:String(a)}], tipp:(a*b)+' : '+b+' rechnen.'};
   }
@@ -19351,7 +19375,7 @@ function mtGenEinheit(l){
     if(ai === bi || liste[ai][1] === liste[bi][1]) continue;
     if(cfg.nah && Math.abs(ai - bi) > 2) continue;
     var a = liste[ai], b = liste[bi];
-    var wert = cfg.komma && Math.random() < 0.45 ? mtZuf(1, 400) / mtAus([2,4,5,8,10]) : mtZuf(1, 950);
+    var wert = cfg.komma && mtZufall() < 0.45 ? mtZuf(1, 400) / mtAus([2,4,5,8,10]) : mtZuf(1, 950);
     var erg = wert * a[1] / b[1];
     if(!(erg > 0) || erg > 2000000 || erg < 0.0005) continue;
     if(Math.abs(erg * 10000 - Math.round(erg * 10000)) > 1e-6) continue;
@@ -19388,7 +19412,7 @@ function mtGenRunden(l){
   }
   if(l === 7){
     var a = mtZuf(120, 9800), b = mtZuf(120, 9800), mm = (a > 999 || b > 999) ? 100 : 10;
-    var ra = Math.round(a / mm) * mm, rb = Math.round(b / mm) * mm, plus = Math.random() < 0.6 || ra <= rb;
+    var ra = Math.round(a / mm) * mm, rb = Math.round(b / mm) * mm, plus = mtZufall() < 0.6 || ra <= rb;
     return {frage:'Überschlage '+mtZahl(a)+' '+(plus ? '+' : '−')+' '+mtZahl(b)+': runde zuerst beide Zahlen auf '+(mm === 100 ? 'Hunderter' : 'Zehner')+'.',
       felder:[{vor:'≈', loesung:String(ra)}, {vor:plus ? '+' : '−', loesung:String(rb)}, {vor:'=', loesung:String(plus ? ra + rb : ra - rb)}],
       tipp:mtZahl(a)+' ≈ '+mtZahl(ra)+' und '+mtZahl(b)+' ≈ '+mtZahl(rb)+'.'};
@@ -19415,7 +19439,7 @@ function mtGenBdp(l){
   if(l === 10) l = mtZuf(1, 9);
   var br = l >= 6 ? mtAus(MT_BDP_LEICHT.concat(MT_BDP_MITTEL)) : mtAus(MT_BDP_LEICHT);
   var dez = br[0] / br[1], proz = dez * 100;
-  if(l === 1 || (l === 6 && Math.random() < 0.5)){
+  if(l === 1 || (l === 6 && mtZufall() < 0.5)){
     return {frage:br[0]+'/'+br[1]+' als Dezimalzahl =', felder:[{loesung:mtFmt(dez)}], tipp:br[0]+' : '+br[1]+' rechnen.'};
   }
   if(l === 2){
@@ -19461,7 +19485,7 @@ function mtGenTerm(l){
   if(l === 1){ x = mtZuf(2, 40); a = mtZuf(2, 40); return mtTerm('x + '+a+' = '+(x+a), x, 'Ziehe auf beiden Seiten '+a+' ab.'); }
   if(l === 2){
     x = mtZuf(2, 40); a = mtZuf(2, 30);
-    return Math.random() < 0.5
+    return mtZufall() < 0.5
       ? mtTerm('x − '+a+' = '+(x-a), x, 'Zähle auf beiden Seiten '+a+' dazu.')
       : mtTerm((x+a)+' − x = '+a, x, 'Überlege: '+(x+a)+' minus welche Zahl ergibt '+a+'?');
   }
@@ -19616,10 +19640,10 @@ var MT_E_VERBEN = [
 function mtGenEVerben(l){
   var teil = l >= 5 ? MT_E_VERBEN : MT_E_VERBEN.slice((l-1) * 12, l * 12 + 4);
   var v = mtAus(teil.length ? teil : MT_E_VERBEN);
-  if(l === 5 || (l >= 3 && Math.random() < 0.5)){
+  if(l === 5 || (l >= 3 && mtZufall() < 0.5)){
     return {frage:'«'+v[0]+'» – simple past und past participle:', felder:[{vor:'past:', loesung:v[1], text:true}, {vor:'participle:', loesung:v[2], text:true}], tipp:'Reihenfolge: infinitive – simple past – past participle.'};
   }
-  return Math.random() < 0.5
+  return mtZufall() < 0.5
     ? {frage:'simple past von «'+v[0]+'»:', felder:[{loesung:v[1], text:true}], tipp:'Die zweite Form der irregular verbs.'}
     : {frage:'past participle von «'+v[0]+'»:', felder:[{loesung:v[2], text:true}], tipp:'Die dritte Form – sie steht nach have/has/had.'};
 }
@@ -19751,7 +19775,7 @@ var MT_G_HAUPT_WELT = [['USA','Washington'],['Kanada','Ottawa'],['Mexiko','Mexik
 function mtGenGHaupt(l){
   var liste = l === 1 ? MT_G_HAUPT_EU.slice(0, 12) : l === 2 ? MT_G_HAUPT_EU : l === 3 ? MT_G_HAUPT_WELT : MT_G_HAUPT_EU.concat(MT_G_HAUPT_WELT);
   var p = mtAus(liste);
-  return Math.random() < 0.75
+  return mtZufall() < 0.75
     ? {frage:'Hauptstadt von '+p[0]+':', felder:[{loesung:p[1], text:true}], tipp:'Denk an die Lage auf der Karte.'}
     : {frage:'Zu welchem Land gehört die Hauptstadt '+p[1]+'?', felder:[{loesung:p[0], text:true}], tipp:'Umgekehrt gefragt – gleiche Paare.'};
 }
@@ -19827,7 +19851,7 @@ var MT_B_BEGRIFFE = [
 function mtGenBio(l){
   var liste = l === 1 ? MT_B_ORGANE : l === 2 ? MT_B_BEGRIFFE : MT_B_ORGANE.concat(MT_B_BEGRIFFE);
   var p = mtAus(liste), rest = mtMisch(liste.filter(function(x){ return x[0] !== p[0]; }));
-  if(l >= 3 && Math.random() < 0.4){
+  if(l >= 3 && mtZufall() < 0.4){
     return {frage:'Was macht: '+p[0]+'?', felder:[{typ:'wahl', optionen:mtMisch([p[1], rest[0][1], rest[1][1]]), loesung:p[1]}], tipp:'Denk an die Lage und die Aufgabe im Körper.'};
   }
   return {frage:'Welcher Begriff passt?  «'+p[1]+'»',
@@ -19944,7 +19968,7 @@ function mtGenMWerte(l){
 /* ---------- 💻 Medien und Informatik ---------- */
 function mtGenIBinaer(l){
   var n, bits = l === 1 ? 4 : l === 2 ? 6 : 8;
-  if(l <= 2 || (l === 4 && Math.random() < 0.5)){
+  if(l <= 2 || (l === 4 && mtZufall() < 0.5)){
     n = mtZuf(1, Math.pow(2, bits) - 1);
     return {frage:'Wandle '+n+' ins Binärsystem um:', felder:[{loesung:n.toString(2)}], tipp:'Stellenwerte von rechts: 1, 2, 4, 8, 16, 32, 64, 128.'};
   }
@@ -19960,7 +19984,7 @@ function mtGenISpeicher(l){
   var e, wert, erg;
   if(l === 1){
     wert = mtZuf(1, 64);
-    return Math.random() < 0.5
+    return mtZufall() < 0.5
       ? {frage:wert+' Byte sind wie viele Bit?', felder:[{loesung:String(wert*8), nach:'Bit'}], tipp:'1 Byte = 8 Bit.'}
       : {frage:(wert*8)+' Bit sind wie viele Byte?', felder:[{loesung:String(wert), nach:'Byte'}], tipp:'1 Byte = 8 Bit.'};
   }
@@ -20329,8 +20353,7 @@ function mtLevelSetzen(l, still){
 }
 function mtNeu(){
   var t = mtT; if(!t) return;
-  t.fragen = [];
-  for(var i=0;i<t.anzahl;i++) t.fragen.push(t.def.gen(t.level));
+  t.fragen = mtFragen(t.def, t.level, t.anzahl, 0);
   t.ans = {}; t.erg = null; t.t0 = null;
   var uhr = document.getElementById('mtUhr');
   if(uhr){ uhr.hidden = true; uhr.textContent = '⏱ 0:00'; }
@@ -20338,7 +20361,7 @@ function mtNeu(){
   document.getElementById('mtResultat').innerHTML = '';
   document.getElementById('mtPruefen').disabled = false;
 }
-function mtFeldHtml(k, f, wert, mark){
+function mtFeldHtml(k, f, wert, mark, num){
   var h = '<span class="mt-feld'+(mark ? ' mt-'+mark : '')+'">';
   if(f.vor) h += '<span class="mt-vor">'+esc(f.vor)+'</span>';
   if(f.typ === 'wahl'){
@@ -20349,24 +20372,25 @@ function mtFeldHtml(k, f, wert, mark){
       return '<button type="button" class="mt-wahl-b'+(wert && mtNorm(wert) === mtNorm(o) ? ' an' : '')+(mark && mtNorm(o) === mtNorm(soll) ? ' richtig' : '')+'" data-k="'+esc(k)+'" data-v="'+esc(o)+'"'+(mark ? ' disabled' : '')+'>'+esc(mtAnzeige(o))+'</button>';
     }).join('')+'</span>';
   } else {
-    var zahl = mtT && mtT.def.num && !f.text;
+    var zahl = num && !f.text;
     h += '<input class="mt-in'+(zahl ? '' : ' mt-in-text')+'" data-k="'+esc(k)+'" type="text" inputmode="'+(zahl ? 'decimal' : 'text')+'" autocomplete="off" autocorrect="off" spellcheck="false" aria-label="Antwort" value="'+esc(wert == null ? '' : String(wert))+'"'+(mark ? ' readonly' : '')+'>';
   }
   if(f.nach) h += '<span class="mt-nach">'+esc(f.nach)+'</span>';
   if((mark === 'bad' || mark === 'leer') && f.typ !== 'wahl') h += '<small class="mt-soll">'+esc(mtAnzeige([].concat(f.loesung)[0]))+'</small>';
   return h + '</span>';
 }
-function mtBlattHtml(marks){
-  var t = mtT, hat = !!Object.keys(marks).length;
+function mtBlattHtml(marks){ return mtBlattHtmlFuer(mtT.fragen, mtT.ans, marks, mtT.def.num); }
+function mtBlattHtmlFuer(fragen, ans, marks, num){
+  var hat = !!Object.keys(marks).length;
   var h = '<div class="mt-blatt">';
-  t.fragen.forEach(function(q, i){
+  fragen.forEach(function(q, i){
     var alleOk = hat && q.felder.every(function(f, j){ return marks[i+'_'+j] === 'ok'; });
     h += '<div class="mt-karte'+(hat ? (alleOk ? ' ok' : ' bad') : '')+'"><div class="mt-nr">'+(i+1)+'</div><div class="mt-body">';
     h += '<div class="mt-frage">'+esc(q.frage)+'</div>';
     if(q.svg) h += '<div class="mt-bild">'+q.svg+'</div>';
     h += '<div class="mt-felder'+(q.bruch ? ' mt-bruch' : '')+'">'+q.felder.map(function(f, j){
       var k = i+'_'+j;
-      return mtFeldHtml(k, f, t.ans[k], hat ? marks[k] : '');
+      return mtFeldHtml(k, f, ans[k], hat ? marks[k] : '', num);
     }).join('')+'</div>';
     if(hat && !alleOk && q.tipp) h += '<div class="mt-tipp">💡 '+esc(q.tipp)+'</div>';
     h += '</div></div>';
@@ -20506,6 +20530,230 @@ async function mtUebersicht(def){
     openModal(h, 'pr-modal pr-modal-breit');
     document.getElementById('modalOk').addEventListener('click', closeModal);
   }catch(err){ console.error(err); closeModal(); toast('Übersicht konnte nicht geladen werden.'); }
+}
+
+/* ---------- ⚡ Übungstrainer-Prüfung (Prüfungen › «➕ Neue Prüfung» › Art «⚡ Übungstrainer») ----------
+   pruefungen/{id} mit art 'mt', fach = Fach des Trainers, cfg {trainer, level,
+   anzahl}. Die Aufgaben entstehen wie im Trainer im Browser, aber aus seed +
+   uid (mtPrFragen): jede Person bekommt andere Zahlen, und die Aufgaben lassen
+   sich jederzeit neu erzeugen — es steht keine einzige in der Datenbank.
+   Antworten: {'<aufgabe>_<kästchen>': Text}. Korrigiert wird auf dem Gerät der
+   Lehrperson (mtPrBewerten): ein Punkt pro richtiges Kästchen, von Hand
+   umschaltbar wie bei den anderen Arten. */
+var MT_PR_ANZAHL = [5, 8, 10, 12, 15, 20, 25, 30];
+function mtPrCfg(p){
+  var c = (p && p.cfg) || {};
+  return {trainer:String(c.trainer || ''), level:Math.max(1, +c.level || 1), anzahl:Math.max(1, +c.anzahl || 10)};
+}
+function mtPrDef(p){ return mtDef(mtPrCfg(p).trainer); }
+function mtPrFragen(p, uid){
+  var c = mtPrCfg(p), def = mtDef(c.trainer);
+  if(!def) return [];
+  return mtFragen(def, c.level, c.anzahl, (((+p.seed || 1) >>> 0) ^ pruefPersonSeed(uid || '')) >>> 0 || 1);
+}
+function mtPrFelder(fragen){ return fragen.reduce(function(n, q){ return n + q.felder.length; }, 0); }
+// Resultat einer Person (Lehrperson und Vorschau): ein Punkt pro Kästchen.
+function mtPrBewerten(p, uid, antworten){
+  var def = mtPrDef(p);
+  if(!def) return null;
+  var fragen = mtPrFragen(p, uid), ans = antworten || {}, punkte = 0, max = 0, details = [];
+  fragen.forEach(function(q, i){
+    q.felder.forEach(function(f, j){
+      var k = i+'_'+j, roh = ans[k], leer = roh == null || String(roh).trim() === '', ok = !leer && mtRichtig(f, roh);
+      max++;
+      if(ok) punkte++;
+      details.push({nr:true, ok:ok, kat:'',
+        f:'Nr. '+(i+1)+': '+q.frage+(q.felder.length > 1 ? ' ('+(j+1)+'. Kästchen)' : ''),
+        a:leer ? '' : String(roh), r:mtAnzeige([].concat(f.loesung)[0]), hinweis:''});
+    });
+  });
+  return {punkte:punkte, max:max, details:details};
+}
+function mtPrBeschreibung(p){
+  var c = mtPrCfg(p), def = mtDef(c.trainer), s = def ? subjectById(def.fach) : null;
+  var teile = ['⚡ ' + (def ? def.icon + ' ' + def.name : 'Übungstrainer (gelöscht)')];
+  if(s) teile.push(s.name);
+  teile.push('Level ' + c.level + (def && def.levels[c.level - 1] ? ': ' + def.levels[c.level - 1] : ''));
+  teile.push(c.anzahl + ' Aufgaben');
+  if(+p.zeitMin > 0) teile.push('⏱ ' + p.zeitMin + ' Min.');
+  teile.push('Massstab: ' + pruefSkalaText(p));
+  return teile.join(' · ');
+}
+
+function mtPrStart(p, sess, ov, saved){
+  var def = mtPrDef(p);
+  if(!def) throw new Error('Den Trainer dieser Prüfung gibt es nicht mehr.');
+  var c = mtPrCfg(p), fragen = mtPrFragen(p, state.user.uid), felder = mtPrFelder(fragen);
+  var ans = {};
+  Object.keys(saved || {}).forEach(function(k){ if(/^\d+_\d+$/.test(k)) ans[k] = saved[k]; });
+  var st = sess.mtpr = {p:p, def:def, fragen:fragen, ans:ans, felder:felder};
+  ov.innerHTML = pruefLockBar(p, sess.vorschau) + '<div class="pr-bank-wrap"><div class="pr-bank mt-wrap" id="mtPr"></div></div>';
+  pruefLockBarVerdrahten();
+  var el = document.getElementById('mtPr');
+  el.innerHTML = '<div class="pr-q-kopf"><span class="pr-badge">'+esc(def.icon+' '+def.name)+'</span><span>Level '+c.level+'</span></div>'+
+    '<p class="pr-hinweis">'+esc(def.kurz)+' Schreib deine Antworten in die Kästchen (Enter = nächstes Kästchen). Kontrollieren kannst du hier nicht — korrigiert wird nach der Abgabe.</p>'+
+    mtBlattHtmlFuer(fragen, ans, {}, def.num)+
+    '<div class="pr-q-nav" style="justify-content:space-between"><span class="pr-hinweis" id="mtPrZahl"></span><button class="btn btn-primary btn-sm" data-abgeben="1" type="button">✉️ Abgeben</button></div>'+
+    '<div id="prBankConfirm"></div>';
+  function zaehlen(){
+    var n = Object.keys(st.ans).filter(function(k){ return String(st.ans[k]).trim(); }).length;
+    var z = document.getElementById('mtPrZahl');
+    if(z) z.textContent = n + ' / ' + felder + ' ausgefüllt';
+    return n;
+  }
+  function merken(k, v){
+    if(String(v).trim()) st.ans[k] = String(v).slice(0, 40); else delete st.ans[k];
+    pruefStand(sess, Object.assign({}, st.ans), zaehlen());
+  }
+  zaehlen();
+  el.addEventListener('input', function(e){
+    if(!e.target.classList.contains('mt-in') || pruef.sess !== sess || sess.ending) return;
+    merken(e.target.getAttribute('data-k'), e.target.value);
+  });
+  el.addEventListener('click', function(e){
+    var w = e.target.closest('.mt-wahl-b');
+    if(w){
+      if(pruef.sess !== sess || sess.ending) return;
+      Array.prototype.forEach.call(w.parentNode.querySelectorAll('.mt-wahl-b'), function(o){ o.classList.toggle('an', o === w); });
+      merken(w.getAttribute('data-k'), w.getAttribute('data-v'));
+      return;
+    }
+    var t = e.target.closest('button'); if(!t) return;
+    if(t.hasAttribute('data-abgeben')) mtPrAbgeben(false);
+    else if(t.hasAttribute('data-ok')) mtPrAbgeben(true);
+    else if(t.hasAttribute('data-nein')) document.getElementById('prBankConfirm').innerHTML = '';
+  });
+  el.addEventListener('keydown', function(e){
+    if(e.key !== 'Enter' || !e.target.classList.contains('mt-in')) return;
+    e.preventDefault();
+    var alle = Array.prototype.slice.call(el.querySelectorAll('.mt-in')), i = alle.indexOf(e.target);
+    if(alle[i+1]) alle[i+1].focus();
+  });
+  var erstes = el.querySelector('.mt-in');
+  if(erstes) setTimeout(function(){ try{ erstes.focus({preventScroll:true}); }catch(e){} }, 60);
+  if(p.status === 'beendet' || sess.zeitUm) pruefErzwingeAbgabe();
+}
+function mtPrAbgeben(sofort){
+  var s = pruef.sess; if(!s || !s.mtpr || s.ending) return;
+  var st = s.mtpr;
+  if(!sofort){
+    var offen = st.felder - Object.keys(st.ans).length;
+    document.getElementById('prBankConfirm').innerHTML = '<div class="pr-q-confirm"><p>'+
+      (offen > 0 ? 'Noch <b>'+offen+'</b> Kästchen leer. Trotzdem abgeben?' : 'Prüfung jetzt abgeben?')+
+      ' Danach kannst du nichts mehr ändern.</p><div class="modal-actions"><button class="btn btn-ghost btn-sm" data-nein="1" type="button">Zurück</button><button class="btn btn-primary btn-sm" data-ok="1" type="button">Abgeben</button></div></div>';
+    return;
+  }
+  clearTimeout(s.saveTimer);
+  var d = {antworten:Object.assign({}, st.ans)};
+  if(s.vorschau){ var r = mtPrBewerten(st.p, state.user.uid, st.ans); if(r){ d.punkte = r.punkte; d.max = r.max; } }
+  pruefAbgabe(s, d);
+}
+
+function mtPrTrainerOpts(cur){
+  var faecher = [];
+  MT_TRAINER.forEach(function(t){ if(faecher.indexOf(t.fach) < 0) faecher.push(t.fach); });
+  return faecher.map(function(f){
+    var s = subjectById(f);
+    return '<optgroup label="'+esc(s ? s.name : f)+'">'+mtFachTrainer(f).map(function(t){
+      return '<option value="'+esc(t.id)+'"'+(t.id === cur ? ' selected' : '')+'>'+esc(t.icon+' '+t.name)+'</option>';
+    }).join('')+'</optgroup>';
+  }).join('');
+}
+function mtPrEditor(p){
+  var neu = !p, c = mtPrCfg(p), fix = !neu && p.status !== 'entwurf';
+  prEditorToken++;
+  var def = mtDef(c.trainer) || MT_TRAINER[0];
+  var skw = JSON.parse(JSON.stringify(pruefSkala(p || {})));
+  if(skw.typ === 'tabelle') skw = {typ:'dbk'};
+  var datum = new Date().toLocaleDateString('de-CH');
+  var h = '<h3>⚡ '+(neu ? 'Neue Übungstrainer-Prüfung' : 'Übungstrainer-Prüfung bearbeiten')+'</h3>' + pruefKopfHtml('mt', neu);
+  h += '<p class="pr-hinweis">Prüfung aus einem ⚡ Übungstrainer: Die Aufgaben entstehen automatisch auf dem gewählten Level — <b>für jede Person andere Zahlen</b>, im Prüfungsmodus (Vollbild, Sperre beim Verlassen). Pro richtiges Kästchen gibt es einen Punkt.</p>';
+  h += '<label class="modal-label">Titel</label><input type="text" id="prTitel" class="modal-input" maxlength="80" value="'+esc(p ? p.titel : def.name + ' ' + datum)+'">';
+  if(fix) h += '<p class="pr-hinweis">Die Prüfung wurde schon freigegeben — Trainer, Level, Anzahl und Zeit bleiben. Ändern lassen sich Titel, Gewichtung und Notenmassstab.</p>';
+  h += '<label class="modal-label">Trainer</label><select id="mtPrTrainer" class="modal-input"'+(fix ? ' disabled' : '')+'>'+mtPrTrainerOpts(def.id)+'</select>';
+  h += '<div class="pr-grid2"><div><label class="modal-label">Level</label><select id="mtPrLevel" class="modal-input"'+(fix ? ' disabled' : '')+'></select></div>';
+  h += '<div><label class="modal-label">Anzahl Aufgaben</label><select id="mtPrAnz" class="modal-input"'+(fix ? ' disabled' : '')+'>'+
+    MT_PR_ANZAHL.map(function(n){ return '<option value="'+n+'"'+(n === c.anzahl ? ' selected' : '')+'>'+n+'</option>'; }).join('')+'</select></div></div>';
+  h += '<div class="pr-grid2"><div><label class="modal-label">Zeitlimit in Minuten (leer = keins)</label><input type="number" id="prZeit" class="modal-input" min="1" max="120" step="1" value="'+esc(p ? (p.zeitMin ? String(p.zeitMin) : '') : '10')+'"'+(fix ? ' disabled' : '')+'></div>';
+  h += '<div><label class="modal-label">Gewichtung im Notenrechner</label><input type="number" id="prGewicht" class="modal-input" min="0.5" max="10" step="0.5" value="'+esc(String(p && p.gewicht ? p.gewicht : 1))+'"></div></div>';
+  h += '<h4 class="pr-h4">Notenmassstab</h4>';
+  h += '<div class="pr-grid2"><div><label class="modal-label">Massstab</label><select id="prSkala" class="modal-input">' + SIKORE_SKALEN.map(function(o){ return '<option value="'+o[0]+'">'+esc(o[1])+'</option>'; }).join('') + '</select></div>';
+  h += '<div><label class="modal-label">Noten runden auf</label><select id="prRund" class="modal-input">' + [['0.1','Zehntel'],['0.25','Viertel'],['0.5','Halbe']].map(function(o){
+    return '<option value="'+o[0]+'"'+(String((p && p.rundung) || 0.1) === o[0] ? ' selected' : '')+'>'+o[1]+'</option>'; }).join('') + '</select></div></div>';
+  h += '<div id="prSkalaFelder"></div><p class="pr-hinweis" id="prMaxInfo"></p>';
+  h += pruefFuerHtml(p, fix);
+  h += '<div class="modal-actions"><button class="btn btn-ghost btn-sm" id="modalCancel" type="button">Abbrechen</button><button class="btn btn-primary btn-sm" id="modalOk" type="button">Speichern</button></div>';
+  openModal(h, 'pr-modal pr-modal-breit');
+  if(neu) pruefKopfVerdrahten('mt');
+  pruefFuerLaden();
+  document.getElementById('modalCancel').addEventListener('click', closeModal);
+  var num = function(id){ var e = document.getElementById(id); return e ? parseFloat(String(e.value).replace(',', '.')) : NaN; };
+  function aktDef(){ return mtDef(document.getElementById('mtPrTrainer').value) || def; }
+  function levelZeichnen(behalten){
+    var d = aktDef(), sel = document.getElementById('mtPrLevel'), alt = behalten ? c.level : +sel.value || 1;
+    sel.innerHTML = d.levels.map(function(x, i){ return '<option value="'+(i+1)+'"'+(i + 1 === alt ? ' selected' : '')+'>'+esc('Level '+(i+1)+': '+x)+'</option>'; }).join('');
+    if(!sel.value) sel.value = String(Math.min(d.levels.length, alt || 1));
+  }
+  // Wie viele Kästchen es gibt, hängt vom Trainer ab (manche Aufgaben haben
+  // mehrere) — einmal probeweise erzeugen statt raten.
+  function maxP(){
+    var d = aktDef(), anz = +document.getElementById('mtPrAnz').value || 10;
+    try{ return mtPrFelder(mtFragen(d, +document.getElementById('mtPrLevel').value || 1, anz, 12345)); }catch(e){ return anz; }
+  }
+  function skalaMerken(){
+    var t = skw.typ;
+    if(t === 'dbk6'){ var a = num('prP6'); if(!isNaN(a)) skw.p6 = a; }
+    if(t === 'knick'){ var b = num('prKnick'); if(!isNaN(b)) skw.prozent = b; }
+    if(t === 'fehler'){ var c1 = num('prAbzug'), c2 = num('prFrei'); if(!isNaN(c1)) skw.abzug = c1; if(!isNaN(c2)) skw.frei = c2; }
+  }
+  function skalaZeichnen(){
+    var t = skw.typ, f = '';
+    document.getElementById('prSkala').value = t;
+    if(t === 'dbk') f = '<p class="pr-hinweis">Note = 5 × richtige ÷ alle Kästchen + 1 (DBK Thurgau).</p>';
+    else if(t === 'dbk6') f = '<div class="pr-grid2"><div><label class="modal-label">Punkte für eine 6</label><input type="number" id="prP6" class="modal-input" min="1" step="1" value="'+esc(skw.p6 != null ? String(skw.p6) : '')+'"></div><div></div></div>';
+    else if(t === 'knick') f = '<div class="pr-grid2"><div><label class="modal-label">Note 4 bei … % richtig</label><input type="number" id="prKnick" class="modal-input" min="1" max="99" step="1" value="'+esc(String(skw.prozent || 60))+'"></div><div></div></div>';
+    else if(t === 'fehler') f = '<div class="pr-grid2"><div><label class="modal-label">Abzug pro Fehler (Note)</label><input type="number" id="prAbzug" class="modal-input" min="0.05" max="2" step="0.05" value="'+esc(String(skw.abzug || 0.25))+'"></div>'+
+      '<div><label class="modal-label">Fehler für eine 6</label><input type="number" id="prFrei" class="modal-input" min="0" step="1" value="'+esc(String(skw.frei || 0))+'"></div></div>';
+    document.getElementById('prSkalaFelder').innerHTML = f;
+    var d = aktDef(), s = subjectById(d.fach);
+    document.getElementById('prMaxInfo').textContent = 'Pro Person ' + (+document.getElementById('mtPrAnz').value || 10) + ' Aufgaben mit zusammen ' + maxP() + ' Kästchen = ' + maxP() + ' Punkten. Die Note kommt im Notenrechner unter ' + (s ? s.name : d.fach) + '.';
+  }
+  document.getElementById('prSkala').addEventListener('change', function(){ skalaMerken(); skw.typ = this.value; skalaZeichnen(); });
+  document.getElementById('mtPrTrainer').addEventListener('change', function(){ levelZeichnen(false); skalaZeichnen(); });
+  document.getElementById('mtPrLevel').addEventListener('change', skalaZeichnen);
+  document.getElementById('mtPrAnz').addEventListener('change', skalaZeichnen);
+  levelZeichnen(true); skalaZeichnen();
+  document.getElementById('modalOk').addEventListener('click', async function(){
+    var titel = document.getElementById('prTitel').value.trim();
+    if(!titel){ toast('Bitte einen Titel eingeben.'); return; }
+    skalaMerken();
+    var sk = {typ:skw.typ};
+    if(sk.typ === 'dbk6'){ sk.p6 = skw.p6; if(!(sk.p6 > 0)){ toast('«Punkte für eine 6» angeben.'); return; } }
+    if(sk.typ === 'knick'){ sk.prozent = skw.prozent || 60; if(!(sk.prozent > 0 && sk.prozent < 100)){ toast('Grenze für die 4 muss zwischen 1 und 99 % liegen.'); return; } }
+    if(sk.typ === 'fehler'){ sk.abzug = skw.abzug || 0.25; sk.frei = Math.max(0, skw.frei || 0); if(!(sk.abzug > 0 && sk.abzug <= 2)){ toast('Abzug pro Fehler muss zwischen 0.05 und 2 liegen.'); return; } }
+    var d = aktDef(), gew = num('prGewicht');
+    var data = {titel:titel.slice(0, 80), art:'mt', fach:d.fach, skala:sk, rundung:+document.getElementById('prRund').value || 0.1,
+      gewicht:gew > 0 && gew <= 10 ? gew : 1};
+    Object.assign(data, pruefFuerDaten(p));
+    if(fix) data.cfg = Object.assign({}, p.cfg);
+    else {
+      data.cfg = {trainer:d.id, level:+document.getElementById('mtPrLevel').value || 1, anzahl:+document.getElementById('mtPrAnz').value || 10};
+      var z = num('prZeit');
+      data.zeitMin = z > 0 ? Math.min(120, Math.round(z)) : 0;
+    }
+    this.disabled = true;
+    try{
+      var id = neu ? 'p' + Date.now().toString(36) : p.id;
+      if(neu){ data.status = 'entwurf'; data.resultateFrei = false; data.seed = Math.floor(Math.random() * 2147483646) + 1; data.createdAt = serverTimestamp(); data.createdBy = state.user.uid; }
+      if(neu) await setDoc(pruefRef(id), data); else await updateDoc(pruefRef(id), data);
+      closeModal();
+      if(neu){ state.route = {name:'pruefung', id:id}; render(); }
+      else {
+        toast('Gespeichert.');
+        if(p.resultateFrei) pruefNotenEintragen(Object.assign({}, p, data)).catch(pruefFehler);
+      }
+    }catch(err){ this.disabled = false; pruefFehler(err); }
+  });
 }
 
 /* ===================== ⌨️ TIPPTRAINER (10-Finger-System) =====================
