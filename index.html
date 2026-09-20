@@ -1623,6 +1623,7 @@
   .pr-regeln{display:flex;flex-direction:column;gap:8px;background:var(--surface-2);border-radius:var(--radius-sm);padding:12px 14px;margin:0 0 16px;font-size:14px;line-height:1.45;}
   .pr-hinweis{font-size:13px;color:var(--text-muted);}
   .pr-kats{display:flex;flex-wrap:wrap;gap:6px 14px;margin:0 0 12px;font-size:14px;}
+  .pr-mix-g{font-size:12px;font-weight:700;letter-spacing:.02em;color:var(--text-muted);margin:8px 0 3px;}
   .pr-grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:0 12px;}
   .pr-grid2 .modal-input,#prTitel,#prUebung,#prKlasse,#prFuer{margin-bottom:12px;}
   .pr-art-wahl{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 12px;}
@@ -13454,6 +13455,8 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-09-20-deutsch-check', datum:'2026-09-20', fuer:'alle', text:'📕 Im Deutsch-Übungstrainer gibt es neu zwei grosse Sammel-Übungen: «🧐 Rechtschreib-Check – alles» und «🧠 Grammatik-Check – alles». Dort kommt bunt gemischt alles dran, was du im jeweiligen Bereich sonst einzeln übst – ideal zum Testen vor einer Prüfung.'},
+  {id:'2026-09-20-deutsch-check-lp', datum:'2026-09-20', fuer:'lehrer', text:'⚡ Die beiden neuen Sammel-Trainer in Deutsch (Rechtschreib-Check, Grammatik-Check) ziehen ihre Aufgaben automatisch aus allen Einzeltrainern ihrer Gruppe – kommt ein Trainer dazu, ist er sofort dabei. In «➕ Neue Prüfung › ⚡ Übungstrainer» kannst du bei ihnen genau anhaken, welche Deutsch-Übungen in die Prüfung kommen, auch quer über die Gruppen (z. B. Rechtschreibung + Zeichensetzung).'},
   {id:'2026-09-20-pruefart-schlank', datum:'2026-09-20', fuer:'lehrer', text:'⚡ Im Prüfungs-Dialog gibt es oben nur noch «Aus einer Übung» und «Übungstrainer». SIKORE und Tastaturschreiben standen doppelt da — sie stehen jetzt nur noch in der Trainer-Liste, und zwar bei ihrem Fach (Mathe bzw. Medien und Informatik).'},
   {id:'2026-09-20-sprachen', datum:'2026-09-20', fuer:'alle', text:'🌐 Neu oben rechts: der Sprach-Knopf. Menü, Knöpfe und Erklärungen gibt es jetzt auch auf Englisch, Französisch, Italienisch, Spanisch, Türkisch, Ukrainisch, Kurdisch, Arabisch, Dari und Paschto – praktisch, wenn du oder deine Eltern noch nicht so viel Deutsch könnt. Die Übungen selbst bleiben auf Deutsch, die sind ja der Lernstoff.'},
   {id:'2026-09-20-deutsch-gross', datum:'2026-09-20', fuer:'alle', text:'📕 Der Deutsch-Übungstrainer ist riesig geworden: v oder f, i/ie/ieh, doppelte Konsonanten, Dehnungs-h, ä/e und äu/eu, seit/seid, wider/wieder, zusammen oder getrennt, Silbentrennung, Apostroph, Fremdwörter, die vier Fälle, Satzglieder, wo?/wohin?, Steigern, Mehrzahl, indirekte Rede, Aktiv/Passiv, Zeitangaben, direkte Rede, Synonyme, Redewendungen – und ein «Rechtschreib-Check», der alles mischt. Auf Level 2 wählst du nicht mehr aus, sondern schreibst selbst.'},
@@ -20936,14 +20939,31 @@ var MT_D_FREMD = [
 function mtGenDFremd(l){ return mtDSchreib(MT_D_FREMD, 'Fremdwort: Welche Schreibweise stimmt?',
   'Viele Fremdwörter behalten die Schreibweise der Herkunftssprache – ph, th, rh und y verraten oft Griechisch.', l); }
 
-/* ---------- Rechtschreib-Check: alles gemischt ---------- */
-function mtGenDCheck(l){
-  var gen = [mtGenDVf, mtGenDIe, mtGenDDoppel, mtGenDDehn, mtGenDAe, mtGenDSeit, mtGenDWider,
-    mtGenDGetrennt, mtGenDSilben, mtGenDApostroph, mtGenDFremd];
-  if(l >= 2) gen = gen.concat([mtGenDDass, mtGenDKomma, mtGenDZeitang]);
-  if(l >= 3) gen = gen.concat([mtGenDFall, mtGenDSatzglied, mtGenDPassiv, mtGenDKonj]);
-  return mtAus(gen)(1);
+/* ---------- Sammel-Trainer: alles aus einer Gruppe gemischt ----------
+   Ein Trainer mit `mix:'<Gruppe>'` hat keine eigenen Aufgaben, sondern zieht
+   sie aus allen anderen Trainern desselben Fachs in dieser Gruppe — so ist er
+   automatisch vollständig, auch wenn später Trainer dazukommen. Level n =
+   Level n des jeweiligen Teil-Trainers (bei kürzeren dessen letztes).
+   Für Prüfungen lässt sich die Auswahl frei einschränken (mtMixDef). */
+function mtMixAlle(def){
+  return MT_TRAINER.filter(function(t){ return t.fach === def.fach && !t.mix; });
 }
+function mtMixQuellen(def){
+  return mtMixAlle(def).filter(function(t){ return t.gruppe === def.mix; });
+}
+function mtGenMix(def, ids, l){
+  var quellen = null;
+  if(ids && ids.length) quellen = ids.map(mtDef).filter(function(t){ return t && !t.mix && t.fach === def.fach; });
+  if(!quellen || !quellen.length) quellen = mtMixQuellen(def);
+  var t = mtAus(quellen);
+  return t.gen(Math.max(1, Math.min(t.levels.length, l)));
+}
+// Kopie des Sammel-Trainers, die nur aus den gewählten Teil-Trainern zieht.
+function mtMixDef(def, ids){
+  return Object.assign({}, def, {gen:function(l){ return mtGenMix(def, ids, l); }});
+}
+function mtGenDCheck(l){ return mtGenMix(mtDef('mt_d_check'), null, l); }
+function mtGenDGramCheck(l){ return mtGenMix(mtDef('mt_d_gramcheck'), null, l); }
 
 /* ---------- 🧱 Die Wortmaschine (Wortarten bestimmen) ----------
    Das Wort fällt oben in den Trichter, läuft durch die drei Proben und kommt
@@ -21184,9 +21204,10 @@ var MT_TRAINER = [
    deko:['’','s','Max’'], grad:'linear-gradient(135deg,#2A1B4A 0%,#4A2F7E 55%,#7B5CD6 100%)', levels:['Auswählen: welche Schreibweise stimmt?','Selber schreiben'], gen:mtGenDApostroph},
   {id:'mt_d_fremd', fach:'deutsch', gruppe:'Rechtschreibung', icon:'🌍', name:'Fremdwörter', kurz:'Rhythmus, Theater, Restaurant.',
    deko:['ph','th','rh','y'], grad:'linear-gradient(135deg,#6B1220 0%,#A82238 55%,#E63950 100%)', levels:['Auswählen: welche Schreibweise stimmt?','Selber schreiben'], gen:mtGenDFremd},
-  {id:'mt_d_check', fach:'deutsch', gruppe:'Rechtschreibung', icon:'🧐', name:'Rechtschreib-Check', kurz:'Alle Stolpersteine bunt gemischt.',
+  {id:'mt_d_check', fach:'deutsch', gruppe:'Rechtschreibung', icon:'🧐', name:'Rechtschreib-Check – alles', kurz:'Alle Rechtschreib-Übungen bunt gemischt.',
+   mix:'Rechtschreibung',
    deko:['✓','?','!','abc'], grad:'linear-gradient(135deg,#3F2D6B 0%,#6D4AAE 55%,#8B5CF6 100%)',
-   levels:['Nur Rechtschreibung','+ das/dass, Komma, Zeitangaben','+ Fälle, Satzglieder, Passiv'], gen:mtGenDCheck},
+   levels:['Leichte Stufe jeder Übung','Mittlere Stufe – meist selber schreiben','Schwierigste Stufe jeder Übung'], gen:mtGenDCheck},
 
   /* 📕 Deutsch – Grammatik */
   {id:'mt_d_fall', fach:'deutsch', gruppe:'Grammatik', icon:'4️⃣', name:'Die vier Fälle', kurz:'Wer? Wessen? Wem? Wen?',
@@ -21203,6 +21224,10 @@ var MT_TRAINER = [
    deko:['sei','habe','könne'], grad:'linear-gradient(135deg,#2A1B4A 0%,#4A2F7E 55%,#7B5CD6 100%)', levels:['Gemischte Sätze','Gemischte Sätze'], gen:mtGenDKonj},
   {id:'mt_d_passiv', fach:'deutsch', gruppe:'Grammatik', icon:'🔄', name:'Aktiv und Passiv', kurz:'Wer handelt – oder wird gehandelt?',
    deko:['wird','wurde','ge-'], grad:'linear-gradient(135deg,#4A1E2B 0%,#7E2E43 55%,#C2506B 100%)', levels:['Erkennen','Genauer hinschauen'], gen:mtGenDPassiv},
+  {id:'mt_d_gramcheck', fach:'deutsch', gruppe:'Grammatik', icon:'🧠', name:'Grammatik-Check – alles', kurz:'Alle Grammatik-Übungen bunt gemischt.',
+   mix:'Grammatik',
+   deko:['N','V','S','P','4️⃣'], grad:'linear-gradient(135deg,#123A5F 0%,#1D5C93 55%,#3A7BBF 100%)',
+   levels:['Leichte Stufe jeder Übung','Mittlere Stufe','Schwierigste Stufe jeder Übung'], gen:mtGenDGramCheck},
 
   /* 📕 Deutsch – Gross/klein, Zeichen, Wortschatz */
   {id:'mt_d_zeitang', fach:'deutsch', gruppe:'Gross- und Kleinschreibung', icon:'🕗', name:'Zeitangaben gross oder klein', kurz:'heute Abend, aber abends.',
@@ -21736,11 +21761,16 @@ async function mtUebersicht(def){
 var MT_PR_ANZAHL = [5, 8, 10, 12, 15, 20, 25, 30];
 function mtPrCfg(p){
   var c = (p && p.cfg) || {};
-  return {trainer:String(c.trainer || ''), level:Math.max(1, +c.level || 1), anzahl:Math.max(1, +c.anzahl || 10), uniq:c.uniq === true};
+  return {trainer:String(c.trainer || ''), level:Math.max(1, +c.level || 1), anzahl:Math.max(1, +c.anzahl || 10), uniq:c.uniq === true,
+    mix:(Array.isArray(c.mix) ? c.mix : []).map(String)};
 }
-function mtPrDef(p){ return mtDef(mtPrCfg(p).trainer); }
-function mtPrFragen(p, uid){
+// Bei einem Sammel-Trainer zieht die Prüfung nur aus den gewählten Teil-Übungen.
+function mtPrDef(p){
   var c = mtPrCfg(p), def = mtDef(c.trainer);
+  return def && def.mix && c.mix.length ? mtMixDef(def, c.mix) : def;
+}
+function mtPrFragen(p, uid){
+  var c = mtPrCfg(p), def = mtPrDef(p);
   if(!def) return [];
   return mtFragen(def, c.level, c.anzahl, (((+p.seed || 1) >>> 0) ^ pruefPersonSeed(uid || '')) >>> 0 || 1, !c.uniq);
 }
@@ -21767,6 +21797,7 @@ function mtPrBeschreibung(p){
   var teile = ['⚡ ' + (def ? def.icon + ' ' + def.name : 'Übungstrainer (gelöscht)')];
   if(s) teile.push(s.name);
   teile.push('Level ' + c.level + (def && def.levels[c.level - 1] ? ': ' + def.levels[c.level - 1] : ''));
+  if(def && def.mix && c.mix.length) teile.push(c.mix.length + ' Übungen gemischt');
   teile.push(c.anzahl + ' Aufgaben');
   if(+p.zeitMin > 0) teile.push('⏱ ' + p.zeitMin + ' Min.');
   teile.push('Massstab: ' + pruefSkalaText(p));
@@ -21873,6 +21904,7 @@ function mtPrEditor(p){
   h += '<label class="modal-label">Titel</label><input type="text" id="prTitel" class="modal-input" maxlength="80" value="'+esc(p ? p.titel : def.name + ' ' + datum)+'">';
   if(fix) h += '<p class="pr-hinweis">Die Prüfung wurde schon freigegeben — Trainer, Level, Anzahl und Zeit bleiben. Ändern lassen sich Titel, Gewichtung und Notenmassstab.</p>';
   h += '<label class="modal-label">Trainer</label><select id="mtPrTrainer" class="modal-input"'+(fix ? ' disabled' : '')+'>'+mtPrTrainerOpts(def.id)+'</select>';
+  h += '<div id="mtPrMixBox"></div>';
   h += '<div class="pr-grid2"><div><label class="modal-label">Level</label><select id="mtPrLevel" class="modal-input"'+(fix ? ' disabled' : '')+'></select></div>';
   h += '<div><label class="modal-label">Anzahl Aufgaben</label><select id="mtPrAnz" class="modal-input"'+(fix ? ' disabled' : '')+'>'+
     MT_PR_ANZAHL.map(function(n){ return '<option value="'+n+'"'+(n === c.anzahl ? ' selected' : '')+'>'+n+'</option>'; }).join('')+'</select></div></div>';
@@ -21891,6 +21923,32 @@ function mtPrEditor(p){
   document.getElementById('modalCancel').addEventListener('click', closeModal);
   var num = function(id){ var e = document.getElementById(id); return e ? parseFloat(String(e.value).replace(',', '.')) : NaN; };
   function aktDef(){ return mtDef(document.getElementById('mtPrTrainer').value) || def; }
+  function aktMixIds(){
+    return Array.prototype.map.call(document.querySelectorAll('#mtPrMixBox input:checked'), function(i){ return i.value; });
+  }
+  // Der Trainer, aus dem die Prüfung wirklich zieht (Sammel-Trainer: nur die angehakten).
+  function aktDefMix(){ var d = aktDef(); return d.mix ? mtMixDef(d, aktMixIds()) : d; }
+  // Sammel-Trainer: hier wählt die Lehrperson aus, was in die Prüfung kommt —
+  // auch quer über die Gruppen, also z. B. Rechtschreibung + Zeichensetzung.
+  function mixZeichnen(behalten){
+    var d = aktDef(), box = document.getElementById('mtPrMixBox');
+    if(!d.mix){ box.innerHTML = ''; return; }
+    var alle = mtMixAlle(d);
+    var akt = behalten && c.mix.length ? c.mix : mtMixQuellen(d).map(function(t){ return t.id; });
+    var gruppen = [];
+    alle.forEach(function(t){ var g = t.gruppe || 'Weitere'; if(gruppen.indexOf(g) < 0) gruppen.push(g); });
+    var b = '<label class="modal-label">Diese Übungen kommen in die Prüfung</label>';
+    gruppen.forEach(function(g){
+      b += '<div class="pr-mix-g">'+esc(g)+'</div><div class="pr-kats">'+alle.filter(function(t){ return (t.gruppe || 'Weitere') === g; }).map(function(t){
+        return '<label><input type="checkbox" value="'+esc(t.id)+'"'+(akt.indexOf(t.id) >= 0 ? ' checked' : '')+(fix ? ' disabled' : '')+'> '+esc(t.icon+' '+t.name)+'</label>';
+      }).join('')+'</div>';
+    });
+    b += '<div class="pr-kats"><button class="btn btn-ghost btn-sm" type="button" data-mixall="1"'+(fix ? ' disabled' : '')+'>Alle</button>'+
+      '<button class="btn btn-ghost btn-sm" type="button" data-mixgrp="1"'+(fix ? ' disabled' : '')+'>Nur '+esc(d.mix)+'</button>'+
+      '<button class="btn btn-ghost btn-sm" type="button" data-mixnone="1"'+(fix ? ' disabled' : '')+'>Keine</button></div>';
+    b += '<p class="pr-hinweis">Die Aufgaben werden gleichmässig aus den angehakten Übungen gezogen — jede kommt gleich oft dran.</p>';
+    box.innerHTML = b;
+  }
   function levelZeichnen(behalten){
     var d = aktDef(), sel = document.getElementById('mtPrLevel'), alt = behalten ? c.level : +sel.value || 1;
     sel.innerHTML = d.levels.map(function(x, i){ return '<option value="'+(i+1)+'"'+(i + 1 === alt ? ' selected' : '')+'>'+esc('Level '+(i+1)+': '+x)+'</option>'; }).join('');
@@ -21899,7 +21957,7 @@ function mtPrEditor(p){
   // Wie viele Kästchen es gibt, hängt vom Trainer ab (manche Aufgaben haben
   // mehrere) — einmal probeweise erzeugen statt raten.
   function maxP(){
-    var d = aktDef(), anz = +document.getElementById('mtPrAnz').value || 10;
+    var d = aktDefMix(), anz = +document.getElementById('mtPrAnz').value || 10;
     try{ return mtPrFelder(mtFragen(d, +document.getElementById('mtPrLevel').value || 1, anz, 12345, false)); }catch(e){ return anz; }
   }
   function skalaMerken(){
@@ -21924,11 +21982,20 @@ function mtPrEditor(p){
   document.getElementById('mtPrTrainer').addEventListener('change', function(){
     if(this.value === '__sikore'){ closeModal(); sikoreEditor(null); return; }
     if(this.value === '__tippen'){ closeModal(); tippPrEditor(null); return; }
-    levelZeichnen(false); skalaZeichnen();
+    levelZeichnen(false); mixZeichnen(false); skalaZeichnen();
+  });
+  document.getElementById('mtPrMixBox').addEventListener('change', skalaZeichnen);
+  document.getElementById('mtPrMixBox').addEventListener('click', function(e){
+    var b = e.target.closest('button'); if(!b || fix) return;
+    var d = aktDef(), grp = mtMixQuellen(d).map(function(t){ return t.id; });
+    Array.prototype.forEach.call(this.querySelectorAll('input[type=checkbox]'), function(i){
+      i.checked = b.hasAttribute('data-mixall') ? true : b.hasAttribute('data-mixnone') ? false : grp.indexOf(i.value) >= 0;
+    });
+    skalaZeichnen();
   });
   document.getElementById('mtPrLevel').addEventListener('change', skalaZeichnen);
   document.getElementById('mtPrAnz').addEventListener('change', skalaZeichnen);
-  levelZeichnen(true); skalaZeichnen();
+  levelZeichnen(true); mixZeichnen(true); skalaZeichnen();
   document.getElementById('modalOk').addEventListener('click', async function(){
     var titel = document.getElementById('prTitel').value.trim();
     if(!titel){ toast('Bitte einen Titel eingeben.'); return; }
@@ -21938,12 +22005,15 @@ function mtPrEditor(p){
     if(sk.typ === 'knick'){ sk.prozent = skw.prozent || 60; if(!(sk.prozent > 0 && sk.prozent < 100)){ toast('Grenze für die 4 muss zwischen 1 und 99 % liegen.'); return; } }
     if(sk.typ === 'fehler'){ sk.abzug = skw.abzug || 0.25; sk.frei = Math.max(0, skw.frei || 0); if(!(sk.abzug > 0 && sk.abzug <= 2)){ toast('Abzug pro Fehler muss zwischen 0.05 und 2 liegen.'); return; } }
     var d = aktDef(), gew = num('prGewicht');
+    var mixIds = d.mix && !fix ? aktMixIds() : [];
+    if(d.mix && !fix && !mixIds.length){ toast('Hake mindestens eine Übung an.'); return; }
     var data = {titel:titel.slice(0, 80), art:'mt', fach:d.fach, skala:sk, rundung:+document.getElementById('prRund').value || 0.1,
       gewicht:gew > 0 && gew <= 10 ? gew : 1};
     Object.assign(data, pruefFuerDaten(p));
     if(fix) data.cfg = Object.assign({}, p.cfg);
     else {
       data.cfg = {trainer:d.id, level:+document.getElementById('mtPrLevel').value || 1, anzahl:+document.getElementById('mtPrAnz').value || 10, uniq:true};
+      if(d.mix) data.cfg.mix = mixIds;
       var z = num('prZeit');
       data.zeitMin = z > 0 ? Math.min(120, Math.round(z)) : 0;
     }
