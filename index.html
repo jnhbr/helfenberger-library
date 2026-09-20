@@ -13454,6 +13454,7 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-09-20-pruefart-schlank', datum:'2026-09-20', fuer:'lehrer', text:'⚡ Im Prüfungs-Dialog gibt es oben nur noch «Aus einer Übung» und «Übungstrainer». SIKORE und Tastaturschreiben standen doppelt da — sie stehen jetzt nur noch in der Trainer-Liste, und zwar bei ihrem Fach (Mathe bzw. Medien und Informatik).'},
   {id:'2026-09-20-sprachen', datum:'2026-09-20', fuer:'alle', text:'🌐 Neu oben rechts: der Sprach-Knopf. Menü, Knöpfe und Erklärungen gibt es jetzt auch auf Englisch, Französisch, Italienisch, Spanisch, Türkisch, Ukrainisch, Kurdisch, Arabisch, Dari und Paschto – praktisch, wenn du oder deine Eltern noch nicht so viel Deutsch könnt. Die Übungen selbst bleiben auf Deutsch, die sind ja der Lernstoff.'},
   {id:'2026-09-20-deutsch-gross', datum:'2026-09-20', fuer:'alle', text:'📕 Der Deutsch-Übungstrainer ist riesig geworden: v oder f, i/ie/ieh, doppelte Konsonanten, Dehnungs-h, ä/e und äu/eu, seit/seid, wider/wieder, zusammen oder getrennt, Silbentrennung, Apostroph, Fremdwörter, die vier Fälle, Satzglieder, wo?/wohin?, Steigern, Mehrzahl, indirekte Rede, Aktiv/Passiv, Zeitangaben, direkte Rede, Synonyme, Redewendungen – und ein «Rechtschreib-Check», der alles mischt. Auf Level 2 wählst du nicht mehr aus, sondern schreibst selbst.'},
   {id:'2026-09-20-wortmaschine', datum:'2026-09-20', fuer:'alle', text:'🧱 Wortarten haben jetzt eine echte Wortmaschine: Das Wort fällt oben in den Trichter, läuft durch die drei Proben («der/die/das» davor? beugen? steigern?) – und du tippst unten die Klappe an, bei der es herauskommt.'},
@@ -17149,8 +17150,12 @@ var pruefGruppen = [];        // meine 👥 Gruppen für die «Für»-Auswahl
 const PRUEF_NEU_KEY = 'hl_pruefNeu';   // sessionStorage: nach dem Klassenwechsel diesen Editor öffnen
 
 function pruefArtWahlHtml(aktiv){
+  // 🧮 SIKORE und ⌨️ Tastaturschreiben haben hier keinen eigenen Knopf mehr —
+  // sie stehen in der Trainer-Liste bei ihrem Fach. In deren Editor bleibt
+  // darum «⚡ Übungstrainer» aktiv, damit man von dort zurückkommt.
+  if(aktiv === 'sikore' || aktiv === 'tippen') aktiv = 'mt';
   return '<label class="modal-label">Art der Prüfung</label><div class="pr-art-wahl">' +
-    [['uebung','📄 Aus einer Übung'],['mt','⚡ Übungstrainer'],['sikore','🧮 SIKORE'],['tippen','⌨️ Tastaturschreiben']].map(function(a){
+    [['uebung','📄 Aus einer Übung'],['mt','⚡ Übungstrainer']].map(function(a){
       return '<button type="button" class="btn btn-sm '+(a[0] === aktiv ? 'btn-primary' : 'btn-ghost')+'" data-prart="'+a[0]+'">'+a[1]+'</button>';
     }).join('') + '</div>';
 }
@@ -21843,14 +21848,17 @@ function mtPrTrainerOpts(cur){
   var faecher = [];
   MT_TRAINER.forEach(function(t){ if(faecher.indexOf(t.fach) < 0) faecher.push(t.fach); });
   // 🧮 SIKORE und ⌨️ Tastaturschreiben sind eigene Prüfungsarten, stehen hier
-  // aber mit in der Liste – die Auswahl wechselt dann in deren Editor.
-  return '<optgroup label="Eigene Trainer"><option value="__sikore">🧮 SIKORE – Sicher Kopfrechnen</option>'+
-    '<option value="__tippen">⌨️ Tastaturschreiben (Abschreibprüfung)</option></optgroup>'+
-    faecher.map(function(f){
+  // aber mit in der Liste – je bei ihrem Fach; die Auswahl wechselt dann in
+  // deren Editor. Einen eigenen Knopf in «Art der Prüfung» haben sie nicht mehr.
+  var extra = {
+    mathe: '<option value="__sikore">🧮 SIKORE – Sicher Kopfrechnen</option>',
+    informatik: '<option value="__tippen">⌨️ Tastaturschreiben (Abschreibprüfung)</option>'
+  };
+  return faecher.map(function(f){
     var s = subjectById(f);
     return '<optgroup label="'+esc(s ? s.name : f)+'">'+mtFachTrainer(f).map(function(t){
       return '<option value="'+esc(t.id)+'"'+(t.id === cur ? ' selected' : '')+'>'+esc(t.icon+' '+t.name)+'</option>';
-    }).join('')+'</optgroup>';
+    }).join('')+(extra[f] || '')+'</optgroup>';
   }).join('');
 }
 function mtPrEditor(p){
