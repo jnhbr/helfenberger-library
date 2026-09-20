@@ -1426,6 +1426,47 @@
   .mt-body{flex:1;min-width:0;}
   .mt-frage{font-size:17px;font-weight:700;line-height:1.4;margin-bottom:8px;}
   .mt-bild{margin:2px 0 10px;}
+  /* 🌐 Sprachwahl */
+  .topbar-lang-code{font-size:9.5px;font-weight:800;margin-left:2px;letter-spacing:.03em;}
+  .lang-liste{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px;margin:10px 0 4px;}
+  .lang-b{display:flex;align-items:center;gap:9px;padding:10px 12px;border:2px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);color:var(--text);font:inherit;font-weight:700;font-size:14.5px;cursor:pointer;text-align:start;}
+  .lang-b:hover{border-color:var(--brand);}
+  .lang-b.an{border-color:var(--brand);background:var(--brand);color:var(--brand-contrast);}
+  .lang-f{font-size:19px;line-height:1;}
+  /* Rechts-nach-links: die Shell dreht, Unterrichtsinhalt bleibt links-nach-rechts. */
+  [dir="rtl"] .mt-blatt,[dir="rtl"] .mt-hotbild,[dir="rtl"] .sk-blatt,[dir="rtl"] .mt-bild,
+  [dir="rtl"] .pr-q-body,[dir="rtl"] pre,[dir="rtl"] code,[dir="rtl"] .resource-iframe{direction:ltr;text-align:start;}
+  .mt-gruppe{margin:18px 0 6px;font-size:15px;letter-spacing:.02em;color:var(--text-muted);text-transform:uppercase;}
+  /* Klickbare SVG-Bilder (Organe, Skelett, Periodensystem, Zeitstrahl, Wortmaschine) */
+  .mt-hotbild{margin:4px 0 2px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface-2);padding:6px;max-width:520px;}
+  .mt-hotbild.breit{max-width:760px;}
+  .mt-hotbild.schmal{max-width:280px;}
+  .mt-hotbild svg{display:block;width:100%;height:auto;touch-action:manipulation;}
+  .mt-hotbild .mt-grund{fill:var(--surface);stroke:var(--border);stroke-width:1.5;}
+  .mt-hotbild .mt-linie{fill:none;stroke:var(--text-muted);stroke-width:1.4;stroke-linecap:round;}
+  .mt-hotbild .mt-fuell{fill:var(--border);opacity:.45;}
+  .mt-hotbild text{fill:var(--text);font-family:inherit;font-weight:700;}
+  .mt-hotbild .mt-klein{fill:var(--text-muted);font-weight:600;}
+  .mt-hot{cursor:pointer;}
+  .mt-hot .hot-f{fill:var(--brand);fill-opacity:.16;stroke:var(--brand);stroke-opacity:.55;stroke-width:1.4;transition:fill-opacity .12s, stroke-opacity .12s;}
+  .mt-hot:hover .hot-f{fill-opacity:.4;stroke-opacity:1;}
+  .mt-hot.an .hot-f{fill-opacity:.75;stroke-opacity:1;stroke-width:2.2;}
+  .mt-hot.richtig .hot-f{fill:var(--good);stroke:var(--good);fill-opacity:.5;stroke-width:2.4;}
+  .mt-hot.an.falsch .hot-f{fill:var(--bad);stroke:var(--bad);fill-opacity:.65;stroke-width:2.4;}
+  .mt-hot .hot-t{fill:var(--text);font-size:9.5px;font-weight:700;pointer-events:none;}
+  .mt-hotbild.fix{pointer-events:none;}
+  .mt-hotbild.fix .mt-hot{cursor:default;}
+  .mt-hot-legende{font-size:12.5px;color:var(--text-muted);margin-top:4px;}
+  /* Wortmaschine */
+  .mt-wm-gehaeuse{fill:var(--surface);stroke:var(--border);stroke-width:2;}
+  .mt-wm-rohr{fill:var(--surface-2);stroke:var(--border);stroke-width:1.5;}
+  .mt-wm-wort{fill:var(--brand);}
+  .mt-wm-wort-t{fill:var(--brand-contrast);font-size:13px;font-weight:800;}
+  .mt-wm-zahn{fill:none;stroke:var(--text-muted);stroke-width:2;transform-origin:center;transform-box:fill-box;animation:mtWmDreh 6s linear infinite;}
+  .mt-wm-zahn.rueck{animation-direction:reverse;animation-duration:4.5s;}
+  @keyframes mtWmDreh{to{transform:rotate(360deg);}}
+  @media (prefers-reduced-motion: reduce){ .mt-wm-zahn{animation:none;} }
+  .mt-wm-probe{fill:var(--text-muted);font-size:8px;font-weight:600;}
   .mt-noten{width:100%;max-width:230px;height:auto;color:var(--text);}
   .mt-felder{display:flex;align-items:flex-start;gap:16px;flex-wrap:wrap;}
   .mt-felder.mt-bruch{flex-direction:column;align-items:flex-start;gap:0;}
@@ -1440,6 +1481,7 @@
   .mt-bad .mt-in,.mt-leer .mt-in{border-color:var(--bad);background:var(--bad-soft);}
   .mt-soll{font-size:13px;font-weight:700;color:var(--bad);}
   .mt-tipp{margin-top:9px;font-size:13.5px;line-height:1.45;color:var(--text-muted);background:var(--surface-2);border-radius:8px;padding:7px 10px;}
+  .mt-feld-bild{display:block;width:100%;}
   .mt-wahl{display:flex;gap:7px;flex-wrap:wrap;}
   .mt-wahl-b{padding:7px 13px;border:2px solid var(--border);border-radius:999px;background:var(--surface);color:var(--text);font:inherit;font-size:14.5px;font-weight:700;cursor:pointer;transition:transform .1s;}
   .mt-wahl-b:hover:not(:disabled){transform:translateY(-1px);border-color:var(--brand);}
@@ -4748,6 +4790,208 @@ function renderLogin(){
 
 /* ===================== RENDER: CHROME ===================== */
 
+/* ===================== 🌐 SPRACHE DER OBERFLÄCHE =====================
+   Für neu zugezogene Schüler:innen (und ihre Eltern) lässt sich die Bedien-
+   oberfläche umstellen. Übersetzt werden Menü, Knöpfe, Fachnamen und die
+   Erklärtexte – die Aufgaben selbst bleiben in der Unterrichtssprache, sonst
+   wäre z. B. «das oder dass» sinnlos.
+
+   Technik: ein Wörterbuch ganzer Phrasen. Nach jedem Render laufen die Text-
+   knoten der Shell durch i18nDom(); Aufgaben- und Übungsbereiche sind über
+   I18N_TABU ausgenommen. Zahlen in einer Phrase werden als {n} gesucht und
+   danach wieder eingesetzt, damit «Level 3» und «Level 7» denselben Eintrag
+   benutzen. Die Wahl liegt nur lokal (localStorage), nicht in Firestore. */
+var HL_SPRACHEN = [
+  {c:'de', n:'Deutsch', f:'🇩🇪'},
+  {c:'en', n:'English', f:'🇬🇧'},
+  {c:'fr', n:'Français', f:'🇫🇷'},
+  {c:'it', n:'Italiano', f:'🇮🇹'},
+  {c:'es', n:'Español', f:'🇪🇸'},
+  {c:'tr', n:'Türkçe', f:'🇹🇷'},
+  {c:'uk', n:'Українська', f:'🇺🇦'},
+  {c:'ku', n:'Kurdî (Kurmancî)', f:'🟨'},
+  {c:'ar', n:'العربية', f:'🌍', rtl:true},
+  {c:'fa', n:'دری (Dari)', f:'🇦🇫', rtl:true},
+  {c:'ps', n:'پښتو (Paschto)', f:'🇦🇫', rtl:true}
+];
+// [deutsch, en, fr, it, es, tr, uk, ku, ar, fa, ps]
+var HL_I18N_SPALTEN = ['en','fr','it','es','tr','uk','ku','ar','fa','ps'];
+var HL_I18N_ROH = [
+['Einstellungen','Settings','Réglages','Impostazioni','Ajustes','Ayarlar','Налаштування','Mîheng','الإعدادات','تنظیمات','تنظیمات'],
+['Sprache','Language','Langue','Lingua','Idioma','Dil','Мова','Ziman','اللغة','زبان','ژبه'],
+['Sprache wählen','Choose language','Choisir la langue','Scegli la lingua','Elegir idioma','Dil seçin','Вибрати мову','Ziman hilbijêre','اختر اللغة','انتخاب زبان','ژبه وټاکئ'],
+['Suche','Search','Recherche','Cerca','Buscar','Arama','Пошук','Lêgerîn','بحث','جستجو','لټون'],
+['Neuigkeiten','News','Nouveautés','Novità','Novedades','Yenilikler','Новини','Nûçe','الأخبار','تازه‌ها','نوې خبرونه'],
+['Stundenplan','Timetable','Horaire','Orario','Horario','Ders programı','Розклад','Bernameya dersan','الجدول الدراسي','برنامه درسی','د درس مهال ویش'],
+['Erinnerungen','Reminders','Rappels','Promemoria','Recordatorios','Hatırlatmalar','Нагадування','Bîrxistin','التذكيرات','یادآوری‌ها','یادونې'],
+['Darstellung','Appearance','Affichage','Aspetto','Apariencia','Görünüm','Вигляд','Xuyang','المظهر','نمایش','بڼه'],
+['Links','Links','Liens','Link','Enlaces','Bağlantılar','Посилання','Girêdan','روابط','پیوندها','لینکونه'],
+['Notenrechner','Grade calculator','Calculateur de notes','Calcolo voti','Calculadora de notas','Not hesaplayıcı','Калькулятор оцінок','Hesabkera notan','حاسبة العلامات','محاسبه نمرات','د نمرو محاسبه'],
+['Ämtli','Class jobs','Tâches de classe','Incarichi','Tareas de clase','Sınıf görevleri','Обов’язки','Karên polê','مهام الصف','وظایف صنفی','ټولګي دندې'],
+['To-dos','To-dos','À faire','Da fare','Tareas','Yapılacaklar','Завдання','Kar û bar','المهام','کارها','دندې'],
+['Klasse wechseln','Switch class','Changer de classe','Cambia classe','Cambiar de clase','Sınıf değiştir','Змінити клас','Polê biguhere','تغيير الصف','تغییر صنف','ټولګی بدل کړئ'],
+['Anonyme Fragebox','Anonymous question box','Boîte à questions anonyme','Domande anonime','Buzón de preguntas anónimo','Anonim soru kutusu','Анонімні запитання','Qutiya pirsên nenas','صندوق أسئلة مجهول','صندوق سوال ناشناس','ناشناخته پوښتنې'],
+['Prüfung','Test','Épreuve','Verifica','Examen','Sınav','Контрольна','Ezmûn','امتحان','امتحان','ازموینه'],
+['Prüfungen','Tests','Épreuves','Verifiche','Exámenes','Sınavlar','Контрольні','Ezmûn','الامتحانات','امتحانات','ازموینې'],
+['Lernphase','Study mode','Phase d’étude','Fase di studio','Fase de estudio','Öğrenme modu','Режим навчання','Qonaxa fêrbûnê','وضع الدراسة','حالت مطالعه','د زده‌کړې حالت'],
+['Offline','Offline','Hors ligne','Offline','Sin conexión','Çevrimdışı','Офлайн','Offline','غير متصل','آفلاین','آفلاین'],
+['Abbrechen','Cancel','Annuler','Annulla','Cancelar','İptal','Скасувати','Betal bike','إلغاء','لغو','لغوه'],
+['Speichern','Save','Enregistrer','Salva','Guardar','Kaydet','Зберегти','Tomar bike','حفظ','ذخیره','خوندي کړئ'],
+['Schliessen','Close','Fermer','Chiudi','Cerrar','Kapat','Закрити','Bigire','إغلاق','بستن','بندول'],
+['Zurück','Back','Retour','Indietro','Atrás','Geri','Назад','Vegere','رجوع','بازگشت','شاته'],
+['Weiter','Next','Suivant','Avanti','Siguiente','İleri','Далі','Pêş','التالي','بعدی','بل'],
+['Löschen','Delete','Supprimer','Elimina','Eliminar','Sil','Видалити','Jê bibe','حذف','حذف','ړنګول'],
+['Bearbeiten','Edit','Modifier','Modifica','Editar','Düzenle','Редагувати','Biguherîne','تعديل','ویرایش','سمول'],
+['Abgeben','Submit','Rendre','Consegna','Entregar','Teslim et','Здати','Radest bike','تسليم','تحویل','سپارل'],
+['Kontrollieren','Check','Vérifier','Controlla','Comprobar','Kontrol et','Перевірити','Kontrol bike','تحقق','بررسی','وګورئ'],
+['Neue Aufgaben','New exercises','Nouveaux exercices','Nuovi esercizi','Ejercicios nuevos','Yeni alıştırmalar','Нові завдання','Xebatên nû','تمارين جديدة','تمرین‌های جدید','نوې تمرینونه'],
+['Aufgaben','Exercises','Exercices','Esercizi','Ejercicios','Alıştırmalar','Завдання','Xebat','تمارين','تمرین‌ها','تمرینونه'],
+['Level','Level','Niveau','Livello','Nivel','Seviye','Рівень','Ast','المستوى','سطح','کچه'],
+['Level {n}','Level {n}','Niveau {n}','Livello {n}','Nivel {n}','Seviye {n}','Рівень {n}','Ast {n}','المستوى {n}','سطح {n}','کچه {n}'],
+['Level tiefer','Lower level','Niveau inférieur','Livello inferiore','Nivel inferior','Alt seviye','Нижчий рівень','Asta jêrîn','مستوى أدنى','سطح پایین‌تر','ټیټه کچه'],
+['Level höher','Higher level','Niveau supérieur','Livello superiore','Nivel superior','Üst seviye','Вищий рівень','Asta jorîn','مستوى أعلى','سطح بالاتر','لوړه کچه'],
+['Tempo-Modus','Timed mode','Mode chrono','Modalità a tempo','Modo cronometrado','Süre modu','Режим на час','Moda demê','وضع التوقيت','حالت زمانی','د وخت حالت'],
+['Klassenübersicht','Class overview','Vue de la classe','Panoramica classe','Vista de la clase','Sınıf görünümü','Огляд класу','Nêrîna polê','نظرة عامة على الصف','نمای صنف','د ټولګي کتنه'],
+['Ziel','Goal','Objectif','Obiettivo','Meta','Hedef','Мета','Armanc','الهدف','هدف','موخه'],
+['Übungstrainer','Practice trainer','Entraîneur d’exercices','Allenatore di esercizi','Entrenador de práctica','Alıştırma eğitmeni','Тренажер','Perwerdekar','مدرب التمارين','تمرین‌یار','تمرین ښوونکی'],
+['Alles richtig!','All correct!','Tout juste !','Tutto giusto!','¡Todo correcto!','Hepsi doğru!','Усе правильно!','Hemû rast e!','كل شيء صحيح!','همه درست است!','ټول سم دي!'],
+['Gut gemacht!','Well done!','Bien joué !','Ottimo lavoro!','¡Bien hecho!','Aferin!','Молодець!','Baş e!','أحسنت!','آفرین!','ښه کار'],
+['Dranbleiben!','Keep going!','Continue !','Continua così!','¡Sigue así!','Devam et!','Не здавайся!','Bidome!','واصل!','ادامه بده!','دوام ورکړئ!'],
+['Abmelden','Log out','Se déconnecter','Esci','Cerrar sesión','Çıkış yap','Вийти','Derkeve','تسجيل الخروج','خروج','وتل'],
+['Anmelden','Log in','Se connecter','Accedi','Iniciar sesión','Giriş yap','Увійти','Têkeve','تسجيل الدخول','ورود','ننوتل'],
+['Hilfe','Help','Aide','Aiuto','Ayuda','Yardım','Довідка','Alîkarî','مساعدة','کمک','مرسته'],
+['Punkte','Points','Points','Punti','Puntos','Puan','Бали','Xal','النقاط','امتیاز','ټکي'],
+['Note','Grade','Note','Voto','Nota','Not','Оцінка','Not','العلامة','نمره','نمره'],
+['Klasse','Class','Classe','Classe','Clase','Sınıf','Клас','Pol','الصف','صنف','ټولګی'],
+['Titel','Title','Titre','Titolo','Título','Başlık','Назва','Sernav','العنوان','عنوان','سرلیک'],
+['Datum','Date','Date','Data','Fecha','Tarih','Дата','Dîrok','التاريخ','تاریخ','نېټه'],
+['Minuten','Minutes','Minutes','Minuti','Minutos','Dakika','Хвилини','Deqîqe','دقائق','دقیقه','دقیقې'],
+['Gespeichert.','Saved.','Enregistré.','Salvato.','Guardado.','Kaydedildi.','Збережено.','Hate tomarkirin.','تم الحفظ.','ذخیره شد.','خوندي شو.'],
+['Mathematik','Mathematics','Mathématiques','Matematica','Matemáticas','Matematik','Математика','Matematîk','الرياضيات','ریاضی','ریاضي'],
+['Deutsch','German','Allemand','Tedesco','Alemán','Almanca','Німецька','Almanî','الألمانية','آلمانی','الماني'],
+['Englisch','English','Anglais','Inglese','Inglés','İngilizce','Англійська','Îngilîzî','الإنجليزية','انگلیسی','انګلیسي'],
+['Französisch','French','Français','Francese','Francés','Fransızca','Французька','Fransî','الفرنسية','فرانسوی','فرانسوي'],
+['Geografie','Geography','Géographie','Geografia','Geografía','Coğrafya','Географія','Erdnîgarî','الجغرافيا','جغرافیه','جغرافیه'],
+['Geschichte','History','Histoire','Storia','Historia','Tarih','Історія','Dîrok','التاريخ','تاریخ','تاریخ'],
+['Biologie','Biology','Biologie','Biologia','Biología','Biyoloji','Біологія','Biyolojî','الأحياء','زیست‌شناسی','بیولوژي'],
+['Chemie','Chemistry','Chimie','Chimica','Química','Kimya','Хімія','Kîmya','الكيمياء','کیمیا','کیمیا'],
+['Physik','Physics','Physique','Fisica','Física','Fizik','Фізика','Fîzîk','الفيزياء','فزیک','فزیک'],
+['Musik','Music','Musique','Musica','Música','Müzik','Музика','Muzîk','الموسيقى','موسیقی','موسیقي'],
+['Sport','Sports','Sport','Sport','Deporte','Spor','Спорт','Werziş','الرياضة','ورزش','سپورت'],
+['Medien und Informatik','Media and computer science','Médias et informatique','Media e informatica','Medios e informática','Medya ve bilişim','Медіа та інформатика','Medya û enformatîk','الإعلام والمعلوماتية','رسانه و انفورماتیک','رسنۍ او انفورماتیک'],
+['Natur und Technik','Science and technology','Sciences et techniques','Scienze e tecnica','Ciencia y tecnología','Doğa ve teknik','Природа і техніка','Xweza û teknîk','العلوم والتقنية','طبیعت و تکنیک','طبیعت او تخنیک'],
+['Wochenziel: {n} / {n} richtige Aufgaben','Weekly goal: {n} / {n} correct exercises','Objectif de la semaine : {n} / {n} exercices justes','Obiettivo settimanale: {n} / {n} esercizi corretti','Meta semanal: {n} / {n} ejercicios correctos','Haftalık hedef: {n} / {n} doğru alıştırma','Тижнева мета: {n} / {n} правильних завдань','Armanca hefteyê: {n} / {n} xebatên rast','هدف الأسبوع: {n} / {n} تمارين صحيحة','هدف هفتگی: {n} / {n} تمرین درست','اوونیزه موخه: {n} / {n} سم تمرینونه'],
+['von {n} richtig','{n} correct','justes sur {n}','su {n} corretti','de {n} correctos','{n} üzerinden doğru','з {n} правильно','ji {n} rast','من {n} صحيحة','از {n} درست','له {n} څخه سم'],
+['richtige Aufgaben','correct exercises','exercices justes','esercizi corretti','ejercicios correctos','doğru alıştırma','правильних завдань','xebatên rast','تمارين صحيحة','تمرین درست','سم تمرینونه'],
+['Hallo,','Hello,','Bonjour,','Ciao,','Hola,','Merhaba,','Привіт,','Silav,','مرحباً،','سلام،','سلام،'],
+['Übungen','Exercises','Exercices','Esercizi','Ejercicios','Alıştırmalar','Вправи','Xebat','التمارين','تمرین‌ها','تمرینونه'],
+['Hausaufgaben','Homework','Devoirs','Compiti','Deberes','Ödev','Домашнє завдання','Erkên malê','الواجبات','مشق خانگی','کورنۍ دندې'],
+['Fächer','Subjects','Branches','Materie','Asignaturas','Dersler','Предмети','Ders','المواد','مضامین','مضمونونه'],
+['Jetzt live','Publish now','Mettre en ligne','Pubblica ora','Publicar ahora','Şimdi yayınla','Опублікувати','Niha biweşîne','انشر الآن','اکنون منتشر کن','اوس خپور کړئ'],
+['Die Aufgaben sind jedes Mal neu.','The exercises are new every time.','Les exercices sont nouveaux à chaque fois.','Gli esercizi sono sempre nuovi.','Los ejercicios son nuevos cada vez.','Alıştırmalar her seferinde yenidir.','Завдання щоразу нові.','Xebat her carê nû ne.','التمارين جديدة في كل مرة.','تمرین‌ها هر بار تازه‌اند.','تمرینونه هر ځل نوي دي.']
+];
+var HL_I18N = (function(){
+  var out = {};
+  HL_I18N_SPALTEN.forEach(function(code, i){
+    var pack = {};
+    HL_I18N_ROH.forEach(function(z){ if(z[i+1]) pack[z[0]] = z[i+1]; });
+    out[code] = pack;
+  });
+  return out;
+})();
+// Bereiche, die nie übersetzt werden: alles, was Unterrichtsinhalt ist.
+var I18N_TABU = '[data-noi18n],.mt-blatt,.mt-hotbild,.mt-bild,.sk-blatt,.tipp-blatt,.pr-q-body,pre,code,textarea,script,style,iframe';
+var i18nBeobachter = null, i18nLaeuft = false;
+function i18nCode(){ return lsGet('hl_lang') || 'de'; }
+function i18nPack(){ return HL_I18N[i18nCode()] || null; }
+function i18nSprache(code){ return HL_SPRACHEN.filter(function(s){ return s.c === code; })[0] || HL_SPRACHEN[0]; }
+// Eine Phrase nachschlagen: erst wörtlich, dann mit {n} für alle Zahlen.
+function i18nPhrase(kern, pack){
+  if(pack[kern]) return pack[kern];
+  var zahlen = [];
+  var muster = kern.replace(/\d+(?:[.,:]\d+)?/g, function(z){ zahlen.push(z); return '{n}'; });
+  if(muster === kern || !pack[muster]) return null;
+  var i = 0;
+  return pack[muster].replace(/\{n\}/g, function(){ return zahlen[i++] || ''; });
+}
+// Emoji/Pfeile am Anfang und Ende stehen lassen, nur den Wortteil ersetzen.
+function i18nText(txt, pack){
+  var m = txt.match(/^([\s\S]*?)([\p{L}\p{N}][\s\S]*?)(\s*)$/u);
+  if(!m) return null;
+  var vorne = m[1], kern = m[2], hinten = m[3];
+  var t = i18nPhrase(kern, pack);
+  return t == null ? null : vorne + t + hinten;
+}
+function i18nDom(root){
+  var pack = i18nPack();
+  if(!pack || i18nLaeuft) return;
+  i18nLaeuft = true;
+  try{
+    var walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {acceptNode:function(n){
+      if(!n.nodeValue || !/[\p{L}]/u.test(n.nodeValue)) return NodeFilter.FILTER_REJECT;
+      var el = n.parentElement;
+      if(!el || (el.closest && el.closest(I18N_TABU))) return NodeFilter.FILTER_REJECT;
+      return NodeFilter.FILTER_ACCEPT;
+    }});
+    var knoten = [], n;
+    while((n = walker.nextNode())) knoten.push(n);
+    knoten.forEach(function(k){
+      var t = i18nText(k.nodeValue, pack);
+      if(t != null && t !== k.nodeValue) k.nodeValue = t;
+    });
+    var attribute = ['title', 'placeholder', 'aria-label'];
+    Array.prototype.forEach.call(root.querySelectorAll('[title],[placeholder],[aria-label]'), function(el){
+      if(el.closest && el.closest(I18N_TABU)) return;
+      attribute.forEach(function(a){
+        var v = el.getAttribute(a);
+        if(!v) return;
+        var t = i18nText(v, pack);
+        if(t != null && t !== v) el.setAttribute(a, t);
+      });
+    });
+  }catch(err){ console.error('Sprache', err); }
+  i18nLaeuft = false;
+}
+// Nach jedem Render (und nach jedem Dialog) automatisch übersetzen.
+function i18nStart(){
+  i18nRichtung();
+  if(!i18nPack() || i18nBeobachter || !window.MutationObserver) return;
+  var ziel = document.getElementById('app') || document.body;
+  i18nBeobachter = new MutationObserver(function(){
+    if(i18nLaeuft) return;
+    clearTimeout(i18nStart.timer);
+    i18nStart.timer = setTimeout(function(){ i18nDom(document.body); }, 30);
+  });
+  i18nBeobachter.observe(document.body, {childList:true, subtree:true});
+  i18nDom(document.body);
+}
+function i18nRichtung(){
+  var sp = i18nSprache(i18nCode());
+  document.documentElement.setAttribute('lang', sp.c);
+  if(sp.rtl) document.documentElement.setAttribute('dir', 'rtl');
+  else document.documentElement.removeAttribute('dir');
+}
+function i18nWahl(){
+  var akt = i18nCode();
+  var h = '<h3>🌐 Sprache wählen</h3>';
+  h += '<p class="pr-hinweis">Menü, Knöpfe und Erklärungen erscheinen in der gewählten Sprache. Die Übungen selbst bleiben auf Deutsch – sie sind ja der Unterrichtsstoff. Die Einstellung gilt nur auf diesem Gerät.</p>';
+  h += '<div class="lang-liste">' + HL_SPRACHEN.map(function(s){
+    return '<button type="button" class="lang-b'+(s.c === akt ? ' an' : '')+'" data-lang="'+esc(s.c)+'"><span class="lang-f">'+esc(s.f)+'</span><span>'+esc(s.n)+'</span></button>';
+  }).join('') + '</div>';
+  h += '<div class="modal-actions"><button class="btn btn-ghost btn-sm" id="modalCancel" type="button">Abbrechen</button></div>';
+  openModal(h, 'pr-modal');
+  document.getElementById('modalCancel').addEventListener('click', closeModal);
+  document.querySelector('.lang-liste').addEventListener('click', function(e){
+    var b = e.target.closest('[data-lang]');
+    if(!b) return;
+    lsSet('hl_lang', b.getAttribute('data-lang'));
+    closeModal();
+    // Der einfachste und sicherste Weg zurück in die Ausgangssprache ist ein
+    // Neuaufbau der Seite – so bleibt kein halb übersetzter Text stehen.
+    location.reload();
+  });
+}
+
 function renderChrome(innerHtml){
   var isTeacher = state.profile && state.profile.role === 'teacher';
   var html = '';
@@ -4778,6 +5022,7 @@ function renderChrome(innerHtml){
   html += '<button class="btn btn-ghost btn-sm topbar-bell" id="neuBtn" type="button" title="Neuigkeiten">🆕</button>';
   html += '<button class="btn btn-ghost btn-sm topbar-bell" id="fragenBtn" type="button" title="Anonyme Fragebox">❓<span class="topbar-badge" id="fragenBadge" hidden>0</span></button>';
   html += '<button class="btn btn-ghost btn-sm topbar-bell" id="searchBtn" type="button" title="Suche">🔍</button>';
+  html += '<button class="btn btn-ghost btn-sm topbar-bell" id="langBtn" type="button" title="Sprache wählen">🌐'+(i18nCode() !== 'de' ? '<span class="topbar-lang-code">'+esc(i18nCode().toUpperCase())+'</span>' : '')+'</button>';
   html += '<button class="btn btn-ghost btn-sm topbar-bell" id="themeToggleBtn" type="button" title="Darstellung">'+(currentEffectiveTheme()==='dark'?'☀️':'🌙')+'</button>';
   html += '<button class="btn btn-ghost btn-sm topbar-bell" id="pushBellBtn" type="button" title="Erinnerungen">🔔</button>';
   html += '<button class="btn btn-ghost btn-sm topbar-bell" id="stundenplanBtn" type="button" title="Stundenplan">🗓️</button>';
@@ -4801,6 +5046,9 @@ function renderChrome(innerHtml){
   document.getElementById('logoBtn').addEventListener('click', goHome);
   document.getElementById('titleBtn').addEventListener('click', goHome);
   document.getElementById('settingsBtn').addEventListener('click', openSettings);
+  var langBtn = document.getElementById('langBtn');
+  if(langBtn) langBtn.addEventListener('click', i18nWahl);
+  i18nStart();
   var klasseBtn = document.getElementById('klasseBtn');
   if(klasseBtn){ klasseBtn.addEventListener('click', openKlassenWahl); }
   var klasseHeimBtn = document.getElementById('klasseHeimBtn');
@@ -13206,6 +13454,14 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-09-20-sprachen', datum:'2026-09-20', fuer:'alle', text:'🌐 Neu oben rechts: der Sprach-Knopf. Menü, Knöpfe und Erklärungen gibt es jetzt auch auf Englisch, Französisch, Italienisch, Spanisch, Türkisch, Ukrainisch, Kurdisch, Arabisch, Dari und Paschto – praktisch, wenn du oder deine Eltern noch nicht so viel Deutsch könnt. Die Übungen selbst bleiben auf Deutsch, die sind ja der Lernstoff.'},
+  {id:'2026-09-20-deutsch-gross', datum:'2026-09-20', fuer:'alle', text:'📕 Der Deutsch-Übungstrainer ist riesig geworden: v oder f, i/ie/ieh, doppelte Konsonanten, Dehnungs-h, ä/e und äu/eu, seit/seid, wider/wieder, zusammen oder getrennt, Silbentrennung, Apostroph, Fremdwörter, die vier Fälle, Satzglieder, wo?/wohin?, Steigern, Mehrzahl, indirekte Rede, Aktiv/Passiv, Zeitangaben, direkte Rede, Synonyme, Redewendungen – und ein «Rechtschreib-Check», der alles mischt. Auf Level 2 wählst du nicht mehr aus, sondern schreibst selbst.'},
+  {id:'2026-09-20-wortmaschine', datum:'2026-09-20', fuer:'alle', text:'🧱 Wortarten haben jetzt eine echte Wortmaschine: Das Wort fällt oben in den Trichter, läuft durch die drei Proben («der/die/das» davor? beugen? steigern?) – und du tippst unten die Klappe an, bei der es herauskommt.'},
+  {id:'2026-09-20-bilduebungen', datum:'2026-09-20', fuer:'alle', text:'🫀🦴🔲 Am Bild lernen wie in der Pöstlergeografie: In Biologie kannst du Organe und Knochen direkt im Körperbild antippen, in Chemie das Element im Periodensystem – mal mit, mal ohne eingeblendete Symbole.'},
+  {id:'2026-09-20-zeitstrahl', datum:'2026-09-20', fuer:'alle', text:'📜 Neu in Geschichte: der Zeitstrahl-Trainer mit den 100 wichtigsten Ereignissen. Du tippst an, in welche Epoche, welches Jahrhundert oder welches Jahrzehnt ein Ereignis gehört – oder umgekehrt, welches Ereignis an die markierte Stelle passt.'},
+  {id:'2026-09-20-keine-wdh', datum:'2026-09-20', fuer:'alle', text:'🔁 Schluss mit doppelten Aufgaben: In einer Runde kommt jetzt jede Aufgabe nur noch einmal vor.'},
+  {id:'2026-09-20-sikore-in-mt', datum:'2026-09-20', fuer:'lehrer', text:'📝 «➕ Neue Prüfung › ⚡ Übungstrainer»: Zuoberst in der Trainer-Liste stehen jetzt auch 🧮 SIKORE und ⌨️ Tastaturschreiben – Auswahl genügt, der passende Editor öffnet sich. Die Art-Knöpfe oben bleiben zusätzlich.'},
+  {id:'2026-09-20-mt-lp', datum:'2026-09-20', fuer:'lehrer', text:'⚡ Der Übungstrainer hat 25 neue Trainer (21 davon in Deutsch, dazu Organe, Skelett, Periodensystem im Bild und der Zeitstrahl). In Deutsch sind die Kacheln nach Rechtschreibung, Grammatik, Gross-/Kleinschreibung, Zeichensetzung und Wortschatz gruppiert. Alle sind wie gewohnt als Prüfung einsetzbar; neue Übungstrainer-Prüfungen enthalten keine doppelten Aufgaben mehr (bestehende Prüfungen bleiben unverändert).'},
   {id:'2026-09-20-uebungstrainer', datum:'2026-09-20', fuer:'alle', text:'⚡ Neu in fast jedem Fach: der «Übungstrainer» zuoberst. Dort findest du kurze Trainings mit eigenen Levels – z. B. Einmaleins, Einheiten umrechnen, Gross- und Kleinschreibung, irregular verbs, die Kantone, das Periodensystem oder Notenlesen. Die Aufgaben sind jedes Mal neu, du kontrollierst sofort selbst und bekommst bei Fehlern einen Tipp. Dazu gibt es ein 🎯 Wochenziel und einen ⏱ Tempo-Modus mit Bestzeit.'},
   {id:'2026-09-20-uebungstrainer-lp', datum:'2026-09-20', fuer:'lehrer', text:'⚡ 33 Übungstrainer in 12 Fächern (Mathe, Deutsch, Englisch, Französisch, Geografie, Geschichte, Biologie, Chemie, Physik, Musik, M&I, WAH). Alle Aufgaben entstehen im Browser – kein Pflegeaufwand, keine Inhalte in der Datenbank. Pro Trainer gibt es eine 📊 Klassenübersicht (Level, Wochenziel, Quote, Bestzeit), und in der 📚 Lernphase kannst du auf einen einzelnen Trainer einschränken.'},
   {id:'2026-09-20-schneller-start', datum:'2026-09-20', fuer:'alle', text:'⚡ Die Startseite lädt jetzt viel schneller – die Fächer-Bilder sind zehnmal kleiner geworden, ohne dass man es sieht. Das hilft vor allem auf dem Handy und bei schwachem WLAN.'},
@@ -19246,12 +19502,15 @@ async function sikoreUebersicht(){
   }catch(err){ console.error(err); closeModal(); toast('Übersicht konnte nicht geladen werden.'); }
 }
 
-/* ===================== ⚡ MATHE-TRAINER (5 Kurztrainings) =====================
-   Mathe › «⚡ Mathe-Trainer» ist eine virtuelle Übung wie SIKORE/Tipptrainer
-   (mtVirtuell) und führt zu fünf kleinen Trainern: Einmaleins, Einheiten,
-   Runden/Überschlag, Bruch·Dezimal·Prozent und Gleichungen. Alle Aufgaben
+/* ===================== ⚡ ÜBUNGSTRAINER =====================
+   «⚡ Übungstrainer» ist in jedem Fach eine virtuelle Übung wie SIKORE/Tipp-
+   trainer (mtVirtuell) und führt zu den kleinen Trainern dieses Fachs –
+   von Einmaleins über die Wortmaschine bis zum Zeitstrahl. Alle Aufgaben
    entstehen im Browser (kein Inhalt in Firestore), jeder Trainer hat eigene
    Level, ein Wochenziel und einen Tempo-Modus mit Bestzeit.
+   Gibt es in einem Fach viele Trainer (Deutsch), werden die Kacheln nach
+   t.gruppe unterteilt. Aufgabenarten: Kästchen (text), Auswahlknöpfe (wahl)
+   und anklickbare SVG-Bilder (bild, siehe Bildübungs-Abschnitt).
    Stand pro Trainer: progress/{uid}/resources/{trainerId} -> {name, mt:{woche,
    wRichtig, wAufgaben, richtig, aufgaben, ziel, best:{level: ms}, level,
    zuletzt}} — gleicher Pfad wie SIKORE, darum braucht es keine neue Regel in
@@ -19268,12 +19527,26 @@ var MT_ANZAHL = [6, 10, 15, 20];
 var mtRng = null;
 function mtZufall(){ return mtRng ? mtRng() : Math.random(); }
 // Aufgaben erzeugen; mit seed reproduzierbar, ohne seed frei zufällig.
-function mtFragen(def, level, anzahl, seed){
+// Zwei Aufgaben sind «dieselbe», wenn Frage und Lösungen übereinstimmen.
+function mtSchluessel(q){
+  return String(q.frage) + '|' + (q.dedup || '') + '|' + (q.felder || []).map(function(f){ return [].concat(f.loesung).join('/'); }).join('|');
+}
+function mtFragen(def, level, anzahl, seed, wiederholen){
   var vorher = mtRng, fragen = [];
   mtRng = seed ? pruefRng(seed) : null;
   try{
     var l = Math.max(1, Math.min(def.levels.length, +level || 1));
-    for(var i=0;i<anzahl;i++) fragen.push(def.gen(l));
+    // Doppelte Aufgaben überspringen. Manche Level haben nur wenige mögliche
+    // Aufgaben – darum nach genug Fehlversuchen aufgeben und auffüllen, statt
+    // ewig zu drehen.
+    var gesehen = {}, versuche = 0, grenze = anzahl * 40;
+    while(fragen.length < anzahl && versuche < grenze){
+      versuche++;
+      var q = def.gen(l), k = mtSchluessel(q);
+      if(!wiederholen && gesehen[k]) continue;
+      gesehen[k] = 1; fragen.push(q);
+    }
+    while(fragen.length < anzahl) fragen.push(def.gen(l));
   } finally { mtRng = vorher; }
   return fragen;
 }
@@ -19309,9 +19582,18 @@ function mtNorm(s){
 }
 // Nur echte Zahlen kriegen Tausender-Trennzeichen (Wahlantworten sind oft Text).
 function mtAnzeige(s){ return /^-?\d{4,}(\.\d+)?$/.test(String(s)) ? mtZahl(s) : String(s); }
+// exakt:true  → Zeichen für Zeichen (z. B. «Abend» vs. «abend»)
+// exakt:'soft' → Gross-/Kleinschreibung egal, aber Leerzeichen und Apostroph
+//                zählen (z. B. «Rad fahren» vs. «radfahren»)
+function mtVgl(f, s){
+  s = String(s == null ? '' : s).trim();
+  if(!f || !f.exakt) return mtNorm(s);
+  if(f.exakt === 'soft') return s.toLowerCase().replace(/[\u2019`\u00b4]/g, "'").replace(/\s+/g, ' ');
+  return s;
+}
 function mtRichtig(f, wert){
-  var soll = [].concat(f.loesung).map(mtNorm);
-  return soll.indexOf(mtNorm(wert)) >= 0;
+  var soll = [].concat(f.loesung).map(function(x){ return mtVgl(f, x); });
+  return soll.indexOf(mtVgl(f, wert)) >= 0;
 }
 function mtGgt(a, b){ a = Math.abs(a); b = Math.abs(b); while(b){ var h = b; b = a % b; a = h; } return a || 1; }
 
@@ -19581,11 +19863,14 @@ var MT_D_WORTARTEN = [
   ['unter','Präposition'],['wegen','Präposition'],['zwischen','Präposition'],['ohne','Präposition'],['seit','Präposition'],
   ['und','Konjunktion'],['weil','Konjunktion'],['obwohl','Konjunktion'],['aber','Konjunktion'],['damit','Konjunktion']
 ];
+// Das Wort kommt oben in die Wortmaschine – unten wird die richtige Klappe
+// angetippt (mtWortmaschine, weiter unten im Bildübungs-Abschnitt).
 function mtGenDWortart(l){
   var erlaubt = [['Nomen','Verb'],['Nomen','Verb','Adjektiv'],['Nomen','Verb','Adjektiv','Pronomen'],['Nomen','Verb','Adjektiv','Pronomen','Präposition'],['Nomen','Verb','Adjektiv','Pronomen','Präposition','Konjunktion']][Math.min(l, 5) - 1];
   var w = mtAus(MT_D_WORTARTEN.filter(function(x){ return erlaubt.indexOf(x[1]) >= 0; }));
-  return {frage:'Welche Wortart ist «'+w[0]+'»?', felder:[{typ:'wahl', optionen:erlaubt, loesung:w[1]}],
-    tipp:'Nomen = Ding/Person, Verb = Tätigkeit, Adjektiv = Eigenschaft, Pronomen = Stellvertreter, Präposition = Verhältniswort, Konjunktion = Bindewort.'};
+  return {frage:'Steck «'+w[0]+'» in die Wortmaschine – bei welcher Klappe kommt es heraus?',
+    felder:[{typ:'bild', bild:mtWortmaschine(w[0], erlaubt), loesung:w[1]}],
+    tipp:'Probe 1: «der/die/das» davor → Nomen. Probe 2: ich … du … → Verb. Probe 3: steigerbar (schön – schöner) → Adjektiv. Stellvertreter für ein Nomen → Pronomen, Verhältniswort → Präposition, Bindewort → Konjunktion.'};
 }
 var MT_D_DASS = [
   ['Ich hoffe, ___ du bald kommst.','dass'],['Das Buch, ___ ich lese, ist spannend.','das'],['Er sagt, ___ er krank ist.','dass'],
@@ -19901,11 +20186,16 @@ function mtGenPGroessen(l){
   if(l === 2) return {frage:'Einheit von «'+g[1]+'»:', felder:[{loesung:g[2], text:true}], tipp:'Nur das Einheitenzeichen, z. B. «m» oder «N».'};
   return {frage:'Formelzeichen und Einheit von «'+g[1]+'»:', felder:[{vor:'Zeichen:', loesung:g[0], text:true}, {vor:'Einheit:', loesung:g[2], text:true}], tipp:'Zuerst das Formelzeichen, dann die Einheit.'};
 }
-var MT_P_VORSATZ = [['Pico','p',-12],['Nano','n',-9],['Mikro','µ',-6],['Milli','m',-3],['Zenti','c',-2],['Dezi','d',-1],['Kilo','k',3],['Mega','M',6],['Giga','G',9],['Tera','T',12]];
+var MT_P_VORSATZ = [['Pico','p',-12],['Nano','n',-9],['Mikro','µ',-6],['Milli','m',-3],['Zenti','c',-2],['Dezi','d',-1],
+  ['Deka','da',1],['Hekto','h',2],['Kilo','k',3],['Mega','M',6],['Giga','G',9],['Tera','T',12]];
 function mtGenPVorsatz(l){
   if(l === 4) l = mtZuf(1, 3);
   var v = mtAus(l === 1 ? MT_P_VORSATZ.filter(function(x){ return Math.abs(x[2]) <= 3; }) : MT_P_VORSATZ);
-  if(l === 1) return {frage:'Welches Kurzzeichen hat der Vorsatz «'+v[0]+'»?', felder:[{loesung:v[1], text:true}], tipp:'Kilo = k, Milli = m, Zenti = c …'};
+  if(l === 1){
+    // Beide Richtungen fragen, sonst sind nach wenigen Aufgaben alle Vorsätze durch.
+    if(mtZufall() < 0.5) return {frage:'Welcher Vorsatz gehört zum Kurzzeichen «'+v[1]+'»?', felder:[{loesung:v[0], text:true, exakt:'soft'}], tipp:'k = Kilo, m = Milli, c = Zenti, µ = Mikro …'};
+    return {frage:'Welches Kurzzeichen hat der Vorsatz «'+v[0]+'»?', felder:[{loesung:v[1], text:true, exakt:'soft'}], tipp:'Kilo = k, Milli = m, Zenti = c …'};
+  }
   if(l === 2) return {frage:'«'+v[0]+'» entspricht welcher Zehnerpotenz?', felder:[{vor:'10 hoch', loesung:String(v[2])}], tipp:'Kilo = 10³, Milli = 10⁻³, Mikro = 10⁻⁶ …'};
   var basis = mtAus(['m','g','s','W','V','A']), wert = mtAus([1, 2, 2.5, 5, 25, 100]);
   var erg = wert * Math.pow(10, v[2]);
@@ -19944,7 +20234,7 @@ function mtGenMNoten(l){
   pos = mtZuf(bereich[0], bereich[1]);
   ton = MT_M_TON[((bass ? pos + 4 : pos + 2) % 7 + 7) % 7];
   return {frage:'Welcher Ton ist das? ('+(bass ? 'Bassschlüssel' : 'Violinschlüssel')+')',
-    svg:mtNotenSvg(pos, bass),
+    dedup:'p'+pos+(bass ? 'b' : 'v'), svg:mtNotenSvg(pos, bass),
     felder:[{typ:'wahl', optionen:MT_M_TON.slice(), loesung:ton}],
     tipp:bass ? 'Im Bassschlüssel heissen die Linien von unten: G – H – D – F – A.' : 'Im Violinschlüssel heissen die Linien von unten: e – g – h – d – f («Es geht heiter durch Freud»).'};
 }
@@ -19958,13 +20248,15 @@ function mtGenMWerte(l){
     return {frage:'Wie viele '+b[0].replace(/note$/, 'noten')+' ergeben eine '+a[0]+'?', felder:[{loesung:String(b[1]/a[1])}], tipp:'Eine ganze Note = 2 halbe = 4 Viertel = 8 Achtel = 16 Sechzehntel.'};
   }
   if(l === 2){
-    var takt = mtAus([['4/4',4],['3/4',3],['2/4',2],['6/8',3]]);
-    return {frage:'Wie viele Viertelnoten passen in einen '+takt[0]+'-Takt?', felder:[{loesung:String(takt[1])}], tipp:'Die obere Zahl sagt wie viele, die untere welche Notenwerte.'};
+    var takt = mtAus([['4/4',4,8],['3/4',3,6],['2/4',2,4],['6/8',3,6],['2/2',4,8],['3/8',1.5,3],['5/4',5,10],['6/4',6,12],['9/8',4.5,9],['12/8',6,12]]);
+    if(mtZufall() < 0.5) return {frage:'Wie viele Achtelnoten passen in einen '+takt[0]+'-Takt?', felder:[{loesung:mtFmt(takt[2])}], tipp:'Die obere Zahl sagt wie viele, die untere welche Notenwerte.'};
+    return {frage:'Wie viele Viertelnoten passen in einen '+takt[0]+'-Takt?', felder:[{loesung:mtFmt(takt[1])}], tipp:'Die obere Zahl sagt wie viele, die untere welche Notenwerte.'};
   }
   a = mtAus(MT_M_WERTE.slice(0, 4));
-  var kleiner = MT_M_WERTE[MT_M_WERTE.indexOf(a) + 1][0].replace(/note$/, 'noten');
+  var iA = MT_M_WERTE.indexOf(a), schritt = mtZuf(1, Math.min(2, MT_M_WERTE.length - 1 - iA));
+  var kleiner = MT_M_WERTE[iA + schritt][0].replace(/note$/, 'noten');
   return {frage:'Wie viele '+kleiner+' dauert eine punktierte '+a[0]+'?',
-    felder:[{loesung:'3'}], tipp:'Der Punkt verlängert um die Hälfte: eine punktierte Note ist gleich lang wie 3 von der nächstkleineren Sorte.'};
+    felder:[{loesung:String(3 * Math.pow(2, schritt - 1))}], tipp:'Der Punkt verlängert um die Hälfte: eine punktierte Note ist gleich lang wie 3 von der nächstkleineren Sorte.'};
 }
 
 /* ---------- 💻 Medien und Informatik ---------- */
@@ -20044,6 +20336,795 @@ function mtGenWRezept(l){
 /* ---------- Registry: welcher Trainer gehört zu welchem Fach ----------
    fach = Fach-Id aus SUBJECTS · num = Zahlen-Tastatur auf dem Handy ·
    deko = Zeichen für den Kopf und das Konfetti · levels = Text pro Level. */
+/* ===================== 🖼️ BILDÜBUNGEN (anklickbare SVG) =====================
+   Wie in der «Pöstlergeografie»: die Antwort wird direkt im Bild angetippt.
+   Jede Aufgabe liefert ein Feld {typ:'bild', bild:{vb, inhalt, hots}} – die
+   Flächen in hots tragen die Klasse .mt-wahl-b und werden darum von den
+   bestehenden Klick-Handlern im Trainer und in der Prüfung erfasst. */
+
+// Aus einer Liste von Figuren (id/form/label) die Hotspots für eine Aufgabe
+// bauen: gefragt ist «ziel», dazu kommen ein paar Ablenker.
+function mtBildHots(figuren, ziel, anzahl, beschriften){
+  var ok = figuren.filter(function(f){ return f.v === ziel; });
+  var rest = mtMisch(figuren.filter(function(f){ return f.v !== ziel; })).slice(0, Math.max(0, anzahl - 1));
+  return ok.concat(rest).map(function(f){
+    return {v:f.v, titel:f.v, form:f.form, t:beschriften ? f.v : '', tx:f.tx, ty:f.ty};
+  });
+}
+// Alle Figuren blass im Hintergrund, damit das Bild auch dann vollständig
+// aussieht, wenn nur vier davon anklickbar sind.
+function mtBildKulisse(figuren){
+  return figuren.map(function(f){ return f.form.split('class="hot-f"').join('class="mt-fuell"'); }).join('');
+}
+// Eine Figur gestrichelt hervorheben («welches Organ ist markiert?»).
+function mtBildMarke(fig){
+  return fig ? fig.form.split('class="hot-f"').join('fill="none" stroke="currentColor" stroke-width="2.5" stroke-dasharray="4 3"') : '';
+}
+
+/* ---------- 🫀 Organe des Menschen ---------- */
+var MT_B_KOERPER =
+  '<ellipse class="mt-grund" cx="100" cy="36" rx="25" ry="30"/>' +
+  '<path class="mt-grund" d="M88 60 h24 v18 h-24 z"/>' +
+  '<path class="mt-grund" d="M62 82 Q58 124 63 172 L67 252 Q71 288 79 302 L121 302 Q129 288 133 252 L137 172 Q142 124 138 82 Q120 74 100 74 Q80 74 62 82 Z"/>' +
+  '<path class="mt-linie" d="M62 86 L40 128 M138 86 L160 128"/>';
+var MT_B_ORGAN_FIG = [
+  {v:'Gehirn', tx:100, ty:26, form:'<ellipse class="hot-f" cx="100" cy="30" rx="18" ry="19"/>'},
+  {v:'Speiseröhre', tx:100, ty:92, form:'<rect class="hot-f" x="95" y="66" width="10" height="58" rx="5"/>'},
+  {v:'Lunge', tx:78, ty:120, form:'<path class="hot-f" d="M95 96 Q74 98 70 126 Q69 154 83 160 Q94 158 95 138 Z M105 96 Q126 98 130 126 Q131 154 117 160 Q106 158 105 138 Z"/>'},
+  {v:'Herz', tx:100, ty:134, form:'<path class="hot-f" d="M98 126 q6 -11 15 -3 q9 8 -1 20 l-14 14 l-14 -14 q-10 -12 -1 -20 q9 -8 15 3 Z"/>'},
+  {v:'Leber', tx:82, ty:176, form:'<path class="hot-f" d="M65 170 Q65 158 84 158 L113 163 Q117 180 99 188 L74 188 Q65 184 65 170 Z"/>'},
+  {v:'Magen', tx:126, ty:182, form:'<path class="hot-f" d="M117 163 Q136 162 136 182 Q134 200 117 200 Q106 195 109 182 Q112 170 117 163 Z"/>'},
+  {v:'Milz', tx:76, ty:152, form:'<ellipse class="hot-f" cx="72" cy="152" rx="7" ry="10"/>'},
+  {v:'Bauchspeicheldrüse', tx:100, ty:207, form:'<path class="hot-f" d="M82 199 Q104 193 127 199 Q107 208 82 205 Z"/>'},
+  {v:'Niere', tx:100, ty:222, form:'<path class="hot-f" d="M80 210 q10 0 10 11 q0 11 -10 11 q-6 0 -6 -11 q0 -11 6 -11 Z M120 210 q-10 0 -10 11 q0 11 10 11 q6 0 6 -11 q0 -11 -6 -11 Z"/>'},
+  {v:'Dickdarm', tx:100, ty:246, form:'<path class="hot-f" d="M76 232 h9 v42 q0 9 9 9 h12 q9 0 9 -9 v-42 h9 v46 q0 14 -14 14 h-20 q-14 0 -14 -14 Z"/>'},
+  {v:'Dünndarm', tx:100, ty:264, form:'<path class="hot-f" d="M90 240 q20 -6 22 8 q2 12 -14 10 q-14 -2 -10 10 q4 12 20 6 q14 -6 14 8 q0 12 -18 10 q-16 -2 -14 -12 Z"/>'},
+  {v:'Blase', tx:100, ty:294, form:'<path class="hot-f" d="M100 282 q13 0 13 10 q0 9 -13 9 q-13 0 -13 -9 q0 -10 13 -10 Z"/>'}
+];
+
+/* ---------- 🦴 Das Skelett ---------- */
+// Röhrenknochen als gedrehtes, abgerundetes Rechteck von (x1,y1) nach (x2,y2).
+function mtKnochen(x1, y1, x2, y2, w){
+  var dx = x2 - x1, dy = y2 - y1, len = Math.sqrt(dx*dx + dy*dy), a = Math.atan2(dy, dx) * 180 / Math.PI;
+  return '<rect class="hot-f" x="'+x1.toFixed(1)+'" y="'+(y1 - w/2).toFixed(1)+'" width="'+len.toFixed(1)+'" height="'+w+'" rx="'+(w/2)+
+    '" transform="rotate('+a.toFixed(1)+' '+x1.toFixed(1)+' '+y1.toFixed(1)+')"/>';
+}
+// Derselbe Knochen auch auf der anderen Körperseite (Spiegelachse x = 100).
+function mtKnochenPaar(x1, y1, x2, y2, w){
+  return mtKnochen(x1, y1, x2, y2, w) + mtKnochen(200 - x1, y1, 200 - x2, y2, w);
+}
+var MT_B_SKELETT_GRUND =
+  // Hände und Füsse nur als Kulisse, sie sind keine eigene Aufgabe.
+  '<ellipse class="mt-fuell" cx="38" cy="222" rx="9" ry="12"/><ellipse class="mt-fuell" cx="162" cy="222" rx="9" ry="12"/>' +
+  '<path class="mt-fuell" d="M74 380 h22 q6 0 6 6 v4 h-34 q-4 0 -4 -5 Z"/><path class="mt-fuell" d="M126 380 h-22 q-6 0 -6 6 v4 h34 q4 0 4 -5 Z"/>';
+var MT_B_SKELETT_FIG = [
+  {v:'Schädel', tx:100, ty:30, form:'<path class="hot-f" d="M100 6 q24 0 24 28 q0 18 -8 24 h-32 q-8 -6 -8 -24 q0 -28 24 -28 Z"/>'},
+  {v:'Unterkiefer', tx:100, ty:70, form:'<path class="hot-f" d="M84 58 q16 13 32 0 v9 q-16 11 -32 0 Z"/>'},
+  {v:'Wirbelsäule', tx:100, ty:160, form:'<rect class="hot-f" x="94" y="74" width="12" height="138" rx="6"/>'},
+  {v:'Schlüsselbein', tx:100, ty:82, form:mtKnochenPaar(74, 84, 96, 90, 5)},
+  {v:'Brustbein', tx:100, ty:118, form:'<rect class="hot-f" x="92" y="94" width="16" height="48" rx="8"/>'},
+  {v:'Rippen', tx:72, ty:104, form:'<path class="hot-f" d="M92 100 q-26 4 -28 20 l7 2 q4 -12 21 -14 Z M92 120 q-26 4 -28 20 l7 2 q4 -12 21 -14 Z M92 140 q-24 4 -26 18 l7 2 q4 -10 19 -12 Z M108 100 q26 4 28 20 l-7 2 q-4 -12 -21 -14 Z M108 120 q26 4 28 20 l-7 2 q-4 -12 -21 -14 Z M108 140 q24 4 26 18 l-7 2 q-4 -10 -19 -12 Z"/>'},
+  {v:'Oberarmknochen', tx:58, ty:118, form:mtKnochenPaar(72, 92, 50, 150, 9)},
+  {v:'Speiche', tx:34, ty:184, form:mtKnochenPaar(46, 154, 36, 210, 5)},
+  {v:'Elle', tx:58, ty:188, form:mtKnochenPaar(54, 154, 46, 212, 6)},
+  {v:'Becken', tx:100, ty:236, form:'<path class="hot-f" d="M74 212 q-4 28 12 40 h28 q16 -12 12 -40 q-14 8 -26 8 q-12 0 -26 -8 Z"/>'},
+  {v:'Oberschenkelknochen', tx:74, ty:288, form:mtKnochenPaar(88, 252, 84, 316, 11)},
+  {v:'Kniescheibe', tx:84, ty:346, form:'<ellipse class="hot-f" cx="84" cy="328" rx="9" ry="8"/><ellipse class="hot-f" cx="116" cy="328" rx="9" ry="8"/>'},
+  {v:'Schienbein', tx:90, ty:362, form:mtKnochenPaar(84, 338, 82, 378, 9)},
+  {v:'Wadenbein', tx:66, ty:362, form:mtKnochenPaar(73, 340, 72, 376, 5)}
+];
+
+/* ---------- ⚗️ Periodensystem als Gitter ---------- */
+// [Gruppe, Periode] – U steht stellvertretend in der Actinoiden-Reihe (Zeile 9).
+var MT_C_POS = {H:[1,1], He:[18,1], Li:[1,2], Be:[2,2], B:[13,2], C:[14,2], N:[15,2], O:[16,2], F:[17,2], Ne:[18,2],
+  Na:[1,3], Mg:[2,3], Al:[13,3], Si:[14,3], P:[15,3], S:[16,3], Cl:[17,3], Ar:[18,3], K:[1,4], Ca:[2,4],
+  Fe:[8,4], Cu:[11,4], Zn:[12,4], Ag:[11,5], Sn:[14,5], I:[17,5], Au:[11,6], Hg:[12,6], Pb:[14,6], U:[6,9]};
+var MT_PSE_Z = 22, MT_PSE_X0 = 6, MT_PSE_Y0 = 16;
+function mtPseXY(sym){
+  var p = MT_C_POS[sym];
+  if(!p) return null;
+  return {x:MT_PSE_X0 + (p[0]-1) * MT_PSE_Z, y:MT_PSE_Y0 + (p[1]-1) * MT_PSE_Z};
+}
+// Leeres Gitter mit Gruppen-/Periodenbeschriftung; die bekannten Elemente sind
+// beschriftet, alle übrigen Plätze bleiben als blasse Kästchen sichtbar.
+function mtPseGrund(zeigeSymbole){
+  var h = '', g, per;
+  for(per=1; per<=7; per++){
+    for(g=1; g<=18; g++){
+      if(per === 1 && g > 1 && g < 18) continue;
+      if((per === 2 || per === 3) && g > 2 && g < 13) continue;
+      var x = MT_PSE_X0 + (g-1) * MT_PSE_Z, y = MT_PSE_Y0 + (per-1) * MT_PSE_Z;
+      h += '<rect class="mt-fuell" x="'+x+'" y="'+y+'" width="'+(MT_PSE_Z-2)+'" height="'+(MT_PSE_Z-2)+'" rx="3"/>';
+    }
+  }
+  // Actinoiden-Reihe
+  for(g=3; g<=17; g++){
+    h += '<rect class="mt-fuell" x="'+(MT_PSE_X0 + (g-1)*MT_PSE_Z)+'" y="'+(MT_PSE_Y0 + 8*MT_PSE_Z)+'" width="'+(MT_PSE_Z-2)+'" height="'+(MT_PSE_Z-2)+'" rx="3"/>';
+  }
+  h += '<text class="mt-klein" x="'+MT_PSE_X0+'" y="'+(MT_PSE_Y0 + 8*MT_PSE_Z - 4)+'" font-size="8">Actinoide</text>';
+  for(g=1; g<=18; g++) h += '<text class="mt-klein" x="'+(MT_PSE_X0 + (g-1)*MT_PSE_Z + 10)+'" y="'+(MT_PSE_Y0-4)+'" font-size="7" text-anchor="middle">'+g+'</text>';
+  if(zeigeSymbole){
+    MT_C_ELEMENTE.forEach(function(e){
+      var xy = mtPseXY(e[0]);
+      if(xy) h += '<text class="mt-klein" x="'+(xy.x + 10)+'" y="'+(xy.y + 14)+'" font-size="9" text-anchor="middle">'+esc(e[0])+'</text>';
+    });
+  }
+  return h;
+}
+function mtPseForm(sym){
+  var xy = mtPseXY(sym);
+  if(!xy) return '';
+  return '<rect class="hot-f" x="'+xy.x+'" y="'+xy.y+'" width="'+(MT_PSE_Z-2)+'" height="'+(MT_PSE_Z-2)+'" rx="3"/>';
+}
+function mtPseBild(hots, zeigeSymbole, legende){
+  return {vb:'0 0 ' + (MT_PSE_X0*2 + 18*MT_PSE_Z) + ' ' + (MT_PSE_Y0 + 9*MT_PSE_Z + 6), breit:true,
+    alt:'Periodensystem zum Anklicken', inhalt:mtPseGrund(zeigeSymbole), hots:hots, legende:legende};
+}
+
+/* ---------- ⏳ Zeitstrahl ---------- */
+// Die 100 einflussreichsten Ereignisse der Weltgeschichte (mit Schweizer
+// Schwerpunkt) – Grundlage für den Zeitstrahl-Trainer.
+var MT_H_100 = [
+  ['Erste Hochkulturen in Mesopotamien', -3500],['Bau der grossen Pyramiden von Giza', -2560],
+  ['Kodex Hammurapi – erstes grosses Gesetzbuch', -1750],['Tutanchamun wird Pharao', -1332],
+  ['Erste Olympische Spiele in Olympia', -776],['Gründung der römischen Republik', -509],
+  ['Geburt des Buddha (Überlieferung)', -563],['Marathon: Griechen schlagen die Perser', -490],
+  ['Blütezeit Athens unter Perikles', -450],['Alexander der Grosse erobert Persien', -331],
+  ['Caesar erobert Gallien', -52],['Augustus wird erster römischer Kaiser', -27],
+  ['Zeitenwende: Geburt Christi', 1],['Vesuv verschüttet Pompeji', 79],
+  ['Konstantin erlaubt das Christentum', 313],['Untergang des Weströmischen Reichs', 476],
+  ['Mohammed gründet den Islam', 622],['Karl der Grosse wird Kaiser', 800],
+  ['Wikinger erreichen Amerika', 1000],['Erster Kreuzzug', 1096],
+  ['Magna Carta in England', 1215],['Marco Polo reist nach China', 1271],
+  ['Bundesbrief der Urkantone', 1291],['Schlacht am Morgarten', 1315],
+  ['Pest: der Schwarze Tod in Europa', 1347],['Schlacht bei Sempach', 1386],
+  ['Gutenberg erfindet den Buchdruck', 1450],['Eroberung Konstantinopels', 1453],
+  ['Kolumbus erreicht Amerika', 1492],['Leonardo malt die Mona Lisa', 1503],
+  ['Schlacht bei Marignano', 1515],['Luthers 95 Thesen – Reformation', 1517],
+  ['Zwinglis Reformation in Zürich', 1519],['Magellans Schiff umrundet die Erde', 1522],
+  ['Kopernikus: die Erde kreist um die Sonne', 1543],['Calvin in Genf', 1541],
+  ['Galilei beobachtet den Himmel mit dem Fernrohr', 1609],['Dreissigjähriger Krieg beginnt', 1618],
+  ['Westfälischer Friede – Schweiz wird unabhängig', 1648],['Newton beschreibt die Schwerkraft', 1687],
+  ['Erste Dampfmaschine von Newcomen', 1712],['Beginn der Industrialisierung in England', 1760],
+  ['Watt verbessert die Dampfmaschine', 1769],['Unabhängigkeitserklärung der USA', 1776],
+  ['Französische Revolution', 1789],['Napoleon wird Kaiser', 1804],
+  ['Mediationsakte: Napoleon ordnet die Schweiz neu', 1803],['Wiener Kongress', 1815],
+  ['Erste Eisenbahn für Passagiere', 1825],['Fotografie wird erfunden', 1839],
+  ['Sonderbundskrieg in der Schweiz', 1847],['Gründung des Schweizer Bundesstaats', 1848],
+  ['Darwin: «Die Entstehung der Arten»', 1859],['Gründung des Roten Kreuzes in Genf', 1863],
+  ['Bell meldet das Telefon an', 1876],['Edison baut die Glühlampe', 1879],
+  ['Erstes Auto von Carl Benz', 1886],['Gotthard-Eisenbahntunnel eröffnet', 1882],
+  ['Röntgen entdeckt die X-Strahlen', 1895],['Erste moderne Olympische Spiele', 1896],
+  ['Erster Motorflug der Brüder Wright', 1903],['Einsteins Relativitätstheorie', 1905],
+  ['Untergang der Titanic', 1912],['Beginn des Ersten Weltkriegs', 1914],
+  ['Landesstreik in der Schweiz', 1918],['Ende des Ersten Weltkriegs', 1918],
+  ['Frauenwahlrecht in Deutschland und Österreich', 1918],['Entdeckung des Penicillins', 1928],
+  ['Weltwirtschaftskrise – Börsencrash', 1929],['Hitler kommt an die Macht', 1933],
+  ['Beginn des Zweiten Weltkriegs', 1939],['Angriff auf Pearl Harbor', 1941],
+  ['D-Day: Landung in der Normandie', 1944],['Ende des Zweiten Weltkriegs', 1945],
+  ['Atombomben auf Hiroshima und Nagasaki', 1945],['Gründung der UNO', 1945],
+  ['Erster Computer ENIAC', 1946],['Allgemeine Erklärung der Menschenrechte', 1948],
+  ['Entschlüsselung der DNA-Struktur', 1953],['Erste Besteigung des Mount Everest', 1953],
+  ['Bau der Berliner Mauer', 1961],['Gagarin fliegt als erster Mensch ins All', 1961],
+  ['Kubakrise', 1962],['Mondlandung: Apollo 11', 1969],
+  ['Frauenstimmrecht in der Schweiz', 1971],['Erste E-Mail wird verschickt', 1971],
+  ['Ölkrise – autofreie Sonntage', 1973],['Gründung des Kantons Jura', 1979],
+  ['Erster Personal Computer von IBM', 1981],['Reaktorkatastrophe von Tschernobyl', 1986],
+  ['Chemieunfall Schweizerhalle bei Basel', 1986],['Fall der Berliner Mauer', 1989],
+  ['Auflösung der Sowjetunion', 1991],['Das World Wide Web wird öffentlich', 1991],
+  ['Ende der Apartheid – Mandela wird Präsident', 1994],['Einführung des Euro als Bargeld', 2002],
+  ['Terroranschläge vom 11. September', 2001],['UNO-Beitritt der Schweiz', 2002],
+  ['Das erste iPhone kommt', 2007],['Weltfinanzkrise', 2008],
+  ['Pariser Klimaabkommen', 2015],['Corona-Pandemie beginnt', 2020]
+];
+function mtJahrText(j){ return j < 0 ? Math.abs(j) + ' v. Chr.' : String(j); }
+// Zeitstrahl mit gleich breiten Abschnitten; jeder Abschnitt ist anklickbar.
+function mtZeitstrahlBild(abschnitte, markeIdx, legende){
+  var b = 640, x0 = 20, br = (b - 2*x0) / abschnitte.length, y = 58, hh = 34;
+  var inhalt = '<line class="mt-linie" x1="'+x0+'" y1="'+(y+hh+10)+'" x2="'+(b-x0)+'" y2="'+(y+hh+10)+'" stroke-width="3"/>';
+  inhalt += '<path class="mt-linie" d="M'+(b-x0-8)+' '+(y+hh+4)+' l8 6 l-8 6" stroke-width="3"/>';
+  var hots = abschnitte.map(function(a, i){
+    var x = x0 + i * br;
+    inhalt += '<line class="mt-linie" x1="'+(x+br/2)+'" y1="'+(y+hh)+'" x2="'+(x+br/2)+'" y2="'+(y+hh+10)+'"/>';
+    if(markeIdx === i) inhalt += '<circle cx="'+(x+br/2)+'" cy="'+(y+hh+10)+'" r="7" fill="none" stroke="currentColor" stroke-width="2.5"/>';
+    return {v:a.v, titel:a.v, form:'<rect class="hot-f" x="'+(x+2)+'" y="'+y+'" width="'+(br-4)+'" height="'+hh+'" rx="5"/>',
+      t:a.t || a.v, tx:x + br/2, ty:y + hh/2 + 3};
+  });
+  return {vb:'0 0 '+b+' 120', breit:true, alt:'Zeitstrahl zum Anklicken', inhalt:inhalt, hots:hots, legende:legende};
+}
+
+/* ===================== 📕 DEUTSCH-TRAINER (Erweiterung) =====================
+   Die klassischen Stolpersteine des Deutschunterrichts, jeder als eigener
+   kleiner Trainer. Zwei Bauarten: «Welche Schreibweise stimmt?» (mtDSchreib)
+   und «Lücke im Satz füllen» (mtDLuecke). Schweizer Rechtschreibung: kein ß. */
+function mtDSchreib(liste, kopf, tipp, l){
+  var w = mtAus(liste);
+  if(l >= 2){
+    // Level 2: selber schreiben statt auswählen.
+    var falsch = String(w[1]).replace(/\s*\(.*\)$/, '');
+    return {frage:'Schreibe richtig: «'+falsch+'»',
+      felder:[{loesung:w[0], text:true, exakt:'soft'}], tipp:w[2] || tipp};
+  }
+  return {frage:kopf || 'Welche Schreibweise stimmt?',
+    felder:[{typ:'wahl', optionen:mtMisch([w[0], w[1]]), loesung:w[0], exakt:'soft'}], tipp:w[2] || tipp};
+}
+function mtDLuecke(liste, opt, kopf, tipp){
+  var s = mtAus(liste);
+  return {frage:(kopf ? kopf + '  ' : '') + '«' + s[0] + '»',
+    felder:[{typ:'wahl', optionen:opt, loesung:s[1]}], tipp:s[2] || tipp};
+}
+
+/* ---------- seit oder seid ---------- */
+var MT_D_SEIT = [
+  ['___ ihr schon lange hier?','seid'],['Ich warte ___ einer Stunde.','seit'],['___ wann lernst du Gitarre?','seit'],
+  ['___ bitte leise!','seid'],['___ dem Unfall geht er zu Fuss.','seit'],['Ihr ___ zu zweit dran.','seid'],
+  ['___ gestern regnet es.','seit'],['___ ihr bereit?','seid'],['Wir kennen uns ___ der Primarschule.','seit'],
+  ['___ nicht so streng mit euch.','seid'],['___ dem Frühling trainiert sie täglich.','seit'],['___ ihr mit den Aufgaben fertig?','seid'],
+  ['Er wohnt ___ drei Jahren in Kreuzlingen.','seit'],['___ ihr auch am Sporttag dabei?','seid'],
+  ['___ zwei Wochen ist das Velo kaputt.','seit'],['___ ehrlich zueinander.','seid'],
+  ['___ wann habt ihr das gewusst?','seit'],['Ihr ___ die Ersten am Ziel.','seid'],
+  ['___ dem Umzug hat sie ein eigenes Zimmer.','seit'],['___ ihr sicher, dass das stimmt?','seid'],
+  ['Wir üben ___ Montag jeden Tag.','seit'],['___ pünktlich, der Bus wartet nicht.','seid']
+];
+function mtGenDSeit(l){ return mtDLuecke(MT_D_SEIT, ['seit','seid'], 'seit oder seid?', 'Zeit → «seit» mit t (seit gestern). Ihr-Form von «sein» → «seid» mit d (ihr seid).'); }
+
+/* ---------- wider oder wieder ---------- */
+var MT_D_WIDER = [
+  ['Sie hat ___ gewonnen.','wieder'],['Das ist ___ die Regel.','wider'],['Komm bald ___!','wieder'],
+  ['Er handelte ___ besseres Wissen.','wider'],['Das Echo hallt ___.','wider'],['Ich sehe dich morgen ___.','wieder'],
+  ['Das Bild spiegelt die Stimmung ___.','wider'],['Schon ___ hat es geregnet.','wieder'],
+  ['Der Vorschlag ist ___ sinnvoll.','wieder'],['___ Erwarten klappte alles.','wider'],
+  ['Sie erzählte die Geschichte ___.','wieder'],['Er setzte sich ___ den Entscheid zur Wehr.','wider'],
+  ['Wir treffen uns nächste Woche ___.','wieder'],['Das Wort ___spiegeln schreibt man mit e-Lücke.','wider'],
+  ['Bring das Buch bitte ___.','wieder'],['Das verstösst ___ das Gesetz.','wider'],
+  ['Sie stand auf und lief ___ los.','wieder'],['___ Willen musste er mitkommen.','wider'],
+  ['Hast du es schon ___ vergessen?','wieder'],['Die Zahlen geben die Lage gut ___.','wider'],
+  ['Wir sehen uns hoffentlich bald ___.','wieder'],['Er legte ___spruch ein.','wider']
+];
+function mtGenDWider(l){ return mtDLuecke(MT_D_WIDER, ['wider','wieder'], 'wider oder wieder?', '«wieder» = nochmals. «wider» = gegen (widersprechen, widerspiegeln).'); }
+
+/* ---------- v oder f ---------- */
+var MT_D_VF = [
+  ['Vogel','Fogel'],['Vater','Fater'],['viel','fiel (Menge)'],['voll','foll'],['Vase','Fase'],['Vieh','Fieh'],
+  ['Vorhang','Forhang'],['Verein','Ferein'],['Vulkan','Fulkan'],['Villa','Filla'],['violett','fiolett'],
+  ['Vertrag','Fertrag'],['verlieren','ferlieren'],['Volk','Folk'],['vergessen','fergessen'],['Vorteil','Forteil'],
+  ['Fenster','Venster'],['Feuer','Veuer'],['fliegen','vliegen'],['Familie','Vamilie'],['Frühling','Vrühling'],
+  ['fertig','vertig'],['finden','vinden'],['Fahrrad','Vahrrad'],['Frage','Vrage'],['Farbe','Varbe'],
+  ['Vetter','Fetter'],['Veilchen','Feilchen'],['brav','braf'],['aktiv','aktif'],['Nerv','Nerf'],['Motiv','Motif']
+];
+function mtGenDVf(l){ return mtDSchreib(MT_D_VF, 'v oder f? Welche Schreibweise stimmt?',
+  'Die Vorsilbe «ver-» und «vor-» schreibt man immer mit v. Sonst hilft nur: Wort merken.', l); }
+
+/* ---------- i, ie, ih, ieh ---------- */
+var MT_D_IE = [
+  ['ihn','ien'],['ihm','iem'],['ihr','ier'],['ihnen','ienen'],['viel','fiel (Menge)'],['Tier','Tir'],
+  ['Brief','Brif'],['fliegen','fligen'],['spielen','spilen'],['Ziel','Zil'],['Bier','Bir'],['Knie','Kni'],
+  ['wieder','wider (nochmals)'],['ziehen','zien'],['fliehen','flien'],['Vieh','Vie'],['geschieht','geschiet'],
+  ['sieht','siet'],['bieten','biten'],['mies','mis'],['Papier','Papir'],['Klavier','Klavir'],
+  ['Maschine','Maschiene'],['Kino','Kieno'],['Tiger','Tieger'],['Familie','Familiee'],['Kilo','Kielo'],
+  ['Musik','Musiek'],['Apfelsine','Apfelsiene'],['Ingenieur','Ingeniör'],['Silbe','Sielbe'],['Bibliothek','Bibliothiek']
+];
+function mtGenDIe(l){ return mtDSchreib(MT_D_IE, 'i, ie oder ieh? Welche Schreibweise stimmt?',
+  'Langes i schreibt man meist «ie». Die Wörter ihn/ihm/ihr/ihnen bekommen ein h, ziehen/fliehen/sehen ein «ieh» bzw. «eh». In Fremdwörtern steht oft nur ein i.', l); }
+
+/* ---------- Doppelkonsonanten ---------- */
+var MT_D_DOPPEL = [
+  ['Schiff','Schif'],['kommen','komen'],['Sonne','Sone'],['Mutter','Muter'],['rennen','renen'],['Butter','Buter'],
+  ['Hammer','Hamer'],['Puppe','Pupe'],['Kaffee','Kafee'],['Suppe','Supe'],['schwimmen','schwimen'],
+  ['Wetter','Weter'],['Teller','Teler'],['Sommer','Somer'],['Treppe','Trepe'],['Klasse','Klase'],
+  ['Wasser','Waser'],['bitter','biter'],['Kissen','Kisen'],['schnell','schnel'],['Ball','Bal'],['voll','vol'],
+  ['Wagen','Waggen'],['Vater','Vatter'],['Schule','Schulle'],['lesen','lessen'],['Nase','Nasse'],['Besen','Bessen'],
+  ['Ofen','Offen (heizen)'],['Wüste','Wüsste'],['Bogen','Boggen'],['Kamel','Kammel']
+];
+function mtGenDDoppel(l){ return mtDSchreib(MT_D_DOPPEL, 'Ein oder zwei Konsonanten?',
+  'Kurz gesprochener Vokal → doppelter Konsonant (Sonne). Lang gesprochener Vokal → einfacher Konsonant (Ofen).', l); }
+
+/* ---------- Dehnung: h, Doppelvokal ---------- */
+var MT_D_DEHN = [
+  ['Zahn','Zan'],['Bahn','Ban'],['Stuhl','Stul'],['fahren','faren'],['Uhr','Ur'],['Ohr','Or'],['Sohn','Son'],
+  ['nehmen','nemen'],['Mehl','Mel'],['Zahl','Zal'],['wohnen','wonen'],['Lehrer','Lerer'],['kühl','kül'],
+  ['Boot','Bot'],['Meer','Mer'],['Haar','Har'],['Saal','Sal'],['Tee','Te'],['Paar','Par'],['Aal','Al'],
+  ['Tal','Tahl'],['malen','mahlen (Mehl)'],['Schule','Schuhle'],['Blume','Bluhme'],['holen','hohlen'],
+  ['Ton','Tohn'],['Name','Nahme'],['Ruhe','Rue'],['Kuh','Ku'],['Vieh','Vi'],['früh','frü'],['Schuh','Schu']
+];
+function mtGenDDehn(l){ return mtDSchreib(MT_D_DEHN, 'Dehnung: Wie schreibt man das Wort?',
+  'Langes a/e/o/u wird oft mit Dehnungs-h (Zahn, Stuhl) oder als Doppelvokal (Boot, Meer) geschrieben – aber längst nicht immer.', l); }
+
+/* ---------- ä/e und äu/eu ---------- */
+var MT_D_AE = [
+  ['Bäcker','Becker'],['Wälder','Welder'],['Männer','Menner'],['Hände','Hende'],['Gläser','Gleser'],
+  ['ändern','endern'],['Käse','Kese'],['spät','spet'],['Bär','Ber'],['Träne','Trene'],['Äste','Este'],
+  ['Häuser','Heuser'],['Bäume','Beume'],['läuft','leuft'],['Räuber','Reuber'],['träumen','treumen'],
+  ['Mäuse','Meuse'],['Säule','Seule'],['Verkäufer','Verkeufer'],['Freude','Fräude'],['heute','häute'],
+  ['Leute','Läute'],['neun','näun'],['teuer','täuer'],['Beutel','Bäutel'],['Eltern','Ältern'],
+  ['Held','Häld'],['Geld','Gäld'],['Ecke','Äcke'],['Feld','Fäld']
+];
+function mtGenDAe(l){ return mtDSchreib(MT_D_AE, 'ä/e oder äu/eu? Welche Schreibweise stimmt?',
+  'Probe: Gibt es ein verwandtes Wort mit a oder au? Dann ä bzw. äu (Wald → Wälder, Haus → Häuser). Sonst e bzw. eu.', l); }
+
+/* ---------- zusammen oder getrennt ---------- */
+var MT_D_GETRENNT_PAARE = [
+  ['radfahren','Rad fahren'],['Auto fahren','autofahren'],['kennenlernen','kennen lernen'],
+  ['spazieren gehen','spazierengehen'],['aufräumen','auf räumen'],['fertigmachen','fertig machen'],
+  ['stehen lassen','stehenlassen'],['wiedersehen','wieder sehen'],['heimgehen','heim gehen'],
+  ['schwarzfahren','schwarz fahren'],['sitzen bleiben','sitzenbleiben'],['kaputtmachen','kaputt machen'],
+  ['zusammenarbeiten','zusammen arbeiten'],['achtgeben','acht geben'],['teilnehmen','teil nehmen'],
+  ['stattfinden','statt finden'],['weitermachen','weiter machen'],['zurückkommen','zurück kommen'],
+  ['nach Hause gehen','nachhause gehen'],['zu Hause bleiben','zuhause bleiben'],
+  ['Ski fahren','skifahren'],['Klavier spielen','klavierspielen'],['Rad fahren','radfahren'],
+  ['eislaufen','eis laufen'],['wund liegen','wundliegen']
+];
+function mtGenDGetrennt(l){ return mtDSchreib(MT_D_GETRENNT_PAARE, 'Zusammen oder getrennt? Was stimmt?',
+  'Verb + Verb und Nomen + Verb schreibt man meist getrennt (Rad fahren, spazieren gehen). Feste Verbindungen mit einer neuen Bedeutung werden zusammengeschrieben (aufräumen, teilnehmen).', l); }
+
+/* ---------- Die vier Fälle ---------- */
+var MT_D_FALL = [
+  ['Der Hund bellt laut. – «Der Hund»','Nominativ'],['Ich sehe den Hund. – «den Hund»','Akkusativ'],
+  ['Ich gebe dem Hund Futter. – «dem Hund»','Dativ'],['Das ist das Halsband des Hundes. – «des Hundes»','Genitiv'],
+  ['Die Lehrerin erklärt die Aufgabe. – «die Aufgabe»','Akkusativ'],['Die Lehrerin erklärt die Aufgabe. – «Die Lehrerin»','Nominativ'],
+  ['Wir helfen dem Nachbarn. – «dem Nachbarn»','Dativ'],['Das Velo meines Bruders ist neu. – «meines Bruders»','Genitiv'],
+  ['Der Bus kommt zu spät. – «Der Bus»','Nominativ'],['Sie kauft einen Apfel. – «einen Apfel»','Akkusativ'],
+  ['Er dankt seiner Mutter. – «seiner Mutter»','Dativ'],['Die Farbe des Hauses gefällt mir. – «des Hauses»','Genitiv'],
+  ['Mein Bruder spielt Fussball. – «Mein Bruder»','Nominativ'],['Ich lese ein Buch. – «ein Buch»','Akkusativ'],
+  ['Das gehört meinem Freund. – «meinem Freund»','Dativ'],['Das Dach der Schule ist neu. – «der Schule»','Genitiv'],
+  ['Die Katze schläft. – «Die Katze»','Nominativ'],['Wir besuchen unsere Grossmutter. – «unsere Grossmutter»','Akkusativ'],
+  ['Sie schreibt ihrer Tante. – «ihrer Tante»','Dativ'],['Der Titel des Films ist lang. – «des Films»','Genitiv'],
+  ['Morgen beginnt die Prüfung. – «die Prüfung»','Nominativ'],['Er wirft den Ball. – «den Ball»','Akkusativ']
+];
+function mtGenDFall(l){
+  var opt = l === 1 ? ['Nominativ','Akkusativ'] : l === 2 ? ['Nominativ','Dativ','Akkusativ'] : ['Nominativ','Genitiv','Dativ','Akkusativ'];
+  var liste = MT_D_FALL.filter(function(x){ return opt.indexOf(x[1]) >= 0; });
+  var s = mtAus(liste);
+  return {frage:'In welchem Fall steht der markierte Teil?  '+s[0],
+    felder:[{typ:'wahl', optionen:opt, loesung:s[1]}],
+    tipp:'Fragen: Nominativ = wer/was? · Genitiv = wessen? · Dativ = wem? · Akkusativ = wen/was?'};
+}
+
+/* ---------- Satzglieder ---------- */
+var MT_D_SATZGLIED = [
+  ['Mein Bruder spielt im Garten. – «Mein Bruder»','Subjekt'],['Mein Bruder spielt im Garten. – «spielt»','Prädikat'],
+  ['Mein Bruder spielt im Garten. – «im Garten»','Ortsangabe'],['Wir schreiben morgen eine Prüfung. – «morgen»','Zeitangabe'],
+  ['Wir schreiben morgen eine Prüfung. – «eine Prüfung»','Objekt'],['Die Katze fängt eine Maus. – «Die Katze»','Subjekt'],
+  ['Die Katze fängt eine Maus. – «fängt»','Prädikat'],['Die Katze fängt eine Maus. – «eine Maus»','Objekt'],
+  ['Am Abend lesen wir ein Buch. – «Am Abend»','Zeitangabe'],['Am Abend lesen wir ein Buch. – «wir»','Subjekt'],
+  ['Der Zug hält im Bahnhof. – «im Bahnhof»','Ortsangabe'],['Der Zug hält im Bahnhof. – «hält»','Prädikat'],
+  ['Sie schenkt ihm ein Buch. – «ein Buch»','Objekt'],['Sie schenkt ihm ein Buch. – «Sie»','Subjekt'],
+  ['Nach der Pause üben alle fleissig. – «Nach der Pause»','Zeitangabe'],['Nach der Pause üben alle fleissig. – «alle»','Subjekt'],
+  ['Im Wald wachsen viele Pilze. – «Im Wald»','Ortsangabe'],['Im Wald wachsen viele Pilze. – «wachsen»','Prädikat'],
+  ['Der Lehrer korrigiert die Tests. – «die Tests»','Objekt'],['Der Lehrer korrigiert die Tests. – «Der Lehrer»','Subjekt'],
+  ['Heute regnet es stark. – «Heute»','Zeitangabe'],['Auf dem Dach sitzt eine Taube. – «Auf dem Dach»','Ortsangabe']
+];
+function mtGenDSatzglied(l){
+  var opt = l === 1 ? ['Subjekt','Prädikat'] : l === 2 ? ['Subjekt','Prädikat','Objekt'] : ['Subjekt','Prädikat','Objekt','Zeitangabe','Ortsangabe'];
+  var liste = MT_D_SATZGLIED.filter(function(x){ return opt.indexOf(x[1]) >= 0; });
+  var s = mtAus(liste);
+  return {frage:'Welches Satzglied ist markiert?  '+s[0],
+    felder:[{typ:'wahl', optionen:opt, loesung:s[1]}],
+    tipp:'Subjekt = wer/was? · Prädikat = die Verbform · Objekt = wen/wem? · Zeitangabe = wann? · Ortsangabe = wo/wohin?'};
+}
+
+/* ---------- Wechselpräpositionen: Dativ oder Akkusativ ---------- */
+var MT_D_WECHSEL = [
+  ['Ich hänge das Bild an ___ Wand. (wohin?)','die'],['Das Bild hängt an ___ Wand. (wo?)','der'],
+  ['Wir gehen in ___ Schule. (wohin?)','die'],['Wir sind in ___ Schule. (wo?)','der'],
+  ['Er legt das Buch auf ___ Tisch. (wohin?)','den'],['Das Buch liegt auf ___ Tisch. (wo?)','dem'],
+  ['Die Katze springt unter ___ Tisch. (wohin?)','den'],['Die Katze schläft unter ___ Tisch. (wo?)','dem'],
+  ['Sie stellt die Vase neben ___ Fenster. (wohin?)','das'],['Die Vase steht neben ___ Fenster. (wo?)','dem'],
+  ['Er fährt hinter ___ Haus. (wohin?)','das'],['Das Velo steht hinter ___ Haus. (wo?)','dem'],
+  ['Ich setze mich zwischen ___ Freunde. (wohin?)','die'],['Ich sitze zwischen ___ Freunden. (wo?)','den'],
+  ['Der Ball rollt vor ___ Tor. (wohin?)','das'],['Der Ball liegt vor ___ Tor. (wo?)','dem'],
+  ['Sie klettert auf ___ Baum. (wohin?)','den'],['Sie sitzt auf ___ Baum. (wo?)','dem'],
+  ['Wir stellen den Stuhl an ___ Fenster. (wohin?)','das'],['Der Stuhl steht an ___ Fenster. (wo?)','dem']
+];
+function mtGenDWechsel(l){
+  var s = mtAus(MT_D_WECHSEL);
+  return {frage:'Welcher Artikel passt?  «'+s[0]+'»',
+    felder:[{typ:'wahl', optionen:mtMisch(['den','dem','die','der','das']), loesung:s[1]}],
+    tipp:'Wechselpräpositionen (an, auf, hinter, in, neben, über, unter, vor, zwischen): «wohin?» → Akkusativ, «wo?» → Dativ.'};
+}
+
+/* ---------- Direkte Rede ---------- */
+var MT_D_REDE = [
+  ['Er sagte___ «Ich komme gleich.»',':'],['«Ich komme gleich»___ sagte er.',','],
+  ['Sie fragte___ «Kommst du mit?»',':'],['«Kommst du mit?»___ fragte sie.',''],
+  ['«Pass auf!»___ rief er.',''],['Der Lehrer meinte___ «Das war gut.»',':'],
+  ['«Das war gut»___ meinte der Lehrer.',','],['«Wir haben gewonnen!»___ jubelten alle.',''],
+  ['Mia flüsterte___ «Sei still.»',':'],['«Sei still»___ flüsterte Mia.',','],
+  ['Der Trainer rief___ «Weiter so!»',':'],['«Weiter so!»___ rief der Trainer.',''],
+  ['Papa fragte___ «Hast du geübt?»',':'],['«Hast du geübt?»___ fragte Papa.',''],
+  ['«Ich habe keine Lust»___ sagte Tim.',','],['Tim sagte___ «Ich habe keine Lust.»',':'],
+  ['«Das schaffst du»___ machte sie ihm Mut.',','],['Sie machte ihm Mut___ «Das schaffst du.»',':'],
+  ['«Achtung, Stufe!»___ warnte der Mann.',''],['Der Mann warnte___ «Achtung, Stufe!»',':']
+];
+function mtGenDRede(l){
+  var s = mtAus(MT_D_REDE);
+  return {frage:'Welches Zeichen gehört in die Lücke?  «'+s[0]+'»',
+    felder:[{typ:'wahl', optionen:['Doppelpunkt :','Komma ,','gar nichts'],
+      loesung:s[1] === ':' ? 'Doppelpunkt :' : s[1] === ',' ? 'Komma ,' : 'gar nichts'}],
+    tipp:'Begleitsatz vorne → Doppelpunkt. Begleitsatz hinten → nach der Rede ein Komma, ausser die Rede endet mit ? oder !'};
+}
+
+/* ---------- Adjektive steigern ---------- */
+var MT_D_STEIGERN = [
+  ['gut','besser','am besten'],['viel','mehr','am meisten'],['gern','lieber','am liebsten'],
+  ['hoch','höher','am höchsten'],['nah','näher','am nächsten'],['gross','grösser','am grössten'],
+  ['alt','älter','am ältesten'],['jung','jünger','am jüngsten'],['kalt','kälter','am kältesten'],
+  ['warm','wärmer','am wärmsten'],['stark','stärker','am stärksten'],['kurz','kürzer','am kürzesten'],
+  ['lang','länger','am längsten'],['dunkel','dunkler','am dunkelsten'],['teuer','teurer','am teuersten'],
+  ['schnell','schneller','am schnellsten'],['schön','schöner','am schönsten'],['klug','klüger','am klügsten'],
+  ['hart','härter','am härtesten'],['scharf','schärfer','am schärfsten'],['klein','kleiner','am kleinsten'],
+  ['leise','leiser','am leisesten']
+];
+function mtGenDSteigern(l){
+  if(l === 3) l = mtZuf(1, 2);
+  var a = mtAus(MT_D_STEIGERN);
+  if(l === 1) return {frage:'Steigere: «'+a[0]+'» (1. Steigerung)', felder:[{loesung:a[1], text:true}],
+    tipp:'Die 1. Steigerung (Komparativ) endet auf -er; bei kurzen Wörtern kommt oft ein Umlaut dazu.'};
+  return {frage:'Steigere: «'+a[0]+'» (2. Steigerung, mit «am»)', felder:[{loesung:[a[2], a[2].replace('am ','')], text:true}],
+    tipp:'Die 2. Steigerung (Superlativ) heisst «am …sten».'};
+}
+
+/* ---------- Mehrzahl ---------- */
+var MT_D_PLURAL = [
+  ['das Kind','die Kinder'],['der Baum','die Bäume'],['das Haus','die Häuser'],['die Blume','die Blumen'],
+  ['der Mann','die Männer'],['die Frau','die Frauen'],['das Buch','die Bücher'],['der Apfel','die Äpfel'],
+  ['das Auto','die Autos'],['der Stuhl','die Stühle'],['die Maus','die Mäuse'],['das Tier','die Tiere'],
+  ['der Vogel','die Vögel'],['die Stadt','die Städte'],['das Bild','die Bilder'],['der Freund','die Freunde'],
+  ['die Hand','die Hände'],['das Wort','die Wörter'],['der Lehrer','die Lehrer'],['die Schule','die Schulen'],
+  ['das Messer','die Messer'],['der Arzt','die Ärzte'],['die Nacht','die Nächte'],['das Glas','die Gläser'],
+  ['der Fuss','die Füsse'],['die Tochter','die Töchter'],['das Zimmer','die Zimmer'],['der Bruder','die Brüder']
+];
+function mtGenDPlural(l){
+  var w = mtAus(MT_D_PLURAL);
+  if(l === 2) return {frage:'Wie heisst die Einzahl von «'+w[1]+'»?', felder:[{loesung:[w[0], w[0].replace(/^(der|die|das) /,'')], text:true}],
+    tipp:'Einzahl mit Artikel, z. B. «das Kind».'};
+  return {frage:'Wie heisst die Mehrzahl von «'+w[0]+'»?', felder:[{loesung:[w[1], w[1].replace('die ','')], text:true}],
+    tipp:'Mehrzahl heisst immer «die …» – oft mit Umlaut und Endung -e, -er, -n oder -s.'};
+}
+
+/* ---------- Indirekte Rede / Konjunktiv ---------- */
+var MT_D_KONJ = [
+  ['Er sagt: «Ich bin müde.» → Er sagt, er ___ müde.','sei'],['Sie sagt: «Ich habe Zeit.» → Sie sagt, sie ___ Zeit.','habe'],
+  ['Er sagt: «Ich komme später.» → Er sagt, er ___ später.','komme'],['Sie meint: «Das stimmt.» → Sie meint, das ___.','stimme'],
+  ['Er erzählt: «Ich kann schwimmen.» → Er erzählt, er ___ schwimmen.','könne'],
+  ['Sie sagt: «Ich weiss es nicht.» → Sie sagt, sie ___ es nicht.','wisse'],
+  ['Er behauptet: «Ich war dort.» → Er behauptet, er ___ dort gewesen.','sei'],
+  ['Sie sagt: «Ich muss gehen.» → Sie sagt, sie ___ gehen.','müsse'],
+  ['Er sagt: «Ich lerne fleissig.» → Er sagt, er ___ fleissig.','lerne'],
+  ['Sie erklärt: «Ich will mitmachen.» → Sie erklärt, sie ___ mitmachen.','wolle'],
+  ['Er sagt: «Ich sehe nichts.» → Er sagt, er ___ nichts.','sehe'],
+  ['Sie sagt: «Ich nehme den Bus.» → Sie sagt, sie ___ den Bus.','nehme'],
+  ['Er meint: «Das geht nicht.» → Er meint, das ___ nicht.','gehe'],
+  ['Sie sagt: «Ich bleibe hier.» → Sie sagt, sie ___ hier.','bleibe'],
+  ['Er sagt: «Ich darf das.» → Er sagt, er ___ das.','dürfe'],
+  ['Sie sagt: «Ich finde das gut.» → Sie sagt, sie ___ das gut.','finde']
+];
+function mtGenDKonj(l){
+  var s = mtAus(MT_D_KONJ);
+  return {frage:'Indirekte Rede – welche Form gehört in die Lücke?  «'+s[0]+'»',
+    felder:[{loesung:s[1], text:true}],
+    tipp:'In der indirekten Rede steht der Konjunktiv I: er sei, er habe, er komme, er könne …'};
+}
+
+/* ---------- Aktiv und Passiv ---------- */
+var MT_D_PASSIV = [
+  ['Der Hund beisst den Mann.','Aktiv'],['Der Mann wird vom Hund gebissen.','Passiv'],
+  ['Die Lehrerin korrigiert die Tests.','Aktiv'],['Die Tests werden korrigiert.','Passiv'],
+  ['Das Haus wurde 1920 gebaut.','Passiv'],['Sie baute das Haus.','Aktiv'],
+  ['Die Fenster werden geputzt.','Passiv'],['Wir putzen die Fenster.','Aktiv'],
+  ['Der Brief wird geschrieben.','Passiv'],['Er schreibt einen Brief.','Aktiv'],
+  ['Das Velo wurde gestohlen.','Passiv'],['Jemand stahl das Velo.','Aktiv'],
+  ['Die Suppe wird gekocht.','Passiv'],['Mein Vater kocht die Suppe.','Aktiv'],
+  ['Die Schule wird renoviert.','Passiv'],['Handwerker renovieren die Schule.','Aktiv'],
+  ['Das Tor wurde geschossen.','Passiv'],['Sie schoss das Tor.','Aktiv'],
+  ['Die Prüfung wird morgen geschrieben.','Passiv'],['Wir schreiben morgen die Prüfung.','Aktiv']
+];
+function mtGenDPassiv(l){
+  if(l === 2){
+    var p = mtAus(MT_D_PASSIV.filter(function(x){ return x[1] === 'Aktiv'; }));
+    return {frage:'Aktiv oder Passiv? Woran erkennst du das Passiv?  «'+p[0]+'»',
+      felder:[{typ:'wahl', optionen:['Aktiv','Passiv'], loesung:'Aktiv'}],
+      tipp:'Passiv besteht immer aus «werden» + Partizip II (wird gebaut, wurde gebissen).'};
+  }
+  var s = mtAus(MT_D_PASSIV);
+  return {frage:'Aktiv oder Passiv?  «'+s[0]+'»', felder:[{typ:'wahl', optionen:['Aktiv','Passiv'], loesung:s[1]}],
+    tipp:'Passiv besteht immer aus «werden» + Partizip II. Im Aktiv handelt das Subjekt selbst.'};
+}
+
+/* ---------- Zeitangaben gross oder klein ---------- */
+var MT_D_ZEITANG = [
+  ['Wir treffen uns heute ___.','Abend'],['Sie joggt jeden ___.','Morgen'],['___ schlafe ich lange.','morgens'],
+  ['Am ___ ist es ruhig.','Abend'],['___ gehe ich ins Training.','abends'],['Gestern ___ hat es geschneit.','Nacht'],
+  ['___ bin ich meistens müde.','nachts'],['Heute ___ war es kalt.','Morgen'],
+  ['Wir essen ___ um zwölf.','mittags'],['Am ___ scheint die Sonne.','Mittag'],
+  ['___ spielen wir Fussball.','mittwochs'],['Am ___ ist frei.','Mittwoch'],
+  ['___ arbeitet sie nie.','sonntags'],['Am ___ besuchen wir Oma.','Sonntag'],
+  ['Morgen ___ fahren wir los.','früh'],['___ ist der Bus voll.','Morgens']
+];
+function mtGenDZeitang(l){
+  var s = mtAus(MT_D_ZEITANG), gross = s[1][0] === s[1][0].toUpperCase();
+  return {frage:'Gross oder klein? Was gehört in die Lücke?  «'+s[0]+'»',
+    felder:[{typ:'wahl', optionen:mtMisch([s[1], gross ? s[1].toLowerCase() : s[1][0].toUpperCase()+s[1].slice(1)]), loesung:s[1], exakt:true}],
+    tipp:'Tageszeiten nach gestern/heute/morgen und nach «am» sind Nomen → gross. Endet das Wort auf -s (morgens, abends, sonntags), ist es ein Adverb → klein.'};
+}
+
+/* ---------- Wortschatz: Synonyme und Gegenteile ---------- */
+var MT_D_SYN = [
+  ['schnell','rasch','langsam'],['gross','riesig','klein'],['schön','hübsch','hässlich'],
+  ['reden','sprechen','schweigen'],['beginnen','anfangen','aufhören'],['froh','fröhlich','traurig'],
+  ['laut','lärmig','leise'],['klug','schlau','dumm'],['reich','wohlhabend','arm'],
+  ['mutig','tapfer','ängstlich'],['sauber','rein','schmutzig'],['schwierig','schwer','einfach'],
+  ['alt','betagt','jung'],['dünn','schlank','dick'],['hell','strahlend','dunkel'],
+  ['fleissig','eifrig','faul'],['freundlich','nett','unfreundlich'],['billig','günstig','teuer'],
+  ['kaufen','erwerben','verkaufen'],['gewinnen','siegen','verlieren'],['bauen','errichten','abreissen'],
+  ['wichtig','bedeutend','unwichtig']
+];
+function mtGenDSyn(l){
+  if(l === 3) l = mtZuf(1, 2);
+  var w = mtAus(MT_D_SYN), rest = mtMisch(MT_D_SYN.filter(function(x){ return x[0] !== w[0]; }));
+  if(l === 1) return {frage:'Welches Wort bedeutet ungefähr dasselbe wie «'+w[0]+'»?',
+    felder:[{typ:'wahl', optionen:mtMisch([w[1], w[2], rest[0][1], rest[1][2]]), loesung:w[1]}],
+    tipp:'Wörter mit fast gleicher Bedeutung heissen Synonyme.'};
+  return {frage:'Was ist das Gegenteil von «'+w[0]+'»?',
+    felder:[{typ:'wahl', optionen:mtMisch([w[2], w[1], rest[0][2], rest[1][1]]), loesung:w[2]}],
+    tipp:'Gegenteile nennt man Antonyme.'};
+}
+
+/* ---------- Redewendungen ---------- */
+var MT_D_REDEWENDUNG = [
+  ['die Katze aus dem Sack lassen','ein Geheimnis verraten'],['ins Fettnäpfchen treten','etwas Peinliches sagen'],
+  ['Tomaten auf den Augen haben','etwas Offensichtliches nicht sehen'],['jemandem einen Bären aufbinden','jemanden anlügen'],
+  ['die Daumen drücken','Glück wünschen'],['Bauklötze staunen','sehr überrascht sein'],
+  ['das Handtuch werfen','aufgeben'],['auf dem Schlauch stehen','etwas nicht kapieren'],
+  ['den Faden verlieren','nicht mehr weiterwissen'],['jemanden auf die Palme bringen','jemanden wütend machen'],
+  ['aus einer Mücke einen Elefanten machen','stark übertreiben'],['die Nase voll haben','keine Lust mehr haben'],
+  ['alle Hände voll zu tun haben','sehr viel Arbeit haben'],['ins kalte Wasser springen','etwas Neues ohne Übung wagen'],
+  ['einen Zahn zulegen','schneller machen'],['Öl ins Feuer giessen','einen Streit verschärfen'],
+  ['über den eigenen Schatten springen','sich überwinden'],['die Ohren spitzen','genau zuhören'],
+  ['Schwein haben','grosses Glück haben'],['jemandem reinen Wein einschenken','die Wahrheit sagen'],
+  ['sich aus dem Staub machen','heimlich verschwinden'],['auf Wolke sieben schweben','sehr verliebt sein']
+];
+function mtGenDRedewendung(l){
+  var w = mtAus(MT_D_REDEWENDUNG), rest = mtMisch(MT_D_REDEWENDUNG.filter(function(x){ return x[0] !== w[0]; }));
+  if(l === 2) return {frage:'Welche Redewendung bedeutet: «'+w[1]+'»?',
+    felder:[{typ:'wahl', optionen:mtMisch([w[0], rest[0][0], rest[1][0]]), loesung:w[0]}],
+    tipp:'Redewendungen darf man nicht wörtlich verstehen.'};
+  return {frage:'Was bedeutet: «'+w[0]+'»?',
+    felder:[{typ:'wahl', optionen:mtMisch([w[1], rest[0][1], rest[1][1]]), loesung:w[1]}],
+    tipp:'Redewendungen darf man nicht wörtlich verstehen – sie haben eine übertragene Bedeutung.'};
+}
+
+/* ---------- Silbentrennung ---------- */
+var MT_D_SILBEN = [
+  ['Fens-ter','Fenst-er'],['Kin-der','Ki-nder'],['Schu-le','Sch-ule'],['Was-ser','Wa-sser'],
+  ['El-tern','Elt-ern'],['Him-mel','Hi-mmel'],['Bä-cker','Bäck-er'],['Fla-sche','Flasch-e'],
+  ['Zu-cker','Zuck-er'],['Ta-fel','Taf-el'],['Mor-gen','Mo-rgen'],['Kar-tof-fel','Kart-of-fel'],
+  ['Fahr-rad','Fah-rrad'],['Sonn-tag','So-nntag'],['Au-to','Aut-o'],['Ler-ne-rin','Le-rnerin'],
+  ['Freun-de','Freund-e'],['Kat-ze','Ka-tze'],['Bü-cher','Büch-er'],['Ver-käu-fer','Verk-äu-fer'],
+  ['Zim-mer','Zi-mmer'],['Bal-kon','Balk-on'],['Nach-bar','Na-chbar'],['Tep-pich','Te-ppich']
+];
+function mtGenDSilben(l){ return mtDSchreib(MT_D_SILBEN, 'Welche Silbentrennung stimmt?',
+  'Getrennt wird zwischen den Sprechsilben; bei zwei gleichen Konsonanten kommt einer auf jede Seite (Was-ser). «ch», «sch» und «ck» bleiben zusammen.', l); }
+
+/* ---------- Apostroph und Genitiv-s ---------- */
+function mtGenDApostroph(l){
+  var liste = [['Lisas Velo','Lisa’s Velo'],['Peters Hund','Peter’s Hund'],['Ritas Tasche','Rita’s Tasche'],
+    ['Max’ Buch','Maxs Buch'],['Hans’ Auto','Hanss Auto'],['Andreas’ Idee','Andreass Idee'],
+    ['Wie geht’s?','Wie gehts?'],['Mamas Kuchen','Mama’s Kuchen'],['Omas Garten','Oma’s Garten'],
+    ['Timos Velo','Timo’s Velo'],['Annas Zimmer','Anna’s Zimmer'],['Lukas’ Ball','Lukass Ball'],
+    ['Fritz’ Werkstatt','Fritzs Werkstatt'],['Ninas Buch','Nina’s Buch'],['Sophias Katze','Sophia’s Katze'],
+    ['das Velo meines Bruders','das Velo von meinem Bruder sein']];
+  return mtDSchreib(liste, 'Apostroph: Welche Schreibweise stimmt?',
+    'Der Genitiv bekommt nur ein s, keinen Apostroph (Lisas Velo). Endet der Name auf s, x oder z, steht ein Apostroph statt des s (Max’ Buch).', l);
+}
+
+/* ---------- Fremdwörter ---------- */
+var MT_D_FREMD = [
+  ['Rhythmus','Rytmus'],['Restaurant','Restorant'],['Rezept','Rezebt'],['Physik','Fysik'],
+  ['Theater','Teater'],['Bibliothek','Bibliotek'],['Computer','Komputer'],['Garage','Garrage'],
+  ['Portemonnaie','Portmonee'],['Billett','Billet'],['Trottoir','Trotoir'],['Velo','Vello'],
+  ['Zertifikat','Certifikat'],['Chemie','Kemie'],['Charakter','Karakter'],['Rhabarber','Rabarber'],
+  ['Atmosphäre','Atmospäre'],['Fotografie','Photografi'],['Apotheke','Apoteke'],['Maschine','Maschiene'],
+  ['Diskussion','Diskusion'],['Adresse','Addresse'],['Appartement','Apartement'],['Terrasse','Terasse'],
+  ['Katastrophe','Katastrofe'],['Sympathie','Simpathie'],['Alphabet','Alfabet'],['Symbol','Simbol']
+];
+function mtGenDFremd(l){ return mtDSchreib(MT_D_FREMD, 'Fremdwort: Welche Schreibweise stimmt?',
+  'Viele Fremdwörter behalten die Schreibweise der Herkunftssprache – ph, th, rh und y verraten oft Griechisch.', l); }
+
+/* ---------- Rechtschreib-Check: alles gemischt ---------- */
+function mtGenDCheck(l){
+  var gen = [mtGenDVf, mtGenDIe, mtGenDDoppel, mtGenDDehn, mtGenDAe, mtGenDSeit, mtGenDWider,
+    mtGenDGetrennt, mtGenDSilben, mtGenDApostroph, mtGenDFremd];
+  if(l >= 2) gen = gen.concat([mtGenDDass, mtGenDKomma, mtGenDZeitang]);
+  if(l >= 3) gen = gen.concat([mtGenDFall, mtGenDSatzglied, mtGenDPassiv, mtGenDKonj]);
+  return mtAus(gen)(1);
+}
+
+/* ---------- 🧱 Die Wortmaschine (Wortarten bestimmen) ----------
+   Das Wort fällt oben in den Trichter, läuft durch die drei Proben und kommt
+   unten bei einer Klappe heraus – die Klappen sind die Antwortknöpfe. */
+var MT_WM_PROBEN = ['«der/die/das» davor?', 'beugen: ich … du …?', 'steigern: schön – schöner?'];
+var MT_WM_KURZ = {'Präposition':'Präpos.', 'Konjunktion':'Konjunkt.'};
+function mtWmZahn(cx, cy, r, rueck){
+  var sp = '';
+  for(var i=0;i<8;i++){
+    var a = i * Math.PI / 4;
+    sp += '<line x1="'+(cx + Math.cos(a)*r*0.45).toFixed(1)+'" y1="'+(cy + Math.sin(a)*r*0.45).toFixed(1)+
+      '" x2="'+(cx + Math.cos(a)*(r+4)).toFixed(1)+'" y2="'+(cy + Math.sin(a)*(r+4)).toFixed(1)+'"/>';
+  }
+  return '<g class="mt-wm-zahn'+(rueck ? ' rueck' : '')+'"><circle cx="'+cx+'" cy="'+cy+'" r="'+r+'"/>'+sp+'</g>';
+}
+function mtWortmaschine(wort, arten){
+  var b = 420, y0 = 56, gh = 104;
+  var i = '';
+  // Einfülltrichter mit dem Wort
+  i += '<path class="mt-wm-rohr" d="M150 8 H270 L228 '+(y0-2)+' H192 Z"/>';
+  var br = Math.max(56, Math.min(120, wort.length * 9 + 22));
+  i += '<rect class="mt-wm-wort" x="'+(210 - br/2)+'" y="14" width="'+br+'" height="24" rx="12"/>';
+  i += '<text class="mt-wm-wort-t" x="210" y="31" text-anchor="middle">'+esc(wort)+'</text>';
+  i += '<path class="mt-linie" d="M210 42 v8 m-5 -5 l5 5 l5 -5" stroke-width="2"/>';
+  // Gehäuse mit Zahnrädern und den drei Proben
+  i += '<rect class="mt-wm-gehaeuse" x="24" y="'+y0+'" width="'+(b-48)+'" height="'+gh+'" rx="12"/>';
+  i += '<text class="mt-klein" x="38" y="'+(y0+16)+'" font-size="10">🧱 Wortmaschine</text>';
+  i += mtWmZahn(84, y0+62, 20, false) + mtWmZahn(132, y0+44, 14, true) + mtWmZahn(170, y0+66, 17, false);
+  MT_WM_PROBEN.forEach(function(p, n){
+    i += '<text class="mt-wm-probe" x="198" y="'+(y0 + 36 + n*21)+'">'+esc((n+1)+'. '+p)+'</text>';
+  });
+  // Kurbel zum «Betätigen» – rechts neben den Proben, nicht darüber
+  var kx = b - 42, ky = y0 + gh/2;
+  i += '<circle class="mt-wm-rohr" cx="'+kx+'" cy="'+ky+'" r="12"/>';
+  i += '<path class="mt-linie" d="M'+kx+' '+ky+' l11 -9" stroke-width="3"/>';
+  i += '<circle class="mt-wm-wort" cx="'+(kx+13)+'" cy="'+(ky-11)+'" r="5"/>';
+  i += '<text class="mt-wm-probe" x="'+kx+'" y="'+(ky+26)+'" text-anchor="middle">kurbeln</text>';
+  // Auswurfschacht
+  var yk = y0 + gh + 14, hk = 34, x0 = 20, brk = (b - 2*x0) / arten.length;
+  i += '<path class="mt-linie" d="M210 '+(y0+gh)+' v8" stroke-width="2"/>';
+  var hots = arten.map(function(a, n){
+    var x = x0 + n * brk;
+    i += '<path class="mt-linie" d="M210 '+(y0+gh+8)+' L'+(x+brk/2)+' '+(yk-3)+'" stroke-dasharray="3 3" stroke-width="1"/>';
+    var kurz = MT_WM_KURZ[a] || a;
+    return {v:a, titel:a, form:'<rect class="hot-f" x="'+(x+2)+'" y="'+yk+'" width="'+(brk-4)+'" height="'+hk+'" rx="6"/>',
+      t:kurz, tx:x + brk/2, ty:yk + hk/2 + 3};
+  });
+  return {vb:'0 0 '+b+' '+(yk + hk + 8), breit:true, alt:'Wortmaschine: Klappe antippen', inhalt:i, hots:hots,
+    legende:'Kurbeln und unten die richtige Klappe antippen.'};
+}
+
+/* ---------- 🧬 Organe und Skelett im Bild ---------- */
+function mtKoerperBild(figuren, grund, ziel, anzahl, beschriften, markeV){
+  var inhalt = grund + mtBildKulisse(figuren);
+  if(markeV){
+    var m = figuren.filter(function(f){ return f.v === markeV; })[0];
+    if(m) inhalt += mtBildMarke(m);
+  }
+  return {vb:'0 0 200 390', schmal:true, alt:'Körperbild zum Anklicken', inhalt:inhalt,
+    hots:markeV ? [] : mtBildHots(figuren, ziel, anzahl, beschriften)};
+}
+function mtGenBOrgane(l){
+  if(l === 4) l = mtZuf(1, 3);
+  var paar = mtAus(MT_B_ORGANE.filter(function(o){ return MT_B_ORGAN_FIG.some(function(f){ return f.v === o[0]; }); }));
+  var name = paar[0];
+  if(l === 2){
+    // Ein Organ ist im Bild markiert – wie heisst es?
+    var rest = mtMisch(MT_B_ORGAN_FIG.filter(function(f){ return f.v !== name; })).slice(0, 3).map(function(f){ return f.v; });
+    return {frage:'Welches Organ ist im Bild markiert?',
+      svg:'<div class="mt-hotbild schmal"><svg viewBox="0 0 200 390">'+MT_B_KOERPER+mtBildKulisse(MT_B_ORGAN_FIG)+
+        mtBildMarke(MT_B_ORGAN_FIG.filter(function(f){ return f.v === name; })[0])+'</svg></div>',
+      felder:[{typ:'wahl', optionen:mtMisch([name].concat(rest)), loesung:name}],
+      tipp:'Merk dir die Lage: Lunge und Herz im Brustkorb, Leber und Magen darunter, Darm im Bauch.'};
+  }
+  var frage = l === 3 ? 'Welches Organ ' + paar[1] + '? Tippe es im Bild an.' : 'Wo liegt: ' + name + '? Tippe es im Bild an.';
+  return {frage:frage,
+    felder:[{typ:'bild', bild:mtKoerperBild(MT_B_ORGAN_FIG, MT_B_KOERPER, name, l === 1 ? 4 : 6, false), loesung:name}],
+    tipp:name + ': ' + paar[1] + '.'};
+}
+var MT_B_KNOCHEN = {'Schädel':'schützt das Gehirn', 'Unterkiefer':'der einzige bewegliche Schädelknochen',
+  'Wirbelsäule':'trägt den Körper und schützt das Rückenmark', 'Schlüsselbein':'verbindet Brustbein und Schulterblatt',
+  'Brustbein':'in der Mitte, daran hängen die Rippen', 'Rippen':'bilden den Brustkorb um Herz und Lunge',
+  'Oberarmknochen':'der lange Knochen zwischen Schulter und Ellbogen', 'Speiche':'Unterarmknochen auf der Daumenseite',
+  'Elle':'Unterarmknochen auf der Kleinfingerseite', 'Becken':'trägt den Rumpf und verbindet ihn mit den Beinen',
+  'Oberschenkelknochen':'der längste und stärkste Knochen des Körpers', 'Kniescheibe':'schützt das Kniegelenk vorne',
+  'Schienbein':'der kräftige Knochen vorne am Unterschenkel', 'Wadenbein':'der dünne Knochen neben dem Schienbein'};
+function mtGenBSkelett(l){
+  if(l === 4) l = mtZuf(1, 3);
+  var f = mtAus(MT_B_SKELETT_FIG), name = f.v;
+  if(l === 2){
+    var rest = mtMisch(MT_B_SKELETT_FIG.filter(function(x){ return x.v !== name; })).slice(0, 3).map(function(x){ return x.v; });
+    return {frage:'Welcher Knochen ist im Bild markiert?',
+      svg:'<div class="mt-hotbild schmal"><svg viewBox="0 0 200 390">'+MT_B_SKELETT_GRUND+mtBildKulisse(MT_B_SKELETT_FIG)+
+        mtBildMarke(f)+'</svg></div>',
+      felder:[{typ:'wahl', optionen:mtMisch([name].concat(rest)), loesung:name}],
+      tipp:name + ': ' + (MT_B_KNOCHEN[name] || 'Lage im Skelett merken.') + '.'};
+  }
+  var frage = l === 3 ? 'Welcher Knochen ' + (MT_B_KNOCHEN[name] || 'gehört hierher') + '? Tippe ihn an.' : 'Wo ist: ' + name + '? Tippe ihn im Bild an.';
+  return {frage:frage,
+    felder:[{typ:'bild', bild:mtKoerperBild(MT_B_SKELETT_FIG, MT_B_SKELETT_GRUND, name, l === 1 ? 4 : 6, false), loesung:name}],
+    tipp:name + ': ' + (MT_B_KNOCHEN[name] || 'Merk dir die Lage im Skelett') + '.'};
+}
+
+/* ---------- ⚗️ Periodensystem im Bild ---------- */
+function mtPseListe(){ return MT_C_ELEMENTE.filter(function(e){ return MT_C_POS[e[0]]; }); }
+function mtGenCPseBild(l){
+  if(l === 5) l = mtZuf(1, 4);
+  var liste = mtPseListe(), e = mtAus(liste);
+  var hots = mtMisch(liste).filter(function(x){ return x[0] !== e[0]; }).slice(0, 7).concat([e]).map(function(x){
+    return {v:x[1], titel:x[1]+' ('+x[0]+')', form:mtPseForm(x[0])};
+  });
+  if(l === 1) return {frage:'Klicke im Periodensystem auf: '+e[1]+' ('+e[0]+')',
+    felder:[{typ:'bild', bild:mtPseBild(hots, true, 'Die Symbole sind eingeblendet – such das richtige Feld.'), loesung:e[1]}],
+    tipp:'Die Ordnungszahl von '+e[1]+' ist '+e[2]+' – gezählt wird zeilenweise von links oben.'};
+  if(l === 2) return {frage:'Klicke auf das Element mit der Ordnungszahl '+e[2]+'.',
+    felder:[{typ:'bild', bild:mtPseBild(hots, true, 'Gezählt wird zeilenweise von links oben nach rechts unten.'), loesung:e[1]}],
+    tipp:e[1]+' ('+e[0]+') hat die Ordnungszahl '+e[2]+'.'};
+  if(l === 3){
+    var xy = mtPseXY(e[0]);
+    var rest = mtMisch(liste.filter(function(x){ return x[0] !== e[0]; })).slice(0, 3).map(function(x){ return x[1]; });
+    return {frage:'Welches Element steht an der markierten Stelle?',
+      svg:'<div class="mt-hotbild breit"><svg viewBox="0 0 '+(MT_PSE_X0*2 + 18*MT_PSE_Z)+' '+(MT_PSE_Y0 + 9*MT_PSE_Z + 6)+'">'+
+        mtPseGrund(false)+'<rect x="'+xy.x+'" y="'+xy.y+'" width="'+(MT_PSE_Z-2)+'" height="'+(MT_PSE_Z-2)+'" rx="3" fill="none" stroke="currentColor" stroke-width="2.5"/></svg></div>',
+      felder:[{typ:'wahl', optionen:mtMisch([e[1]].concat(rest)), loesung:e[1]}],
+      tipp:e[1]+' ('+e[0]+') hat die Ordnungszahl '+e[2]+'.'};
+  }
+  return {frage:'Klicke auf das Element, dessen Symbol «'+e[0]+'» ist.',
+    felder:[{typ:'bild', bild:mtPseBild(hots, false, 'Diesmal ohne eingeblendete Symbole.'), loesung:e[1]}],
+    tipp:e[0]+' = '+e[1]+', Ordnungszahl '+e[2]+'.'};
+}
+
+/* ---------- ⏳ Zeitstrahl ---------- */
+function mtZsEpochen(){
+  return [{v:'vor 1500', von:-4000, bis:1499, t:'vor 1500'},
+          {v:'1500–1699', von:1500, bis:1699, t:'1500–1699'},
+          {v:'1700–1849', von:1700, bis:1849, t:'1700–1849'},
+          {v:'1850–1945', von:1850, bis:1945, t:'1850–1945'},
+          {v:'ab 1946', von:1946, bis:2100, t:'ab 1946'}];
+}
+function mtZsJahrhunderte(){
+  var a = [];
+  for(var jh=15; jh<=21; jh++) a.push({v:jh+'. Jh.', von:(jh-1)*100+1, bis:jh*100, t:jh+'. Jh.'});
+  return a;
+}
+function mtZsJahrzehnte(start){
+  var a = [];
+  for(var i=0;i<10;i++) a.push({v:(start + i*10)+'er', von:start + i*10, bis:start + i*10 + 9, t:String(start + i*10)});
+  return a;
+}
+function mtGenHZeitstrahl(l){
+  if(l === 5) l = mtZuf(1, 4);
+  if(l === 4){
+    // Umgekehrt: eine Stelle ist markiert – welches Ereignis gehört dorthin?
+    var ab = mtZsJahrhunderte(), idx = mtZuf(0, ab.length - 1);
+    var drin = MT_H_100.filter(function(x){ return x[1] >= ab[idx].von && x[1] <= ab[idx].bis; });
+    if(!drin.length) return mtGenHZeitstrahl(2);
+    var e4 = mtAus(drin);
+    var aus = mtMisch(MT_H_100.filter(function(x){ return x[1] < ab[idx].von - 60 || x[1] > ab[idx].bis + 60; })).slice(0, 3).map(function(x){ return x[0]; });
+    var b4 = mtZeitstrahlBild(ab, idx, 'Markiert ist das '+ab[idx].v+' ('+ab[idx].von+'–'+ab[idx].bis+').');
+    return {frage:'Welches Ereignis gehört an die markierte Stelle des Zeitstrahls?',
+      svg:'<div class="mt-hotbild breit"><svg viewBox="'+b4.vb+'">'+b4.inhalt+b4.hots.map(function(h){
+        return h.form.replace('class="hot-f"', 'class="mt-fuell"')+'<text class="mt-klein" x="'+h.tx+'" y="'+h.ty+'" font-size="8.5" text-anchor="middle">'+esc(h.t)+'</text>';
+      }).join('')+'</svg></div>',
+      felder:[{typ:'wahl', optionen:mtMisch([e4[0]].concat(aus)), loesung:e4[0]}],
+      tipp:e4[0]+': '+mtJahrText(e4[1])+'.'};
+  }
+  var abschnitte, e, legende;
+  if(l === 1){
+    abschnitte = mtZsEpochen(); e = mtAus(MT_H_100); legende = 'Grobe Einteilung – in welchen Zeitraum gehört das Ereignis?';
+  } else if(l === 2){
+    abschnitte = mtZsJahrhunderte();
+    e = mtAus(MT_H_100.filter(function(x){ return x[1] >= 1401; }));
+    legende = 'Das 15. Jahrhundert sind die Jahre 1401–1500.';
+  } else {
+    var start = mtAus([1900, 1910, 1920, 1930, 1940, 1800, 1850]);
+    var pass = MT_H_100.filter(function(x){ return x[1] >= start && x[1] <= start + 99; });
+    if(pass.length < 3) return mtGenHZeitstrahl(2);
+    abschnitte = mtZsJahrzehnte(start); e = mtAus(pass);
+    legende = 'Zeitstrahl von '+start+' bis '+(start+99)+' – auf das richtige Jahrzehnt tippen.';
+  }
+  var ziel = abschnitte.filter(function(a){ return e[1] >= a.von && e[1] <= a.bis; })[0] || abschnitte[abschnitte.length-1];
+  return {frage:'Wann war das? «'+e[0]+'» – tippe den Abschnitt auf dem Zeitstrahl an.',
+    felder:[{typ:'bild', bild:mtZeitstrahlBild(abschnitte, -1, legende), loesung:ziel.v}],
+    tipp:e[0]+': '+mtJahrText(e[1])+'.'};
+}
+
 var MT_TRAINER = [
   /* 🧮 Mathe */
   {id:'mt_1x1', fach:'mathe', num:true, icon:'⚡', name:'Einmaleins-Sprint', kurz:'Reihen, Umkehraufgaben, Lücken und Quadratzahlen.',
@@ -20058,21 +21139,75 @@ var MT_TRAINER = [
    deko:['x','=','+','−','( )'], grad:'linear-gradient(135deg,#123A5F 0%,#1D5C93 55%,#3A7BBF 100%)', levels:MT_TERM_LEVEL, gen:mtGenTerm},
 
   /* 📕 Deutsch */
-  {id:'mt_d_gross', fach:'deutsch', icon:'🔠', name:'Gross und klein', kurz:'Welches Wort muss grossgeschrieben werden?',
+  {id:'mt_d_gross', fach:'deutsch', gruppe:'Gross- und Kleinschreibung', icon:'🔠', name:'Gross und klein', kurz:'Welches Wort muss grossgeschrieben werden?',
    deko:['A','a','B','b','.'], grad:'linear-gradient(135deg,#6B1220 0%,#A82238 55%,#E63950 100%)',
    levels:['Nomen erkennen','Nomen nach dem Artikel','Nominalisierte Verben (das Laufen)','Nominalisierte Adjektive (etwas Schönes)','Alles gemischt'], gen:mtGenDGross},
-  {id:'mt_d_zeit', fach:'deutsch', icon:'⏳', name:'Zeitformen', kurz:'Präteritum, Partizip II, Perfekt, Plusquamperfekt.',
+  {id:'mt_d_zeit', fach:'deutsch', gruppe:'Grammatik', icon:'⏳', name:'Zeitformen', kurz:'Präteritum, Partizip II, Perfekt, Plusquamperfekt.',
    deko:['war','ging','hat','ist'], grad:'linear-gradient(135deg,#5B2130 0%,#8F2D3F 55%,#D14A5C 100%)',
    levels:['Präteritum','Partizip II','Perfekt mit hat/ist','Plusquamperfekt','Alles gemischt'], gen:mtGenDZeit},
-  {id:'mt_d_wortart', fach:'deutsch', icon:'🧱', name:'Wortarten', kurz:'Nomen, Verb, Adjektiv, Pronomen, Präposition, Konjunktion.',
+  {id:'mt_d_wortart', fach:'deutsch', gruppe:'Grammatik', icon:'🧱', name:'Wortarten', kurz:'Nomen, Verb, Adjektiv, Pronomen, Präposition, Konjunktion.',
    deko:['N','V','A','P','K'], grad:'linear-gradient(135deg,#7A2A1E 0%,#B0432F 55%,#E8752C 100%)',
-   levels:['Nomen und Verb','+ Adjektiv','+ Pronomen','+ Präposition','+ Konjunktion'], gen:mtGenDWortart},
-  {id:'mt_d_dass', fach:'deutsch', icon:'✏️', name:'das oder dass', kurz:'Die Klassikerfalle – mit Ersatzprobe.',
+   levels:['Nomen und Verb','+ Adjektiv','+ Pronomen','+ Präposition','+ Konjunktion'], gen:mtGenDWortart,
+   kurz2:'Wirf das Wort oben in die Wortmaschine, kurbel es durch die drei Proben – und tippe unten die Klappe an, bei der es herauskommt.'},
+  {id:'mt_d_dass', fach:'deutsch', gruppe:'Rechtschreibung', icon:'✏️', name:'das oder dass', kurz:'Die Klassikerfalle – mit Ersatzprobe.',
    deko:['s','ss','?','!'], grad:'linear-gradient(135deg,#4A1E2B 0%,#7E2E43 55%,#C2506B 100%)',
    levels:['Gemischte Sätze','Gemischte Sätze','Gemischte Sätze'], gen:mtGenDDass},
-  {id:'mt_d_komma', fach:'deutsch', icon:'🔻', name:'Kommaregeln', kurz:'Vor welchem Wort fehlt das Komma?',
+  {id:'mt_d_komma', fach:'deutsch', gruppe:'Zeichensetzung', icon:'🔻', name:'Kommaregeln', kurz:'Vor welchem Wort fehlt das Komma?',
    deko:[',',';','.','–'], grad:'linear-gradient(135deg,#3F2D6B 0%,#6D4AAE 55%,#8B5CF6 100%)',
    levels:['Haupt- und Nebensatz','Haupt- und Nebensatz','Aufzählungen und Konjunktionen'], gen:mtGenDKomma},
+
+  /* 📕 Deutsch – Rechtschreibung */
+  {id:'mt_d_vf', fach:'deutsch', gruppe:'Rechtschreibung', icon:'🌫️', name:'v oder f', kurz:'Vogel oder Fogel? Der Klassiker.',
+   deko:['v','f','V','F'], grad:'linear-gradient(135deg,#6B1220 0%,#A82238 55%,#E63950 100%)', levels:['Auswählen: welche Schreibweise stimmt?','Selber schreiben'], gen:mtGenDVf},
+  {id:'mt_d_ie', fach:'deutsch', gruppe:'Rechtschreibung', icon:'〽️', name:'i, ie oder ieh', kurz:'Das lange i – Tier, ihn, ziehen, Maschine.',
+   deko:['i','ie','ih','ieh'], grad:'linear-gradient(135deg,#5B2130 0%,#8F2D3F 55%,#D14A5C 100%)', levels:['Auswählen: welche Schreibweise stimmt?','Selber schreiben'], gen:mtGenDIe},
+  {id:'mt_d_doppel', fach:'deutsch', gruppe:'Rechtschreibung', icon:'👯', name:'Doppelte Konsonanten', kurz:'Sonne oder Sone? Kurzer Vokal, doppelter Konsonant.',
+   deko:['nn','mm','ll','tt'], grad:'linear-gradient(135deg,#7A2A1E 0%,#B0432F 55%,#E8752C 100%)', levels:['Auswählen: welche Schreibweise stimmt?','Selber schreiben'], gen:mtGenDDoppel},
+  {id:'mt_d_dehn', fach:'deutsch', gruppe:'Rechtschreibung', icon:'➖', name:'Dehnung: h und Doppelvokal', kurz:'Zahn, Stuhl, Boot, Meer – wann steht ein h?',
+   deko:['ah','uh','oo','ee'], grad:'linear-gradient(135deg,#4A1E2B 0%,#7E2E43 55%,#C2506B 100%)', levels:['Auswählen: welche Schreibweise stimmt?','Selber schreiben'], gen:mtGenDDehn},
+  {id:'mt_d_ae', fach:'deutsch', gruppe:'Rechtschreibung', icon:'🔤', name:'ä/e und äu/eu', kurz:'Wald → Wälder, Haus → Häuser.',
+   deko:['ä','e','äu','eu'], grad:'linear-gradient(135deg,#3F2D6B 0%,#6D4AAE 55%,#8B5CF6 100%)', levels:['Auswählen: welche Schreibweise stimmt?','Selber schreiben'], gen:mtGenDAe},
+  {id:'mt_d_seit', fach:'deutsch', gruppe:'Rechtschreibung', icon:'⌛', name:'seit oder seid', kurz:'Zeit oder «ihr seid»?',
+   deko:['seit','seid','t','d'], grad:'linear-gradient(135deg,#0B4F4A 0%,#0F766E 55%,#17A398 100%)', levels:['Gemischte Sätze','Gemischte Sätze'], gen:mtGenDSeit},
+  {id:'mt_d_wider', fach:'deutsch', gruppe:'Rechtschreibung', icon:'🔁', name:'wider oder wieder', kurz:'Nochmals oder dagegen?',
+   deko:['wider','wieder'], grad:'linear-gradient(135deg,#123A5F 0%,#1D5C93 55%,#3A7BBF 100%)', levels:['Gemischte Sätze','Gemischte Sätze'], gen:mtGenDWider},
+  {id:'mt_d_getrennt', fach:'deutsch', gruppe:'Rechtschreibung', icon:'↔️', name:'Zusammen oder getrennt', kurz:'Rad fahren, aufräumen, kennenlernen.',
+   deko:['↔','＋','_'], grad:'linear-gradient(135deg,#5A3E10 0%,#8C6418 55%,#C98B1F 100%)', levels:['Auswählen: welche Schreibweise stimmt?','Selber schreiben'], gen:mtGenDGetrennt},
+  {id:'mt_d_silben', fach:'deutsch', gruppe:'Rechtschreibung', icon:'➗', name:'Silbentrennung', kurz:'Wo darf man das Wort trennen?',
+   deko:['-','Fens','ter'], grad:'linear-gradient(135deg,#3A2A1A 0%,#6B4A2A 55%,#A9642E 100%)', levels:['Auswählen: welche Schreibweise stimmt?','Selber schreiben'], gen:mtGenDSilben},
+  {id:'mt_d_apostroph', fach:'deutsch', gruppe:'Rechtschreibung', icon:'❜', name:'Apostroph und Genitiv-s', kurz:'Lisas Velo – ohne Apostroph!',
+   deko:['’','s','Max’'], grad:'linear-gradient(135deg,#2A1B4A 0%,#4A2F7E 55%,#7B5CD6 100%)', levels:['Auswählen: welche Schreibweise stimmt?','Selber schreiben'], gen:mtGenDApostroph},
+  {id:'mt_d_fremd', fach:'deutsch', gruppe:'Rechtschreibung', icon:'🌍', name:'Fremdwörter', kurz:'Rhythmus, Theater, Restaurant.',
+   deko:['ph','th','rh','y'], grad:'linear-gradient(135deg,#6B1220 0%,#A82238 55%,#E63950 100%)', levels:['Auswählen: welche Schreibweise stimmt?','Selber schreiben'], gen:mtGenDFremd},
+  {id:'mt_d_check', fach:'deutsch', gruppe:'Rechtschreibung', icon:'🧐', name:'Rechtschreib-Check', kurz:'Alle Stolpersteine bunt gemischt.',
+   deko:['✓','?','!','abc'], grad:'linear-gradient(135deg,#3F2D6B 0%,#6D4AAE 55%,#8B5CF6 100%)',
+   levels:['Nur Rechtschreibung','+ das/dass, Komma, Zeitangaben','+ Fälle, Satzglieder, Passiv'], gen:mtGenDCheck},
+
+  /* 📕 Deutsch – Grammatik */
+  {id:'mt_d_fall', fach:'deutsch', gruppe:'Grammatik', icon:'4️⃣', name:'Die vier Fälle', kurz:'Wer? Wessen? Wem? Wen?',
+   deko:['N','G','D','A'], grad:'linear-gradient(135deg,#123A5F 0%,#1D5C93 55%,#3A7BBF 100%)', levels:['Nominativ und Akkusativ','+ Dativ','Alle vier Fälle'], gen:mtGenDFall},
+  {id:'mt_d_satzglied', fach:'deutsch', gruppe:'Grammatik', icon:'🧩', name:'Satzglieder', kurz:'Subjekt, Prädikat, Objekt, Zeit- und Ortsangabe.',
+   deko:['S','P','O','?'], grad:'linear-gradient(135deg,#7A2A1E 0%,#B0432F 55%,#E8752C 100%)', levels:['Subjekt und Prädikat','+ Objekt','Alle Satzglieder'], gen:mtGenDSatzglied},
+  {id:'mt_d_wechsel', fach:'deutsch', gruppe:'Grammatik', icon:'🚪', name:'wo? oder wohin?', kurz:'Wechselpräpositionen: Dativ oder Akkusativ.',
+   deko:['auf','in','unter'], grad:'linear-gradient(135deg,#0B4F4A 0%,#0F766E 55%,#17A398 100%)', levels:['Gemischte Sätze','Gemischte Sätze'], gen:mtGenDWechsel},
+  {id:'mt_d_steigern', fach:'deutsch', gruppe:'Grammatik', icon:'📈', name:'Adjektive steigern', kurz:'gut – besser – am besten.',
+   deko:['+','++','am'], grad:'linear-gradient(135deg,#5A3E10 0%,#8C6418 55%,#C98B1F 100%)', levels:['1. Steigerung','2. Steigerung','Gemischt'], gen:mtGenDSteigern},
+  {id:'mt_d_plural', fach:'deutsch', gruppe:'Grammatik', icon:'➕', name:'Einzahl und Mehrzahl', kurz:'das Haus – die Häuser.',
+   deko:['-er','-e','-n','-s'], grad:'linear-gradient(135deg,#5B2130 0%,#8F2D3F 55%,#D14A5C 100%)', levels:['Mehrzahl bilden','Einzahl bilden'], gen:mtGenDPlural},
+  {id:'mt_d_konj', fach:'deutsch', gruppe:'Grammatik', icon:'💬', name:'Indirekte Rede', kurz:'Er sagt, er sei müde – Konjunktiv I.',
+   deko:['sei','habe','könne'], grad:'linear-gradient(135deg,#2A1B4A 0%,#4A2F7E 55%,#7B5CD6 100%)', levels:['Gemischte Sätze','Gemischte Sätze'], gen:mtGenDKonj},
+  {id:'mt_d_passiv', fach:'deutsch', gruppe:'Grammatik', icon:'🔄', name:'Aktiv und Passiv', kurz:'Wer handelt – oder wird gehandelt?',
+   deko:['wird','wurde','ge-'], grad:'linear-gradient(135deg,#4A1E2B 0%,#7E2E43 55%,#C2506B 100%)', levels:['Erkennen','Genauer hinschauen'], gen:mtGenDPassiv},
+
+  /* 📕 Deutsch – Gross/klein, Zeichen, Wortschatz */
+  {id:'mt_d_zeitang', fach:'deutsch', gruppe:'Gross- und Kleinschreibung', icon:'🕗', name:'Zeitangaben gross oder klein', kurz:'heute Abend, aber abends.',
+   deko:['Abend','abends'], grad:'linear-gradient(135deg,#3A2A1A 0%,#6B4A2A 55%,#A9642E 100%)', levels:['Gemischte Sätze','Gemischte Sätze'], gen:mtGenDZeitang},
+  {id:'mt_d_rede', fach:'deutsch', gruppe:'Zeichensetzung', icon:'🗣️', name:'Direkte Rede', kurz:'Doppelpunkt, Komma – oder gar nichts?',
+   deko:['«»',':',','], grad:'linear-gradient(135deg,#3F2D6B 0%,#6D4AAE 55%,#8B5CF6 100%)', levels:['Gemischte Sätze','Gemischte Sätze'], gen:mtGenDRede},
+  {id:'mt_d_syn', fach:'deutsch', gruppe:'Wortschatz', icon:'🔀', name:'Synonyme und Gegenteile', kurz:'Wörter mit gleicher – und gegenteiliger Bedeutung.',
+   deko:['=','≠','↔'], grad:'linear-gradient(135deg,#0B4F4A 0%,#0F766E 55%,#17A398 100%)', levels:['Gleiche Bedeutung','Gegenteil','Gemischt'], gen:mtGenDSyn},
+  {id:'mt_d_redewendung', fach:'deutsch', gruppe:'Wortschatz', icon:'🐱', name:'Redewendungen', kurz:'Die Katze aus dem Sack lassen …',
+   deko:['🐱','🎒','💡'], grad:'linear-gradient(135deg,#6B1220 0%,#A82238 55%,#E63950 100%)', levels:['Bedeutung finden','Redewendung finden'], gen:mtGenDRedewendung},
 
   /* 🇬🇧 Englisch */
   {id:'mt_e_verben', fach:'englisch', icon:'📖', name:'Irregular verbs', kurz:'go – went – gone, und die anderen 49.',
@@ -20114,16 +21249,28 @@ var MT_TRAINER = [
   {id:'mt_h_zeit', fach:'geschichte', icon:'⏳', name:'Zeitleiste', kurz:'Was war früher – und in welchem Jahr?',
    deko:['1291','1492','1789','1945'], grad:'linear-gradient(135deg,#3A2A1A 0%,#6B4A2A 55%,#A9642E 100%)',
    levels:['Was war früher?','Jahreszahlen','Beides, schwieriger','Alles gemischt'], gen:mtGenHZeit},
+  {id:'mt_h_strahl', fach:'geschichte', icon:'📜', name:'Zeitstrahl', kurz:'100 grosse Ereignisse auf dem Zeitstrahl einordnen.',
+   deko:['1291','1492','1789','1945'], grad:'linear-gradient(135deg,#5A3E10 0%,#8C6418 55%,#C98B1F 100%)',
+   levels:['Grobe Epochen','Jahrhunderte','Jahrzehnte','Umgekehrt: welches Ereignis?','Alles gemischt'], gen:mtGenHZeitstrahl},
 
   /* 🧬 Biologie */
   {id:'mt_b_begriffe', fach:'biologie', icon:'🫀', name:'Organe & Fachbegriffe', kurz:'Was macht welches Organ, was heisst welcher Begriff?',
    deko:['🫁','🧬','🩸','🦴'], grad:'linear-gradient(135deg,#0B4F4A 0%,#0F766E 55%,#17A398 100%)',
    levels:['Organe und ihre Aufgabe','Fachbegriffe','Alles gemischt'], gen:mtGenBio},
+  {id:'mt_b_organe', fach:'biologie', icon:'🫁', name:'Organe im Körper', kurz:'Am Bild lernen: Organ im Körper antippen.',
+   deko:['🫀','🫁','🧠','🩸'], grad:'linear-gradient(135deg,#6B1220 0%,#A82238 55%,#E63950 100%)',
+   levels:['Organ im Bild finden','Welches Organ ist markiert?','Aufgabe → Organ antippen','Alles gemischt'], gen:mtGenBOrgane},
+  {id:'mt_b_skelett', fach:'biologie', icon:'🦴', name:'Das Skelett', kurz:'Am Bild lernen: Knochen im Skelett antippen.',
+   deko:['🦴','💀','🦵','🦶'], grad:'linear-gradient(135deg,#3A2A1A 0%,#6B4A2A 55%,#A9642E 100%)',
+   levels:['Knochen im Bild finden','Welcher Knochen ist markiert?','Aufgabe → Knochen antippen','Alles gemischt'], gen:mtGenBSkelett},
 
   /* ⚗️ Chemie */
   {id:'mt_c_pse', fach:'chemie', icon:'⚗️', name:'Periodensystem', kurz:'Symbol, Name und Ordnungszahl.',
    deko:['H','O','Na','Fe'], grad:'linear-gradient(135deg,#3F2D6B 0%,#6D4AAE 55%,#8B5CF6 100%)',
    levels:['Die ersten 12','Die ersten 20','Alle 30','Alles gemischt'], gen:mtGenCPse},
+  {id:'mt_c_pse_bild', fach:'chemie', icon:'🔲', name:'Periodensystem im Bild', kurz:'Am Gitter lernen: Element antippen statt tippen.',
+   deko:['H','O','Na','Fe'], grad:'linear-gradient(135deg,#123A5F 0%,#1D5C93 55%,#3A7BBF 100%)',
+   levels:['Element suchen (mit Symbolen)','Nach Ordnungszahl suchen','Welches Element ist markiert?','Ohne Symbole','Alles gemischt'], gen:mtGenCPseBild},
   {id:'mt_c_teilchen', fach:'chemie', num:true, icon:'⚛️', name:'Protonen & Neutronen', kurz:'Aus Ordnungszahl und Massenzahl rechnen.',
    deko:['p⁺','n','e⁻','+'], grad:'linear-gradient(135deg,#2A1B4A 0%,#4A2F7E 55%,#7B5CD6 100%)',
    levels:['Protonen','Elektronen','Neutronen','Alle drei auf einmal'], gen:mtGenCTeilchen},
@@ -20205,16 +21352,30 @@ function renderMtHub(r){
       '<span class="mt-kachel-text"><b>'+esc(z.name)+'</b><small>'+esc(z.kurz)+'</small><small class="mt-kachel-lv">'+esc(z.lv)+'</small></span>'+
       '<span class="sk-karte-pfeil" aria-hidden="true">›</span></button>';
   });
-  liste.forEach(function(t){
-    html += '<button type="button" class="mt-kachel" data-mt="'+esc(t.id)+'"><span class="mt-kachel-icon" style="background:'+t.grad+'">'+esc(t.icon)+'</span>'+
+  function kachel(t){
+    return '<button type="button" class="mt-kachel" data-mt="'+esc(t.id)+'"><span class="mt-kachel-icon" style="background:'+t.grad+'">'+esc(t.icon)+'</span>'+
       '<span class="mt-kachel-text"><b>'+esc(t.name)+'</b><small>'+esc(t.kurz)+'</small><small class="mt-kachel-lv">'+t.levels.length+' Level</small></span>'+
       '<span class="sk-karte-pfeil" aria-hidden="true">›</span></button>';
-  });
-  html += '</div>';
+  }
+  // Fächer mit vielen Trainern (Deutsch) werden nach Gruppen unterteilt,
+  // sonst wird die Kachelwand unübersichtlich.
+  var gruppen = [];
+  liste.forEach(function(t){ if(t.gruppe && gruppen.indexOf(t.gruppe) < 0) gruppen.push(t.gruppe); });
+  if(gruppen.length > 1 && liste.length > 8){
+    html += '</div>';
+    gruppen.forEach(function(g){
+      html += '<h3 class="mt-gruppe">'+esc(g)+'</h3><div class="mt-kacheln">'+
+        liste.filter(function(t){ return t.gruppe === g; }).map(kachel).join('')+'</div>';
+    });
+    var ohne = liste.filter(function(t){ return !t.gruppe; });
+    if(ohne.length) html += '<div class="mt-kacheln">'+ohne.map(kachel).join('')+'</div>';
+  } else {
+    html += liste.map(kachel).join('') + '</div>';
+  }
   html += '</div>';
   renderChrome(html);
   document.getElementById('backBtn').addEventListener('click', function(){ goSubject(r.subject, null); });
-  document.querySelector('.mt-kacheln').addEventListener('click', function(e){
+  document.querySelector('.mt-wrap').addEventListener('click', function(e){
     var z = e.target.closest('[data-zusatz]');
     if(z){
       var zd = zusatz.filter(function(x){ return x.res.id === z.getAttribute('data-zusatz'); })[0];
@@ -20269,7 +21430,7 @@ function renderMtTrainer(r){
   html += '<div class="mt-hero" style="background:'+def.grad+'"><div class="mt-hero-deko" aria-hidden="true">'+
     def.deko.map(function(z){ return '<span>'+esc(z)+'</span>'; }).join('')+'</div>'+
     '<div class="mt-hero-titel"><span class="mt-logo">'+esc(def.icon+' '+def.name)+'</span></div>'+
-    '<p>'+esc(def.kurz)+' Schreib deine Antworten in die Kästchen und drück «Kontrollieren» – du siehst sofort, was stimmt, und bei Fehlern bekommst du einen Tipp.</p></div>';
+    '<p>'+esc(def.kurz2 || (def.kurz + ' Schreib deine Antworten in die Kästchen und drück «Kontrollieren» – du siehst sofort, was stimmt, und bei Fehlern bekommst du einen Tipp.'))+'</p></div>';
   html += '<div class="sk-panel"><div class="sk-panel-kopf"><div><div class="sk-lv-gross" id="mtLvGross"></div><div class="sk-lv-text" id="mtLvText"></div></div>'+
     '<div class="sk-lv-knoepfe"><button class="btn btn-ghost btn-sm" id="mtLvMinus" type="button" title="Level tiefer">◀</button><button class="btn btn-ghost btn-sm" id="mtLvPlus" type="button" title="Level höher">▶</button></div></div>'+
     '<div id="mtTreppe"></div>'+
@@ -20313,6 +21474,8 @@ function renderMtTrainer(r){
     mtStartUhr();
   });
   blatt.addEventListener('keydown', function(e){
+    var hot = e.target.closest ? e.target.closest('.mt-hot') : null;
+    if(hot && (e.key === 'Enter' || e.key === ' ')){ e.preventDefault(); hot.dispatchEvent(new MouseEvent('click', {bubbles:true})); return; }
     if(e.key !== 'Enter' || !e.target.classList.contains('mt-in')) return;
     e.preventDefault();
     var alle = Array.prototype.slice.call(blatt.querySelectorAll('.mt-in:not([readonly])')), i = alle.indexOf(e.target);
@@ -20364,14 +21527,16 @@ function mtNeu(){
   document.getElementById('mtPruefen').disabled = false;
 }
 function mtFeldHtml(k, f, wert, mark, num){
-  var h = '<span class="mt-feld'+(mark ? ' mt-'+mark : '')+'">';
+  var h = '<span class="mt-feld'+(mark ? ' mt-'+mark : '')+(f.typ === 'bild' ? ' mt-feld-bild' : '')+'">';
   if(f.vor) h += '<span class="mt-vor">'+esc(f.vor)+'</span>';
-  if(f.typ === 'wahl'){
+  if(f.typ === 'bild'){
+    h += mtHotbildHtml(k, f, wert, mark);
+  } else if(f.typ === 'wahl'){
     var soll = [].concat(f.loesung)[0];
     h += '<span class="mt-wahl">'+f.optionen.map(function(o){
       // Nach dem Kontrollieren ist die richtige Antwort immer grün markiert –
       // auch dann, wenn etwas anderes angetippt wurde.
-      return '<button type="button" class="mt-wahl-b'+(wert && mtNorm(wert) === mtNorm(o) ? ' an' : '')+(mark && mtNorm(o) === mtNorm(soll) ? ' richtig' : '')+'" data-k="'+esc(k)+'" data-v="'+esc(o)+'"'+(mark ? ' disabled' : '')+'>'+esc(mtAnzeige(o))+'</button>';
+      return '<button type="button" class="mt-wahl-b'+(wert && mtVgl(f, wert) === mtVgl(f, o) ? ' an' : '')+(mark && mtVgl(f, o) === mtVgl(f, soll) ? ' richtig' : '')+'" data-k="'+esc(k)+'" data-v="'+esc(o)+'"'+(mark ? ' disabled' : '')+'>'+esc(mtAnzeige(o))+'</button>';
     }).join('')+'</span>';
   } else {
     var zahl = num && !f.text;
@@ -20380,6 +21545,27 @@ function mtFeldHtml(k, f, wert, mark, num){
   if(f.nach) h += '<span class="mt-nach">'+esc(f.nach)+'</span>';
   if((mark === 'bad' || mark === 'leer') && f.typ !== 'wahl') h += '<small class="mt-soll">'+esc(mtAnzeige([].concat(f.loesung)[0]))+'</small>';
   return h + '</span>';
+}
+// Ein anklickbares SVG-Bild als Antwortfeld: jede Fläche (Organ, Knochen,
+// Element, Zeitabschnitt, Klappe der Wortmaschine) ist ein .mt-wahl-b und wird
+// darum von denselben Klick-Handlern erfasst wie ein normaler Wahlknopf –
+// im Trainer und in der Prüfung.
+function mtHotbildHtml(k, f, wert, mark){
+  var b = f.bild || {}, soll = [].concat(f.loesung)[0], gewaehlt = wert == null ? '' : String(wert);
+  var h = '<div class="mt-hotbild'+(b.breit ? ' breit' : '')+(b.schmal ? ' schmal' : '')+(mark ? ' fix' : '')+'">';
+  h += '<svg viewBox="'+esc(b.vb || '0 0 100 100')+'" role="group" aria-label="'+esc(b.alt || 'Bild zum Anklicken')+'">';
+  h += b.inhalt || '';
+  (b.hots || []).forEach(function(o){
+    var an = gewaehlt && mtVgl(f, gewaehlt) === mtVgl(f, o.v);
+    var cls = 'mt-wahl-b mt-hot' + (an ? ' an' : '') + (mark && mtVgl(f, o.v) === mtVgl(f, soll) ? ' richtig' : (mark && an ? ' falsch' : ''));
+    h += '<g class="'+cls+'" data-k="'+esc(k)+'" data-v="'+esc(o.v)+'" role="button" tabindex="0" aria-label="'+esc(o.titel || o.v)+'">'+
+      (o.form || '') + '<title>'+esc(o.titel || o.v)+'</title>' +
+      (o.t ? '<text class="hot-t" x="'+esc(String(o.tx))+'" y="'+esc(String(o.ty))+'" text-anchor="middle">'+esc(o.t)+'</text>' : '') + '</g>';
+  });
+  h += '</svg></div>';
+  if(b.legende) h += '<div class="mt-hot-legende">'+esc(b.legende)+'</div>';
+  if(mark) h += '<small class="mt-soll">'+esc(String(soll))+'</small>';
+  return h;
 }
 function mtBlattHtml(marks){ return mtBlattHtmlFuer(mtT.fragen, mtT.ans, marks, mtT.def.num); }
 function mtBlattHtmlFuer(fragen, ans, marks, num){
@@ -20545,13 +21731,13 @@ async function mtUebersicht(def){
 var MT_PR_ANZAHL = [5, 8, 10, 12, 15, 20, 25, 30];
 function mtPrCfg(p){
   var c = (p && p.cfg) || {};
-  return {trainer:String(c.trainer || ''), level:Math.max(1, +c.level || 1), anzahl:Math.max(1, +c.anzahl || 10)};
+  return {trainer:String(c.trainer || ''), level:Math.max(1, +c.level || 1), anzahl:Math.max(1, +c.anzahl || 10), uniq:c.uniq === true};
 }
 function mtPrDef(p){ return mtDef(mtPrCfg(p).trainer); }
 function mtPrFragen(p, uid){
   var c = mtPrCfg(p), def = mtDef(c.trainer);
   if(!def) return [];
-  return mtFragen(def, c.level, c.anzahl, (((+p.seed || 1) >>> 0) ^ pruefPersonSeed(uid || '')) >>> 0 || 1);
+  return mtFragen(def, c.level, c.anzahl, (((+p.seed || 1) >>> 0) ^ pruefPersonSeed(uid || '')) >>> 0 || 1, !c.uniq);
 }
 function mtPrFelder(fragen){ return fragen.reduce(function(n, q){ return n + q.felder.length; }, 0); }
 // Resultat einer Person (Lehrperson und Vorschau): ein Punkt pro Kästchen.
@@ -20626,6 +21812,8 @@ function mtPrStart(p, sess, ov, saved){
     else if(t.hasAttribute('data-nein')) document.getElementById('prBankConfirm').innerHTML = '';
   });
   el.addEventListener('keydown', function(e){
+    var hot = e.target.closest ? e.target.closest('.mt-hot') : null;
+    if(hot && (e.key === 'Enter' || e.key === ' ')){ e.preventDefault(); hot.dispatchEvent(new MouseEvent('click', {bubbles:true})); return; }
     if(e.key !== 'Enter' || !e.target.classList.contains('mt-in')) return;
     e.preventDefault();
     var alle = Array.prototype.slice.call(el.querySelectorAll('.mt-in')), i = alle.indexOf(e.target);
@@ -20654,7 +21842,11 @@ function mtPrAbgeben(sofort){
 function mtPrTrainerOpts(cur){
   var faecher = [];
   MT_TRAINER.forEach(function(t){ if(faecher.indexOf(t.fach) < 0) faecher.push(t.fach); });
-  return faecher.map(function(f){
+  // 🧮 SIKORE und ⌨️ Tastaturschreiben sind eigene Prüfungsarten, stehen hier
+  // aber mit in der Liste – die Auswahl wechselt dann in deren Editor.
+  return '<optgroup label="Eigene Trainer"><option value="__sikore">🧮 SIKORE – Sicher Kopfrechnen</option>'+
+    '<option value="__tippen">⌨️ Tastaturschreiben (Abschreibprüfung)</option></optgroup>'+
+    faecher.map(function(f){
     var s = subjectById(f);
     return '<optgroup label="'+esc(s ? s.name : f)+'">'+mtFachTrainer(f).map(function(t){
       return '<option value="'+esc(t.id)+'"'+(t.id === cur ? ' selected' : '')+'>'+esc(t.icon+' '+t.name)+'</option>';
@@ -20700,7 +21892,7 @@ function mtPrEditor(p){
   // mehrere) — einmal probeweise erzeugen statt raten.
   function maxP(){
     var d = aktDef(), anz = +document.getElementById('mtPrAnz').value || 10;
-    try{ return mtPrFelder(mtFragen(d, +document.getElementById('mtPrLevel').value || 1, anz, 12345)); }catch(e){ return anz; }
+    try{ return mtPrFelder(mtFragen(d, +document.getElementById('mtPrLevel').value || 1, anz, 12345, false)); }catch(e){ return anz; }
   }
   function skalaMerken(){
     var t = skw.typ;
@@ -20721,7 +21913,11 @@ function mtPrEditor(p){
     document.getElementById('prMaxInfo').textContent = 'Pro Person ' + (+document.getElementById('mtPrAnz').value || 10) + ' Aufgaben mit zusammen ' + maxP() + ' Kästchen = ' + maxP() + ' Punkten. Die Note kommt im Notenrechner unter ' + (s ? s.name : d.fach) + '.';
   }
   document.getElementById('prSkala').addEventListener('change', function(){ skalaMerken(); skw.typ = this.value; skalaZeichnen(); });
-  document.getElementById('mtPrTrainer').addEventListener('change', function(){ levelZeichnen(false); skalaZeichnen(); });
+  document.getElementById('mtPrTrainer').addEventListener('change', function(){
+    if(this.value === '__sikore'){ closeModal(); sikoreEditor(null); return; }
+    if(this.value === '__tippen'){ closeModal(); tippPrEditor(null); return; }
+    levelZeichnen(false); skalaZeichnen();
+  });
   document.getElementById('mtPrLevel').addEventListener('change', skalaZeichnen);
   document.getElementById('mtPrAnz').addEventListener('change', skalaZeichnen);
   levelZeichnen(true); skalaZeichnen();
@@ -20739,7 +21935,7 @@ function mtPrEditor(p){
     Object.assign(data, pruefFuerDaten(p));
     if(fix) data.cfg = Object.assign({}, p.cfg);
     else {
-      data.cfg = {trainer:d.id, level:+document.getElementById('mtPrLevel').value || 1, anzahl:+document.getElementById('mtPrAnz').value || 10};
+      data.cfg = {trainer:d.id, level:+document.getElementById('mtPrLevel').value || 1, anzahl:+document.getElementById('mtPrAnz').value || 10, uniq:true};
       var z = num('prZeit');
       data.zeitMin = z > 0 ? Math.min(120, Math.round(z)) : 0;
     }
