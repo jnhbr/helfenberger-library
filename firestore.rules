@@ -88,6 +88,9 @@ rules_version = '2';
 //   lernphasen/{uidLehrperson}                      -> {aktiv, startMs, titel, mitglieder:[uid], namen, aus:[uid]} 📚 Lernphase
 //   lernphasen/{uidLehrperson}/praesenz/{uid}       -> {drin, ts, phase, raus, rausSeit} Lebenszeichen der Person
 //   klassen/{k}/appMeta/schulden                    -> {enabled} 💸 Schulden-Liste auf dieser Seite an/aus
+//   abstimmungen/{id}                              -> {titel, info, fragen:[{text, optionen}], klassen:[...], anonym, status, endetAm,
+//                                                       erstelltVonUid, erstelltVon, erstelltAm} 🗳️ Abstimmung über mehrere Klassen
+//   abstimmungen/{id}/stimmen/{uid}                -> {antworten:[Index je Frage], klasse, name, at}
 //   passwortAnfragen/{id}                           -> {uid, name, klasse, vonUid, vonName, status, neuesPasswort} (admin/passwort-reset.js)
 //   Seiten ohne Klasse: klassen/flp-<name>, isf-<name>, praktikum-<n> (FLP, ISF, Praktikum)
 //   students/{uid}.nurFach                          -> optional, z.B. 'mathe': Fach-Gast aus einer anderen
@@ -307,6 +310,41 @@ service cloud.firestore {
           && uid in get(/databases/$(database)/documents/lernphasen/$(lpUid)).data.get('mitglieder', []);
         // Separat: bei einem delete ist request.resource null.
         allow delete: if isTeacher();
+      }
+    }
+
+    // 🗳️ Abstimmungen über mehrere Klassen/Jahrgänge (siehe ABSTIMMUNGEN in index.html).
+    // Schüler:innen lesen nur Abstimmungen ihrer Klasse (where('klassen','array-contains', klasse))
+    // und schreiben nur die eigene Stimme, solange die Abstimmung offen ist.
+    match /abstimmungen/{aid} {
+      allow read: if canReadAll() || (isSignedIn() && request.auth.token.klasse in resource.data.klassen);
+      allow create: if isTeacher()
+        && request.resource.data.erstelltVonUid == request.auth.uid
+        && request.resource.data.klassen is list
+        && request.resource.data.klassen.size() > 0
+        && request.resource.data.klassen.size() <= 60
+        && request.resource.data.fragen is list
+        && request.resource.data.fragen.size() <= 10;
+      allow update: if isTeacher()
+        && (resource.data.erstelltVonUid == request.auth.uid || isJan())
+        && request.resource.data.erstelltVonUid == resource.data.erstelltVonUid
+        && request.resource.data.klassen is list
+        && request.resource.data.fragen is list;
+      // Separat: bei einem delete ist request.resource null.
+      allow delete: if isTeacher() && (resource.data.erstelltVonUid == request.auth.uid || isJan());
+
+      match /stimmen/{uid} {
+        allow read: if canReadAll() || isOwner(uid);
+        allow create, update: if isOwner(uid)
+          && request.resource.data.klasse == request.auth.token.klasse
+          && request.resource.data.antworten is list
+          && request.resource.data.antworten.size() <= 10
+          && get(/databases/$(database)/documents/abstimmungen/$(aid)).data.status == 'offen'
+          && request.auth.token.klasse in get(/databases/$(database)/documents/abstimmungen/$(aid)).data.klassen
+          && (get(/databases/$(database)/documents/abstimmungen/$(aid)).data.get('endetAm', null) == null
+              || request.time.toMillis() < get(/databases/$(database)/documents/abstimmungen/$(aid)).data.endetAm);
+        // Separat: bei einem delete ist request.resource null.
+        allow delete: if isTeacher() && (get(/databases/$(database)/documents/abstimmungen/$(aid)).data.erstelltVonUid == request.auth.uid || isJan());
       }
     }
 

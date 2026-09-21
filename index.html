@@ -1207,6 +1207,48 @@
   .kk-ueb-row{grid-template-columns:minmax(110px,1.6fr) 1fr .8fr 1fr .8fr;}
   @media (max-width:640px){ .kk-ueb-row{grid-template-columns:1fr 1fr;} }
   .topbar-umfrage{background:#6D4AC8;}
+  .topbar-abst{background:#0E7490;}
+  .topbar-abst.abst-fertig{opacity:.8;}
+  /* ---------- 🗳️ Abstimmungen ---------- */
+  .abst-karte{border:1px solid var(--border);border-radius:16px;padding:14px 16px;margin:12px 0;background:var(--surface);}
+  .abst-titel{font-family:'Baloo 2',system-ui,sans-serif;font-weight:700;font-size:20px;line-height:1.25;}
+  .abst-info{margin:6px 0;white-space:pre-wrap;}
+  .abst-meta{margin:4px 0 8px;color:var(--text-muted);font-size:13px;}
+  .abst-frage{font-weight:800;margin:14px 0 2px;}
+  .abst-vote{margin:8px 0;}
+  .abst-vote button{min-height:54px;padding:12px;}
+  .abst-send{display:flex;align-items:center;gap:10px;justify-content:flex-end;flex-wrap:wrap;margin-top:6px;}
+  .abst-send span{color:var(--good);font-weight:700;font-size:13.5px;margin-right:auto;}
+  .abst-zeile{display:flex;align-items:center;gap:12px;width:100%;text-align:left;border:1px solid var(--border);background:var(--surface-2);color:var(--text);border-radius:14px;padding:10px 14px;margin-bottom:8px;font:inherit;cursor:pointer;}
+  .abst-zeile:hover{border-color:var(--brand);}
+  .abst-zeile-txt{flex:1;min-width:0;}
+  .abst-zeile-txt b{display:block;}
+  .abst-zeile-txt small{color:var(--text-muted);}
+  .abst-pfeil{font-size:22px;color:var(--text-muted);}
+  .abst-status{display:inline-block;border-radius:999px;padding:2px 9px;font-size:12px;font-weight:800;white-space:nowrap;}
+  .abst-status.offen{background:var(--good);color:#fff;}
+  .abst-status.zu{background:var(--surface-2);color:var(--text-muted);border:1px solid var(--border);}
+  .abst-frage-edit{border:1px solid var(--border);border-radius:14px;padding:10px 12px;margin-top:12px;}
+  .abst-frage-kopf{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px;}
+  .abst-anzahl{font-weight:600;color:var(--text-muted);margin-left:6px;}
+  .abst-klassen{display:flex;flex-direction:column;gap:6px;margin-top:4px;}
+  .abst-jg{display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+  .abst-jg > span{width:44px;font-weight:800;color:var(--text-muted);font-size:13px;}
+  .abst-kl{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--border);border-radius:999px;padding:5px 11px;font-weight:700;font-size:14px;cursor:pointer;background:var(--surface-2);}
+  .abst-kl.an{background:var(--brand);color:var(--brand-contrast);border-color:transparent;}
+  .abst-kl input{margin:0;}
+  .abst-filter{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:8px 0;}
+  .abst-filter .modal-input{width:auto;margin:0;}
+  .abst-beteiligung{margin:6px 0 4px;}
+  .abst-bars{margin:6px 0 4px;}
+  .abst-bars .uf-bar-row{font-size:15px;}
+  .abst-top .uf-bar-fill{opacity:.4;}
+  .abst-teil{margin-top:14px;}
+  .abst-teil summary{cursor:pointer;font-weight:700;}
+  .abst-tab{border-collapse:collapse;margin-top:8px;font-size:14px;}
+  .abst-tab th,.abst-tab td{border-bottom:1px solid var(--border);padding:5px 12px;text-align:center;}
+  .abst-tab th:first-child,.abst-tab td:first-child{text-align:left;}
+  .abst-aktionen{flex-wrap:wrap;}
 
   /* ---------- 🎲 Gruppen & Partner ---------- */
   .gr-panel{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:center;margin-bottom:6px;}
@@ -4801,6 +4843,7 @@ function doLogout(){
   stopQuizWatcher();
   stopUmfrageWatcher();
   stopWolkeWatcher();
+  stopAbstWatcher();
   erledigt = { ids:{}, loaded:false, uid:null };
   // Auch den Ämtliplan vergessen: sonst sieht die naechste Person auf demselben
   // Geraet noch den zwischengespeicherten Stand der vorherigen Sitzung.
@@ -4830,6 +4873,7 @@ onAuthStateChanged(auth, async function(user){
     stopQuizWatcher();
     stopUmfrageWatcher();
     stopWolkeWatcher();
+    stopAbstWatcher();
     stopPruefungWatcher();
     stopLernphaseWatcher();
     applyPencilEggVisibility();
@@ -4883,6 +4927,7 @@ onAuthStateChanged(auth, async function(user){
     startQuizWatcher();
     startUmfrageWatcher();
     startWolkeWatcher();
+    startAbstWatcher();
     startPruefungWatcher();
     startLernphaseWatcher();
     gruppenMitgliederNachtragen().catch(function(err){ console.error('Gruppen-Mitglieder', err); });
@@ -5196,6 +5241,7 @@ function renderChrome(innerHtml){
   html += '<button class="topbar-quiz" id="quizJoinBtn" type="button" hidden>🎮 Quiz läuft — mitmachen</button>';
   html += '<button class="topbar-quiz topbar-umfrage" id="umfrageJoinBtn" type="button" hidden>⚡ Umfrage läuft — abstimmen</button>';
   html += '<button class="topbar-quiz topbar-umfrage" id="wolkeJoinBtn" type="button" hidden>☁️ Wortwolke läuft — mitmachen</button>';
+  html += '<button class="topbar-quiz topbar-abst" id="abstJoinBtn" type="button" hidden>🗳️ Abstimmung</button>';
   html += '<button class="topbar-quiz topbar-pruefung" id="pruefungBtn" type="button" hidden>📝 Prüfung</button>';
   html += '<span class="topbar-lernphase" id="lernphaseBadge" title="Lernphase: Bleib hier in der Library" hidden>📚 Lernphase</span>';
   html += '<div class="topbar-spacer"></div>';
@@ -5278,6 +5324,9 @@ function renderChrome(innerHtml){
   var wolkeJoinBtn = document.getElementById('wolkeJoinBtn');
   if(wolkeJoinBtn){ wolkeJoinBtn.addEventListener('click', openWolkeVote); }
   updateWolkeBanner();
+  var abstJoinBtn = document.getElementById('abstJoinBtn');
+  if(abstJoinBtn){ abstJoinBtn.addEventListener('click', openAbstVote); }
+  updateAbstBanner();
   updatePruefungBanner();
   var streakBtn = document.getElementById('streakBtn');
   if(streakBtn){
@@ -13677,6 +13726,9 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-09-21-abstimmungen', datum:'2026-09-21', fuer:'alle', text:'🗳️ Neu: Abstimmungen. Steht oben «🗳️ Abstimmung», darfst du bei einer Abstimmung für deine Klasse oder die ganze Schule mitmachen. Bis sie geschlossen wird, kannst du deine Stimme noch ändern.'},
+  {id:'2026-09-21-abstimmungen-lp', datum:'2026-09-21', fuer:'lehrer', text:'🗳️ Klassenzimmer › Abstimmungen: eine oder mehrere Fragen an beliebige Klassen stellen (Schnellwahl: alle, 1./2./3. Jahrgang, alle G, alle E), anonym oder mit Namen, auf Wunsch mit Schlussdatum. Auswertung live nach Klasse oder Jahrgang und als sauber formatierte Excel-Datei (Übersicht, nach Klassen, Beteiligung, Einzelstimmen).'},
+  {id:'2026-09-21-lernphase-fach', datum:'2026-09-21', fuer:'lehrer', text:'📚 Lernphase: Die Übungsauswahl funktioniert wieder – zuerst das Fach wählen, dann erscheinen dessen Übungen. 📌 «Immer im Vordergrund» öffnet in Chrome und Edge jetzt ein echtes Bild-in-Bild-Fenster mit scharfer Schrift, das sich jeder Grösse anpasst (Firefox: kleines eigenes Fenster, Safari wie bisher).'},
   {id:'2026-09-20-karteikarten', datum:'2026-09-20', fuer:'alle', text:'🗂️ Neu in den Fächern: «Karteikarten». Wortschatz und Begriffe lernst du dort wie mit echten Karten in fünf Boxen – was du kannst, rutscht eine Box weiter und kommt erst in ein paar Tagen wieder, was du nicht weisst, kommt sofort nochmals. Du kannst die Karten umdrehen oder die Antwort selber schreiben, und die Richtung tauschen (z. B. Deutsch → Englisch).'},
   {id:'2026-09-20-karteikarten-lp', datum:'2026-09-20', fuer:'lehrer', text:'🗂️ Klassenzimmer › Karteikarten: Sets pro Fach anlegen – Titel, Spaltennamen und die Karten als Liste («house = Haus», eine pro Zeile; Tabulator, Strichpunkt und « – » gehen auch, Excel-Listen also einfach hineinkopieren). Mehrere gültige Antworten mit «/» trennen. Das Set erscheint im Fach zuoberst unter «🗂️ Karteikarten»; pro Set gibt es eine 📊 Klassenübersicht (was sitzt, was ist fällig, wer hat diese Woche geübt), und in der 📚 Lernphase lässt sich auf ein einzelnes Set einschränken.'},
   {id:'2026-09-20-wortwolke', datum:'2026-09-20', fuer:'alle', text:'☁️ Neu: die Wortwolke. Steht oben «☁️ Wortwolke läuft», tippst du ein paar Begriffe ein – am Beamer wachsen die Wörter, die viele genannt haben.'},
@@ -15546,6 +15598,7 @@ var KZ_TILES = [
   { id:'pruefung',icon:'📝', name:'Prüfungen',           desc:'Online-Prüfung mit Sperre: wer sie verlässt, kommt erst wieder rein, wenn du entsperrst. Automatisch benotet.' },
   { id:'fragen',  icon:'❓', name:'Fragebox',            desc:'Anonyme Fragen der Klasse lesen und beantworten.' },
   { id:'umfrage', icon:'⚡', name:'Blitzumfrage',         desc:'Eine Frage, sofort am Beamer ausgewertet — auf Wunsch als Peer-Instruction-Doppelrunde.' },
+  { id:'abstimmung', icon:'🗳️', name:'Abstimmungen',      desc:'Über mehrere Klassen oder Jahrgänge abstimmen — Auswertung pro Klasse, auch als Excel.' },
   { id:'wolke',   icon:'☁️', name:'Wortwolke',            desc:'Alle tippen Begriffe ein — was oft kommt, wird am Beamer gross.' },
   { id:'karten',  icon:'🗂️', name:'Karteikarten',         desc:'Kartensets pro Fach anlegen — die Klasse übt sie mit fünf Leitner-Boxen.' },
   { id:'gruppen', icon:'🎲', name:'Gruppen & Partner',    desc:'Paare und Gruppen ziehen, ohne dass immer dieselben zusammenkommen.' },
@@ -15598,12 +15651,621 @@ function renderKlassenzimmer(){
       else if(id === 'pruefung'){ state.route = {name:'pruefungen'}; render(); }
       else if(id === 'fragen') openFragebox();
       else if(id === 'umfrage') openUmfrageSetup();
+      else if(id === 'abstimmung') openAbstVerwaltung();
       else if(id === 'wolke') openWolkeSetup();
       else if(id === 'karten') openKkVerwaltung();
       else if(id === 'gruppen') openGruppen();
       else if(id === 'aemtli'){ aemtliUi.view = 'plan'; aemtliUi.scrollTo = 'now'; state.route = {name:'aemtliplan'}; render(); }
       else if(id === 'vergessen'){ state.route = {name:'vergessen'}; render(); }
     });
+  });
+}
+
+/* ===================== 🗳️ ABSTIMMUNGEN =====================
+   Abstimmung über mehrere Klassen und Jahrgänge hinweg (z.B. Schülerrat,
+   Lagerziel, Sporttag). Liegt klassenlos, weil sie mehrere Klassen betrifft:
+     abstimmungen/{id}              -> {titel, info, fragen:[{text, optionen:[...]}], klassen:[...],
+                                        anonym, status:'offen'|'geschlossen', endetAm (ms|null),
+                                        erstelltVonUid, erstelltVon, erstelltAm}
+     abstimmungen/{id}/stimmen/{uid} -> {antworten:[Index je Frage], klasse, name ('' wenn anonym), at}
+   Schüler:innen lesen mit where('klassen','array-contains', eigene Klasse) —
+   ein einziges where(), also kein Composite Index. Oben erscheint
+   «🗳️ Abstimmung», solange eine offene läuft; die eigene Stimme lässt sich bis
+   zum Schliessen ändern. Lehrpersonen: Klassenzimmer › Abstimmungen, mit
+   Auswertung am Bildschirm und als .xlsx (ExcelJS, erst beim Herunterladen
+   vom CDN geladen). */
+var ABST_MAX_FRAGEN = 10, ABST_MAX_OPT = 8;
+var abst = { list:[], unsub:null, meine:{}, entwurf:{}, voteOpen:false };
+
+function abstCol(){ return collection(db, 'abstimmungen'); }
+function abstStimmenCol(id){ return collection(db, 'abstimmungen', id, 'stimmen'); }
+function abstOffen(a){ return !!(a && a.status === 'offen' && !(a.endetAm && Date.now() > a.endetAm)); }
+function abstJahrgang(k){ var m = /(\d)/.exec(k || ''); return m ? m[1] : ''; }
+function abstNiveau(k){ return (k || '').charAt(0); }
+function abstAlleKlassen(){ return KLASSEN.filter(function(k){ return k.art === 'klasse'; }).map(function(k){ return k.id; }); }
+function abstDatum(ms){ return ms ? new Date(ms).toLocaleDateString('de-CH', {day:'2-digit', month:'2-digit', year:'numeric'}) : ''; }
+function abstZeit(ms){ return ms ? new Date(ms).toLocaleString('de-CH', {day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'}) : ''; }
+function abstIstJan(){ return !!(state.user && state.user.email === 'helfenberger@helfenberger-library.app'); }
+function abstDarfAendern(a){ return state.profile.role === 'teacher' && !isLeitung() && (a.erstelltVonUid === state.user.uid || abstIstJan()); }
+// Kurz beschrieben: «alle Klassen», «2. Jahrgang, E3a», ...
+function abstKlassenText(ks){
+  ks = ks || [];
+  var alle = abstAlleKlassen();
+  if(alle.every(function(k){ return ks.indexOf(k) >= 0; })) return 'alle Klassen';
+  var teile = [], rest = ks.slice();
+  ['1', '2', '3'].forEach(function(j){
+    var jg = alle.filter(function(k){ return abstJahrgang(k) === j; });
+    if(jg.length && jg.every(function(k){ return rest.indexOf(k) >= 0; })){
+      teile.push(j + '. Jahrgang');
+      rest = rest.filter(function(k){ return jg.indexOf(k) < 0; });
+    }
+  });
+  return teile.concat(rest).join(', ');
+}
+
+/* ---------- Schüler:in ---------- */
+
+function startAbstWatcher(){
+  if(abst.unsub || !state.profile || state.profile.role === 'teacher' || !state.profile.klasse) return;
+  abst.unsub = onSnapshot(query(abstCol(), where('klassen', 'array-contains', state.profile.klasse)), function(snap){
+    abst.list = [];
+    snap.forEach(function(d){ abst.list.push(Object.assign({id:d.id}, d.data())); });
+    abst.list.forEach(function(a){
+      if(!abstOffen(a) || abst.meine[a.id] !== undefined) return;
+      abst.meine[a.id] = null;   // wird geladen
+      getDoc(doc(abstStimmenCol(a.id), state.user.uid)).then(function(d){
+        abst.meine[a.id] = d.exists() ? d.data() : false;
+      }).catch(function(){ abst.meine[a.id] = false; }).then(function(){
+        updateAbstBanner();
+        if(abst.voteOpen) paintAbstVote();
+      });
+    });
+    updateAbstBanner();
+    if(abst.voteOpen) paintAbstVote();
+  }, function(err){ console.error('Abstimmungen', err); });
+}
+function stopAbstWatcher(){
+  if(abst.unsub){ abst.unsub(); abst.unsub = null; }
+  abst.list = []; abst.meine = {}; abst.entwurf = {}; abst.voteOpen = false;
+}
+function abstOffeneFuerMich(){
+  return abst.list.filter(abstOffen).sort(function(a, b){ return (a.erstelltAm || 0) - (b.erstelltAm || 0); });
+}
+function updateAbstBanner(){
+  var btn = document.getElementById('abstJoinBtn');
+  if(!btn) return;
+  var offen = abstOffeneFuerMich();
+  var neu = offen.filter(function(a){ return !abst.meine[a.id]; }).length;
+  btn.hidden = !offen.length || !state.profile || state.profile.role === 'teacher';
+  btn.textContent = neu ? '🗳️ Abstimmung — jetzt abstimmen' + (neu > 1 ? ' (' + neu + ')' : '') : '🗳️ Abstimmung ✔';
+  btn.title = neu ? 'Es läuft eine Abstimmung für deine Klasse' : 'Du hast abgestimmt – hier kannst du deine Stimme noch ändern';
+  btn.classList.toggle('abst-fertig', !neu);
+}
+function openAbstVote(){ abst.voteOpen = true; paintAbstVote(); }
+function paintAbstVote(){
+  var offen = abstOffeneFuerMich();
+  if(!offen.length){
+    if(abst.voteOpen){ abst.voteOpen = false; closeModal(); toast('🗳️ Die Abstimmung ist geschlossen.'); }
+    return;
+  }
+  var h = '<h3>🗳️ Abstimmung</h3>';
+  offen.forEach(function(a){
+    var mein = abst.meine[a.id] || null, fragen = a.fragen || [];
+    var wahl = abst.entwurf[a.id] || (mein && Array.isArray(mein.antworten) ? mein.antworten.slice() : []);
+    abst.entwurf[a.id] = wahl;
+    h += '<div class="abst-karte">';
+    h += '<div class="abst-titel">'+esc(a.titel || 'Abstimmung')+'</div>';
+    if(a.info) h += '<p class="abst-info">'+esc(a.info)+'</p>';
+    h += '<p class="abst-meta">'+(a.anonym ? '🔒 Anonym – dein Name wird nicht gespeichert.' : '👤 Mit Namen – die Lehrpersonen sehen, was du gewählt hast.')+
+      (a.endetAm ? ' Offen bis '+esc(abstZeit(a.endetAm))+'.' : '')+'</p>';
+    fragen.forEach(function(f, fi){
+      if(fragen.length > 1 || (f.text || '') !== (a.titel || '')) h += '<div class="abst-frage">'+(fragen.length > 1 ? (fi + 1) + '. ' : '')+esc(f.text || '')+'</div>';
+      h += '<div class="uf-vote abst-vote">';
+      (f.optionen || []).forEach(function(o, oi){
+        h += '<button type="button" data-av="'+esc(a.id)+'|'+fi+'|'+oi+'"'+(wahl[fi] === oi ? ' class="uf-picked"' : '')+'>'+esc(o)+'</button>';
+      });
+      h += '</div>';
+    });
+    var komplett = fragen.every(function(f, fi){ return typeof wahl[fi] === 'number'; });
+    var gleich = !!(mein && Array.isArray(mein.antworten) && mein.antworten.join(',') === wahl.join(','));
+    h += '<div class="abst-send"><span>'+(mein ? (gleich ? '✔ Deine Stimme ist gespeichert – du kannst sie noch ändern.' : 'Änderung noch nicht gesendet.') : (komplett ? '' : 'Wähle bei jeder Frage eine Antwort.'))+'</span>'+
+      '<button class="btn btn-primary btn-sm" data-asend="'+esc(a.id)+'" type="button"'+(komplett && !gleich ? '' : ' disabled')+'>'+(mein ? 'Stimme ändern' : 'Stimme abgeben')+'</button></div>';
+    h += '</div>';
+  });
+  h += '<div class="modal-actions"><button class="btn btn-ghost btn-sm" id="abstVoteClose" type="button">Schliessen</button></div>';
+  var alt = modalEl.querySelector('.modal'), top = alt ? alt.scrollTop : 0, topAussen = modalEl.scrollTop;
+  openModal(h, 'modal-wide');
+  var neu = modalEl.querySelector('.modal'); if(neu) neu.scrollTop = top; modalEl.scrollTop = topAussen;
+  document.getElementById('abstVoteClose').addEventListener('click', function(){ abst.voteOpen = false; closeModal(); });
+  Array.prototype.forEach.call(modalEl.querySelectorAll('[data-av]'), function(b){
+    b.addEventListener('click', function(){
+      var t = b.getAttribute('data-av').split('|');
+      (abst.entwurf[t[0]] = abst.entwurf[t[0]] || [])[+t[1]] = +t[2];
+      paintAbstVote();
+    });
+  });
+  Array.prototype.forEach.call(modalEl.querySelectorAll('[data-asend]'), function(b){
+    b.addEventListener('click', function(){
+      var id = b.getAttribute('data-asend'), a = abst.list.filter(function(x){ return x.id === id; })[0];
+      var wahl = (abst.entwurf[id] || []).slice();
+      if(!a || !abstOffen(a)){ toast('Diese Abstimmung ist schon geschlossen.'); return; }
+      b.disabled = true;
+      setDoc(doc(abstStimmenCol(id), state.user.uid), {
+        antworten:wahl, klasse:state.profile.klasse, name:a.anonym ? '' : (state.profile.displayName || ''), at:Date.now()
+      }).then(function(){
+        abst.meine[id] = {antworten:wahl};
+        toast('🗳️ Danke! Deine Stimme ist gespeichert.');
+        updateAbstBanner();
+        if(abst.voteOpen) paintAbstVote();
+      }).catch(function(err){ console.error(err); b.disabled = false; toast('Stimme konnte nicht gespeichert werden.'); });
+    });
+  });
+}
+
+/* ---------- Lehrperson: Übersicht ---------- */
+
+function openAbstVerwaltung(){
+  openModal('<h3>🗳️ Abstimmungen</h3><p class="pr-hinweis">Wird geladen …</p>', 'modal-wide');
+  getDocs(abstCol()).then(function(snap){
+    var list = [];
+    snap.forEach(function(d){ list.push(Object.assign({id:d.id}, d.data())); });
+    list.sort(function(a, b){ return (b.erstelltAm || 0) - (a.erstelltAm || 0); });
+    var h = '<h3>🗳️ Abstimmungen</h3>';
+    h += '<p class="pr-hinweis" style="margin-top:0">Abstimmungen über mehrere Klassen oder Jahrgänge. Die Schüler:innen sehen oben «🗳️ Abstimmung», solange sie offen ist. Die Auswertung gibt es hier und als Excel-Datei.</p>';
+    if(!isLeitung()) h += '<div class="back-row" style="margin:0 0 12px;"><button class="btn btn-primary btn-sm" id="abstNeuBtn" type="button">➕ Neue Abstimmung</button></div>';
+    if(!list.length) h += '<div class="empty-state">Noch keine Abstimmungen.</div>';
+    list.forEach(function(a){
+      var offen = abstOffen(a);
+      h += '<button class="abst-zeile" data-aid="'+esc(a.id)+'" type="button">'+
+        '<span class="abst-status '+(offen ? 'offen' : 'zu')+'">'+(offen ? 'offen' : 'geschlossen')+'</span>'+
+        '<span class="abst-zeile-txt"><b>'+esc(a.titel || 'Abstimmung')+'</b><small>'+esc(abstKlassenText(a.klassen))+' · '+esc(abstDatum(a.erstelltAm))+(a.erstelltVon ? ' · '+esc(a.erstelltVon) : '')+'</small></span>'+
+        '<span class="abst-pfeil">›</span></button>';
+    });
+    h += '<div class="modal-actions"><button class="btn btn-ghost btn-sm" id="modalCancel" type="button">Schliessen</button></div>';
+    openModal(h, 'modal-wide');
+    document.getElementById('modalCancel').addEventListener('click', closeModal);
+    var neuBtn = document.getElementById('abstNeuBtn');
+    if(neuBtn) neuBtn.addEventListener('click', openAbstNeu);
+    Array.prototype.forEach.call(modalEl.querySelectorAll('[data-aid]'), function(b){
+      b.addEventListener('click', function(){
+        openAbstDetail(list.filter(function(a){ return a.id === b.getAttribute('data-aid'); })[0]);
+      });
+    });
+  }).catch(function(err){ console.error(err); closeModal(); toast('Abstimmungen konnten nicht geladen werden.'); });
+}
+
+/* ---------- Lehrperson: neue Abstimmung ---------- */
+
+function openAbstNeu(){
+  var e = { titel:'', info:'', fragen:[{text:'', optionen:['', '']}], klassen:[], anonym:true, endet:'' };
+  var alle = abstAlleKlassen();
+  var gruppen = [
+    {id:'alle', label:'Alle', ks:alle},
+    {id:'j1', label:'1. Jahrgang', ks:alle.filter(function(k){ return abstJahrgang(k) === '1'; })},
+    {id:'j2', label:'2. Jahrgang', ks:alle.filter(function(k){ return abstJahrgang(k) === '2'; })},
+    {id:'j3', label:'3. Jahrgang', ks:alle.filter(function(k){ return abstJahrgang(k) === '3'; })},
+    {id:'g', label:'Alle G', ks:alle.filter(function(k){ return abstNiveau(k) === 'G'; })},
+    {id:'e', label:'Alle E', ks:alle.filter(function(k){ return abstNiveau(k) === 'E'; })}
+  ];
+
+  function build(){
+    var h = '<h3>🗳️ Neue Abstimmung</h3>';
+    h += '<label class="modal-label" for="abTitel">Titel</label>';
+    h += '<input class="modal-input" id="abTitel" maxlength="120" placeholder="z.B. Wohin geht die Schulreise?" value="'+esc(e.titel)+'">';
+    h += '<label class="modal-label" for="abInfo">Erklärung (freiwillig)</label>';
+    h += '<textarea class="modal-input" id="abInfo" rows="2" maxlength="600" placeholder="Was sollen die Schüler:innen wissen?">'+esc(e.info)+'</textarea>';
+    e.fragen.forEach(function(f, fi){
+      h += '<div class="abst-frage-edit">';
+      h += '<div class="abst-frage-kopf"><label class="modal-label" style="margin:0">Frage '+(fi + 1)+'</label>'+
+        (e.fragen.length > 1 ? '<button class="btn btn-ghost btn-sm" data-fdel="'+fi+'" type="button">✕ Frage entfernen</button>' : '')+'</div>';
+      h += '<input class="modal-input" data-ftext="'+fi+'" maxlength="300" placeholder="'+(fi === 0 ? 'Leer lassen = Titel als Frage' : 'Frage')+'" value="'+esc(f.text)+'">';
+      f.optionen.forEach(function(o, oi){
+        h += '<div class="uf-opt-row"><span class="uf-opt-nr">'+String.fromCharCode(65 + oi)+'</span>'+
+          '<input class="modal-input" data-fopt="'+fi+'|'+oi+'" maxlength="120" value="'+esc(o)+'" placeholder="Antwort '+String.fromCharCode(65 + oi)+'">'+
+          '<button class="btn btn-ghost btn-sm" data-foptdel="'+fi+'|'+oi+'" type="button" title="Entfernen"'+(f.optionen.length <= 2 ? ' disabled' : '')+'>✕</button></div>';
+      });
+      h += '<div class="uf-setup-modi" style="margin:4px 0 0">'+
+        '<button class="btn btn-ghost btn-sm" data-foptadd="'+fi+'" type="button"'+(f.optionen.length >= ABST_MAX_OPT ? ' disabled' : '')+'>+ Möglichkeit</button>'+
+        '<button class="kz-tab" data-fjn="'+fi+'" type="button">Ja / Nein / Enthaltung</button></div>';
+      h += '</div>';
+    });
+    if(e.fragen.length < ABST_MAX_FRAGEN) h += '<div class="back-row" style="margin:10px 0 0;"><button class="btn btn-ghost btn-sm" id="abFrageAdd" type="button">+ Weitere Frage</button></div>';
+    h += '<label class="modal-label" style="margin-top:16px;">Wer stimmt ab? <span class="abst-anzahl">'+(e.klassen.length ? e.klassen.length+' Klasse'+(e.klassen.length === 1 ? '' : 'n') : 'noch keine Klasse gewählt')+'</span></label>';
+    h += '<div class="uf-setup-modi">';
+    gruppen.forEach(function(g){
+      var an = g.ks.length && g.ks.every(function(k){ return e.klassen.indexOf(k) >= 0; });
+      h += '<button class="kz-tab'+(an ? ' kz-tab-on' : '')+'" data-kgruppe="'+g.id+'" type="button">'+esc(g.label)+'</button>';
+    });
+    h += '</div>';
+    h += '<div class="abst-klassen">';
+    ['1', '2', '3'].forEach(function(j){
+      h += '<div class="abst-jg"><span>'+j+'. Jg.</span>';
+      alle.filter(function(k){ return abstJahrgang(k) === j; }).forEach(function(k){
+        h += '<label class="abst-kl'+(e.klassen.indexOf(k) >= 0 ? ' an' : '')+'"><input type="checkbox" data-kl="'+esc(k)+'"'+(e.klassen.indexOf(k) >= 0 ? ' checked' : '')+'>'+esc(k)+'</label>';
+      });
+      h += '</div>';
+    });
+    h += '</div>';
+    h += '<label class="gr-opt" style="margin-top:14px;"><input type="checkbox" id="abAnonym"'+(e.anonym ? ' checked' : '')+'> Anonym (Namen werden nicht gespeichert, nur die Klasse)</label>';
+    h += '<label class="modal-label" for="abEndet" style="margin-top:12px;">Automatisch schliessen am (freiwillig)</label>';
+    h += '<input class="modal-input" type="date" id="abEndet" value="'+esc(e.endet)+'" style="max-width:220px">';
+    h += '<div class="modal-actions"><button class="btn btn-ghost btn-sm" id="abCancel" type="button">Abbrechen</button>'+
+      '<button class="btn btn-primary btn-sm" id="abStart" type="button">Abstimmung starten</button></div>';
+    var alt = modalEl.querySelector('.modal'), top = alt ? alt.scrollTop : 0, topAussen = modalEl.scrollTop;
+    openModal(h, 'modal-wide');
+    var neu = modalEl.querySelector('.modal'); if(neu) neu.scrollTop = top; modalEl.scrollTop = topAussen;
+    wire();
+  }
+  // Tippstand einsammeln, bevor neu gezeichnet wird.
+  function readBack(){
+    var q = function(id){ return document.getElementById(id); };
+    if(!q('abTitel')) return;
+    e.titel = q('abTitel').value; e.info = q('abInfo').value; e.anonym = q('abAnonym').checked; e.endet = q('abEndet').value;
+    Array.prototype.forEach.call(modalEl.querySelectorAll('[data-ftext]'), function(inp){ e.fragen[+inp.getAttribute('data-ftext')].text = inp.value; });
+    Array.prototype.forEach.call(modalEl.querySelectorAll('[data-fopt]'), function(inp){
+      var t = inp.getAttribute('data-fopt').split('|'); e.fragen[+t[0]].optionen[+t[1]] = inp.value;
+    });
+  }
+  function klick(sel, fn){
+    Array.prototype.forEach.call(modalEl.querySelectorAll(sel), function(b){
+      b.addEventListener(b.tagName === 'INPUT' ? 'change' : 'click', function(){ readBack(); fn(b); build(); });
+    });
+  }
+  function wire(){
+    klick('[data-fdel]', function(b){ e.fragen.splice(+b.getAttribute('data-fdel'), 1); });
+    klick('[data-foptadd]', function(b){ var f = e.fragen[+b.getAttribute('data-foptadd')]; if(f.optionen.length < ABST_MAX_OPT) f.optionen.push(''); });
+    klick('[data-foptdel]', function(b){ var t = b.getAttribute('data-foptdel').split('|'), f = e.fragen[+t[0]]; if(f.optionen.length > 2) f.optionen.splice(+t[1], 1); });
+    klick('[data-fjn]', function(b){ e.fragen[+b.getAttribute('data-fjn')].optionen = ['Ja', 'Nein', 'Enthaltung']; });
+    klick('#abFrageAdd', function(){ if(e.fragen.length < ABST_MAX_FRAGEN) e.fragen.push({text:'', optionen:['', '']}); });
+    klick('[data-kgruppe]', function(b){
+      var g = gruppen.filter(function(x){ return x.id === b.getAttribute('data-kgruppe'); })[0];
+      var an = g.ks.every(function(k){ return e.klassen.indexOf(k) >= 0; });
+      if(an) e.klassen = e.klassen.filter(function(k){ return g.ks.indexOf(k) < 0; });
+      else g.ks.forEach(function(k){ if(e.klassen.indexOf(k) < 0) e.klassen.push(k); });
+    });
+    klick('[data-kl]', function(b){
+      var k = b.getAttribute('data-kl');
+      if(b.checked){ if(e.klassen.indexOf(k) < 0) e.klassen.push(k); }
+      else e.klassen = e.klassen.filter(function(x){ return x !== k; });
+    });
+    document.getElementById('abCancel').addEventListener('click', openAbstVerwaltung);
+    document.getElementById('abStart').addEventListener('click', function(){
+      readBack();
+      var titel = e.titel.trim();
+      if(!titel){ toast('Bitte einen Titel eingeben.'); return; }
+      var fragen = e.fragen.map(function(f, fi){
+        return { text:(f.text || '').trim() || (fi === 0 ? titel : ''), optionen:f.optionen.map(function(o){ return (o || '').trim(); }).filter(Boolean) };
+      });
+      if(fragen.some(function(f){ return !f.text; })){ toast('Bitte bei jeder Frage einen Text eingeben.'); return; }
+      if(fragen.some(function(f){ return f.optionen.length < 2; })){ toast('Jede Frage braucht mindestens zwei Antworten.'); return; }
+      if(!e.klassen.length){ toast('Bitte mindestens eine Klasse wählen.'); return; }
+      var endetAm = null;
+      if(e.endet){
+        endetAm = new Date(e.endet + 'T23:59:59').getTime();
+        if(!(endetAm > Date.now())){ toast('Das Schlussdatum liegt in der Vergangenheit.'); return; }
+      }
+      var btn = document.getElementById('abStart'); btn.disabled = true;
+      var ks = alle.filter(function(k){ return e.klassen.indexOf(k) >= 0; });
+      setDoc(doc(abstCol()), {
+        titel:titel, info:e.info.trim(), fragen:fragen, klassen:ks, anonym:!!e.anonym, status:'offen', endetAm:endetAm,
+        erstelltVonUid:state.user.uid, erstelltVon:state.profile.displayName || '', erstelltAm:Date.now()
+      }).then(function(){
+        toast('🗳️ Abstimmung gestartet für ' + abstKlassenText(ks) + '.');
+        openAbstVerwaltung();
+      }).catch(function(err){ console.error(err); btn.disabled = false; toast('Abstimmung konnte nicht gestartet werden.'); });
+    });
+  }
+  build();
+}
+
+/* ---------- Lehrperson: Auswertung ---------- */
+
+// Wie viele Schüler:innen pro Klasse abstimmen dürften (Test-Konto «schueler» zählt nicht).
+function abstBerechtigte(klassen){
+  return Promise.all((klassen || []).map(function(k){
+    return getDocs(query(collection(db, 'students'), where('klasse', '==', k))).then(function(snap){
+      var n = 0;
+      snap.forEach(function(d){ var x = d.data(); if(x.role === 'student' && (x.username || '').toLowerCase() !== 'schueler') n++; });
+      return [k, n];
+    }).catch(function(){ return [k, null]; });
+  })).then(function(paare){ var o = {}; paare.forEach(function(p){ o[p[0]] = p[1]; }); return o; });
+}
+function abstLadeStimmen(a){
+  return getDocs(abstStimmenCol(a.id)).then(function(snap){
+    var list = [];
+    snap.forEach(function(d){ list.push(Object.assign({uid:d.id}, d.data())); });
+    return list;
+  });
+}
+// counts[frage][option] für die Stimmen, die filterFn durchlässt.
+function abstZaehlen(a, stimmen, filterFn){
+  return (a.fragen || []).map(function(f, fi){
+    var c = (f.optionen || []).map(function(){ return 0; });
+    stimmen.forEach(function(s){
+      if(filterFn && !filterFn(s)) return;
+      var w = (s.antworten || [])[fi];
+      if(typeof w === 'number' && c[w] !== undefined) c[w]++;
+    });
+    return c;
+  });
+}
+
+function openAbstDetail(a){
+  if(!a) return;
+  openModal('<h3>🗳️ '+esc(a.titel || 'Abstimmung')+'</h3><p class="pr-hinweis">Auswertung wird geladen …</p>', 'modal-wide');
+  Promise.all([abstLadeStimmen(a), abstBerechtigte(a.klassen)]).then(function(r){
+    var stimmen = r[0], berechtigt = r[1], filter = '';
+    function paint(){
+      var ff = !filter ? null : filter.charAt(0) === 'j' ? function(s){ return abstJahrgang(s.klasse) === filter.slice(1); } : function(s){ return s.klasse === filter; };
+      var teil = stimmen.filter(function(s){ return !ff || ff(s); });
+      var ks = (a.klassen || []).filter(function(k){ return !filter || (filter.charAt(0) === 'j' ? abstJahrgang(k) === filter.slice(1) : k === filter); });
+      var nBer = ks.reduce(function(t, k){ return t + (berechtigt[k] || 0); }, 0);
+      var counts = abstZaehlen(a, teil);
+      var offen = abstOffen(a);
+      var h = '<h3>🗳️ '+esc(a.titel || 'Abstimmung')+'</h3>';
+      h += '<p class="abst-meta" style="margin-top:0"><span class="abst-status '+(offen ? 'offen' : 'zu')+'">'+(offen ? 'offen' : 'geschlossen')+'</span> '+
+        esc(abstKlassenText(a.klassen))+' · '+(a.anonym ? '🔒 anonym' : '👤 mit Namen')+' · erstellt '+esc(abstDatum(a.erstelltAm))+(a.erstelltVon ? ' von '+esc(a.erstelltVon) : '')+
+        (a.endetAm ? ' · schliesst am '+esc(abstDatum(a.endetAm)) : '')+'</p>';
+      if(a.info) h += '<p class="abst-info">'+esc(a.info)+'</p>';
+      h += '<div class="abst-filter"><label class="modal-label" for="abFilter" style="margin:0">Auswertung für</label><select class="modal-input" id="abFilter">'+
+        '<option value="">Alle ('+stimmen.length+' Stimmen)</option>';
+      ['1', '2', '3'].forEach(function(j){
+        if((a.klassen || []).some(function(k){ return abstJahrgang(k) === j; })) h += '<option value="j'+j+'"'+(filter === 'j'+j ? ' selected' : '')+'>'+j+'. Jahrgang</option>';
+      });
+      (a.klassen || []).forEach(function(k){ h += '<option value="'+esc(k)+'"'+(filter === k ? ' selected' : '')+'>'+esc(k)+'</option>'; });
+      h += '</select></div>';
+      h += '<p class="abst-beteiligung"><b>'+teil.length+'</b> von '+nBer+' haben abgestimmt'+(nBer ? ' ('+Math.round(teil.length / nBer * 100)+' %)' : '')+'</p>';
+      (a.fragen || []).forEach(function(f, fi){
+        var c = counts[fi], tot = c.reduce(function(x, y){ return x + y; }, 0), max = Math.max.apply(null, c.concat([1]));
+        h += '<div class="abst-frage">'+((a.fragen || []).length > 1 ? (fi + 1) + '. ' : '')+esc(f.text || '')+'</div>';
+        h += '<div class="uf-bars abst-bars">';
+        (f.optionen || []).forEach(function(o, oi){
+          var pr = tot ? Math.round(c[oi] / tot * 100) : 0;
+          h += '<div class="uf-bar'+(c[oi] === max && c[oi] > 0 ? ' abst-top' : '')+'"><span class="uf-bar-fill" style="width:'+Math.round(c[oi] / max * 100)+'%;"></span>'+
+            '<div class="uf-bar-row"><span>'+esc(o)+'</span><span class="uf-bar-n">'+c[oi]+' · '+pr+' %</span></div></div>';
+        });
+        h += '</div>';
+      });
+      h += '<details class="abst-teil"><summary>Beteiligung pro Klasse</summary><table class="abst-tab"><tr><th>Klasse</th><th>abgestimmt</th><th>von</th><th>%</th></tr>';
+      (a.klassen || []).forEach(function(k){
+        var n = stimmen.filter(function(s){ return s.klasse === k; }).length, b = berechtigt[k];
+        h += '<tr><td>'+esc(k)+'</td><td>'+n+'</td><td>'+(b === null || b === undefined ? '?' : b)+'</td><td>'+(b ? Math.round(n / b * 100) + ' %' : '–')+'</td></tr>';
+      });
+      h += '</table></details>';
+      h += '<div class="modal-actions abst-aktionen">'+
+        '<button class="btn btn-ghost btn-sm" id="abZurueck" type="button">← Alle Abstimmungen</button>'+
+        (abstDarfAendern(a) ? '<button class="btn btn-ghost btn-sm" id="abLoeschen" type="button">🗑️ Löschen</button>'+
+          '<button class="btn btn-ghost btn-sm" id="abStatus" type="button">'+(offen ? '🔒 Schliessen' : '🔓 Wieder öffnen')+'</button>' : '')+
+        '<button class="btn btn-primary btn-sm" id="abExcel" type="button">📊 Excel herunterladen</button></div>';
+      openModal(h, 'modal-wide');
+      document.getElementById('abFilter').addEventListener('change', function(){ filter = this.value; paint(); });
+      document.getElementById('abZurueck').addEventListener('click', openAbstVerwaltung);
+      document.getElementById('abExcel').addEventListener('click', function(){
+        var b = this; b.disabled = true;
+        abstExcel(a, stimmen, berechtigt).catch(function(err){ console.error(err); toast('Excel-Datei konnte nicht erstellt werden.'); })
+          .then(function(){ b.disabled = false; });
+      });
+      var st = document.getElementById('abStatus');
+      if(st) st.addEventListener('click', function(){
+        var zu = abstOffen(a);
+        var neu = zu ? {status:'geschlossen'} : {status:'offen', endetAm:(a.endetAm && a.endetAm < Date.now()) ? null : (a.endetAm || null)};
+        updateDoc(doc(abstCol(), a.id), neu).then(function(){
+          Object.assign(a, neu);
+          toast(zu ? '🔒 Abstimmung geschlossen.' : '🔓 Abstimmung wieder offen.');
+          paint();
+        }).catch(function(err){ console.error(err); toast('Konnte nicht geändert werden.'); });
+      });
+      var del = document.getElementById('abLoeschen');
+      if(del) del.addEventListener('click', function(){
+        uiConfirm('Abstimmung löschen?', '«' + (a.titel || '') + '» und alle ' + stimmen.length + ' Stimmen werden endgültig gelöscht. Lade vorher die Excel-Datei herunter, falls du die Resultate behalten willst.', 'Löschen', function(){
+          abstLadeStimmen(a).then(function(list){
+            var jobs = [];
+            for(var i = 0; i < list.length; i += 400){
+              var bt = writeBatch();
+              list.slice(i, i + 400).forEach(function(s){ bt.delete(doc(abstStimmenCol(a.id), s.uid)); });
+              jobs.push(bt.commit());
+            }
+            return Promise.all(jobs);
+          }).then(function(){ return deleteDoc(doc(abstCol(), a.id)); })
+            .then(function(){ toast('🗑️ Abstimmung gelöscht.'); openAbstVerwaltung(); })
+            .catch(function(err){ console.error(err); toast('Abstimmung konnte nicht gelöscht werden.'); });
+        }, true);
+      });
+    }
+    paint();
+  }).catch(function(err){ console.error(err); closeModal(); toast('Auswertung konnte nicht geladen werden.'); });
+}
+
+/* ---------- Excel-Export ---------- */
+
+var EXCELJS_URL = 'https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js';
+var excelJsLaden = null;
+function ladeExcelJS(){
+  if(window.ExcelJS) return Promise.resolve(window.ExcelJS);
+  if(excelJsLaden) return excelJsLaden;
+  excelJsLaden = new Promise(function(res, rej){
+    var s = document.createElement('script');
+    s.src = EXCELJS_URL;
+    s.onload = function(){ window.ExcelJS ? res(window.ExcelJS) : rej(new Error('ExcelJS fehlt')); };
+    s.onerror = function(){ excelJsLaden = null; s.remove(); rej(new Error('ExcelJS konnte nicht geladen werden')); };
+    document.head.appendChild(s);
+  });
+  return excelJsLaden;
+}
+
+function abstExcel(a, stimmen, berechtigt){
+  toast('📊 Excel-Datei wird erstellt …');
+  return ladeExcelJS().then(function(ExcelJS){
+    var DUNKEL = 'FF1F3A5F', HELL = 'FFEEF2F7', LINIE = {style:'thin', color:{argb:'FFC9D2DE'}};
+    var RAHMEN = {top:LINIE, left:LINIE, bottom:LINIE, right:LINIE};
+    var fragen = a.fragen || [], klassen = (a.klassen || []).slice();
+    var jahrgaenge = ['1', '2', '3'].filter(function(j){ return klassen.some(function(k){ return abstJahrgang(k) === j; }); });
+    var wb = new ExcelJS.Workbook();
+    wb.creator = "Helfenberger's Library"; wb.created = new Date();
+
+    function kopf(row){
+      row.eachCell(function(c){
+        c.font = {bold:true, color:{argb:'FFFFFFFF'}};
+        c.fill = {type:'pattern', pattern:'solid', fgColor:{argb:DUNKEL}};
+        c.alignment = {vertical:'middle', horizontal:'center', wrapText:true};
+        c.border = RAHMEN;
+      });
+      row.height = 22;
+    }
+    function daten(row, zebra, fett){
+      row.eachCell({includeEmpty:true}, function(c, nr){
+        c.border = RAHMEN;
+        if(zebra) c.fill = {type:'pattern', pattern:'solid', fgColor:{argb:HELL}};
+        if(fett) c.font = {bold:true};
+        if(nr > 1) c.alignment = {horizontal:'center'};
+      });
+    }
+    function titel(ws, text, breite){
+      var r = ws.addRow([text]);
+      r.getCell(1).font = {bold:true, size:16, color:{argb:DUNKEL}};
+      r.height = 26;
+      if(breite > 1) ws.mergeCells(r.number, 1, r.number, breite);
+    }
+    function zwischentitel(ws, text, breite){
+      ws.addRow([]);
+      var r = ws.addRow([text]);
+      r.getCell(1).font = {bold:true, size:12, color:{argb:DUNKEL}};
+      r.getCell(1).alignment = {wrapText:true, vertical:'middle'};
+      if(breite > 1) ws.mergeCells(r.number, 1, r.number, breite);
+      r.height = Math.max(20, 16 * Math.ceil((text || '').length / 70));
+    }
+    function anteil(n, t){ return t ? n / t : 0; }
+    var gesamtBer = klassen.reduce(function(t, k){ return t + (berechtigt[k] || 0); }, 0);
+
+    // 1) Übersicht
+    var ws = wb.addWorksheet('Übersicht', {views:[{showGridLines:false}]});
+    ws.columns = [{width:46}, {width:14}, {width:14}];
+    titel(ws, '🗳️ ' + (a.titel || 'Abstimmung'), 3);
+    if(a.info){ var ri = ws.addRow([a.info]); ri.getCell(1).alignment = {wrapText:true}; ws.mergeCells(ri.number, 1, ri.number, 3); ri.height = Math.max(18, 15 * Math.ceil(a.info.length / 80)); }
+    ws.addRow([]);
+    [
+      ['Klassen', abstKlassenText(klassen) === klassen.join(', ') ? klassen.join(', ') : abstKlassenText(klassen) + ' (' + klassen.join(', ') + ')'],
+      ['Erstellt', abstZeit(a.erstelltAm) + (a.erstelltVon ? ' von ' + a.erstelltVon : '')],
+      ['Status', abstOffen(a) ? 'offen' : 'geschlossen'],
+      ['Anonym', a.anonym ? 'ja' : 'nein'],
+      ['Exportiert', abstZeit(Date.now())],
+      ['Stimmen', stimmen.length],
+      ['Stimmberechtigte', gesamtBer],
+      ['Beteiligung', anteil(stimmen.length, gesamtBer)]
+    ].forEach(function(z){
+      var r = ws.addRow([z[0], z[1]]);
+      r.getCell(1).font = {bold:true, color:{argb:'FF5B6576'}};
+      r.getCell(2).alignment = {horizontal:'left', wrapText:true};
+      if(z[0] === 'Beteiligung') r.getCell(2).numFmt = '0.0%';
+      ws.mergeCells(r.number, 2, r.number, 3);
+    });
+    var gesamt = abstZaehlen(a, stimmen);
+    fragen.forEach(function(f, fi){
+      zwischentitel(ws, (fragen.length > 1 ? 'Frage ' + (fi + 1) + ': ' : '') + (f.text || ''), 3);
+      kopf(ws.addRow(['Antwort', 'Stimmen', 'Anteil']));
+      var c = gesamt[fi], tot = c.reduce(function(x, y){ return x + y; }, 0), max = Math.max.apply(null, c);
+      (f.optionen || []).forEach(function(o, oi){
+        var r = ws.addRow([o, c[oi], anteil(c[oi], tot)]);
+        daten(r, oi % 2 === 1, c[oi] === max && max > 0);
+        r.getCell(3).numFmt = '0.0%';
+      });
+      var rt = ws.addRow(['Total', tot, tot ? 1 : 0]);
+      daten(rt, false, true); rt.getCell(3).numFmt = '0.0%';
+      rt.eachCell(function(cz){ cz.border = Object.assign({}, RAHMEN, {top:{style:'medium', color:{argb:DUNKEL}}}); });
+    });
+
+    // 2) Nach Klassen und Jahrgängen
+    var spalten = klassen.map(function(k){ return {t:k, f:function(s){ return s.klasse === k; }}; })
+      .concat(jahrgaenge.length > 1 ? jahrgaenge.map(function(j){ return {t:j + '. Jg.', f:function(s){ return abstJahrgang(s.klasse) === j; }, jg:true}; }) : [])
+      .concat([{t:'Total', f:null, jg:true}]);
+    var breite = spalten.length + 1;
+    var wk = wb.addWorksheet('Nach Klassen', {views:[{state:'frozen', xSplit:1, showGridLines:false}]});
+    wk.columns = [{width:36}].concat(spalten.map(function(){ return {width:10}; }));
+    titel(wk, 'Resultate nach Klassen und Jahrgängen', Math.min(breite, 8));
+    var proSpalte = spalten.map(function(sp){ return abstZaehlen(a, stimmen, sp.f); });
+    var nProSpalte = spalten.map(function(sp){ return stimmen.filter(function(s){ return !sp.f || sp.f(s); }).length; });
+    fragen.forEach(function(f, fi){
+      zwischentitel(wk, (fragen.length > 1 ? 'Frage ' + (fi + 1) + ': ' : '') + (f.text || ''), Math.min(breite, 8));
+      ['Anzahl Stimmen', 'Anteil'].forEach(function(art, ai){
+        var kr = wk.addRow([art].concat(spalten.map(function(sp){ return sp.t; })));
+        kopf(kr); kr.getCell(1).alignment = {horizontal:'left', vertical:'middle'};
+        (f.optionen || []).forEach(function(o, oi){
+          var werte = spalten.map(function(sp, si){
+            var c = proSpalte[si][fi], tot = c.reduce(function(x, y){ return x + y; }, 0);
+            return ai === 0 ? c[oi] : anteil(c[oi], tot);
+          });
+          var r = wk.addRow([o].concat(werte));
+          daten(r, oi % 2 === 1);
+          spalten.forEach(function(sp, si){
+            var cz = r.getCell(si + 2);
+            if(ai === 1) cz.numFmt = '0%';
+            if(sp.jg) cz.font = {bold:true};
+          });
+        });
+        if(ai === 0){
+          var rt = wk.addRow(['Stimmen'].concat(nProSpalte));
+          daten(rt, false, true);
+          rt.eachCell(function(cz){ cz.border = Object.assign({}, RAHMEN, {top:{style:'medium', color:{argb:DUNKEL}}}); });
+        }
+        wk.addRow([]);
+      });
+    });
+
+    // 3) Beteiligung
+    var wbt = wb.addWorksheet('Beteiligung', {views:[{state:'frozen', ySplit:3, showGridLines:false}]});
+    wbt.columns = [{width:12}, {width:12}, {width:16}, {width:14}, {width:14}];
+    titel(wbt, 'Beteiligung pro Klasse', 5);
+    wbt.addRow([]);
+    kopf(wbt.addRow(['Jahrgang', 'Klasse', 'Stimmberechtigt', 'Abgestimmt', 'Beteiligung']));
+    var zeile = 0;
+    jahrgaenge.concat(klassen.some(function(k){ return !abstJahrgang(k); }) ? [''] : []).forEach(function(j){
+      var jk = klassen.filter(function(k){ return abstJahrgang(k) === j; }), sb = 0, sa = 0;
+      jk.forEach(function(k){
+        var b = berechtigt[k] || 0, n = stimmen.filter(function(s){ return s.klasse === k; }).length;
+        sb += b; sa += n;
+        var r = wbt.addRow([j ? j + '.' : '–', k, b, n, anteil(n, b)]);
+        daten(r, zeile++ % 2 === 1); r.getCell(5).numFmt = '0%';
+      });
+      if(jahrgaenge.length > 1 && jk.length > 1){
+        var rj = wbt.addRow([j + '. Jahrgang', '', sb, sa, anteil(sa, sb)]);
+        daten(rj, false, true); rj.getCell(5).numFmt = '0%';
+        wbt.mergeCells(rj.number, 1, rj.number, 2);
+      }
+    });
+    var rg = wbt.addRow(['Total', '', gesamtBer, stimmen.length, anteil(stimmen.length, gesamtBer)]);
+    daten(rg, false, true); rg.getCell(5).numFmt = '0%';
+    rg.eachCell(function(cz){ cz.border = Object.assign({}, RAHMEN, {top:{style:'medium', color:{argb:DUNKEL}}}); });
+    wbt.mergeCells(rg.number, 1, rg.number, 2);
+
+    // 4) Einzelne Stimmen (bei anonymen Abstimmungen ohne Namen und Zeit)
+    var we = wb.addWorksheet('Einzelstimmen', {views:[{state:'frozen', ySplit:1}]});
+    var kopfZeile = (a.anonym ? ['Nr.', 'Klasse'] : ['Nr.', 'Name', 'Klasse', 'Abgestimmt am']).concat(fragen.map(function(f, fi){ return fragen.length > 1 ? 'Frage ' + (fi + 1) : (f.text || 'Antwort'); }));
+    we.columns = kopfZeile.map(function(t, i){ return {width: i === 0 ? 6 : (!a.anonym && i === 1) ? 26 : (!a.anonym && i === 3) ? 18 : i >= (a.anonym ? 2 : 4) ? 28 : 10}; });
+    kopf(we.addRow(kopfZeile));
+    var sortiert = stimmen.slice().sort(function(x, y){
+      return (klassen.indexOf(x.klasse) - klassen.indexOf(y.klasse)) || (a.anonym ? (x.antworten || []).join(',').localeCompare((y.antworten || []).join(',')) : (x.name || '').localeCompare(y.name || '', 'de'));
+    });
+    sortiert.forEach(function(s, i){
+      var antw = fragen.map(function(f, fi){ var w = (s.antworten || [])[fi]; return typeof w === 'number' ? ((f.optionen || [])[w] || '') : ''; });
+      var r = we.addRow((a.anonym ? [i + 1, s.klasse || ''] : [i + 1, s.name || '', s.klasse || '', s.at ? new Date(s.at - new Date(s.at).getTimezoneOffset() * 60000) : '']).concat(antw));
+      daten(r, i % 2 === 1);
+      if(!a.anonym){ r.getCell(2).alignment = {horizontal:'left'}; r.getCell(4).numFmt = 'dd.mm.yyyy hh:mm'; }
+    });
+    if(sortiert.length) we.autoFilter = {from:{row:1, column:1}, to:{row:1, column:kopfZeile.length}};
+    if(fragen.length > 1){
+      we.addRow([]);
+      fragen.forEach(function(f, fi){ var r = we.addRow(['', 'Frage ' + (fi + 1) + ': ' + (f.text || '')]); r.getCell(2).font = {italic:true, color:{argb:'FF5B6576'}}; });
+    }
+
+    return wb.xlsx.writeBuffer();
+  }).then(function(buf){
+    var name = ('Abstimmung ' + (a.titel || '')).replace(/[\\\/:*?"<>|]+/g, '').replace(/\s+/g, ' ').trim().slice(0, 80) || 'Abstimmung';
+    var url = URL.createObjectURL(new Blob([buf], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}));
+    var link = document.createElement('a');
+    link.href = url; link.download = name + '.xlsx';
+    document.body.appendChild(link); link.click(); link.remove();
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 10000);
+    toast('«' + name + '.xlsx» wird heruntergeladen.');
   });
 }
 
@@ -15621,12 +16283,16 @@ function pipMoeglich(){
   return !!((document.pictureInPictureEnabled || v.webkitSupportsPresentationMode) && HTMLCanvasElement.prototype.captureStream);
 }
 function pipRefresh(){
-  if(!pipv.canvas) return;
+  if(pipv.fenster && pipv.fenster.closed){ pipStoppen(); return; }
+  if(!pipv.canvas && !pipv.fenster) return;
   if(pipv.art === 'lph') lphPipZeichnen();
   else if(pipv.art === 'pruef') pruefPipZeichnen();
 }
 function pipStarten(art, id){
-  if(!pipMoeglich()){ uiInfo('Geht in diesem Browser nicht', 'Das Fenster im Vordergrund gibt es in Safari, Chrome und Edge auf dem Laptop oder iPad.'); return; }
+  // Chrome/Edge (und Firefox, sobald es das kann): echtes Bild-in-Bild mit
+  // HTML-Inhalt (Document Picture-in-Picture). Firefox ohne diese Funktion
+  // bekommt ein kleines eigenes Fenster. Safari bleibt beim Video-Weg unten.
+  if(window.documentPictureInPicture || !pipMoeglich()){ pipFensterStarten(art, id); return; }
   if(pipv.video && pipv.art === art && pipv.id === (id || null)){ pipAnfordern(); return; }
   pipStoppen();
   var c = document.createElement('canvas'), v = document.createElement('video');
@@ -15676,10 +16342,68 @@ function pipAnfordern(){
   if(v.readyState >= 1) los();
   else v.addEventListener('loadedmetadata', los, {once:true});
 }
+function pipFensterStarten(art, id){
+  var alt = pipv.fenster;
+  if(alt && !alt.closed && pipv.art === art && pipv.id === (id || null)){ try{ alt.focus(); }catch(e){} return; }
+  pipStoppen();
+  var fertig = function(w){
+    if(!w){ toast('📌 Das Fenster wurde blockiert – bitte Pop-ups für die Library erlauben.'); return; }
+    pipStoppen();
+    pipv = { art:art, id:id || null, canvas:null, video:null, timer:null, offen:true, fenster:w, html:null };
+    pipFensterAufbauen(w);
+    w.addEventListener('pagehide', function(){ if(pipv.fenster === w) pipStoppen(); });
+    pipv.timer = setInterval(pipRefresh, 1000);
+    pipRefresh();
+  };
+  if(window.documentPictureInPicture){
+    documentPictureInPicture.requestWindow({width:440, height:520}).then(fertig)
+      .catch(function(err){ console.error('Bild-in-Bild', err); toast('📌 Bitte nochmals klicken, dann öffnet sich das Fenster.'); });
+  } else {
+    fertig(window.open('', 'libPip', 'popup=yes,width=440,height=560'));
+  }
+}
+function pipFensterAufbauen(w){
+  var d = w.document;
+  d.body.innerHTML = '<div id="pip"></div>';
+  var st = d.createElement('style');
+  st.textContent =
+    'html,body{margin:0;min-height:100%;}' +
+    'body{background:#1b1d22;color:#fff;font:15px -apple-system,BlinkMacSystemFont,"Segoe UI",Karla,sans-serif;}' +
+    'body.alarm{animation:pipAl 2s steps(1) infinite;}@keyframes pipAl{50%{background:#3a1d20;}}' +
+    '.k{padding:12px 14px 8px;}.k b{display:block;font-size:20px;line-height:1.2;}.k small{display:block;color:#b9bdc7;font-size:14px;margin-top:3px;}' +
+    '.g{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:6px 10px;padding:6px 14px 14px;}' +
+    '.e{display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:9px;font-weight:700;min-width:0;}' +
+    '.e i{width:12px;height:12px;border-radius:50%;flex:none;}' +
+    '.e span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}' +
+    '.e em{font-style:normal;font-weight:600;font-size:12px;white-space:nowrap;}' +
+    '.rot{background:rgba(255,77,79,.45);animation:pipP 2s steps(1) infinite;}@keyframes pipP{50%{background:rgba(255,77,79,.22);}}' +
+    '.rot i{background:#ff4d4f;}.orange{background:rgba(255,159,64,.25);}.orange i{background:#ff9f40;}' +
+    '.gruen i{background:#3ecf6e;}.grau{color:#9aa0ad;}.grau i{background:#6b7080;}' +
+    '.leer{color:#b9bdc7;padding:0 14px;}';
+  d.head.appendChild(st);
+}
+// Gleicher Inhalt wie pipZeichnen, aber als HTML: passt sich jeder Fenstergrösse an.
+function pipHtml(titel, sub, liste, leerText){
+  var w = pipv.fenster, d = w && !w.closed && w.document, box = d && d.getElementById('pip');
+  if(!box) return;
+  var h = '<div class="k"><b>'+esc(titel)+'</b><small>'+esc(sub)+'</small></div>';
+  if(!liste.length) h += '<p class="leer">'+esc(leerText || '')+'</p>';
+  else {
+    h += '<div class="g">';
+    liste.forEach(function(e){
+      h += '<div class="e '+esc(e.art)+'"><i></i><span>'+esc(e.name)+'</span>'+(e.info ? '<em>'+esc(e.info)+'</em>' : '')+'</div>';
+    });
+    h += '</div>';
+  }
+  if(h !== pipv.html){ pipv.html = h; box.innerHTML = h; }
+  d.body.classList.toggle('alarm', liste.some(function(e){ return e.art === 'rot'; }));
+  if(d.title !== titel) d.title = titel;
+}
 function pipStoppen(){
-  var v = pipv.video;
+  var v = pipv.video, f = pipv.fenster;
   clearInterval(pipv.timer);
   pipv = { art:null, id:null, canvas:null, video:null, timer:null, offen:false };
+  if(f && !f.closed){ try{ f.close(); }catch(e){} }
   if(!v) return;
   try{
     if(document.pictureInPictureElement === v) document.exitPictureInPicture().catch(function(){});
@@ -15701,11 +16425,12 @@ function pipRund(x, l, o, b, h, r){
 var PIP_W = 640, PIP_H = 400;
 // eintraege: [{name, art:'rot'|'orange'|'gruen'|'grau', info}] — Rote zuerst.
 function pipZeichnen(titel, sub, eintraege, leerText){
+  var rang = {rot:0, orange:1, gruen:2, grau:3};
+  var liste = eintraege.slice().sort(function(a, b){ return (rang[a.art] - rang[b.art]) || a.name.localeCompare(b.name, 'de'); });
+  if(pipv.fenster){ pipHtml(titel, sub, liste, leerText); return; }
   var c = pipv.canvas; if(!c) return;
   var W = PIP_W, H = pipv.hoehe || PIP_H, KOPF = 86, RAND = 16, GAP = 10;
-  var rang = {rot:0, orange:1, gruen:2, grau:3};
   var FARBE = {rot:'#ff4d4f', orange:'#ff9f40', gruen:'#3ecf6e', grau:'#6b7080'};
-  var liste = eintraege.slice().sort(function(a, b){ return (rang[a.art] - rang[b.art]) || a.name.localeCompare(b.name, 'de'); });
   var platz = H - KOPF - 8, SP = 2, ZH = 0;
   [2, 3, 4].forEach(function(sp){
     var zh = Math.min(48, platz / Math.max(1, Math.ceil(liste.length / sp)));
@@ -16245,8 +16970,9 @@ function openLernphase(){
     '<p>Links siehst du, wer gerade in der Library ist. Rot leuchtet, wer in einem anderen Tab, Fenster oder Programm ist oder keine Verbindung hat. Niemand wird gesperrt.</p>'+
     '<label class="modal-label" for="lphFuer">Für</label>'+
     '<select class="modal-input" id="lphFuer"><option value="">Ganze Klasse '+esc(klasseLabel())+'</option></select>'+
-    '<label class="modal-label" for="lphNur">Grün ist, wer …</label>'+
-    '<select class="modal-input" id="lphNur"><option value="">📚 irgendwo in der Library ist</option></select>'+
+    '<label class="modal-label" for="lphFach">Grün ist, wer …</label>'+
+    '<select class="modal-input" id="lphFach"><option value="">📚 irgendwo in der Library ist</option></select>'+
+    '<select class="modal-input" id="lphNur" style="margin-top:8px" hidden></select>'+
     '<p class="pr-hinweis" id="lphNurInfo" style="margin-top:6px">Wählst du eine Übung, leuchtet auch rot, wer in der Library etwas anderes offen hat.</p>'+
     '<div class="modal-actions">'+
       '<button class="btn btn-ghost btn-sm" id="modalCancel" type="button">Abbrechen</button>'+
@@ -16263,29 +16989,45 @@ function openLernphase(){
       sel.appendChild(o);
     });
   }).catch(function(err){ console.error(err); });
-  var nurSel = document.getElementById('lphNur');
-  getDocs(kcol('resources')).then(function(snap){
-    if(!document.getElementById('lphNur')) return;
-    var proFach = {};
-    var dazu = function(r){ if(r.externalUrl) return; (proFach[r.subject || ''] = proFach[r.subject || ''] || []).push(r); };
-    snap.forEach(function(d){ dazu(Object.assign({id:d.id}, d.data())); });
-    sikoreVirtuell().resources.concat(tippVirtuell(TIPP_SUBJECT)).concat(mtVirtuellAlle()).concat(kkAlleRes()).forEach(dazu);
-    SUBJECTS.map(function(f){ return f.id; }).concat(Object.keys(proFach)).filter(function(f, i, a){ return proFach[f] && a.indexOf(f) === i; }).forEach(function(f){
-      var og = document.createElement('optgroup');
-      og.label = subjectName(f) || 'Ohne Fach';
-      proFach[f].sort(function(a, b){ return (a.title || a.fileName || '').localeCompare(b.title || b.fileName || '', 'de'); }).forEach(function(r){
-        var o = document.createElement('option');
-        o.value = r.id; o.textContent = 'nur in: ' + (r.title || r.fileName || r.id);
-        og.appendChild(o);
-      });
-      nurSel.appendChild(og);
+  // Erst das Fach wählen, dann klappt die Liste mit dessen Übungen auf.
+  var fachSel = document.getElementById('lphFach'), nurSel = document.getElementById('lphNur'), proFach = {};
+  function titelVon(r){ return r.title || r.fileName || r.id; }
+  fachSel.addEventListener('change', function(){
+    var f = fachSel.value;
+    nurSel.innerHTML = '';
+    nurSel.hidden = !f;
+    if(!f) return;
+    var o0 = document.createElement('option');
+    o0.value = ''; o0.textContent = '… in dieser Übung ist (bitte wählen)';
+    nurSel.appendChild(o0);
+    (proFach[f] || []).forEach(function(r){
+      var o = document.createElement('option');
+      o.value = r.id; o.textContent = titelVon(r);
+      nurSel.appendChild(o);
     });
-  }).catch(function(err){ console.error('Übungen für die Lernphase', err); });
+  });
+  kkLoad().catch(function(){}).then(function(){ return getDocs(kcol('resources')); }).then(function(snap){
+    if(!document.getElementById('lphFach')) return;
+    var dazu = function(r){ if(!r || r.externalUrl) return; (proFach[r.subject || ''] = proFach[r.subject || ''] || []).push(r); };
+    snap.forEach(function(d){ dazu(Object.assign({id:d.id}, d.data())); });
+    // Virtuelle Trainer einzeln absichern: fällt einer aus, sollen die übrigen Übungen trotzdem erscheinen.
+    [function(){ return sikoreVirtuell().resources; }, function(){ return tippVirtuell(TIPP_SUBJECT); },
+     function(){ return mtVirtuellAlle(); }, function(){ return kkAlleRes(); }].forEach(function(fn){
+      try{ (fn() || []).forEach(dazu); }catch(e){ console.error('Lernphase: virtuelle Übungen', e); }
+    });
+    SUBJECTS.map(function(f){ return f.id; }).concat(Object.keys(proFach)).filter(function(f, i, a){ return proFach[f] && a.indexOf(f) === i; }).forEach(function(f){
+      proFach[f].sort(function(a, b){ return titelVon(a).localeCompare(titelVon(b), 'de'); });
+      var o = document.createElement('option');
+      o.value = f; o.textContent = '📘 nur in einer Übung aus ' + (subjectName(f) || 'Ohne Fach') + ' (' + proFach[f].length + ')';
+      fachSel.appendChild(o);
+    });
+  }).catch(function(err){ console.error('Übungen für die Lernphase', err); toast('Übungen konnten nicht geladen werden.'); });
   document.getElementById('modalCancel').addEventListener('click', closeModal);
   document.getElementById('modalOk').addEventListener('click', function(){
     var gid = sel.value, g = meine.filter(function(x){ return x.id === gid; })[0];
-    var nurOpt = nurSel.value ? nurSel.options[nurSel.selectedIndex] : null;
-    var nurUebung = nurOpt ? {id:nurSel.value, titel:nurOpt.textContent.replace(/^nur in: /, '')} : null;
+    if(fachSel.value && !nurSel.value){ toast('Bitte noch die Übung wählen.'); nurSel.focus(); return; }
+    var nurOpt = fachSel.value && nurSel.value ? nurSel.options[nurSel.selectedIndex] : null;
+    var nurUebung = nurOpt ? {id:nurSel.value, titel:nurOpt.textContent} : null;
     var okBtn = document.getElementById('modalOk');
     okBtn.disabled = true;
     var laden = g
@@ -20460,6 +21202,8 @@ function kkRes(set){
   return {id:'kk_'+set.id, subject:set.fach, folderId:null, order:-1994, virtual:true, kk:true, setId:set.id, title:'🗂️ '+set.titel};
 }
 function kkVirtuell(subject){ return subject && kkSetsFuer(subject).length ? [kkHubRes(subject)] : []; }
+// Alle Sets einzeln (Lernphase: «nur in dieser Übung»).
+function kkAlleRes(){ return (kkDaten.sets || []).filter(function(s){ return s.karten.length; }).map(kkRes); }
 
 /* ---------- Kartenschlüssel und Lernstand ---------- */
 
