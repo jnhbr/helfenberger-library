@@ -1321,6 +1321,17 @@
   .lph-foot{padding:10px 12px;border-top:1px solid var(--border);}
   .lph-tab{position:fixed;left:0;top:50%;transform:translateY(-50%);z-index:1400;border:1px solid var(--border);border-left:none;border-radius:0 12px 12px 0;background:var(--surface);padding:12px 8px;cursor:pointer;font-size:20px;display:flex;flex-direction:column;align-items:center;gap:4px;box-shadow:4px 0 16px -8px rgba(0,0,0,.35);}
   .lph-tab b{font-size:12px;color:#fff;background:var(--bad);border-radius:999px;padding:1px 7px;}
+  .lph-tab b.hand{background:#D97706;}
+  .lph-hand-btn{position:fixed;left:16px;bottom:16px;z-index:1450;display:flex;align-items:center;gap:8px;border:2px solid #D97706;background:var(--surface);color:var(--text);border-radius:999px;padding:10px 16px 10px 12px;font:inherit;font-weight:700;font-size:15px;cursor:pointer;box-shadow:0 8px 24px -10px rgba(0,0,0,.45);}
+  .lph-hand-btn span{font-size:24px;line-height:1;}
+  .lph-hand-btn.oben{background:#D97706;color:#fff;animation:lphHandWink 1.2s ease-in-out infinite;}
+  body.pr-lock-open .lph-hand-btn{display:none;}
+  @keyframes lphHandWink{0%,100%{transform:rotate(0)}25%{transform:rotate(-6deg)}75%{transform:rotate(6deg)}}
+  .lph-fragen{margin:0 8px 8px;padding:8px;border-radius:10px;background:#FEF3C7;color:#78350F;}
+  .lph-fragen b{display:block;font-size:13px;margin-bottom:4px;}
+  .lph-frage{display:flex;align-items:center;gap:8px;padding:4px 0;font-size:14px;font-weight:600;}
+  .lph-frage small{font-weight:500;opacity:.8;margin-left:auto;}
+  .lph-row .lph-handmark{font-size:16px;opacity:1;}
   .lph-tab.rot{animation:lphGlow 1s ease-in-out infinite;}
   .topbar-lernphase.falsch{background:var(--bad-soft);color:var(--bad);cursor:pointer;}
   .topbar-lernphase{font-size:12.5px;font-weight:700;padding:4px 10px;border-radius:999px;background:var(--good-soft);color:var(--good);white-space:nowrap;}
@@ -1640,6 +1651,12 @@
   .pr-lock-msg{margin:auto;max-width:520px;padding:32px 24px;text-align:center;}
   .pr-lock-msg h2{margin:8px 0 12px;}
   .pr-lock-msg p{color:var(--text-muted);line-height:1.5;}
+  .pr-lock-msg .pr-warte-ok{color:var(--good, #2E9E5B);font-weight:700;}
+  .pr-lock-msg .pr-langsam{color:#B45309;font-weight:600;}
+  .pr-warte-uhr{font-size:54px;animation:prWarteDreh 2.4s ease-in-out infinite;display:inline-block;}
+  @keyframes prWarteDreh{0%,40%{transform:rotate(0)}50%,90%{transform:rotate(180deg)}100%{transform:rotate(360deg)}}
+  .pr-warte-box{background:#FEF3C7;color:#78350F;border:1px solid #F59E0B;border-radius:var(--radius-sm);padding:10px 14px;margin:0 0 12px;font-weight:600;}
+  .pr-zeile.warte{border-color:#F59E0B;}
   .pr-lock-icon{font-size:64px;}
   .pr-grund{font-size:13px;}
   .modal.pr-modal{max-width:640px;}
@@ -1892,7 +1909,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 import {
   initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
-  getFirestore, doc, getDoc, getDocFromCache, getDocs, collection, query, where, onSnapshot, serverTimestamp, increment,
+  getFirestore, doc, getDoc, getDocFromCache, getDocs, getDocsFromServer, collection, query, where, onSnapshot, serverTimestamp, increment,
   setDoc as fsSetDoc, updateDoc as fsUpdateDoc, deleteDoc as fsDeleteDoc, writeBatch as fsWriteBatch, Bytes, deleteField, arrayUnion, arrayRemove
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 
@@ -2273,17 +2290,25 @@ const SUBJECTS = [
   {id:'geografie', name:'Geografie', gruppe:'haupt', color:'#2E9E5B', soft:'#DDF1E4', img:'assets/subject-geografie.webp'},
   {id:'geschichte', name:'Geschichte', gruppe:'haupt', color:'#C98B1F', soft:'#F6E8CC', img:'assets/subject-geschichte.webp'},
   {id:'informatik', name:'Medien und Informatik', gruppe:'neben', color:'#D6449B', soft:'#FBDFEE', img:'assets/subject-informatik.webp'},
-  {id:'isf', name:'ISF', gruppe:'neben', color:'#4D7C0F', soft:'#E6EFD6', img:'assets/subject-isf.webp', full:true},
-  {id:'musik', name:'Musik', gruppe:'neben', color:'#0F766E', soft:'#D5EDEA', img:'assets/subject-musik.webp', full:true},
+  {id:'isf', name:'ISF', gruppe:'neben', color:'#4D7C0F', soft:'#E6EFD6', img:'assets/subject-isf.webp'},
+  {id:'musik', name:'Musik', gruppe:'neben', color:'#0F766E', soft:'#D5EDEA', img:'assets/subject-musik.webp'},
   {id:'sport', name:'Sport', gruppe:'neben', color:'#5FA829', soft:'#E4F3D9', img:'assets/subject-sport.webp'},
   {id:'werken', name:'Werken', gruppe:'neben', color:'#A9642E', soft:'#F1E1D2', img:'assets/subject-werken.webp'},
-  {id:'textiles-werken', name:'TTG', gruppe:'neben', color:'#DB6A8F', soft:'#FBE3EB', img:'assets/subject-textiles-werken.webp', full:true},
+  {id:'textiles-werken', name:'TTG', gruppe:'neben', color:'#DB6A8F', soft:'#FBE3EB', img:'assets/subject-textiles-werken.webp'},
   {id:'wah', name:'WAH', gruppe:'neben', color:'#D97706', soft:'#FBEBD3', img:'assets/subject-wah.webp', full:true},
   {id:'berufswahl', name:'Berufswahl', gruppe:'neben', color:'#E8752C', soft:'#FBE4D4', img:'assets/subject-berufswahl.webp'},
   {id:'gtz', name:'GTZ', gruppe:'frei', color:'#3D6A8A', soft:'#DCE8EF', img:'assets/subject-gtz.webp'},
-  {id:'fotokurs', name:'Fotokurs', gruppe:'frei', color:'#6B7280', soft:'#E7E9EE', img:'assets/subject-fotokurs.webp', full:true},
-  {id:'psychologie', name:'ERG', gruppe:'frei', color:'#A16207', soft:'#F3E8D2', img:'assets/subject-psychologie.webp', full:true},
-  {id:'freies-schreiben', name:'Zeichnen', gruppe:'frei', color:'#0369A1', soft:'#DCEBF5', img:'assets/subject-freies-schreiben.webp', full:true}
+  {id:'fotokurs', name:'Fotokurs', gruppe:'frei', color:'#6B7280', soft:'#E7E9EE', img:'assets/subject-fotokurs.webp'},
+  // IDs bleiben aus Kompatibilität (Noten, Stundenplan): psychologie = ERG, freies-schreiben = Zeichnen.
+  {id:'psychologie', name:'ERG', gruppe:'frei', color:'#A16207', soft:'#F3E8D2', img:'assets/subject-erg.webp'},
+  {id:'freies-schreiben', name:'Zeichnen', gruppe:'frei', color:'#0369A1', soft:'#DCEBF5', img:'assets/subject-zeichnen.webp'},
+  {id:'spanisch', name:'Spanisch', gruppe:'frei', color:'#C2410C', soft:'#F8E0D3', img:'assets/subject-spanisch.webp'},
+  {id:'algebra', name:'Algebra', gruppe:'frei', color:'#155E75', soft:'#D6E9EE', img:'assets/subject-algebra.webp'},
+  {id:'band', name:'Band', gruppe:'frei', color:'#9D174D', soft:'#F6DCE7', img:'assets/subject-band.webp'},
+  {id:'fussball', name:'Fussball', gruppe:'frei', color:'#15803D', soft:'#D8EEDF', img:'assets/subject-fussball.webp'},
+  {id:'volleyball', name:'Volleyball', gruppe:'frei', color:'#2563EB', soft:'#DCE6FB', img:'assets/subject-volleyball.webp'},
+  {id:'makerspace', name:'Makerspace', gruppe:'frei', color:'#57534E', soft:'#E8E6E4', img:'assets/subject-makerspace.webp'},
+  {id:'schach-jassen', name:'Schach & Jassen', gruppe:'frei', color:'#1F2937', soft:'#E2E4E8', img:'assets/subject-schach-jassen.webp'}
 ];
 SUBJECTS.forEach(function(s){ s.icon = subjectVisual(s); });
 function subjectById(id){ return SUBJECTS.find(function(s){return s.id===id;}); }
@@ -8884,7 +8909,7 @@ window.addEventListener('pagehide', flushTimeTracking);
    Die Position liegt unter `lib_pos_<rid>` (bewusst NICHT `hl_`), damit der
    generische localStorage-Sync sie mitnimmt → auch geräteübergreifend. */
 
-function exerciseHelperScript(rid){
+function exerciseHelperScript(rid, mitEnter){
   var posKey = 'lib_pos_' + rid;
   return '<script>(function(){' +
     'var K=' + JSON.stringify(posKey) + ';' +
@@ -8904,6 +8929,16 @@ function exerciseHelperScript(rid){
       'if(!hit)return;e.preventDefault();hit.click();' +
       'hit.style.filter="brightness(.8)";setTimeout(function(){hit.style.filter="";},120);' +
     '});' +
+    // Enter in einem Antwortfeld = «Prüfen» der eigenen Aufgabe (nächster Prüfen-Knopf im umgebenden Block).
+    (mitEnter ? 'var CHK=/^\\s*(\\S+\\s+)?(prüfen|überprüfen|kontrollieren|antwort prüfen|check)\\s*$/i;' +
+    'document.addEventListener("keydown",function(e){' +
+      'if(e.key!=="Enter"||e.shiftKey||e.ctrlKey||e.metaKey||e.altKey||e.isComposing||e.defaultPrevented)return;' +
+      'var t=e.target;if(!t||t.tagName!=="INPUT"||/^(button|submit|checkbox|radio|range|file|color)$/i.test(t.type||""))return;' +
+      'var n=t.parentElement;for(var d=0;n&&d<8;d++,n=n.parentElement){' +
+        'var bs=n.querySelectorAll("button");for(var i=0;i<bs.length;i++){var b=bs[i];' +
+          'if(!b.disabled&&b.offsetParent!==null&&CHK.test(b.textContent||"")){e.preventDefault();b.click();return;}}' +
+      '}' +
+    '});' : '') +
     'document.addEventListener("DOMContentLoaded",function(){var p=document.querySelector(".calc-panel");if(!p||p.querySelector(".lib-calc-keys"))return;' +
       'var n=document.createElement("div");n.className="lib-calc-keys";n.style.cssText="font-size:.68rem;opacity:.7;margin-top:8px;line-height:1.35;";' +
       'n.textContent="⌨️ Tastatur: Ziffern, + − * /, Enter = Resultat, ⌫ löschen, Esc = C, q = x², w = √";p.appendChild(n);});' +
@@ -8914,8 +8949,8 @@ function injectExerciseHelpers(html, rid){
   if(!html || !rid) return html;
   try{
     var out = html;
-    var viewRe = /var VIEW\s*=\s*\{\s*mode\s*:\s*'home'\s*\}\s*;/;
-    var renderRe = /function render\(\)\s*\{(\s*appRoot\.innerHTML)/;
+    var viewRe = /(?:var|let)\s+VIEW\s*=\s*\{\s*mode\s*:\s*['"]home['"]\s*\}\s*;?/;
+    var renderRe = /function render\(\)\s*\{/;
     if(viewRe.test(out) && renderRe.test(out)){
       out = out.replace(viewRe, function(){
         return "var VIEW = (function(){ try{ var v = window.__libLoadView && window.__libLoadView();" +
@@ -8923,15 +8958,17 @@ function injectExerciseHelpers(html, rid){
           " THEMES.some(function(t){ return t.key===v.themeKey; })) return {mode:v.mode, themeKey:v.themeKey, index:v.index, mDecided:!!v.mDecided};" +
           " }catch(e){} return {mode:'home'}; })();";
       });
-      out = out.replace(renderRe, function(m, rest){
-        return "function render(){ try{ window.__libSaveView && window.__libSaveView(VIEW); }catch(e){}" + rest;
+      out = out.replace(renderRe, function(){
+        return "function render(){ try{ window.__libSaveView && window.__libSaveView(VIEW); }catch(e){}";
       });
       // „Fortschritt löschen" → auch die gemerkte Position vergessen.
       out = out.replace(/STATE\s*=\s*\{\}\s*;\s*saveState\(STATE\)\s*;/, function(m){
         return "try{ window.__libClearView && window.__libClearView(); }catch(e){} " + m;
       });
     }
-    var script = exerciseHelperScript(rid);
+    // Seiten, die Enter schon selbst behandeln (z.B. RZG-Quizseiten), nicht doppelt prüfen lassen.
+    var mitEnter = !/['"]Enter['"]|keyCode\s*===?\s*13|which\s*===?\s*13/.test(html);
+    var script = exerciseHelperScript(rid, mitEnter);
     var headRe = /<head(\s[^>]*)?>/i;
     if(headRe.test(out)) return out.replace(headRe, function(m){ return m + script; });
     var idx = out.search(/<script/i);
@@ -15716,11 +15753,18 @@ function pipZeichnen(titel, sub, eintraege, leerText){
    der Library ist, leuchtet auch rot (falsch = true → «nicht in der Übung»).
    Schüler:innen finden ihre Lernphase mit where('mitglieder','array-contains', uid)
    (ein where, kein Index) und melden alle 20 s ein Lebenszeichen, bei jedem
-   Wechsel sofort. Beim Beenden löscht die Lehrperson alles wieder. */
+   Wechsel sofort. Beim Beenden löscht die Lehrperson alles wieder.
+   Zuverlässigkeit: Der Listener allein kam nicht bei allen an (persistenter
+   Cache mit mehreren Tabs, schlafende Verbindung) — darum zusätzlich alle 20 s
+   bzw. beim Zurückkommen/Online-Werden direkt beim Server nachfragen
+   (getDocsFromServer), und bei einem Listener-Fehler nach 5 s neu verbinden.
+   ✋ Handzeichen: praesenz/{uid}.hand = ms; die Lehrperson quittiert mit
+   lernphasen/{lpUid}.erledigt.{uid} = ms (Hand ist oben, solange hand > erledigt). */
 var LPH_HB_MS = 20000;        // Lebenszeichen der Schüler:innen
 var LPH_STALE_MS = 60000;     // so lange nichts gehört = «keine Verbindung»
 var LPH_SORT_KEY = 'lib_lernphase_sort';
-var lph = { unsub:null, aktiv:null, hb:null, drin:null, erste:false, blurT:null,
+var LPH_POLL_MS = 20000;      // Rückfall: so oft direkt beim Server nachfragen
+var lph = { unsub:null, aktiv:null, hb:null, drin:null, erste:false, blurT:null, poll:null, retry:null, hand:0, handBtn:null, handGesehen:{},
             phase:null, phaseUnsub:null, praes:{}, empfangen:{}, rausLokal:{}, praesUnsub:null,
             panel:null, tab:null, offen:true, tick:null, gruppen:null };
 
@@ -15732,29 +15776,68 @@ function startLernphaseWatcher(){
   stopLernphaseWatcher();
   if(!state.user || !state.profile || isLeitung()) return;
   if(state.profile.role === 'teacher'){ lphLehrerWatch(); return; }
-  lph.unsub = onSnapshot(query(collection(db, 'lernphasen'), where('mitglieder', 'array-contains', state.user.uid)), function(snap){
-    var akt = null;
-    snap.forEach(function(d){
-      var x = d.data();
-      if(x.aktiv && (!akt || (x.startMs || 0) > (akt.startMs || 0))) akt = Object.assign({id:d.id}, x);
-    });
-    var vorher = lph.aktiv;
-    if(akt && (!vorher || vorher.id !== akt.id || vorher.startMs !== akt.startMs)){
-      lph.aktiv = akt; lph.drin = null; lph.erste = true;
-      lphSchuelerStart();
-      if(!vorher) toast(akt.nurUebung && akt.nurUebung.id ? '📚 Lernphase: Arbeite an «' + (akt.nurUebung.titel || 'der Übung') + '».' : '📚 Lernphase: Bleib hier in der Library.');
-    } else if(akt){
-      lph.aktiv = akt;
-    } else if(vorher){
-      lph.aktiv = null;
-      lphSchuelerStopp();
-    }
-    updateLernphaseBanner();
-  }, function(err){ console.error('Lernphasen-Listener', err); });
+  lphListen();
+  lph.poll = setInterval(lphNachfragen, LPH_POLL_MS);
+  document.addEventListener('visibilitychange', lphNachfragenSichtbar);
+  window.addEventListener('focus', lphNachfragen);
+  window.addEventListener('online', lphNachfragen);
+}
+function lphQuery(){ return query(collection(db, 'lernphasen'), where('mitglieder', 'array-contains', state.user.uid)); }
+function lphListen(){
+  if(lph.unsub){ lph.unsub(); lph.unsub = null; }
+  lph.unsub = onSnapshot(lphQuery(), function(snap){
+    // Aus dem lokalen Cache ohne Serverbestätigung kein «beendet» ableiten.
+    lphVerarbeiten(snap.docs, snap.metadata && snap.metadata.fromCache);
+  }, function(err){
+    console.error('Lernphasen-Listener', err);
+    lph.unsub = null;
+    clearTimeout(lph.retry);
+    lph.retry = setTimeout(function(){ if(state.user && !lph.unsub) lphListen(); }, 5000);
+  });
+}
+var lphFragtNach = false;
+function lphNachfragen(){
+  if(!state.user || !state.profile || state.profile.role === 'teacher' || lphFragtNach) return;
+  if(document.visibilityState === 'hidden') return;
+  lphFragtNach = true;
+  getDocsFromServer(lphQuery()).then(function(snap){
+    lphFragtNach = false;
+    lphVerarbeiten(snap.docs, false);
+    if(!lph.unsub) lphListen();
+  }).catch(function(err){ lphFragtNach = false; console.warn('Lernphase: Nachfragen', err && err.code); });
+}
+function lphNachfragenSichtbar(){ if(document.visibilityState === 'visible') lphNachfragen(); }
+function lphVerarbeiten(docs, ausCache){
+  var akt = null;
+  docs.forEach(function(d){
+    var x = d.data();
+    if(x.aktiv && (!akt || (x.startMs || 0) > (akt.startMs || 0))) akt = Object.assign({id:d.id}, x);
+  });
+  var vorher = lph.aktiv;
+  if(akt && (!vorher || vorher.id !== akt.id || vorher.startMs !== akt.startMs)){
+    lph.aktiv = akt; lph.drin = null; lph.erste = true; lph.hand = 0;
+    lphSchuelerStart();
+    lphHandLaden(akt);
+    if(!vorher) toast(akt.nurUebung && akt.nurUebung.id ? '📚 Lernphase: Arbeite an «' + (akt.nurUebung.titel || 'der Übung') + '».' : '📚 Lernphase: Bleib hier in der Library.');
+  } else if(akt){
+    lph.aktiv = akt;
+  } else if(vorher && !ausCache){
+    lph.aktiv = null;
+    lphSchuelerStopp();
+  }
+  lphHandPruefen();
+  updateLernphaseBanner();
 }
 function stopLernphaseWatcher(){
   if(lph.unsub){ lph.unsub(); lph.unsub = null; }
+  clearInterval(lph.poll); lph.poll = null;
+  clearTimeout(lph.retry); lph.retry = null;
+  document.removeEventListener('visibilitychange', lphNachfragenSichtbar);
+  window.removeEventListener('focus', lphNachfragen);
+  window.removeEventListener('online', lphNachfragen);
   lph.aktiv = null;
+  lph.hand = 0;
+  lphHandBtnZeichnen();
   lphSchuelerStopp();
   if(lph.phaseUnsub){ lph.phaseUnsub(); lph.phaseUnsub = null; }
   lphPanelZu();
@@ -15837,6 +15920,55 @@ function lphUebungOeffnen(){
   }).catch(function(err){ console.error(err); toast('Übung konnte nicht geöffnet werden.'); });
 }
 
+/* ---------- Schüler:in: ✋ Handzeichen ---------- */
+
+function lphHandOben(){
+  var a = lph.aktiv; if(!a || !lph.hand || !state.user) return false;
+  return lph.hand > (((a.erledigt || {})[state.user.uid]) || 0);
+}
+// Nach einem Neuladen: steht die Hand noch? (eigenes Präsenz-Dokument lesen)
+function lphHandLaden(akt){
+  getDoc(doc(db, 'lernphasen', akt.id, 'praesenz', state.user.uid)).then(function(d){
+    var x = d.exists() ? d.data() : null;
+    if(lph.aktiv !== akt || !x || x.phase !== akt.startMs || !x.hand) return;
+    lph.hand = x.hand; lphHandPruefen();
+  }).catch(function(){});
+}
+function lphHandPruefen(){
+  var warOben = lph.handBtn && lph.handBtn.classList.contains('oben');
+  lphHandBtnZeichnen();
+  if(warOben && lph.aktiv && !lphHandOben() && lph.hand){ lph.hand = 0; toast('👋 Die Lehrperson hat deine Frage gesehen.'); }
+}
+function lphHandBtnZeichnen(){
+  var zeigen = !!(lph.aktiv && state.profile && state.profile.role !== 'teacher');
+  if(!zeigen){ if(lph.handBtn){ lph.handBtn.remove(); lph.handBtn = null; } return; }
+  if(!lph.handBtn){
+    lph.handBtn = document.createElement('button');
+    lph.handBtn.type = 'button';
+    lph.handBtn.className = 'lph-hand-btn';
+    lph.handBtn.addEventListener('click', lphHandKlick);
+  }
+  // Im Vollbild einer Übung muss der Knopf im Vollbild-Element hängen, sonst ist er unsichtbar.
+  var ziel = document.fullscreenElement || document.webkitFullscreenElement || document.body;
+  if(ziel.tagName === 'IFRAME') ziel = ziel.parentElement || document.body;
+  if(lph.handBtn.parentElement !== ziel) ziel.appendChild(lph.handBtn);
+  var oben = lphHandOben();
+  lph.handBtn.classList.toggle('oben', oben);
+  lph.handBtn.innerHTML = '<span>✋</span>' + (oben ? 'Hand runter' : 'Ich habe eine Frage');
+  lph.handBtn.title = oben ? 'Die Lehrperson weiss, dass du eine Frage hast. Nochmals tippen, wenn sie sich erledigt hat.' : 'Hand hochstrecken — die Lehrperson sieht, dass du eine Frage hast';
+}
+document.addEventListener('fullscreenchange', function(){ if(lph.handBtn) lphHandBtnZeichnen(); });
+document.addEventListener('webkitfullscreenchange', function(){ if(lph.handBtn) lphHandBtnZeichnen(); });
+function lphHandKlick(){
+  if(!lph.aktiv || !state.user) return;
+  var oben = !lphHandOben();
+  lph.hand = oben ? Date.now() : 0;
+  lphHandBtnZeichnen();
+  toast(oben ? '✋ Die Lehrperson sieht jetzt, dass du eine Frage hast.' : 'Hand ist wieder unten.');
+  fsSetDoc(doc(db, 'lernphasen', lph.aktiv.id, 'praesenz', state.user.uid), {hand:lph.hand, phase:lph.aktiv.startMs || 0, ts:serverTimestamp()}, {merge:true})
+    .catch(function(err){ console.error('Lernphase: Handzeichen', err); toast('Handzeichen konnte nicht gesendet werden — nochmals versuchen.'); lph.hand = oben ? 0 : lph.hand; lphHandBtnZeichnen(); });
+}
+
 /* ---------- Lehrperson ---------- */
 
 function lphLehrerWatch(){
@@ -15851,7 +15983,7 @@ function lphLehrerWatch(){
     }
     var neu = !lph.phase || lph.phase.startMs !== x.startMs;
     lph.phase = x;
-    if(neu){ lph.offen = true; lph.praes = {}; lph.empfangen = {}; lph.rausLokal = {}; }
+    if(neu){ lph.offen = true; lph.praes = {}; lph.empfangen = {}; lph.rausLokal = {}; lph.handGesehen = {}; }
     if(!lph.praesUnsub){
       lph.praesUnsub = onSnapshot(lphPraesCol(state.user.uid), function(ps){
         var jetzt = Date.now();
@@ -15861,6 +15993,11 @@ function lphLehrerWatch(){
           var d = ch.doc.data(), alt = lph.praes[uid];
           lph.praes[uid] = d;
           lph.empfangen[uid] = jetzt;
+          if(d.hand && lph.phase && d.phase === lph.phase.startMs && d.hand > lphErledigt(uid) && lph.handGesehen[uid] !== d.hand){
+            lph.handGesehen[uid] = d.hand;
+            // Beim ersten Laden (z.B. nach Neuladen) nicht für alte Hände piepsen.
+            if(!ps.metadata.fromCache && jetzt - d.hand < 120000) lphHandMelden(uid);
+          }
           if(d.drin) delete lph.rausLokal[uid];
           else if(!alt || alt.drin || !lph.rausLokal[uid]) lph.rausLokal[uid] = (alt && alt.drin) ? jetzt : (lphMs(d.rausSeit) || jetzt);
         });
@@ -15869,6 +16006,49 @@ function lphLehrerWatch(){
     }
     lphPaint();
   }, function(err){ console.error('Lernphase', err); });
+}
+
+function lphErledigt(uid){ return ((lph.phase && lph.phase.erledigt) || {})[uid] || 0; }
+function lphHandVon(uid){
+  var p = lph.praes[uid];
+  if(!p || !p.hand || !lph.phase || p.phase !== lph.phase.startMs) return 0;
+  return p.hand > lphErledigt(uid) ? p.hand : 0;
+}
+function lphHaende(){
+  if(!lph.phase) return [];
+  var aus = lph.phase.aus || [];
+  return (lph.phase.mitglieder || []).filter(function(u){ return aus.indexOf(u) < 0 && lphHandVon(u); })
+    .sort(function(a, b){ return lphHandVon(a) - lphHandVon(b); });
+}
+function lphHandMelden(uid){
+  var name = (lph.phase && lph.phase.namen || {})[uid] || 'Jemand';
+  toast('✋ ' + name + ' hat eine Frage.');
+  lphPiep();
+  if(document.visibilityState === 'hidden' && !lph.titelAlt){
+    lph.titelAlt = document.title;
+    document.title = '✋ Frage — ' + lph.titelAlt;
+    var zurueck = function(){ if(document.visibilityState === 'visible' && lph.titelAlt){ document.title = lph.titelAlt; lph.titelAlt = null; document.removeEventListener('visibilitychange', zurueck); } };
+    document.addEventListener('visibilitychange', zurueck);
+  }
+}
+function lphPiep(){
+  try{
+    var AC = window.AudioContext || window.webkitAudioContext; if(!AC) return;
+    var ctx = lph.audio || (lph.audio = new AC());
+    if(ctx.state === 'suspended') ctx.resume();
+    [0, 0.18].forEach(function(t, i){
+      var o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = 'sine'; o.frequency.value = i ? 988 : 784;
+      g.gain.setValueAtTime(0.0001, ctx.currentTime + t);
+      g.gain.exponentialRampToValueAtTime(0.25, ctx.currentTime + t + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + t + 0.16);
+      o.connect(g); g.connect(ctx.destination); o.start(ctx.currentTime + t); o.stop(ctx.currentTime + t + 0.18);
+    });
+  }catch(e){}
+}
+function lphHandErledigt(uid){
+  var upd = {}; upd['erledigt.' + uid] = Date.now();
+  updateDoc(lphRef(state.user.uid), upd).catch(function(err){ console.error(err); toast('Konnte nicht gespeichert werden.'); });
 }
 
 function lphStatus(uid){
@@ -15895,6 +16075,7 @@ function lphZeile(uid, name, ausgeblendet){
   var info = st.text + (st.raus ? (st.text ? ' · ' : '') + st.raus + '× raus' : '');
   return '<div class="lph-row'+(st.rot ? ' rot' : '')+'"><span class="lph-dot"></span>'+
     '<span class="lph-name">'+esc(name)+(info ? '<small>'+esc(info)+'</small>' : '')+'</span>'+
+    (lphHandVon(uid) ? '<button class="lph-mini lph-handmark" data-lph-hand="'+esc(uid)+'" type="button" title="Hat eine Frage — antippen, wenn erledigt">✋</button>' : '')+
     '<button class="lph-mini" data-lph-aus="'+esc(uid)+'" type="button" title="Ausblenden (z. B. krank)">🙈</button></div>';
 }
 
@@ -15915,9 +16096,10 @@ function lphPaint(){
     lph.tab.addEventListener('click', function(){ lph.offen = true; lphPaint(); });
     document.body.appendChild(lph.tab);
   }
+  var haende = lphHaende();
   lph.tab.hidden = lph.offen;
   lph.tab.classList.toggle('rot', rot > 0);
-  lph.tab.innerHTML = '📚' + (rot ? '<b>'+rot+'</b>' : '');
+  lph.tab.innerHTML = '📚' + (rot ? '<b>'+rot+'</b>' : '') + (haende.length ? '<b class="hand">✋'+haende.length+'</b>' : '');
 
   if(!lph.offen){
     if(lph.panel){ lph.panel.remove(); lph.panel = null; }
@@ -15950,6 +16132,14 @@ function lphPaint(){
     '<span><button class="lph-mini" data-lph="pip" type="button" title="Immer im Vordergrund — auch wenn du in einem anderen Programm arbeitest">📌</button>'+
     '<button class="lph-mini" data-lph="zu" type="button" title="Einklappen">⟨</button></span></div>';
   h += '<div class="lph-sum"><span class="lph-ok">🟢 '+(sichtbar.length - rot)+' drin</span><span class="lph-bad">🔴 '+rot+' raus</span></div>';
+  if(haende.length){
+    h += '<div class="lph-fragen"><b>✋ Fragen ('+haende.length+')</b>';
+    haende.forEach(function(u){
+      h += '<div class="lph-frage">'+esc(nameVon(u))+'<small>seit '+esc(pruefZeitText(Date.now() - lphHandVon(u)))+'</small>'+
+        '<button class="lph-mini" data-lph-hand="'+esc(u)+'" type="button" title="Erledigt — Hand runter">✓</button></div>';
+    });
+    h += '</div>';
+  }
   if(faecher.length){
     h += '<select class="lph-sort" id="lphSort"><option value="">Sortieren: A–Z</option>';
     faecher.forEach(function(f){ h += '<option value="'+esc(f)+'"'+(f === sort ? ' selected' : '')+'>👥 Gruppen '+esc(subjectName(f))+'</option>'; });
@@ -15992,10 +16182,11 @@ function lphPipZeichnen(){
   var p = lph.phase, namen = p.namen || {}, aus = p.aus || [];
   var liste = (p.mitglieder || []).filter(function(u){ return aus.indexOf(u) < 0; }).map(function(u){
     var st = lphStatus(u);
-    return {name:namen[u] || '?', art:st.rot ? 'rot' : 'gruen', info:st.rot ? st.text : ''};
+    return {name:(lphHandVon(u) ? '✋ ' : '') + (namen[u] || '?'), art:st.rot ? 'rot' : 'gruen', info:(lphHandVon(u) ? 'Frage' + (st.rot ? ' · ' : '') : '') + (st.rot ? st.text : '')};
   });
   var rot = liste.filter(function(e){ return e.art === 'rot'; }).length;
-  pipZeichnen('📚 Lernphase' + (p.titel ? ' · ' + p.titel : ''), '🟢 ' + (liste.length - rot) + ' drin   🔴 ' + rot + ' raus', liste, 'Alle ausgeblendet.');
+  var nh = lphHaende().length;
+  pipZeichnen('📚 Lernphase' + (p.titel ? ' · ' + p.titel : ''), '🟢 ' + (liste.length - rot) + ' drin   🔴 ' + rot + ' raus' + (nh ? '   ✋ ' + nh : ''), liste, 'Alle ausgeblendet.');
 }
 
 function lphTickStart(){
@@ -16014,7 +16205,9 @@ function lphPanelKlick(e){
   var b = e.target.closest('button');
   if(!b || !lph.phase) return;
   var ref = lphRef(state.user.uid);
-  if(b.hasAttribute('data-lph-aus')){
+  if(b.hasAttribute('data-lph-hand')){
+    lphHandErledigt(b.getAttribute('data-lph-hand'));
+  } else if(b.hasAttribute('data-lph-aus')){
     updateDoc(ref, {aus: arrayUnion(b.getAttribute('data-lph-aus'))}).catch(function(err){ console.error(err); toast('Konnte nicht ausblenden.'); });
   } else if(b.hasAttribute('data-lph-ein')){
     updateDoc(ref, {aus: arrayRemove(b.getAttribute('data-lph-ein'))}).catch(function(err){ console.error(err); toast('Konnte nicht einblenden.'); });
@@ -16167,8 +16360,25 @@ var pruef = {
   geladen:false,              // erster Snapshot der Prüfungsliste ist da
   sess:null,                  // laufende Prüfung auf DIESEM Gerät
   monTimer:null, lockSig:'',
-  loes:{}                     // Lehrperson: Lösungen je Bank-Prüfung (intern/loesung)
+  loes:{},                    // Lehrperson: Lösungen je Bank-Prüfung (intern/loesung)
+  warte:null, warteWeg:{},    // Schüler:in: Warteraum {pid, beat, los}; weggeklickte Warteräume
+  warteUnsubs:{}, warteListe:{} // Lehrperson: wer im Warteraum ist, je Prüfung
 };
+
+/* ---------- ⏳ Warteraum ----------
+   Beim Freigeben setzt die Lehrperson warteraum:true (losMs fehlt). Solange
+   landen die Schüler:innen automatisch im Warteraum (Vollbild-Overlay) und
+   melden sich unter quizSessions/warte_<pid>/antworten/{uid} (bestehende
+   quizSessions-Regeln, keine neue Regel). «▶️ Test starten» setzt losMs —
+   alle, die im Vollbild warten, starten dann gleichzeitig; wer kein Vollbild
+   hat, bekommt einen Start-Knopf (Vollbild braucht einen Klick). Der Inhalt
+   wird im Warteraum schon vorgeladen (langsame Verbindungen). */
+var PRUEF_WARTE_MS = 20000;
+function pruefWartet(p){ return !!(p && p.status === 'offen' && p.warteraum && !p.losMs && p.modus !== 'papier'); }
+function warteRef(pid, uid){ return kdoc('quizSessions', 'warte_' + pid, 'antworten', uid); }
+function warteCol(pid){ return kcol('quizSessions', 'warte_' + pid, 'antworten'); }
+function pruefFsAktiv(){ return !!(document.fullscreenElement || document.webkitFullscreenElement); }
+function pruefFsMoeglich(){ var el = document.documentElement; return !!(el.requestFullscreen || el.webkitRequestFullscreen); }
 
 function pruefCol(){ return kcol('pruefungen'); }
 function pruefRef(id){ return kdoc('pruefungen', id); }
@@ -16404,12 +16614,43 @@ function stopPruefungWatcher(){
   if(pruef.unsub){ pruef.unsub(); pruef.unsub = null; }
   Object.keys(pruef.mineUnsubs).forEach(function(k){ pruef.mineUnsubs[k](); });
   Object.keys(pruef.teilUnsubs).forEach(function(k){ pruef.teilUnsubs[k](); });
+  Object.keys(pruef.warteUnsubs).forEach(function(k){ pruef.warteUnsubs[k](); });
+  pruef.warteUnsubs = {}; pruef.warteListe = {};
+  pruefWarteAufraeumen(); pruef.warte = null;
   pruef.mineUnsubs = {}; pruef.mine = {}; pruef.teilUnsubs = {}; pruef.teil = {}; pruef.list = []; pruef.geladen = false;
   pruefSessionStopp();
   pruefLockHide();
 }
 
+function syncPruefWarteWatchers(){
+  var want = {};
+  if(pruefIstLehrer()) pruef.list.forEach(function(p){ if(pruefWartet(p)) want[p.id] = true; });
+  Object.keys(pruef.warteUnsubs).forEach(function(id){
+    if(!want[id]){ pruef.warteUnsubs[id](); delete pruef.warteUnsubs[id]; }
+  });
+  Object.keys(want).forEach(function(id){
+    if(pruef.warteUnsubs[id]) return;
+    pruef.warteListe[id] = pruef.warteListe[id] || {};
+    pruef.warteUnsubs[id] = onSnapshot(warteCol(id), function(snap){
+      var jetzt = Date.now(), m = pruef.warteListe[id];
+      snap.docChanges().forEach(function(ch){
+        if(ch.type === 'removed'){ delete m[ch.doc.id]; return; }
+        m[ch.doc.id] = Object.assign({empf:jetzt}, ch.doc.data());
+      });
+      updatePruefungBanner();
+      pruefRefreshTeacherView();
+    }, function(err){ console.error('Warteraum-Listener', err); });
+  });
+}
+// Lehrperson: ist die Person gerade im Warteraum? (Lebenszeichen alle 20 s)
+function pruefImWarteraum(pid, uid){
+  var w = (pruef.warteListe[pid] || {})[uid];
+  if(!w || w.weg) return null;
+  if(Date.now() - (w.empf || 0) > 3 * PRUEF_WARTE_MS) return null;
+  return w;
+}
 function syncPruefTeilWatchers(){
+  syncPruefWarteWatchers();
   var teacher = pruefIstLehrer();
   var want = {};
   pruef.list.forEach(function(p){
@@ -16457,7 +16698,8 @@ function updatePruefungBanner(){
     if(!laufend.length){ btn.hidden = true; return; }
     var p = laufend[0], t = pruef.teil[p.id] || {}, ab = 0, gesperrt = 0;
     Object.keys(t).forEach(function(u){ if(t[u].status === 'abgegeben') ab++; if(t[u].status === 'gesperrt') gesperrt++; });
-    btn.innerHTML = '📝 Prüfung läuft · ✅ ' + ab + (gesperrt ? ' · 🔒 ' + gesperrt : '');
+    btn.innerHTML = pruefWartet(p) ? '⏳ Warteraum · ' + Object.keys(pruef.warteListe[p.id] || {}).filter(function(u){ return pruefImWarteraum(p.id, u); }).length + ' da'
+      : '📝 Prüfung läuft · ✅ ' + ab + (gesperrt ? ' · 🔒 ' + gesperrt : '');
     btn.classList.toggle('topbar-pruefung-alarm', gesperrt > 0);
     btn.hidden = state.route.name === 'pruefung' && state.route.id === p.id;
     btn.onclick = function(){ state.route = {name:'pruefung', id:p.id}; render(); };
@@ -16485,6 +16727,7 @@ function updatePruefungBanner(){
 /* ---------- Schüler:in: starten ---------- */
 
 function pruefStartDialog(p){
+  if(pruefWartet(p)){ pruef.warteWeg[p.id] = false; pruefWarteBetreten(p, true); return; }
   openModal(
     '<h3>📝 '+esc(p.titel)+'</h3>'+
     '<p><b>'+(pruefArt(p) === 'tippen' ? '⌨️ Tastaturschreiben' : esc(String(pruefAnzahl(p)))+(pruefArt(p) === 'sikore' ? ' Rechnungen auf Level '+esc(String((p.levels || {})[state.user.uid] || '')) : pruefArt(p) === 'mt' ? ' Aufgaben' : ' Fragen'))+(+p.zeitMin > 0 ? ', '+esc(String(p.zeitMin))+' Minuten Zeit' : '')+'.</b> Deine Antworten werden laufend gespeichert, du kannst vor- und zurückblättern.'+
@@ -16501,6 +16744,99 @@ function pruefStartDialog(p){
   );
   document.getElementById('modalCancel').addEventListener('click', closeModal);
   document.getElementById('modalOk').addEventListener('click', function(){ closeModal(); pruefStarten(p, false); });
+}
+
+/* ---------- Schüler:in: Warteraum ---------- */
+
+function pruefWarteBetreten(p, geste){
+  if(pruef.sess) return;
+  if(pruef.warte && pruef.warte.pid === p.id){ if(geste) pruefFullscreenAn(pruefOverlay()); pruefWarteZeichnen(p); return; }
+  pruefWarteAufraeumen();
+  pruef.warte = {pid:p.id, beat:null, los:false};
+  closeModal();
+  var ov = pruefOverlay();
+  pruef.lockSig = '';
+  if(geste) pruefFullscreenAn(ov);
+  pruefWarteZeichnen(p);
+  pruefWarteMelden();
+  pruef.warte.beat = setInterval(pruefWarteMelden, PRUEF_WARTE_MS);
+  document.addEventListener('fullscreenchange', pruefWarteFs);
+  document.addEventListener('webkitfullscreenchange', pruefWarteFs);
+  document.addEventListener('visibilitychange', pruefWarteMelden);
+  // Inhalt schon jetzt holen, damit der Start auch bei langsamer Verbindung sofort geht.
+  if(pruefArt(p) === 'nativ' && p.contentId) loadResourceHtml(p.contentId).catch(function(){});
+}
+function pruefWarteFs(){
+  var w = pruef.warte; if(!w) return;
+  var p = pruefById(w.pid); if(!p) return;
+  if(w.los){ pruefWarteLos(p); return; }
+  pruefWarteZeichnen(p); pruefWarteMelden();
+}
+function pruefWarteMelden(){
+  var w = pruef.warte; if(!w || w.los || !state.user) return;
+  setDoc(warteRef(w.pid, state.user.uid), {
+    name:state.profile.displayName || '', ts:serverTimestamp(), weg:false,
+    bereit:pruefFsAktiv() || !pruefFsMoeglich(), sichtbar:document.visibilityState === 'visible'
+  }, {merge:true}).catch(function(err){ console.warn('Warteraum melden', err && err.code); });
+}
+function pruefWarteAufraeumen(){
+  var w = pruef.warte; if(!w) return;
+  clearInterval(w.beat); w.beat = null;
+  document.removeEventListener('fullscreenchange', pruefWarteFs);
+  document.removeEventListener('webkitfullscreenchange', pruefWarteFs);
+  document.removeEventListener('visibilitychange', pruefWarteMelden);
+}
+function pruefWarteVerlassen(abmelden){
+  var w = pruef.warte; if(!w) return;
+  pruefWarteAufraeumen();
+  pruef.warte = null;
+  if(abmelden && state.user) setDoc(warteRef(w.pid, state.user.uid), {weg:true, ts:serverTimestamp()}, {merge:true}).catch(function(){});
+  pruefFullscreenAus();
+  pruefLockHide();
+}
+function pruefWarteZeichnen(p){
+  var fs = pruefFsAktiv(), fsGeht = pruefFsMoeglich();
+  var sig = 'warte:' + p.id + ':' + fs;
+  if(pruef.lockSig === sig) return;
+  pruef.lockSig = sig;
+  var ov = pruefOverlay();
+  ov.innerHTML = '<div class="pr-lock-msg"><div class="pr-warte-uhr">⏳</div><h2>'+esc(p.titel)+'</h2>'+
+    '<p><b>Warteraum.</b> Die Prüfung startet für alle gleichzeitig, sobald die Lehrperson auf «Test starten» drückt. Bleib auf dieser Seite.</p>'+
+    (fs || !fsGeht ? '<p class="pr-warte-ok">✅ Du bist bereit.</p>'
+      : '<p>Schalte das Vollbild ein, dann startet die Prüfung bei dir automatisch.</p><button class="btn btn-primary" id="pruefWarteFsBtn" type="button">🖥️ Vollbild einschalten</button>')+
+    '<p style="margin-top:22px"><button class="btn btn-ghost btn-sm" id="pruefWarteZu" type="button">Warteraum schliessen</button></p></div>';
+  var fsBtn = document.getElementById('pruefWarteFsBtn');
+  if(fsBtn) fsBtn.addEventListener('click', function(){ pruefFullscreenAn(ov); });
+  document.getElementById('pruefWarteZu').addEventListener('click', function(){ pruef.warteWeg[p.id] = true; pruefWarteVerlassen(true); updatePruefungBanner(); });
+}
+// Die Lehrperson hat gestartet.
+function pruefWarteLos(p){
+  var w = pruef.warte; if(!w) return;
+  w.los = true;
+  pruefWarteAufraeumen();
+  if(pruefFsAktiv() || !pruefFsMoeglich()){ pruef.lockSig = ''; pruefStarten(p, false); return; }
+  var sig = 'los:' + p.id;
+  if(pruef.lockSig === sig) return;
+  pruef.lockSig = sig;
+  var ov = pruefOverlay();
+  ov.innerHTML = '<div class="pr-lock-msg"><div class="pr-lock-icon">📝</div><h2>'+esc(p.titel)+'</h2><p><b>Es geht los!</b></p>'+
+    '<button class="btn btn-primary" id="pruefLosBtn" type="button">📝 Prüfung starten</button></div>';
+  document.getElementById('pruefLosBtn').addEventListener('click', function(){ pruef.lockSig = ''; pruefStarten(p, false); });
+}
+// Aus pruefStudentUpdate: true = der Warteraum kümmert sich um die Anzeige.
+function pruefWarteraumUpdate(){
+  var w = pruef.warte;
+  if(w){
+    var p = pruefById(w.pid);
+    if(!p || p.status !== 'offen' || pruef.mine[w.pid]){ pruefWarteVerlassen(false); return false; }
+    if(w.los || !pruefWartet(p)){ pruefWarteLos(p); return true; }
+    pruefWarteZeichnen(p);
+    return true;
+  }
+  var neu = pruef.list.find(function(p){ return pruefWartet(p) && sikoreFuerMich(p) && pruef.mine.hasOwnProperty(p.id) && !pruef.mine[p.id] && !pruef.warteWeg[p.id]; });
+  if(!neu) return false;
+  pruefWarteBetreten(neu, false);
+  return true;
 }
 
 function pruefOverlay(){
@@ -16535,9 +16871,10 @@ function pruefFullscreenAus(){
 // Muss direkt aus einem Klick heraus laufen (Vollbild braucht eine Nutzergeste).
 async function pruefStarten(p, weiter, vorschau){
   if(pruef.sess) return;
+  if(pruef.warte && !vorschau){ pruefWarteAufraeumen(); pruef.warte = null; }
   closeModal();
   var ov = pruefOverlay();
-  ov.innerHTML = '<div class="pr-lock-msg"><div class="pr-lock-icon">📝</div><h2>'+esc(p.titel)+'</h2><p>Prüfung wird geladen …</p></div>';
+  ov.innerHTML = '<div class="pr-lock-msg"><div class="pr-lock-icon">📝</div><h2>'+esc(p.titel)+'</h2><p>Prüfung wird geladen …</p><p id="pruefLadeInfo"></p></div>';
   pruefFullscreenAn(ov);
   var uid = state.user.uid;
   var sess = pruef.sess = {pid:p.id, vorschau:!!vorschau, ending:false, frame:null, missed:0, fsWasOn:false,
@@ -16545,30 +16882,52 @@ async function pruefStarten(p, weiter, vorschau){
     frist:vorschau && +p.zeitMin > 0 ? Date.now() + p.zeitMin * 60000 : null, uhr:null};
   sess.uhr = setInterval(pruefUhrTick, 1000);
   pruef.lockSig = 'sess';
+  // Langsame Verbindung: Bescheid geben und nach einer Weile «Nochmals versuchen» anbieten.
+  sess.ladeT1 = setTimeout(function(){
+    var el = document.getElementById('pruefLadeInfo');
+    if(el && pruef.sess === sess && !sess.gezeigt) el.innerHTML = '<span class="pr-langsam">📶 Langsame Verbindung — bitte warten, die Prüfung lädt noch.</span>';
+  }, 6000);
+  sess.ladeT2 = setTimeout(function(){
+    var el = document.getElementById('pruefLadeInfo');
+    if(!el || pruef.sess !== sess || sess.gezeigt || vorschau) return;
+    el.innerHTML = '<span class="pr-langsam">📶 Das dauert sehr lange.</span><br><br><button class="btn btn-primary btn-sm" id="pruefNochmals" type="button">🔄 Nochmals versuchen</button>';
+    document.getElementById('pruefNochmals').addEventListener('click', function(){
+      if(pruef.sess !== sess) return;
+      pruefSessionStopp();
+      pruefLokal(p.id, {aktiv:false});
+      updateDoc(teilRef(p.id, uid), {aktiv:false}).catch(function(){});
+      pruefStarten(p, true);
+    });
+  }, 30000);
   var vorher = pruef.mine[p.id], docOk = false;
   try{
     if(!vorschau){
       var startMs = weiter && pruef.mine[p.id] && pruef.mine[p.id].startMs ? pruef.mine[p.id].startMs : Date.now();
-      pruefLokal(p.id, {status:'laeuft', aktiv:true, startMs:startMs});
-      if(weiter){
-        await updateDoc(teilRef(p.id, uid), {aktiv:true, lebt:serverTimestamp()});
-      } else {
-        await setDoc(teilRef(p.id, uid), {
-          uid:uid, name:state.profile.displayName || '', status:'laeuft', aktiv:true,
-          gestartetAm:serverTimestamp(), startMs:startMs, lebt:serverTimestamp(),
-          antworten:{}, beantwortet:0, max:pruefAnzahl(p), verstoesse:[]
-        });
-      }
+      pruefLokal(p.id, {status:'laeuft', aktiv:true, startMs:startMs, geladen:false});
+      // Nicht auf die Bestätigung des Servers warten (bei schlechter Verbindung
+      // hing das ewig): der Schreibvorgang läuft im Hintergrund weiter.
+      var schreiben = weiter
+        ? updateDoc(teilRef(p.id, uid), {aktiv:true, geladen:false, lebt:serverTimestamp()})
+        : setDoc(teilRef(p.id, uid), {
+            uid:uid, name:state.profile.displayName || '', status:'laeuft', aktiv:true, geladen:false,
+            gestartetAm:serverTimestamp(), startMs:startMs, lebt:serverTimestamp(),
+            antworten:{}, beantwortet:0, max:pruefAnzahl(p), verstoesse:[]
+          });
+      schreiben.catch(function(err){
+        console.error('Teilnahme speichern', err);
+        if(pruef.sess === sess){ pruefSessionStopp(); pruefFullscreenAus(); pruefLockHide(); }
+        pruef.mine[p.id] = vorher;
+        pruefStudentUpdate();
+        uiInfo('Prüfung konnte nicht gestartet werden', 'Bitte melde dich bei der Lehrperson. ('+(err && err.code || err && err.message || 'Fehler')+')');
+      });
       docOk = true;
       sess.frist = pruefFrist(p, {startMs:startMs});
-      // Wächter nach einer kurzen Schonfrist (Vollbild braucht einen Moment) — schon während die Seite lädt.
-      setTimeout(function(){ if(pruef.sess === sess) pruefWaechterAn(); }, 1500);
     }
     var saved = (!vorschau && pruef.mine[p.id] && pruef.mine[p.id].antworten) || {};
-    if(pruefArt(p) === 'bank'){ pruefBankStart(p, sess, ov, saved); return; }
-    if(pruefArt(p) === 'sikore'){ sikorePruefStart(p, sess, ov, saved); return; }
-    if(pruefArt(p) === 'tippen'){ tippPrStart(p, sess, ov, saved); return; }
-    if(pruefArt(p) === 'mt'){ mtPrStart(p, sess, ov, saved); return; }
+    if(pruefArt(p) === 'bank'){ pruefBankStart(p, sess, ov, saved); pruefGezeigt(sess); return; }
+    if(pruefArt(p) === 'sikore'){ sikorePruefStart(p, sess, ov, saved); pruefGezeigt(sess); return; }
+    if(pruefArt(p) === 'tippen'){ tippPrStart(p, sess, ov, saved); pruefGezeigt(sess); return; }
+    if(pruefArt(p) === 'mt'){ mtPrStart(p, sess, ov, saved); pruefGezeigt(sess); return; }
     var html = await loadResourceHtml(p.contentId);
     if(pruef.sess !== sess) return;
     // Ältere Pöstlergeografie zeigte nach einem Karten-Klick den Namen des
@@ -16582,6 +16941,9 @@ async function pruefStarten(p, weiter, vorschau){
     ov.innerHTML = pruefLockBar(p, vorschau) + '<iframe id="pruefFrame" title="'+esc(p.titel)+'" allow="clipboard-read; clipboard-write"></iframe>';
     pruefLockBarVerdrahten();
     sess.frame = document.getElementById('pruefFrame');
+    sess.frame.addEventListener('load', function(){ pruefGezeigt(sess); }, {once:true});
+    // Falls «load» ausbleibt: spätestens nach 20 s trotzdem überwachen.
+    setTimeout(function(){ pruefGezeigt(sess); }, 20000);
     sess.frame.srcdoc = html;
   }catch(err){
     console.error(err);
@@ -16598,6 +16960,18 @@ async function pruefStarten(p, weiter, vorschau){
     if(!vorschau) pruef.mine[p.id] = vorher;
     uiInfo('Prüfung konnte nicht gestartet werden', 'Bitte melde dich bei der Lehrperson. ('+(err && err.code || err && err.message || 'Fehler')+')');
   }
+}
+// Die Prüfung ist sichtbar: erst jetzt wird überwacht (wer beim Laden hängen
+// bleibt, wird nicht gesperrt) und die Teilnahme als «geladen» markiert.
+function pruefGezeigt(sess){
+  if(!sess || sess.gezeigt || pruef.sess !== sess) return;
+  sess.gezeigt = true;
+  clearTimeout(sess.ladeT1); clearTimeout(sess.ladeT2);
+  if(sess.vorschau) return;
+  pruefLokal(sess.pid, {geladen:true});
+  updateDoc(teilRef(sess.pid, state.user.uid), {geladen:true}).catch(function(err){ console.error('geladen speichern', err); });
+  // Wächter nach einer kurzen Schonfrist (Vollbild braucht einen Moment).
+  setTimeout(function(){ if(pruef.sess === sess) pruefWaechterAn(); }, 1500);
 }
 function pruefLockBar(p, vorschau){
   return '<div class="pr-lock-bar"><b>📝 '+esc(p.titel)+'</b><span>'+esc(state.profile.displayName || '')+'</span>'+
@@ -16661,7 +17035,7 @@ function pruefSessionStopp(){
   pruefWaechterAus();
   var s = pruef.sess;
   if(s && s.frame){ try{ s.frame.srcdoc = ''; }catch(e){} }
-  if(s) clearInterval(s.uhr);
+  if(s){ clearInterval(s.uhr); clearTimeout(s.ladeT1); clearTimeout(s.ladeT2); }
   pruef.sess = null;
 }
 
@@ -16763,8 +17137,17 @@ function pruefStudentUpdate(){
     return;
   }
   if(s && s.vorschau) return;
+  if(!aktiv && pruefWarteraumUpdate()) return;
   if(!aktiv){ if(pruef.lockSig) pruefLockHide(); return; }
   var p = aktiv.p, t = aktiv.t;
+  if(t.status === 'laeuft' && t.aktiv && t.geladen === false){
+    // Die Prüfung war noch gar nicht fertig geladen (langsame Verbindung) —
+    // dafür wird niemand gesperrt: einfach nochmals versuchen lassen.
+    pruefLokal(p.id, {aktiv:false});
+    updateDoc(teilRef(p.id, state.user.uid), {aktiv:false}).catch(function(err){ console.error('Teilnahme zurücksetzen', err); });
+    pruefZeigeEntsperrt(p, true);
+    return;
+  }
   if(t.status === 'laeuft' && t.aktiv){
     // Teilnahme ist aktiv, aber hier läuft keine Sitzung: die Seite wurde
     // neu geladen/geschlossen oder die Prüfung in einem zweiten Tab geöffnet.
@@ -16791,17 +17174,19 @@ function pruefZeigeGesperrt(p, grund){
     '<p>Du hast die Prüfung verlassen'+(grund ? ' <span class="pr-grund">('+esc(grund)+')</span>' : '')+'.</p>'+
     '<p><b>Melde dich bei der Lehrperson.</b> Sobald sie dich entsperrt, kannst du weiterschreiben. Deine bisherigen Antworten sind gespeichert.</p></div>';
 }
-function pruefZeigeEntsperrt(p){
+function pruefZeigeEntsperrt(p, nichtGeladen){
+  var t0 = pruef.mine[p.id] || {};
+  nichtGeladen = nichtGeladen || (t0.geladen === false && !t0.entsperrtAm);
   var zeitUm = pruefZeitUm(p, pruef.mine[p.id]);
-  var sig = 'frei:' + p.id + ':' + p.status + ':' + zeitUm;
+  var sig = 'frei:' + p.id + ':' + p.status + ':' + zeitUm + ':' + !!nichtGeladen;
   if(pruef.lockSig === sig) return;
   pruef.lockSig = sig;
   closeModal();
   var ov = pruefOverlay();
   var beendet = p.status === 'beendet' || zeitUm;
-  ov.innerHTML = '<div class="pr-lock-msg"><div class="pr-lock-icon">🔓</div><h2>'+(zeitUm ? 'Die Zeit ist um' : beendet ? 'Die Prüfung ist beendet' : 'Du bist entsperrt')+'</h2>'+
-    '<p>'+(beendet ? 'Deine gespeicherten Antworten werden jetzt abgegeben.' : 'Deine Antworten sind noch da. Nicht mehr verlassen, sonst wirst du wieder gesperrt!')+'</p>'+
-    '<button class="btn btn-primary" id="pruefWeiterBtn" type="button">'+(beendet ? '✉️ Abgeben' : '📝 Weiterschreiben')+'</button></div>';
+  ov.innerHTML = '<div class="pr-lock-msg"><div class="pr-lock-icon">'+(nichtGeladen && !beendet ? '📶' : '🔓')+'</div><h2>'+(zeitUm ? 'Die Zeit ist um' : beendet ? 'Die Prüfung ist beendet' : nichtGeladen ? 'Die Prüfung ist noch nicht geladen' : 'Du bist entsperrt')+'</h2>'+
+    '<p>'+(beendet ? 'Deine gespeicherten Antworten werden jetzt abgegeben.' : nichtGeladen ? 'Die Verbindung war zu langsam. Du bist nicht gesperrt — versuch es einfach nochmals.' : 'Deine Antworten sind noch da. Nicht mehr verlassen, sonst wirst du wieder gesperrt!')+'</p>'+
+    '<button class="btn btn-primary" id="pruefWeiterBtn" type="button">'+(beendet ? '✉️ Abgeben' : nichtGeladen ? '🔄 Nochmals laden' : '📝 Weiterschreiben')+'</button></div>';
   document.getElementById('pruefWeiterBtn').addEventListener('click', function(){ pruef.lockSig = ''; pruefStarten(p, true); });
 }
 
@@ -17565,6 +17950,7 @@ function renderPruefungen(){
   pruefListeZeichnen();
 }
 function pruefStatusBadge(p){
+  if(pruefWartet(p)) return '<span class="pr-badge offen">⏳ Warteraum</span>';
   if(p.status === 'offen') return '<span class="pr-badge offen">läuft</span>';
   if(p.status === 'beendet') return '<span class="pr-badge beendet">beendet'+(p.resultateFrei ? ' · Resultate frei' : '')+'</span>';
   return '<span class="pr-badge">Entwurf</span>';
@@ -18749,7 +19135,8 @@ function pruefTeilStatus(t){
   if(!t) return {cls:'nix', txt:'⚪ nicht gestartet'};
   if(t.status === 'abgegeben') return {cls:'ab', txt:'✅ abgegeben'};
   if(t.status === 'gesperrt'){ var v = (t.verstoesse || []).slice(-1)[0]; return {cls:'gesperrt', txt:'🔒 gesperrt'+(v ? ' – '+v.grund : '')}; }
-  if(!t.aktiv) return {cls:'frei', txt:'🔓 entsperrt, noch nicht weiter'};
+  if(!t.aktiv) return t.geladen === false && !t.entsperrtAm ? {cls:'frei', txt:'📶 Laden abgebrochen, versucht es nochmals'} : {cls:'frei', txt:'🔓 entsperrt, noch nicht weiter'};
+  if(t.geladen === false) return {cls:'laeuft', txt:'⏳ Prüfung lädt …'};
   var lebt = pruefMs(t.lebt);
   if(lebt && Date.now() - lebt > PRUEF_STALE_MS) return {cls:'weg', txt:'🟠 keine Verbindung seit '+Math.round((Date.now() - lebt)/60000)+' Min.'};
   return {cls:'laeuft', txt:'🟢 schreibt'};
@@ -18784,6 +19171,7 @@ function pruefMonitorZeichnen(){
   var skPapier = pruefArt(p) === 'sikore' && p.modus === 'papier';
   if(skPapier) h += '<button class="btn '+(p.resultateFrei ? 'btn-ghost' : 'btn-primary')+' btn-sm" data-a="resultate" type="button">'+(p.resultateFrei ? '🙈 Resultate verbergen' : '📣 Resultate freigeben')+'</button>';
   if(p.status === 'entwurf' && !skPapier) h += '<button class="btn btn-primary btn-sm" data-a="freigeben" type="button">▶️ Freigeben</button>';
+  if(pruefWartet(p)) h += '<button class="btn btn-primary btn-sm" data-a="los" type="button">▶️ Test starten</button>';
   if(p.status === 'offen') h += '<button class="btn btn-danger btn-sm" data-a="beenden" type="button">⏹ Beenden</button>';
   if(p.status === 'beendet' && !skPapier) h += '<button class="btn btn-ghost btn-sm" data-a="oeffnen" type="button">▶️ Wieder öffnen</button>'+
     '<button class="btn '+(p.resultateFrei ? 'btn-ghost' : 'btn-primary')+' btn-sm" data-a="resultate" type="button">'+(p.resultateFrei ? '🙈 Resultate verbergen' : '📣 Resultate freigeben')+'</button>';
@@ -18805,13 +19193,14 @@ function pruefMonitorZeichnen(){
   }
   if(!teil || !roster){ el.innerHTML = h + '<div class="empty-state">Klasse wird geladen …</div>'; pruefMonitorVerdrahten(p); return; }
   var rows = pruefMonitorZeilen(p, teil, roster);
-  var z = {ab:0, gesperrt:0, laeuft:0, nix:0}, notenListe = [];
+  var z = {ab:0, gesperrt:0, laeuft:0, nix:0, warte:0}, notenListe = [];
   rows.forEach(function(r){
-    var st = pruefTeilStatus(r.t);
+    var st = pruefTeilStatusMitWarte(p, r);
+    if(st.cls === 'warte') z.warte++;
     r.st = st; r.erg = pruefErgebnis(p, r.t);
     if(st.cls === 'ab'){ z.ab++; if(r.erg){ var n = pruefNote(p, r.erg.punkte, r.erg.max); if(n != null) notenListe.push(n); } }
     else if(st.cls === 'gesperrt') z.gesperrt++;
-    else if(st.cls === 'nix') z.nix++;
+    else if(st.cls === 'nix' || st.cls === 'warte') z.nix++;
     else z.laeuft++;
   });
   if(p.resultateFrei && (pruefArt(p) !== 'bank' || pruef.loes[p.id])){
@@ -18823,10 +19212,14 @@ function pruefMonitorZeichnen(){
     }
   }
   var schnitt = notenListe.length ? notenListe.reduce(function(a,b){ return a+b; }, 0) / notenListe.length : null;
-  h += '<div class="pr-zahlen"><div><b>'+z.laeuft+'</b><span>schreiben</span></div><div class="'+(z.gesperrt ? 'alarm' : '')+'"><b>'+z.gesperrt+'</b><span>gesperrt</span></div>'+
+  if(pruefWartet(p)){
+    var nichtDa = z.nix - z.warte;
+    h += '<div class="pr-warte-box">⏳ Warteraum: <b>'+z.warte+'</b> von '+rows.length+' sind da'+(nichtDa ? ' · '+nichtDa+' fehlen noch' : ' · alle da 🎉')+'. Starte, sobald alle Anwesenden im Warteraum sind.</div>';
+  }
+  h += '<div class="pr-zahlen">'+(pruefWartet(p) ? '<div><b>'+z.warte+'</b><span>im Warteraum</span></div>' : '')+'<div><b>'+z.laeuft+'</b><span>schreiben</span></div><div class="'+(z.gesperrt ? 'alarm' : '')+'"><b>'+z.gesperrt+'</b><span>gesperrt</span></div>'+
     '<div><b>'+z.ab+'</b><span>abgegeben</span></div><div><b>'+z.nix+'</b><span>nicht gestartet</span></div><div><b>'+(schnitt == null ? '–' : schnitt.toFixed(2))+'</b><span>Schnitt</span></div></div>';
   if(z.gesperrt > 1) h += '<div class="back-row"><button class="btn btn-primary btn-sm" data-a="alleEntsperren" type="button">🔓 Alle '+z.gesperrt+' entsperren</button></div>';
-  var rang = {gesperrt:0, weg:1, frei:2, laeuft:3, ab:4, nix:5};
+  var rang = {gesperrt:0, weg:1, frei:2, laeuft:3, ab:4, warte:5, nix:6};
   rows.sort(function(a,b){ return (rang[a.st.cls] - rang[b.st.cls]) || a.name.localeCompare(b.name, 'de'); });
   h += '<div class="pr-tabelle">';
   rows.forEach(function(r){
@@ -18845,6 +19238,14 @@ function pruefMonitorZeichnen(){
   el.innerHTML = h;
   pruefMonitorVerdrahten(p);
 }
+// Wie pruefTeilStatus, aber wer noch keine Teilnahme hat, kann im Warteraum sein.
+function pruefTeilStatusMitWarte(p, r){
+  var st = pruefTeilStatus(r.t);
+  if(st.cls !== 'nix' || !pruefWartet(p)) return st;
+  var w = pruefImWarteraum(p.id, r.uid);
+  if(!w) return {cls:'nix', txt:'⚪ nicht im Warteraum'};
+  return {cls:'warte', txt:'⏳ im Warteraum' + (w.bereit ? '' : ' (noch ohne Vollbild)') + (w.sichtbar === false ? ' · anderes Fenster' : '')};
+}
 function pruefMonitorZeilen(p, teil, roster){
   if(Array.isArray(p.mitglieder)) roster = roster.filter(function(s){ return p.mitglieder.indexOf(s.uid) >= 0; });
   if(pruefArt(p) === 'sikore') roster = roster.filter(function(s){ return p.levels && p.levels[s.uid]; });
@@ -18858,8 +19259,10 @@ function pruefPipZeichnen(){
   var teil = pruef.teil[p.id], roster = pruefRosterCache.list && rosterFuerFach(pruefRosterCache.list, pruefFach(p));
   if(!teil || !roster){ pipZeichnen('📝 ' + p.titel, 'Wird geladen …', []); return; }
   var anzahl = pruefAnzahl(p), z = {laeuft:0, gesperrt:0, ab:0};
+  var z0 = 0;
   var liste = pruefMonitorZeilen(p, teil, roster).map(function(r){
-    var t = r.t, st = pruefTeilStatus(t), art = 'grau', info = '';
+    var t = r.t, st = pruefTeilStatusMitWarte(p, r), art = 'grau', info = '';
+    if(st.cls === 'warte'){ z0++; return {name:r.name, art:'gruen', info:'⏳ Warteraum'}; }
     if(st.cls === 'gesperrt'){ art = 'rot'; info = '🔒 gesperrt'; z.gesperrt++; }
     else if(st.cls === 'weg'){ art = 'orange'; info = 'keine Verbindung'; z.laeuft++; }
     else if(st.cls === 'frei'){ art = 'orange'; info = 'entsperrt'; z.laeuft++; }
@@ -18869,7 +19272,7 @@ function pruefPipZeichnen(){
     if(t && t.verstoesse && t.verstoesse.length && art !== 'grau') info += ' · ⚠️' + t.verstoesse.length;
     return {name:r.name, art:art, info:info};
   });
-  pipZeichnen('📝 ' + p.titel, '🟢 ' + z.laeuft + ' schreiben   🔒 ' + z.gesperrt + ' gesperrt   ✅ ' + z.ab + ' abgegeben', liste, 'Niemand in der Liste.');
+  pipZeichnen('📝 ' + p.titel, pruefWartet(p) ? '⏳ ' + z0 + ' von ' + liste.length + ' im Warteraum' : '🟢 ' + z.laeuft + ' schreiben   🔒 ' + z.gesperrt + ' gesperrt   ✅ ' + z.ab + ' abgegeben', liste, 'Niemand in der Liste.');
 }
 function pruefMonitorVerdrahten(p){
   var el = document.getElementById('prMon');
@@ -18886,6 +19289,10 @@ function pruefMonitorVerdrahten(p){
       return;
     }
     if(a === 'freigeben') pruefFreigeben(p);
+    else if(a === 'los'){
+      b.disabled = true;
+      updateDoc(pruefRef(p.id), {losMs:Date.now(), losAm:serverTimestamp()}).then(function(){ toast('▶️ Gestartet — alle im Warteraum schreiben jetzt.'); }).catch(function(err){ b.disabled = false; pruefFehler(err); });
+    }
     else if(a === 'beenden') uiConfirm('Prüfung beenden?', 'Wer noch schreibt, gibt automatisch mit dem aktuellen Stand ab. Gesperrte geben ab, sobald du sie entsperrst und sie auf «Abgeben» klicken.', 'Beenden', function(){ updateDoc(pruefRef(p.id), {status:'beendet', beendetAm:serverTimestamp()}).catch(pruefFehler); }, true);
     else if(a === 'oeffnen') updateDoc(pruefRef(p.id), {status:'offen'}).catch(pruefFehler);
     else if(a === 'resultate') pruefResultateUmschalten(p);
@@ -18992,8 +19399,10 @@ async function pruefFreigeben(p){
         return;
       }
     }
-    await updateDoc(pruefRef(p.id), {status:'offen', freigegebenAm:serverTimestamp()});
-    toast('Freigegeben — bei der Klasse erscheint «Prüfung verfügbar».');
+    // Online-Prüfungen starten im ⏳ Warteraum; SIKORE auf Papier braucht keinen.
+    var mitWarteraum = !(pruefArt(p) === 'sikore' && p.modus === 'papier');
+    await updateDoc(pruefRef(p.id), mitWarteraum ? {status:'offen', freigegebenAm:serverTimestamp(), warteraum:true, losMs:deleteField()} : {status:'offen', freigegebenAm:serverTimestamp()});
+    toast(mitWarteraum ? 'Freigegeben — die Klasse kommt in den ⏳ Warteraum. Starte mit «▶️ Test starten».' : 'Freigegeben — bei der Klasse erscheint «Prüfung verfügbar».');
   }catch(err){ pruefFehler(err); }
 }
 function pruefDetailsLehrer(p, uid){
