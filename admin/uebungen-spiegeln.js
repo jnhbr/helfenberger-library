@@ -1,12 +1,12 @@
 /**
- * Helfenberger's Library — Jans Übungen in alle Seiten spiegeln (Vorbereitung bis zum Launch)
+ * Helfenberger's Library — Jans Übungen in alle Seiten spiegeln (dauerhaft)
  *
  *   node uebungen-spiegeln.js           (spiegeln)
  *   node uebungen-spiegeln.js --probe   (nur anzeigen, was passieren würde)
  *
  * Läuft jede Nacht als GitHub Action (.github/workflows/uebungen-spiegeln.yml im
- * Live-Repo) und kann dort auch von Hand gestartet werden. Nach dem Launch den
- * Workflow abschalten: gh workflow disable uebungen-spiegeln.yml -R jnhbr/helfenberger-library
+ * Live-Repo) und kann dort auch von Hand gestartet werden. Bleibt dauerhaft an:
+ * Jan will, dass seine Inhalte immer zu allen Lehrpersonen gelangen.
  *
  * Quelle ist Jans Seite (G3b). Pro Zielseite (alle Dokumente unter klassen/ —
  * Klassen, FLP-, ISF- und Praktikums-Seiten):
