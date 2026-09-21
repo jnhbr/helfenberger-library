@@ -1,0 +1,41 @@
+name: Übungen spiegeln
+
+# Vorbereitung bis zum Launch: Jans Übungen, Ordner und Karteikarten (Seite G3b)
+# werden jede Nacht in alle anderen Seiten (Klassen, FLP, ISF, Praktikum) kopiert
+# bzw. nachgeführt — siehe admin/uebungen-spiegeln.js.
+# Von Hand: Actions -> "Übungen spiegeln" -> "Run workflow".
+# Nach dem Launch abschalten:
+#   gh workflow disable uebungen-spiegeln.yml -R jnhbr/helfenberger-library
+
+on:
+  schedule:
+    - cron: '30 1 * * *'   # 03:30 / 02:30 Schweizer Zeit, nach der Live-Schaltung
+  workflow_dispatch:
+    inputs:
+      probe:
+        description: 'Nur anzeigen, nichts schreiben (true/false)'
+        required: false
+        default: 'false'
+
+concurrency:
+  group: uebungen-spiegeln
+  cancel-in-progress: false
+
+jobs:
+  spiegeln:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install dependencies
+        working-directory: admin
+        run: npm install --omit=dev
+      - name: Spiegeln
+        working-directory: admin
+        env:
+          FIREBASE_SERVICE_ACCOUNT_KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_KEY }}
+        run: |
+          if [ "${{ github.event.inputs.probe }}" = "true" ]; then node uebungen-spiegeln.js --probe; else node uebungen-spiegeln.js; fi
