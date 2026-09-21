@@ -7,7 +7,7 @@
 <link rel="icon" href="assets/icon-192.png">
 <link rel="apple-touch-icon" href="assets/icon-180.png">
 <link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#3A3F73">
+<meta name="theme-color" content="#F4F5FA">
 <script>
 // Gespeicherte Dark-/Light-Mode-Wahl VOR dem ersten Rendern setzen, sonst blitzt
 // beim Laden kurz das falsche Theme auf (Systemvorgabe statt manueller Wahl).
@@ -4788,7 +4788,16 @@ function toggleTheme(){
   try{ localStorage.setItem('hl_theme', next); }catch(e){}
   var btn = document.getElementById('themeToggleBtn');
   if(btn) btn.textContent = next === 'dark' ? '☀️' : '🌙';
+  syncThemeColor();
 }
+// Titelleiste der installierten App (Chrome/Edge) in der Seitenfarbe statt als farbiger Balken.
+function syncThemeColor(){
+  var m = document.querySelector('meta[name="theme-color"]');
+  var c = getComputedStyle(document.documentElement).backgroundColor;
+  if(m && c) m.setAttribute('content', c);
+}
+syncThemeColor();
+if(window.matchMedia) window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', syncThemeColor);
 
 /* ===================== AUTH ===================== */
 
