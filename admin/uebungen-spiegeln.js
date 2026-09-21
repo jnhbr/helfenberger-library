@@ -80,7 +80,11 @@ function ohneLokal(d) { const x = Object.assign({}, d); LOKAL.forEach(function (
       Object.keys(q).forEach(function (f) { if (!gleich(q[f], z[f])) upd[f] = q[f]; });
       // Inhalt ersetzt: bisherigen wie in der App als prevContentId behalten.
       if (upd.contentId && z.contentId) upd.prevContentId = z.contentId;
-      if (Object.keys(upd).length) { n.akt++; if (w) w.update(kref.collection('resources').doc(d.id), upd); }
+      if (Object.keys(upd).length) {
+        n.akt++;
+        if (w) w.update(kref.collection('resources').doc(d.id), upd);
+        else console.log('   ' + k + ' · ' + (q.title || d.id) + ': ' + Object.keys(upd).join(', '));
+      }
     });
 
     if (kkSets.length) {
