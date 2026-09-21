@@ -29,6 +29,9 @@ const NICHT_SPIEGELN = ['lehrerbereich'];
 // Felder, die pro Seite der Lehrperson gehören und nie überschrieben werden.
 const LOKAL = ['current', 'prevOrder', 'version', 'empfohlen', 'prevContentId'];
 
+// Nur beim Anlegen übernommen, bei bestehenden Kopien nicht nachgeführt.
+const NUR_NEU = ['uploadedAt', 'uploadedBy'];
+
 function gleich(a, b) { return JSON.stringify(a === undefined ? null : a) === JSON.stringify(b === undefined ? null : b); }
 function ohneLokal(d) { const x = Object.assign({}, d); LOKAL.forEach(function (f) { delete x[f]; }); return x; }
 
@@ -77,7 +80,7 @@ function ohneLokal(d) { const x = Object.assign({}, d); LOKAL.forEach(function (
         return;
       }
       const upd = {};
-      Object.keys(q).forEach(function (f) { if (!gleich(q[f], z[f])) upd[f] = q[f]; });
+      Object.keys(q).forEach(function (f) { if (NUR_NEU.indexOf(f) < 0 && !gleich(q[f], z[f])) upd[f] = q[f]; });
       // Inhalt ersetzt: bisherigen wie in der App als prevContentId behalten.
       if (upd.contentId && z.contentId) upd.prevContentId = z.contentId;
       if (Object.keys(upd).length) {
