@@ -94,6 +94,7 @@ rules_version = '2';
 //   passwortAnfragen/{id}                           -> {uid, name, klasse, vonUid, vonName, status, neuesPasswort} (admin/passwort-reset.js)
 //   rueckmeldungen/{id}                             -> {art, fach, text, vonUid, vonName, klasse, status: offen|erledigt|nicht,
 //                                                       begruendung, am, bearbeitetAm} 💬 Rückmeldungen der Lehrpersonen an Jan
+//   earlybird/{datum}_{uid}                         -> {datum, uid, name, nachname, klasse, vonUid, vonName, anwesend, am} 🐦 Earlybird
 //   fehlerLog/{id}                                  -> {msg, stack, quelle, uid, name, klasse, rolle, ua, seite, test, am} 🐞 Browser-Fehler
 //   Seiten ohne Klasse: klassen/flp-<name>, isf-<name>, praktikum-<n> (FLP, ISF, Praktikum)
 //   students/{uid}.nurFach                          -> optional, z.B. 'mathe': Fach-Gast aus einer anderen
@@ -565,6 +566,23 @@ service cloud.firestore {
       allow update: if false;
       // Separat: bei einem delete ist request.resource null.
       allow delete: if isJan();
+    }
+
+    // 🐦 Earlybird (Nachsitzen Mittwochmorgen, ganze Schule): earlybird/{datum}_{uid}
+    // = {datum, uid, name, nachname, klasse, vonUid, vonName, anwesend, am}.
+    // Lehrpersonen tragen ein/aus und haken ab, Schüler:innen lesen nur den
+    // eigenen Eintrag (where('uid','==', eigene uid)).
+    match /earlybird/{eid} {
+      allow read: if canReadAll() || (isSignedIn() && resource.data.uid == request.auth.uid);
+      allow create, update: if isTeacher()
+        && request.resource.data.datum is string && request.resource.data.datum.size() == 10
+        && request.resource.data.uid is string
+        && eid == request.resource.data.datum + '_' + request.resource.data.uid
+        && request.resource.data.klasse is string
+        && request.resource.data.anwesend is bool
+        && request.resource.data.keys().size() <= 12;
+      // Separat: bei einem delete ist request.resource null.
+      allow delete: if isTeacher();
     }
 
     // ===================== ALT =====================

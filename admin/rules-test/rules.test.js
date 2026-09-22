@@ -97,6 +97,28 @@ test('Fehlerlog: jede:r schreibt eigene Einträge, nur Jan liest und löscht', a
   await assertSucceeds(deleteDoc(doc(db.jan(), 'fehlerLog/a')));
 });
 
+// ---------- 🐦 Earlybird ----------
+const ebd = (uid, extra) => Object.assign({ datum: '2026-09-23', uid: uid, name: 'N', nachname: 'X', klasse: 'G3b', vonUid: 'lp', vonName: 'Schoch', anwesend: false }, extra || {});
+
+test('Earlybird: Lehrperson trägt ein, hakt ab und trägt aus', async () => {
+  await assertSucceeds(setDoc(doc(db.lp(), 'earlybird/2026-09-23_sus'), ebd('sus')));
+  await assertFails(setDoc(doc(db.lp(), 'earlybird/2026-09-23_falsch'), ebd('sus')));
+  await assertSucceeds(updateDoc(doc(db.jan(), 'earlybird/2026-09-23_sus'), { anwesend: true }));
+  await assertSucceeds(getDocs(query(collection(db.jan(), 'earlybird'), where('datum', '==', '2026-09-23'))));
+  await assertSucceeds(deleteDoc(doc(db.jan(), 'earlybird/2026-09-23_sus')));
+});
+test('Earlybird: Schüler:in liest nur den eigenen Eintrag, schreibt nichts', async () => {
+  await seed('earlybird/2026-09-23_sus', ebd('sus'));
+  await seed('earlybird/2026-09-23_susA', ebd('susA', { klasse: 'G3a' }));
+  await assertSucceeds(getDocs(query(collection(db.sus(), 'earlybird'), where('uid', '==', 'sus'))));
+  await assertFails(getDocs(query(collection(db.sus(), 'earlybird'), where('datum', '==', '2026-09-23'))));
+  await assertFails(getDoc(doc(db.sus(), 'earlybird/2026-09-23_susA')));
+  await assertFails(updateDoc(doc(db.sus(), 'earlybird/2026-09-23_sus'), { anwesend: true }));
+  await assertFails(deleteDoc(doc(db.sus(), 'earlybird/2026-09-23_sus')));
+  await assertFails(deleteDoc(doc(db.leitung(), 'earlybird/2026-09-23_sus')));
+  await assertSucceeds(getDocs(query(collection(db.leitung(), 'earlybird'), where('datum', '==', '2026-09-23'))));
+});
+
 // ---------- Löschen muss für Lehrpersonen gehen (der wiederkehrende Fehler) ----------
 const LOESCHBAR = [
   ['klassen/G3b/resources/r1', { subject: 'mathe', title: 'T' }],

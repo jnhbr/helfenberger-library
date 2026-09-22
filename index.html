@@ -474,6 +474,23 @@
   .homework-card{border-left:5px solid #4361EE;}
   .cal-ferien-item{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:6px 14px 6px 17px;border-left:3px dashed var(--border);font-size:12.5px;color:var(--text-muted);}
   .cal-ferien-item b{color:var(--text);font-weight:600;}
+  .eb-kal-tag{display:inline-block;margin-left:4px;padding:1px 8px;border-radius:999px;background:color-mix(in srgb, #D97706 15%, var(--surface));color:#B45309;font-weight:700;font-size:12.5px;}
+  .eb-kal-du{background:color-mix(in srgb, var(--bad) 14%, var(--surface));color:var(--bad);}
+  .eb-kal-leer{color:var(--text-muted);font-size:12.5px;margin-left:4px;}
+  .eb-sub{color:var(--text-muted);margin:-4px 0 12px;}
+  .eb-leiste{display:flex;align-items:center;gap:10px 14px;flex-wrap:wrap;margin-bottom:12px;}
+  .eb-feld{display:flex;align-items:center;gap:8px;font-weight:700;font-size:14px;}
+  .eb-feld select{width:auto;max-width:100%;}
+  .eb-zahl{color:var(--text-muted);font-size:14px;font-weight:600;margin-right:auto;}
+  .eb-von{color:var(--text-muted);}
+  .eb-liste{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:2px 14px;}
+  .eb-card{overflow-x:auto;}
+  .eb-tab{width:100%;border-collapse:collapse;font-size:14.5px;}
+  .eb-tab th,.eb-tab td{padding:7px 8px;border-bottom:1px solid var(--border);text-align:left;}
+  .eb-tab th{font-size:12.5px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.03em;}
+  .eb-tab td:first-child,.eb-tab th:first-child{width:80px;text-align:center;}
+  .eb-tab input[type=checkbox]{width:20px;height:20px;cursor:pointer;}
+  .eb-tab tr.eb-da td{background:color-mix(in srgb, var(--good, #2E8B57) 10%, transparent);}
   .cal-ferien-item .cal-ferien-tag{color:var(--bad);font-weight:700;}
   .push-card{border-left:5px solid #8B5CF6;}
   .push-hint{font-size:13px;color:var(--text-muted);margin:4px 0 10px;}
@@ -2600,11 +2617,13 @@ function ferienEntryLineHtml(f){
 // Mischt echte Kalender-Einträge und Ferienperioden chronologisch sortiert in
 // eine gemeinsame Liste (jeweils nach Ferien-Start bzw. Eintrags-Fälligkeit).
 // reversed=true für den "Vergangen"-Block (neueste zuerst, wie bisher).
-function calendarWithFerienHtml(entries, ferienList, isTeacher, roster, reversed){
+function calendarWithFerienHtml(entries, ferienList, isTeacher, roster, reversed, earlybird){
   var items = entries.map(function(e){
     return {date:e.dueDate, order:1, html:calendarEntryLineHtml(e, isTeacher, roster)};
   }).concat(ferienList.map(function(f){
     return {date:f.start, order:0, html:ferienEntryLineHtml(f)};
+  })).concat((earlybird || []).map(function(t){
+    return {date:t.datum, order:0.5, html:earlybirdKalenderHtml(t)};
   }));
   items.sort(function(a,b){
     if(a.date !== b.date) return a.date.localeCompare(b.date);
@@ -3823,8 +3842,8 @@ function renderKalender(){
   var grBtn = document.getElementById('calGruppenBtn');
   if(grBtn){ grBtn.addEventListener('click', function(){ openGruppenVerwaltung(renderKalender); }); }
 
-  Promise.all([loadMyCalendarEntries(), isTeacher ? loadStudentRoster() : Promise.resolve(null), erledigtLoad()]).then(function(res){
-    var entries = res[0], roster = res[1];
+  Promise.all([loadMyCalendarEntries(), isTeacher ? loadStudentRoster() : Promise.resolve(null), erledigtLoad(), earlybirdKalenderLaden()]).then(function(res){
+    var entries = res[0], roster = res[1], earlybird = res[3];
     var body = document.getElementById('kalenderBody');
     if(!body) return;
     var today = todayStr();
@@ -3833,11 +3852,11 @@ function renderKalender(){
     var ferienUpcoming = currentSchoolYearFerien();
     var ferienPast = [];
     var h = '';
-    if(!upcoming.length && !past.length && !ferienUpcoming.length && !ferienPast.length){
+    if(!upcoming.length && !past.length && !ferienUpcoming.length && !ferienPast.length && !earlybird.length){
       h += '<div class="empty-state">Noch keine Einträge. Leg oben den ersten an.</div>';
     }
-    if(upcoming.length || ferienUpcoming.length){
-      h += '<div class="cal-list">'+calendarWithFerienHtml(upcoming, ferienUpcoming, isTeacher, roster, false)+'</div>';
+    if(upcoming.length || ferienUpcoming.length || earlybird.length){
+      h += '<div class="cal-list">'+calendarWithFerienHtml(upcoming, ferienUpcoming, isTeacher, roster, false, earlybird)+'</div>';
     } else if(past.length || ferienPast.length){
       h += '<div class="empty-state">Keine anstehenden Einträge mehr.</div>';
     }
@@ -3851,11 +3870,267 @@ function renderKalender(){
     if(icsBtn) icsBtn.addEventListener('click', function(){ openKalenderExport(entries); });
     wireCalendarEntryActions(body, entries, isTeacher, renderKalender, roster);
     wireCalendarResourceLinks(body);
+    earlybirdKalenderVerdrahten(body);
   }).catch(function(err){
     console.error(err);
     var body = document.getElementById('kalenderBody');
     if(body) body.innerHTML = '<div class="empty-state">Kalender konnte nicht geladen werden.</div>';
   });
+}
+
+/* ===================== 🐦 EARLYBIRD (Nachsitzen, ganze Schule) =====================
+   Mittwochmorgen 06:30–07:30 an festen Daten (EARLYBIRD_DATEN). Wer zu viele
+   Einträge hat, wird von einer Lehrperson eingetragen.
+   Firestore: earlybird/{datum}_{uid} -> {datum, uid, name, nachname, klasse,
+     vonUid, vonName, anwesend, am}  — ein Dokument pro Person und Termin, damit
+   Schüler:innen nur den eigenen Eintrag lesen (where uid ==) und nie die Liste.
+   Lehrpersonen: 🐦 oben → «Eintragen» (Klasse wählen, ankreuzen) und «Ganze
+   Schule» (alle eines Termins, Anwesenheit abhaken, drucken mit Logo).
+   Im 📅 Kalender stehen für alle die nächsten zwei Termine. */
+var EARLYBIRD_DATEN = [
+  '2026-09-09','2026-09-23','2026-10-28','2026-11-11','2026-11-25','2026-12-09',
+  '2027-01-06','2027-01-20','2027-02-17','2027-03-10','2027-03-17','2027-04-14',
+  '2027-04-28','2027-05-19','2027-06-02','2027-06-16'
+];
+var EARLYBIRD_ZEIT = '06:30–07:30';
+var ebState = { datum:null, tab:'eintragen', klasse:null };
+
+function earlybirdKommende(n){
+  var heute = todayStr();
+  var liste = EARLYBIRD_DATEN.filter(function(d){ return d >= heute; });
+  return n ? liste.slice(0, n) : liste;
+}
+function earlybirdCol(){ return collection(db, 'earlybird'); }
+function earlybirdRef(datum, uid){ return doc(db, 'earlybird', datum+'_'+uid); }
+function earlybirdDatumLang(d){ return weekdayLabel(d)+', '+fmtDueDate(d); }
+function earlybirdName(x){ return (x.name || '?') + (x.nachname ? ' '+x.nachname : ''); }
+
+function earlybirdLadenDatum(datum){
+  return getDocs(query(earlybirdCol(), where('datum','==',datum))).then(function(snap){
+    var out = [];
+    snap.forEach(function(d){ out.push(Object.assign({id:d.id}, d.data())); });
+    out.sort(function(a,b){ return (a.klasse||'').localeCompare(b.klasse||'') || earlybirdName(a).localeCompare(earlybirdName(b), 'de'); });
+    return out;
+  });
+}
+
+// Kalender: die nächsten zwei Termine. Schüler:innen sehen, ob sie eingetragen
+// sind, Lehrpersonen wie viele (aus der offenen Klasse / total).
+function earlybirdKalenderLaden(){
+  var daten = earlybirdKommende(2);
+  if(!daten.length || !state.user) return Promise.resolve([]);
+  var lehrer = state.profile.role === 'teacher';
+  var job = lehrer
+    ? Promise.all(daten.map(earlybirdLadenDatum))
+    : getDocs(query(earlybirdCol(), where('uid','==',state.user.uid))).then(function(snap){
+        var meine = {};
+        snap.forEach(function(d){ meine[d.data().datum] = true; });
+        return daten.map(function(d){ return meine[d] ? [{uid:state.user.uid}] : []; });
+      });
+  return job.catch(function(err){ console.error('Earlybird nicht lesbar', err); return daten.map(function(){ return null; }); })
+    .then(function(listen){
+      return daten.map(function(d, i){ return {datum:d, liste:listen[i]}; });
+    });
+}
+function earlybirdKalenderHtml(t){
+  var lehrer = state.profile.role === 'teacher';
+  var info = '';
+  if(t.liste){
+    if(lehrer){
+      var eigene = t.liste.filter(function(x){ return x.klasse === state.klasse; }).length;
+      info = t.liste.length ? '<span class="eb-kal-tag">'+t.liste.length+' eingetragen'+(eigene ? ' · '+eigene+' aus '+esc(klasseLabel()) : '')+'</span>' : '<span class="eb-kal-leer">noch niemand eingetragen</span>';
+    } else if(t.liste.length){
+      info = '<span class="eb-kal-tag eb-kal-du">⚠️ Du bist eingetragen – sei pünktlich!</span>';
+    }
+  }
+  return '<div class="cal-entry eb-kal" style="--cal-c:#D97706">'+
+    '<div class="cal-entry-date">'+fmtDueDate(t.datum)+'<span class="cal-entry-weekday">'+esc(weekdayLabel(t.datum))+'</span></div>'+
+    '<div class="cal-entry-body"><div class="cal-entry-title"><span class="cal-entry-type">🐦 Earlybird</span> · '+EARLYBIRD_ZEIT+' Uhr</div>'+
+    '<div class="cal-entry-text">Nachsitzen am Mittwochmorgen '+info+'</div></div>'+
+    (lehrer ? '<div class="cal-entry-actions"><button class="btn btn-ghost btn-sm eb-kal-btn" type="button" data-eb-datum="'+esc(t.datum)+'">🐦 Öffnen</button></div>' : '')+
+    '</div>';
+}
+function earlybirdKalenderVerdrahten(host){
+  host.querySelectorAll('.eb-kal-btn').forEach(function(b){
+    b.addEventListener('click', function(){ ebState.datum = b.getAttribute('data-eb-datum'); state.route = {name:'earlybird'}; render(); });
+  });
+}
+
+function earlybirdStartKlasse(){
+  if(ebState.klasse) return ebState.klasse;
+  if(istKlasse(state.klasse)) return state.klasse;
+  if(state.profile.klasse && istKlasse(state.profile.klasse)) return state.profile.klasse;
+  return KLASSEN[0].id;
+}
+
+function renderEarlybird(){
+  clearSubjectWatchers(); unwatchAllProgress();
+  if(state.profile.role !== 'teacher'){ goHome(); return; }
+  var kommend = earlybirdKommende();
+  if(!ebState.datum || EARLYBIRD_DATEN.indexOf(ebState.datum) < 0) ebState.datum = kommend[0] || EARLYBIRD_DATEN[EARLYBIRD_DATEN.length-1];
+  ebState.klasse = earlybirdStartKlasse();
+  var heute = todayStr();
+  var html = '<div class="back-row"><button class="btn btn-ghost btn-sm" id="backBtn">&larr; Start</button></div>';
+  html += '<h2>🐦 Earlybird</h2>';
+  html += '<p class="eb-sub">Mittwochmorgen, '+EARLYBIRD_ZEIT+' Uhr – für Schüler:innen mit zu vielen Einträgen.</p>';
+  html += '<div class="eb-leiste"><label class="eb-feld"><span>Termin</span><select id="ebDatum">'+EARLYBIRD_DATEN.map(function(d){
+    var nr = kommend.indexOf(d);
+    return '<option value="'+d+'"'+(d === ebState.datum ? ' selected' : '')+'>'+esc(earlybirdDatumLang(d))+(d < heute ? ' (vorbei)' : nr === 0 ? ' – nächster' : '')+'</option>';
+  }).join('')+'</select></label>';
+  html += '<div class="stp-tabs">'+
+    '<button type="button" class="stp-tab'+(ebState.tab==='eintragen'?' on':'')+'" data-eb-tab="eintragen">✏️ Eintragen</button>'+
+    '<button type="button" class="stp-tab'+(ebState.tab==='schule'?' on':'')+'" data-eb-tab="schule">🏫 Ganze Schule</button></div></div>';
+  html += '<div id="ebBody"><div class="empty-state">Wird geladen …</div></div>';
+  renderChrome(html);
+  document.getElementById('backBtn').addEventListener('click', goHome);
+  document.getElementById('ebDatum').addEventListener('change', function(){ ebState.datum = this.value; earlybirdBody(); });
+  document.querySelectorAll('[data-eb-tab]').forEach(function(b){
+    b.addEventListener('click', function(){
+      ebState.tab = b.getAttribute('data-eb-tab');
+      document.querySelectorAll('[data-eb-tab]').forEach(function(x){ x.classList.toggle('on', x === b); });
+      earlybirdBody();
+    });
+  });
+  earlybirdBody();
+}
+
+function earlybirdBody(){
+  var body = document.getElementById('ebBody');
+  if(!body) return;
+  body.innerHTML = '<div class="empty-state">Wird geladen …</div>';
+  var datum = ebState.datum, tab = ebState.tab;
+  var jobs = [earlybirdLadenDatum(datum)];
+  if(tab === 'eintragen') jobs.push(klassenListeFuerGruppe(ebState.klasse));
+  Promise.all(jobs).then(function(res){
+    if(ebState.datum !== datum || ebState.tab !== tab || !document.getElementById('ebBody')) return;
+    if(tab === 'eintragen') earlybirdEintragenZeigen(body, res[0], res[1]);
+    else earlybirdSchuleZeigen(body, res[0]);
+  }).catch(function(err){
+    console.error(err);
+    body.innerHTML = '<div class="empty-state">Earlybird konnte nicht geladen werden.</div>';
+  });
+}
+
+function earlybirdEintragenZeigen(body, alle, schueler){
+  var drin = {};
+  alle.forEach(function(x){ drin[x.uid] = x; });
+  var klassen = KLASSEN.filter(function(k){ return k.art === 'klasse'; });
+  var h = '<div class="card eb-card"><div class="eb-leiste"><label class="eb-feld"><span>Klasse</span><select id="ebKlasse">'+klassen.map(function(k){
+    var n = alle.filter(function(x){ return x.klasse === k.id; }).length;
+    return '<option value="'+esc(k.id)+'"'+(k.id === ebState.klasse ? ' selected' : '')+'>'+esc(k.id)+' · '+esc(k.lp)+(n ? ' ('+n+')' : '')+'</option>';
+  }).join('')+'</select></label>';
+  var inKlasse = schueler.filter(function(s){ return drin[s.uid]; }).length;
+  h += '<span class="eb-zahl">'+inKlasse+' von '+schueler.length+' eingetragen</span></div>';
+  if(!schueler.length) h += '<div class="empty-state">Keine Schüler:innen gefunden.</div>';
+  else h += '<div class="submission-list eb-liste">'+schueler.map(function(s){
+    var e = drin[s.uid];
+    var von = e && e.vonUid !== state.user.uid && e.vonName ? ' <small class="eb-von">von '+esc(e.vonName)+'</small>' : '';
+    return '<label class="submission-row"><input type="checkbox" class="eb-check" value="'+esc(s.uid)+'"'+(e ? ' checked' : '')+(isLeitung() ? ' disabled' : '')+'> <span>'+esc(s.n)+' '+esc(s.nn)+von+'</span></label>';
+  }).join('')+'</div>';
+  h += '</div>';
+  body.innerHTML = h;
+  document.getElementById('ebKlasse').addEventListener('change', function(){ ebState.klasse = this.value; earlybirdBody(); });
+  var byUid = {};
+  schueler.forEach(function(s){ byUid[s.uid] = s; });
+  body.querySelectorAll('.eb-check').forEach(function(cb){
+    cb.addEventListener('change', function(){
+      var s = byUid[cb.value], datum = ebState.datum;
+      cb.disabled = true;
+      var job = cb.checked
+        ? setDoc(earlybirdRef(datum, s.uid), {
+            datum:datum, uid:s.uid, name:s.n, nachname:s.nn || '', klasse:s.k,
+            vonUid:state.user.uid, vonName:klasseInfo(state.profile.klasse).lp || state.profile.displayName || '',
+            anwesend:false, am:serverTimestamp()
+          })
+        : deleteDoc(earlybirdRef(datum, s.uid));
+      job.then(function(){
+        toast(cb.checked ? '🐦 '+s.n+' ist für den '+fmtDueDate(datum)+' eingetragen.' : s.n+' ausgetragen.');
+        earlybirdBody();
+      }).catch(function(err){
+        console.error(err);
+        cb.checked = !cb.checked; cb.disabled = false;
+        toast('Konnte nicht gespeichert werden.');
+      });
+    });
+  });
+}
+
+function earlybirdSchuleZeigen(body, alle){
+  var da = alle.filter(function(x){ return x.anwesend; }).length;
+  var h = '<div class="card eb-card"><div class="eb-leiste">'+
+    '<span class="eb-zahl">'+alle.length+' Schüler:in'+(alle.length === 1 ? '' : 'nen')+' · '+da+' anwesend</span>'+
+    '<button class="btn btn-primary btn-sm" id="ebDruck" type="button"'+(alle.length ? '' : ' disabled')+'>🖨️ Drucken</button></div>';
+  if(!alle.length) h += '<div class="empty-state">Für diesen Termin ist noch niemand eingetragen.</div>';
+  else {
+    h += '<table class="eb-tab"><thead><tr><th>Anwesend</th><th>Name</th><th>Klasse</th><th>Eingetragen von</th><th></th></tr></thead><tbody>';
+    alle.forEach(function(x){
+      h += '<tr'+(x.anwesend ? ' class="eb-da"' : '')+'><td><input type="checkbox" class="eb-anw" data-id="'+esc(x.id)+'"'+(x.anwesend ? ' checked' : '')+(isLeitung() ? ' disabled' : '')+' aria-label="Anwesend"></td>'+
+        '<td>'+esc(earlybirdName(x))+'</td><td>'+esc(x.klasse || '')+'</td><td>'+esc(x.vonName || '')+'</td>'+
+        '<td>'+(isLeitung() ? '' : '<button class="btn btn-ghost btn-sm eb-weg" type="button" data-id="'+esc(x.id)+'" title="Austragen">✕</button>')+'</td></tr>';
+    });
+    h += '</tbody></table>';
+  }
+  h += '</div>';
+  body.innerHTML = h;
+  var byId = {};
+  alle.forEach(function(x){ byId[x.id] = x; });
+  var druck = document.getElementById('ebDruck');
+  if(druck) druck.addEventListener('click', function(){ earlybirdDrucken(ebState.datum, alle); });
+  body.querySelectorAll('.eb-anw').forEach(function(cb){
+    cb.addEventListener('change', function(){
+      var x = byId[cb.getAttribute('data-id')];
+      cb.disabled = true;
+      updateDoc(doc(db, 'earlybird', x.id), {anwesend:cb.checked}).then(function(){
+        x.anwesend = cb.checked;
+        cb.disabled = false;
+        cb.closest('tr').classList.toggle('eb-da', cb.checked);
+        var n = alle.filter(function(y){ return y.anwesend; }).length;
+        var z = body.querySelector('.eb-zahl');
+        if(z) z.textContent = alle.length+' Schüler:in'+(alle.length === 1 ? '' : 'nen')+' · '+n+' anwesend';
+      }).catch(function(err){
+        console.error(err);
+        cb.checked = !cb.checked; cb.disabled = false;
+        toast('Konnte nicht gespeichert werden.');
+      });
+    });
+  });
+  body.querySelectorAll('.eb-weg').forEach(function(b){
+    b.addEventListener('click', function(){
+      var x = byId[b.getAttribute('data-id')];
+      uiConfirm(earlybirdName(x)+' austragen?', 'Vom Earlybird am '+fmtDueDate(x.datum)+' entfernen.', 'Austragen', function(){
+        deleteDoc(doc(db, 'earlybird', x.id)).then(function(){ toast('Ausgetragen.'); earlybirdBody(); })
+          .catch(function(err){ console.error(err); toast('Austragen fehlgeschlagen.'); });
+      }, true);
+    });
+  });
+}
+
+// Druckansicht im neuen Tab (wie die Prüfungen): Logo, Termin, Liste mit
+// Kästchen — schon Abgehakte sind angekreuzt, der Rest kann von Hand.
+function earlybirdDrucken(datum, alle){
+  var basis = location.href.replace(/[#?].*$/, '').replace(/[^\/]*$/, '');
+  var zeilen = alle.map(function(x, i){
+    return '<tr><td class="nr">'+(i+1)+'</td><td>'+esc(earlybirdName(x))+'</td><td>'+esc(x.klasse || '')+'</td><td>'+esc(x.vonName || '')+'</td><td class="box">'+(x.anwesend ? '☒' : '☐')+'</td></tr>';
+  }).join('');
+  var css = '@page{size:A4;margin:2cm;}' +
+    'body{font-family:Calibri,Carlito,"Segoe UI",Arial,sans-serif;font-size:11pt;line-height:1.4;color:#000;background:#fff;margin:0;}' +
+    '.blatt{max-width:17cm;margin:0 auto;padding:16px;} @media print{.blatt{padding:0;max-width:none;} .werkzeug{display:none;}}' +
+    'table{border-collapse:collapse;width:100%;} .kopf td{vertical-align:middle;padding:0;} .kopf .logo{width:4.2cm;} .kopf td + td{padding-left:10pt;}' +
+    '.k1{font-size:10pt;} .k2{font-size:16pt;font-weight:bold;}' +
+    '.liste{margin-top:14pt;} .liste th,.liste td{border:0.5pt solid #000;padding:5pt 6pt;text-align:left;} .liste th{background:#F2F2F2;}' +
+    '.liste tr{break-inside:avoid;} .nr{width:1cm;text-align:right!important;} .box{width:2.2cm;text-align:center!important;font-size:15pt;line-height:1;}' +
+    '.fuss{margin-top:14pt;font-size:10pt;display:flex;justify-content:space-between;}' +
+    '.werkzeug{position:sticky;top:0;background:#fffbe6;border-bottom:1px solid #e5d58a;padding:10px 16px;font-family:system-ui,sans-serif;font-size:14px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;}' +
+    '.werkzeug button{font:inherit;font-weight:600;padding:7px 14px;border-radius:8px;border:0;background:#4361EE;color:#fff;cursor:pointer;}';
+  var h = '<!doctype html><html lang="de-CH"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Earlybird '+esc(fmtDueDate(datum))+'</title>' +
+    '<style>'+css+'</style></head><body><div class="werkzeug"><button type="button" onclick="window.print()">🖨️ Drucken / Als PDF sichern</button><span>Tipp: Im Druckdialog «Kopf- und Fusszeilen» ausschalten.</span></div>' +
+    '<div class="blatt"><table class="kopf"><tr><td class="logo"><img src="'+esc(basis)+'assets/logo-pruefung.png" width="135" height="75" alt=""></td>' +
+    '<td><div class="k1">Sekundarschule Altnau</div><div class="k2">Earlybird – '+esc(earlybirdDatumLang(datum))+'</div><div class="k1">'+EARLYBIRD_ZEIT+' Uhr · '+alle.length+' Schüler:in'+(alle.length === 1 ? '' : 'nen')+'</div></td></tr></table>' +
+    '<table class="liste"><tr><th class="nr">Nr.</th><th>Name</th><th>Klasse</th><th>Eingetragen von</th><th class="box" style="font-size:11pt">Anwesend</th></tr>'+zeilen+'</table>' +
+    '<div class="fuss"><span>Aufsicht: ________________________</span><span>Visum: ______________</span></div></div></body></html>';
+  var url = URL.createObjectURL(new Blob([h], {type:'text/html;charset=utf-8'}));
+  window.open(url, '_blank');
+  setTimeout(function(){ URL.revokeObjectURL(url); }, 120000);
 }
 
 /* ===================== DIKTAT-FEHLERANALYSE (Lehrperson) =====================
@@ -5704,7 +5979,6 @@ function renderChrome(innerHtml){
   html += '<div class="topbar-spacer"></div>';
   html += '<div class="topbar-user">';
   if(isTeacher || isLeitung()){ html += '<button class="btn btn-ghost btn-sm topbar-klasse'+(isFremdeKlasse()?' fremd':'')+'" id="klasseBtn" type="button" title="Klasse wechseln">🏫 '+esc(klasseLabel())+' ▾</button>'; }
-  html += '<span>Hallo, <b>'+esc(state.profile.displayName)+'</b></span>';
   html += '<span class="topbar-offline" id="offlineBadge" hidden>📶 Offline</span>';
   if(IS_TEST_SITE){ html += '<span class="topbar-offline">🧪 Testseite</span>'; }
   if(IS_TEST_SITE && isTeacher && !isLeitung()){ html += '<button class="btn btn-primary btn-sm" id="goLiveBtn" type="button" title="Stand der Testseite sofort auf die Live-Seite übernehmen">🚀 Jetzt live</button>'; }
@@ -5712,6 +5986,7 @@ function renderChrome(innerHtml){
   if(!isTeacher){ html += '<button class="btn btn-ghost btn-sm topbar-bell" id="streakBtn" type="button">🔥 <b>0</b></button>'; }
   if(!isTeacher){ html += '<button class="btn btn-ghost btn-sm topbar-bell topbar-besen" id="aemtliBtn" type="button" title="Ämtli">🧹</button>'; }
   if(!isTeacher){ html += '<button class="btn btn-ghost btn-sm topbar-bell" id="notenBtn" type="button" title="Notenrechner">🎶</button>'; }
+  if(isTeacher){ html += '<button class="btn btn-ghost btn-sm topbar-bell" id="earlybirdBtn" type="button" title="Earlybird">🐦</button>'; }
   html += '<button class="btn btn-ghost btn-sm topbar-bell" id="neuBtn" type="button" title="Neuigkeiten">🆕</button>';
   html += '<button class="btn btn-ghost btn-sm topbar-bell" id="fragenBtn" type="button" title="Anonyme Fragebox">❓<span class="topbar-badge" id="fragenBadge" hidden>0</span></button>';
   html += '<button class="btn btn-ghost btn-sm topbar-bell" id="searchBtn" type="button" title="Suche">🔍</button>';
@@ -5799,6 +6074,8 @@ function renderChrome(innerHtml){
   if(notenBtn){ notenBtn.addEventListener('click', openNotenrechner); }
   document.getElementById('fragenBtn').addEventListener('click', openFragebox);
   document.getElementById('neuBtn').addEventListener('click', function(){ state.route = {name:'neu'}; render(); });
+  var earlybirdBtn = document.getElementById('earlybirdBtn');
+  if(earlybirdBtn){ earlybirdBtn.addEventListener('click', function(){ ebState.datum = null; state.route = {name:'earlybird'}; render(); }); }
   updateNeuButton();
   var goLiveBtn = document.getElementById('goLiveBtn');
   if(goLiveBtn){ goLiveBtn.addEventListener('click', confirmGoLive); }
@@ -6085,17 +6362,20 @@ function renderHomeworkWidget(){
   var host = document.getElementById('homeworkWidget');
   if(!host) return;
   var isTeacher = state.profile.role === 'teacher';
-  Promise.all([loadMyCalendarEntries(), isTeacher ? loadStudentRoster() : Promise.resolve(null), erledigtLoad()]).then(function(res){
+  Promise.all([loadMyCalendarEntries(), isTeacher ? loadStudentRoster() : Promise.resolve(null), erledigtLoad(), earlybirdKalenderLaden()]).then(function(res){
     var entries = res[0], roster = res[1];
     if(!document.getElementById('homeworkWidget')) return; // Seite inzwischen gewechselt
     var today = todayStr(), horizon = addDaysStr(7);
     var upcoming = entries.filter(function(e){ return e.dueDate>=today && e.dueDate<=horizon; });
-    if(!upcoming.length){ host.innerHTML=''; return; }
+    // Earlybird nur, wenn er diese Woche ist und (bei Schüler:innen) man selbst drin ist.
+    var earlybird = res[3].filter(function(t){ return t.datum <= horizon && t.liste && (isTeacher || t.liste.length); });
+    if(!upcoming.length && !earlybird.length){ host.innerHTML=''; return; }
     var h = '<div class="card homework-card"><h3 style="margin-top:0;">📘 Die nächsten 7 Tage</h3>';
-    h += '<div class="cal-list">'+upcoming.map(function(e){ return calendarEntryLineHtml(e, isTeacher, roster); }).join('')+'</div>';
+    h += '<div class="cal-list">'+calendarWithFerienHtml(upcoming, [], isTeacher, roster, false, earlybird)+'</div>';
     h += '</div>';
     host.innerHTML = h;
     wireCalendarResourceLinks(host);
+    earlybirdKalenderVerdrahten(host);
     wireCalendarEntryActions(host, upcoming, isTeacher, renderHomeworkWidget, roster);
   }).catch(function(err){ console.error(err); });
 }
@@ -14613,6 +14893,9 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-09-22-earlybird', datum:'2026-09-22', fuer:'alle', text:'🐦 Im 📅 Kalender stehen jetzt die nächsten Earlybird-Termine (Mittwoch 06:30–07:30). Wenn du eingetragen bist, siehst du es dort.'},
+  {id:'2026-09-22-earlybird-lp', datum:'2026-09-22', fuer:'lehrer', text:'🐦 Neu oben: Earlybird. Schüler:innen deiner (oder einer anderen) Klasse für einen Termin eintragen; unter «🏫 Ganze Schule» siehst du alle Eingetragenen, hakst ab, wer da war, und druckst die Liste mit Sek-Altnau-Logo.'},
+  {id:'2026-09-22-kein-hallo', datum:'2026-09-22', fuer:'alle', text:'🧹 Die obere Leiste ist aufgeräumt: Das «Hallo, …» mit deinem Namen ist weg – so hat es mehr Platz.'},
   {id:'2026-09-22-werkstatt-uebersicht', datum:'2026-09-22', fuer:'lehrer', text:'🧩 Neu in der 📈 Lernstand-Übersicht: «Werkstatt-Übersicht» für die Rechtschreib-Werkstatt – pro Klasse, Niveau oder 👥 Gruppe siehst du, wer bei welchem Posten wie weit ist (Stempel, offene Fehlerwörter), die häufigsten Fehlerwörter und per Klick alle Details einer Schülerin / eines Schülers.'},
   {id:'2026-09-22-laermampel-mikro', datum:'2026-09-22', fuer:'lehrer', text:'🔊 Lärmampel: klarere Meldung, warum das Mikrofon nicht geht (blockiert, keins gefunden, belegt) und neuer Knopf «Mikrofon erneut versuchen» — Werkzeug muss nicht mehr neu geöffnet werden.'},
   {id:'2026-09-22-tools', datum:'2026-09-22', fuer:'alle', text:'🧰 Neu auf der Startseite: «Tools». PDFs und Fotos verkleinern, PDFs (auch Fotos) zusammenführen, PDF-Seiten löschen, drehen oder verschieben, PDF in Bilder, 📷 Foto-Scanner (Handyfoto eines Blatts gerade ziehen – wie gescannt), 🔳 QR-Code, 🔢 Seitenzahlen & Wasserzeichen, 🗞️ mehrere Seiten pro Blatt, ✂️ Bild zuschneiden und 🎙️ Ton aufnehmen. Alles passiert auf deinem Gerät – nichts wird hochgeladen.'},
@@ -27892,6 +28175,7 @@ function render(){
   if(state.route.name === 'lernstand'){ renderLernstandUebersicht(); return; }
   if(state.route.name === 'werkstatt'){ renderWerkstattUebersicht(); return; }
   if(state.route.name === 'kalender'){ renderKalender(); return; }
+  if(state.route.name === 'earlybird'){ renderEarlybird(); return; }
   if(state.route.name === 'stundenplan'){ renderStundenplan(); return; }
   if(state.route.name === 'klassenzimmer'){ renderKlassenzimmer(); return; }
   if(state.route.name === 'tools'){ renderTools(); return; }
