@@ -92,6 +92,9 @@ rules_version = '2';
 //                                                       erstelltVonUid, erstelltVon, erstelltAm} 🗳️ Abstimmung über mehrere Klassen
 //   abstimmungen/{id}/stimmen/{uid}                -> {antworten:[Index je Frage], klasse, name, at}
 //   passwortAnfragen/{id}                           -> {uid, name, klasse, vonUid, vonName, status, neuesPasswort} (admin/passwort-reset.js)
+//   rueckmeldungen/{id}                             -> {art, fach, text, vonUid, vonName, klasse, status: offen|erledigt|nicht,
+//                                                       begruendung, am, bearbeitetAm} 💬 Rückmeldungen der Lehrpersonen an Jan
+//   fehlerLog/{id}                                  -> {msg, stack, quelle, uid, name, klasse, rolle, ua, seite, test, am} 🐞 Browser-Fehler
 //   Seiten ohne Klasse: klassen/flp-<name>, isf-<name>, praktikum-<n> (FLP, ISF, Praktikum)
 //   students/{uid}.nurFach                          -> optional, z.B. 'mathe': Fach-Gast aus einer anderen
 //                                                       Klasse, nur in diesem Fach dabei (siehe index.html)
@@ -524,6 +527,44 @@ service cloud.firestore {
         allow read: if canReadAll();
         allow write: if isTeacher();
       }
+    }
+
+    // 💬 Rückmeldungen der Lehrpersonen an Jan (Verbesserungsvorschlag/Fehler/
+    // Sonstiges). Jede Lehrperson liest nur die eigenen (where vonUid ==),
+    // Jan alle. Den Status (✅ geklappt / ❌ nicht geklappt + Begründung)
+    // setzt nur Jan — Art, Text und Absender bleiben dabei unverändert.
+    match /rueckmeldungen/{rid} {
+      allow read: if isTeacher() && (resource.data.vonUid == request.auth.uid || isJan());
+      allow create: if isTeacher()
+        && request.resource.data.vonUid == request.auth.uid
+        && request.resource.data.status == 'offen'
+        && request.resource.data.art in ['vorschlag', 'fehler', 'sonstiges']
+        && request.resource.data.fach is string && request.resource.data.fach.size() <= 40
+        && request.resource.data.text is string
+        && request.resource.data.text.size() > 0 && request.resource.data.text.size() <= 4000;
+      allow update: if isJan()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'begruendung', 'bearbeitetAm'])
+        && request.resource.data.status in ['offen', 'erledigt', 'nicht']
+        && request.resource.data.get('begruendung', '') is string
+        && request.resource.data.get('begruendung', '').size() <= 2000;
+      // Separat: bei einem delete ist request.resource null.
+      allow delete: if isJan()
+        || (isTeacher() && resource.data.vonUid == request.auth.uid && resource.data.status == 'offen');
+    }
+
+    // 🐞 Fehlerprotokoll: JavaScript-Fehler, die im Browser auftreten
+    // (window.onerror/unhandledrejection/console.error). Jede:r Angemeldete
+    // schreibt nur eigene Einträge, lesen und löschen nur Jan.
+    match /fehlerLog/{fid} {
+      allow read: if isJan();
+      allow create: if isSignedIn()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.msg is string && request.resource.data.msg.size() <= 1000
+        && request.resource.data.stack is string && request.resource.data.stack.size() <= 4000
+        && request.resource.data.keys().size() <= 12;
+      allow update: if false;
+      // Separat: bei einem delete ist request.resource null.
+      allow delete: if isJan();
     }
 
     // ===================== ALT =====================

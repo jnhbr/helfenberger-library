@@ -1080,6 +1080,33 @@
   .settings-row .grow{flex:1;min-width:0;}
   .settings-row small{display:block;color:var(--text-muted);}
   .settings-list{max-height:45vh;overflow:auto;}
+  .rm-arten,.rm-reiter{display:flex;gap:8px;flex-wrap:wrap;margin:4px 0 12px;}
+  .rm-arten .btn{background:var(--surface-2);color:var(--text);border:1px solid var(--border);}
+  .rm-arten .btn.rm-an{background:var(--brand);color:var(--brand-contrast, #fff);border-color:var(--brand);}
+  .rm-filter{display:flex;gap:16px;font-size:13.5px;margin:0 0 6px;}
+  .rm-liste{max-height:58vh;}
+  .rm-eintrag{padding:10px 0;border-top:1px solid var(--border, rgba(127,127,127,.2));font-size:14px;}
+  .rm-kopf{display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+  .rm-kopf small{color:var(--text-muted);}
+  .rm-zeit{margin-left:auto;}
+  .rm-tag{font-size:12px;padding:2px 8px;border-radius:999px;background:var(--surface-2);border:1px solid var(--border);}
+  .rm-text{margin:6px 0;white-space:pre-wrap;overflow-wrap:anywhere;}
+  .rm-code{font-family:ui-monospace,Menlo,monospace;font-size:12.5px;}
+  .rm-wer{display:block;color:var(--text-muted);}
+  .rm-stack{white-space:pre-wrap;overflow-wrap:anywhere;font-size:11.5px;max-height:220px;overflow:auto;background:var(--surface-2);padding:8px;border-radius:8px;}
+  .rm-fuss{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+  .rm-loeschen{margin-left:auto;}
+  .rm-status{font-size:13px;color:var(--text-muted);}
+  .rm-status.rm-ok{color:var(--good);font-weight:600;}
+  .rm-status.rm-nein{color:var(--bad);font-weight:600;}
+  .rm-knopf{font-size:18px;line-height:1;width:40px;height:36px;border-radius:10px;border:2px solid var(--border);background:var(--surface-2);cursor:pointer;filter:grayscale(1);opacity:.55;}
+  .rm-knopf:hover{opacity:.9;}
+  .rm-knopf.rm-an{filter:none;opacity:1;}
+  .rm-knopf.rm-ok.rm-an{border-color:var(--good);background:var(--good-soft);}
+  .rm-knopf.rm-nein.rm-an{border-color:var(--bad);background:var(--bad-soft);}
+  .rm-begr{margin-top:6px;padding:6px 10px;border-left:3px solid var(--bad);background:var(--bad-soft);border-radius:6px;font-size:13.5px;white-space:pre-wrap;}
+  .rm-begr-edit{margin-top:8px;}
+  .rm-begr-edit .modal-input{margin-bottom:6px;}
   .einf-icon{font-size:46px;text-align:center;line-height:1.1;margin-top:4px;}
   .einf-text{text-align:center;line-height:1.5;margin:6px 4px 12px;}
   .einf-dots{display:flex;justify-content:center;gap:6px;margin-bottom:4px;}
@@ -2153,6 +2180,62 @@ try{
   console.error('Offline-Cache konnte nicht aktiviert werden, arbeite ohne.', e);
   db = getFirestore(fbApp);
 }
+
+/* ===================== 🐞 FEHLERPROTOKOLL =====================
+   Fehler, die bei Schüler:innen/Lehrpersonen im Browser passieren, landen in
+   fehlerLog/{id} (nur Jan liest sie: ⚙️ Einstellungen › 💬 Rückmeldungen &
+   Fehler › 🐞 Fehler). Erfasst werden unbehandelte Fehler, abgelehnte Promises
+   und console.error-Aufrufe mit einem echten Fehlerobjekt (so auch die vielen
+   .catch(console.error) mit «permission-denied»). Nur angemeldet, höchstens
+   FEHLER_MAX pro Seitenaufruf, jede Meldung nur einmal; Netz-/Offline-Fehler
+   und Browser-Erweiterungen werden ignoriert. Geschrieben wird direkt mit
+   fsSetDoc (ohne Klassen-/Schulleitungs-Wrapper) und ohne selbst zu loggen. */
+var FEHLER_MAX = 5, fehlerGesendet = 0, fehlerGesehen = {};
+var FEHLER_IGNORIEREN = /ResizeObserver loop|^Script error\.?$|Load failed|Failed to fetch|NetworkError|network-request-failed|unavailable|offline|AbortError|aborted|QuotaExceeded|abgebrochen|extension:\/\/|Could not reach Cloud Firestore/i;
+var konsoleFehler = console.error.bind(console);
+function fehlerText(x){
+  if(!x) return '';
+  if(x instanceof Error || (typeof x === 'object' && x.message)) return (x.code ? '[' + x.code + '] ' : '') + (x.name && x.name !== 'Error' && x.name !== 'FirebaseError' ? x.name + ': ' : '') + x.message;
+  return typeof x === 'string' ? x : '';
+}
+function fehlerMelden(quelle, err, zusatz){
+  try{
+    if(fehlerGesendet >= FEHLER_MAX) return;
+    var u = auth.currentUser;
+    if(!u) return;
+    var msg = ((zusatz ? zusatz + ' ' : '') + fehlerText(err)).trim().slice(0, 1000);
+    var stack = String((err && err.stack) || '').slice(0, 4000);
+    if(!msg || FEHLER_IGNORIEREN.test(msg) || /extension:\/\//.test(stack)) return;
+    var sig = msg.slice(0, 200);
+    if(fehlerGesehen[sig]) return;
+    fehlerGesehen[sig] = 1;
+    fehlerGesendet++;
+    var p = null, seite = '';
+    try{ p = state.profile; seite = state.route && state.route.name || ''; }catch(e){}
+    fsSetDoc(doc(collection(db, 'fehlerLog')), {
+      msg:msg, stack:stack, quelle:quelle, uid:u.uid,
+      name:String(p && (p.displayName || p.username) || u.email || '').slice(0, 80),
+      klasse:String(p && p.klasse || ''), rolle:String(p && p.role || ''),
+      ua:String(navigator.userAgent || '').slice(0, 300), seite:String(seite).slice(0, 60),
+      test:/-test\//.test(location.pathname), am:serverTimestamp()
+    }).catch(function(){});
+  }catch(e){}
+}
+window.addEventListener('error', function(e){
+  if(e && e.error) fehlerMelden('error', e.error);
+  else if(e && e.message) fehlerMelden('error', {message:e.message, stack:(e.filename || '') + ':' + (e.lineno || '')});
+});
+window.addEventListener('unhandledrejection', function(e){ fehlerMelden('promise', e && e.reason); });
+console.error = function(){
+  konsoleFehler.apply(null, arguments);
+  var err = null, texte = [];
+  for(var i = 0; i < arguments.length; i++){
+    var a = arguments[i];
+    if(!err && a && typeof a === 'object' && (a instanceof Error || a.message)) err = a;
+    else if(typeof a === 'string') texte.push(a);
+  }
+  if(err) fehlerMelden('console', err, texte.join(' ').slice(0, 200));
+};
 
 /* ===================== KLASSEN =====================
    Seit Herbst 2026 teilen sich drei Klassen die App. Alles, was zu einer Klasse
@@ -4942,6 +5025,7 @@ onAuthStateChanged(auth, async function(user){
     gruppenMitgliederNachtragen().catch(function(err){ console.error('Gruppen-Mitglieder', err); });
     setTimeout(einfuehrungPruefen, 1500);
     setTimeout(pwHinweis, 4000);
+    setTimeout(rmHinweis, 6500);
     // Ämtliplan gleich nach dem Anmelden im Hintergrund holen. Er ist winzig,
     // wird von Startseiten-Hinweis, Besen und Plan gleichermassen gebraucht —
     // und ohne dieses Vorladen sah man beim ersten Öffnen des Plans erst ein
@@ -6240,6 +6324,11 @@ function openSettings(){
   if(isTeacher && !isLeitung()){
     h += '<div class="settings-section"><h4>🔑 Passwort vergessen?</h4><div class="settings-actions"><button class="btn btn-ghost btn-sm" id="setPwAnfBtn" type="button">'+(istJan() ? 'Passwort-Anfragen (alle)' : 'Passwort einer Schüler:in zurücksetzen')+'</button></div></div>';
   }
+  if(isTeacher && !isLeitung()){
+    h += '<div class="settings-section"><h4>💬 Rückmeldung an Jan</h4>'+
+         (istJan() ? '' : '<p style="margin:0 0 8px;color:var(--text-muted);font-size:12.5px;">Fehler gefunden, Idee für eine Verbesserung oder sonst etwas? Jan sieht es direkt.</p>')+
+         '<div class="settings-actions"><button class="btn btn-primary btn-sm" id="setRmBtn" type="button">'+(istJan() ? '💬 Rückmeldungen &amp; 🐞 Fehler' : '💬 Rückmeldung schreiben')+'</button></div></div>';
+  }
   if(isTeacher || isLeitung()){
     h += '<div class="settings-section"><h4>❓ Hilfe</h4><div class="settings-actions">'+
          '<a class="btn btn-ghost btn-sm" href="'+HILFE_URL+'" target="_blank" rel="noopener">📖 Anleitung für Lehrpersonen</a>'+
@@ -6263,6 +6352,8 @@ function openSettings(){
   document.getElementById('setEinfBtn').addEventListener('click', function(){ closeModal(); openEinfuehrung(); });
   var pwAnfBtn = document.getElementById('setPwAnfBtn');
   if(pwAnfBtn) pwAnfBtn.addEventListener('click', openPasswortAnfragen);
+  var rmBtn = document.getElementById('setRmBtn');
+  if(rmBtn) rmBtn.addEventListener('click', function(){ openRueckmeldungen(); });
   var statBtn = document.getElementById('setStatBtn');
   if(statBtn) statBtn.addEventListener('click', openSchulStatistik);
   var schuldenBtn = document.getElementById('setSchuldenBtn');
@@ -6365,6 +6456,271 @@ function openPasswortAnfragen(){
   });
   liste();
 }
+
+/* ===================== 💬 RÜCKMELDUNGEN AN JAN (+ 🐞 FEHLER) =====================
+   Lehrpersonen schicken Jan (Hauptadmin) einen Verbesserungsvorschlag, einen
+   Fehler oder Sonstiges, optional mit Fach: rueckmeldungen/{id} = {art, fach,
+   text, vonUid, vonName, klasse, status:'offen', am}. Jan sieht alle in einer
+   Liste und setzt ✅ «hat geklappt» (status 'erledigt') oder ❌ «hat nicht
+   geklappt» (status 'nicht' + begruendung). Die Lehrperson sieht Status und
+   Begründung bei «Meine Rückmeldungen» und beim Anmelden einen Hinweis, wenn
+   Jan etwas beantwortet hat. Jan hat im selben Fenster den Reiter 🐞 Fehler
+   (fehlerLog, siehe FEHLERPROTOKOLL oben). */
+var RM_ARTEN = [
+  {id:'vorschlag', icon:'💡', name:'Verbesserungsvorschlag'},
+  {id:'fehler', icon:'🐞', name:'Fehler'},
+  {id:'sonstiges', icon:'💬', name:'Sonstiges'}
+];
+var RM_GESEHEN_KEY = 'lib_rm_gesehen_';
+function rmCol(){ return collection(db, 'rueckmeldungen'); }
+function rmArt(id){ return RM_ARTEN.filter(function(a){ return a.id === id; })[0] || RM_ARTEN[2]; }
+function rmZeit(ts){
+  var ms = pruefMs(ts);
+  if(!ms) return '';
+  var d = new Date(ms);
+  return pad2(d.getDate())+'.'+pad2(d.getMonth()+1)+'.'+d.getFullYear()+' '+pad2(d.getHours())+':'+pad2(d.getMinutes());
+}
+function rmLaden(){
+  return getDocs(istJan() ? rmCol() : query(rmCol(), where('vonUid', '==', state.user.uid))).then(function(snap){
+    var out = [];
+    snap.forEach(function(d){ out.push(Object.assign({id:d.id}, d.data())); });
+    out.sort(function(a, b){ return (pruefMs(b.am) || Date.now()) - (pruefMs(a.am) || Date.now()); });
+    return out;
+  });
+}
+function rmGesehenMs(){ try{ return +localStorage.getItem(RM_GESEHEN_KEY + state.user.uid) || 0; }catch(e){ return 0; } }
+function rmGesehenSetzen(list){
+  var max = 0;
+  list.forEach(function(r){ max = Math.max(max, pruefMs(r.bearbeitetAm) || 0); });
+  try{ if(max) localStorage.setItem(RM_GESEHEN_KEY + state.user.uid, String(max)); }catch(e){}
+}
+// Beim Anmelden: Jan hört von offenen Rückmeldungen und neuen Fehlern, die
+// anderen Lehrpersonen von Antworten, die sie noch nicht gesehen haben.
+function rmHinweis(){
+  if(!state.profile || state.profile.role !== 'teacher' || isLeitung()) return;
+  rmLaden().then(function(list){
+    if(istJan()){
+      var offen = list.filter(function(r){ return r.status === 'offen'; }).length;
+      return getDocs(collection(db, 'fehlerLog')).then(function(fs){
+        var teile = [];
+        if(offen) teile.push(offen+' offene Rückmeldung'+(offen === 1 ? '' : 'en'));
+        if(fs.size) teile.push(fs.size+' Fehler'+(fs.size === 1 ? 'meldung' : 'meldungen'));
+        if(teile.length) toast('💬 '+teile.join(' und ')+' – ⚙️ Einstellungen.');
+      });
+    }
+    var seit = rmGesehenMs();
+    var neu = list.filter(function(r){ return r.status !== 'offen' && (pruefMs(r.bearbeitetAm) || 0) > seit; });
+    if(neu.length) toast('💬 Jan hat '+(neu.length === 1 ? 'eine Rückmeldung' : neu.length+' Rückmeldungen')+' von dir beantwortet – ⚙️ Einstellungen.');
+  }).catch(function(err){ console.error('Rückmeldungen', err); });
+}
+function rmStatusHtml(r){
+  if(r.status === 'erledigt') return '<span class="rm-status rm-ok">✅ Hat geklappt</span>';
+  if(r.status === 'nicht') return '<span class="rm-status rm-nein">❌ Hat nicht geklappt</span>';
+  return '<span class="rm-status">⏳ offen</span>';
+}
+function rmKopfHtml(r, mitName){
+  var art = rmArt(r.art);
+  return '<div class="rm-kopf">'+(mitName ? '<b>'+esc(r.vonName || '?')+'</b>'+(r.klasse ? ' <small>'+esc(klasseLabel(r.klasse))+'</small>' : '') : '')+
+    '<span class="rm-tag">'+art.icon+' '+esc(art.name)+'</span>'+
+    (r.fach ? '<span class="rm-tag">'+esc(subjectName(r.fach))+'</span>' : '')+
+    '<small class="rm-zeit">'+esc(rmZeit(r.am))+'</small></div>';
+}
+function openRueckmeldungen(reiter){
+  var jan = istJan();
+  var h = '<h3>'+(jan ? '💬 Rückmeldungen &amp; Fehler' : '💬 Rückmeldung an Jan')+'</h3>';
+  if(jan){
+    h += '<div class="rm-reiter"><button type="button" class="btn btn-sm" data-rmreiter="rm">💬 Rückmeldungen</button>'+
+         '<button type="button" class="btn btn-sm" data-rmreiter="fehler">🐞 Fehler</button></div><div id="rmInhalt"></div>';
+  } else {
+    h += '<p class="pr-hinweis">Etwas funktioniert nicht, fehlt oder könnte besser sein? Schreib es hier – Jan sieht es direkt und meldet sich mit ✅ oder ❌ zurück.</p>'+
+      '<div class="rm-arten" id="rmArten">'+RM_ARTEN.map(function(a, i){
+        return '<button type="button" class="btn btn-sm'+(i === 0 ? ' rm-an' : '')+'" data-rmart="'+a.id+'">'+a.icon+' '+esc(a.name)+'</button>';
+      }).join('')+'</div>'+
+      '<select id="rmFach" class="modal-input"><option value="">Fach (optional) – kein bestimmtes</option>'+
+        SUBJECTS.map(function(s){ return '<option value="'+esc(s.id)+'">'+esc(s.name)+'</option>'; }).join('')+'</select>'+
+      '<textarea id="rmText" class="modal-input" rows="5" maxlength="4000" placeholder="Was ist passiert bzw. was wünschst du dir? Wo in der Library (Fach, Übung, Knopf)?"></textarea>'+
+      '<div class="settings-actions"><button class="btn btn-primary btn-sm" id="rmSenden" type="button">Senden</button></div>'+
+      '<h4 class="pr-h4">Meine Rückmeldungen</h4><div id="rmInhalt" class="settings-list"></div>';
+  }
+  h += '<div class="modal-actions"><button class="btn btn-ghost btn-sm" id="modalCancel" type="button">Schliessen</button></div>';
+  openModal(h, 'modal-wide');
+  document.getElementById('modalCancel').addEventListener('click', closeModal);
+  var box = document.getElementById('rmInhalt');
+  var filter = 'offen';
+
+  function ladeFehler(){ box.innerHTML = '<div class="empty-state" style="padding:10px;">Wird geladen …</div>'; }
+
+  function rmListe(){
+    ladeFehler();
+    rmLaden().then(function(list){
+      if(!document.getElementById('rmInhalt')) return;
+      if(!jan){
+        rmGesehenSetzen(list);
+        box.innerHTML = list.length ? list.map(function(r){
+          return '<div class="rm-eintrag">'+rmKopfHtml(r, false)+'<div class="rm-text">'+esc(r.text)+'</div>'+
+            '<div class="rm-fuss">'+rmStatusHtml(r)+
+            (r.status === 'offen' ? '<button class="btn btn-ghost btn-sm" type="button" data-rmweg="'+esc(r.id)+'">Zurückziehen</button>' : '')+'</div>'+
+            (r.status === 'nicht' && r.begruendung ? '<div class="rm-begr"><b>Begründung:</b> '+esc(r.begruendung)+'</div>' : '')+'</div>';
+        }).join('') : '<div class="empty-state" style="padding:10px;">Noch keine Rückmeldungen.</div>';
+      } else {
+        var offen = list.filter(function(r){ return r.status === 'offen'; });
+        var zeigen = filter === 'offen' ? offen : list;
+        box.innerHTML = '<div class="rm-filter"><label><input type="radio" name="rmFilter" value="offen"'+(filter === 'offen' ? ' checked' : '')+'> Offen ('+offen.length+')</label>'+
+          '<label><input type="radio" name="rmFilter" value="alle"'+(filter === 'alle' ? ' checked' : '')+'> Alle ('+list.length+')</label></div>'+
+          '<div class="settings-list rm-liste">'+(zeigen.length ? zeigen.map(function(r){
+            return '<div class="rm-eintrag" data-rmid="'+esc(r.id)+'">'+rmKopfHtml(r, true)+'<div class="rm-text">'+esc(r.text)+'</div>'+
+              '<div class="rm-fuss">'+
+                '<button type="button" class="rm-knopf rm-ok'+(r.status === 'erledigt' ? ' rm-an' : '')+'" data-rmsetz="erledigt" title="Hat geklappt">✅</button>'+
+                '<button type="button" class="rm-knopf rm-nein'+(r.status === 'nicht' ? ' rm-an' : '')+'" data-rmsetz="nicht" title="Hat nicht geklappt">❌</button>'+
+                rmStatusHtml(r)+
+                '<button class="btn btn-ghost btn-sm rm-loeschen" type="button" data-rmweg="'+esc(r.id)+'" title="Löschen">🗑</button></div>'+
+              '<div class="rm-begr-edit"'+(r.status === 'nicht' ? '' : ' hidden')+'>'+
+                '<textarea class="modal-input" rows="2" maxlength="2000" placeholder="Begründung: warum hat es nicht geklappt?">'+esc(r.begruendung || '')+'</textarea>'+
+                '<button type="button" class="btn btn-primary btn-sm" data-rmbegr="1">Begründung speichern</button></div></div>';
+          }).join('') : '<div class="empty-state" style="padding:10px;">'+(filter === 'offen' ? 'Nichts offen. 🎉' : 'Noch keine Rückmeldungen.')+'</div>')+'</div>';
+        box.querySelectorAll('input[name=rmFilter]').forEach(function(x){
+          x.addEventListener('change', function(){ filter = x.value; rmListe(); });
+        });
+      }
+      box.querySelectorAll('[data-rmweg]').forEach(function(b){
+        b.addEventListener('click', function(){
+          b.disabled = true;
+          deleteDoc(doc(rmCol(), b.getAttribute('data-rmweg'))).then(rmListe, function(err){ console.error(err); b.disabled = false; toast('Hat nicht geklappt.'); });
+        });
+      });
+    }).catch(function(err){
+      console.error(err);
+      if(document.getElementById('rmInhalt')) box.innerHTML = '<div class="empty-state" style="padding:10px;">Konnte nicht geladen werden.</div>';
+    });
+  }
+
+  function speichern(id, daten, knopf){
+    if(knopf) knopf.disabled = true;
+    daten.bearbeitetAm = serverTimestamp();
+    return updateDoc(doc(rmCol(), id), daten).then(function(){ toast('Gespeichert.'); }, function(err){ console.error(err); toast('Hat nicht geklappt.'); })
+      .then(function(){ if(knopf) knopf.disabled = false; });
+  }
+
+  if(jan){
+    // Status setzen: ✅ sofort speichern; ❌ öffnet das Begründungsfeld und
+    // speichert den Status gleich mit (Begründung lässt sich nachtragen).
+    box.addEventListener('click', function(e){
+      var eintrag = e.target.closest('[data-rmid]');
+      if(!eintrag) return;
+      var id = eintrag.getAttribute('data-rmid');
+      var setz = e.target.closest('[data-rmsetz]');
+      var edit = eintrag.querySelector('.rm-begr-edit');
+      if(setz){
+        var st = setz.getAttribute('data-rmsetz');
+        var schonAn = setz.classList.contains('rm-an');
+        var neu = schonAn ? 'offen' : st;
+        eintrag.querySelectorAll('[data-rmsetz]').forEach(function(k){ k.classList.toggle('rm-an', k === setz && !schonAn); });
+        edit.hidden = neu !== 'nicht';
+        var daten = {status:neu};
+        if(neu !== 'nicht') daten.begruendung = '';
+        speichern(id, daten).then(function(){
+          if(neu === 'nicht') edit.querySelector('textarea').focus();
+          else if(filter === 'offen') rmListe();
+        });
+        return;
+      }
+      if(e.target.closest('[data-rmbegr]')){
+        speichern(id, {status:'nicht', begruendung:edit.querySelector('textarea').value.trim().slice(0, 2000)}, e.target.closest('[data-rmbegr]'))
+          .then(function(){ if(filter === 'offen') rmListe(); });
+      }
+    });
+    document.querySelectorAll('[data-rmreiter]').forEach(function(b){
+      b.addEventListener('click', function(){ zeigeReiter(b.getAttribute('data-rmreiter')); });
+    });
+    zeigeReiter(reiter || 'rm');
+  } else {
+    var art = 'vorschlag';
+    document.getElementById('rmArten').addEventListener('click', function(e){
+      var b = e.target.closest('[data-rmart]');
+      if(!b) return;
+      art = b.getAttribute('data-rmart');
+      this.querySelectorAll('[data-rmart]').forEach(function(x){ x.classList.toggle('rm-an', x === b); });
+    });
+    var sendBtn = document.getElementById('rmSenden');
+    sendBtn.addEventListener('click', function(){
+      var textEl = document.getElementById('rmText'), text = textEl.value.trim();
+      if(!text){ textEl.focus(); return; }
+      sendBtn.disabled = true;
+      setDoc(doc(rmCol()), {
+        art:art, fach:document.getElementById('rmFach').value || '', text:text.slice(0, 4000),
+        vonUid:state.user.uid, vonName:state.profile.displayName || state.profile.username || '',
+        klasse:state.profile.klasse || '', status:'offen', am:serverTimestamp()
+      }).then(function(){ toast('Danke! Rückmeldung ist bei Jan.'); textEl.value = ''; rmListe(); },
+        function(err){ console.error(err); toast('Konnte nicht gesendet werden.'); })
+        .then(function(){ sendBtn.disabled = false; });
+    });
+    rmListe();
+  }
+
+  function zeigeReiter(r){
+    document.querySelectorAll('[data-rmreiter]').forEach(function(b){
+      var an = b.getAttribute('data-rmreiter') === r;
+      b.classList.toggle('btn-primary', an); b.classList.toggle('btn-ghost', !an);
+    });
+    if(r === 'fehler') fehlerListe(); else rmListe();
+  }
+
+  // 🐞 Fehler: gleiche Meldungen zusammengefasst, neueste zuerst.
+  function fehlerListe(){
+    ladeFehler();
+    getDocs(collection(db, 'fehlerLog')).then(function(snap){
+      if(!document.getElementById('rmInhalt')) return;
+      var gruppen = {}, reihenfolge = [];
+      snap.forEach(function(d){
+        var x = d.data(), g = gruppen[x.msg];
+        if(!g){ g = gruppen[x.msg] = {msg:x.msg, ids:[], wer:{}, letzt:0, stack:x.stack || '', quellen:{}, seiten:{}, test:0, ua:x.ua || ''}; reihenfolge.push(x.msg); }
+        g.ids.push(d.id);
+        g.wer[(x.name || '?') + (x.klasse ? ' (' + x.klasse + ')' : '')] = 1;
+        var ms = pruefMs(x.am) || 0;
+        if(ms >= g.letzt){ g.letzt = ms; g.stack = x.stack || g.stack; g.ua = x.ua || g.ua; }
+        if(x.quelle) g.quellen[x.quelle] = 1;
+        if(x.seite) g.seiten[x.seite] = 1;
+        if(x.test) g.test++;
+      });
+      var liste = reihenfolge.map(function(k){ return gruppen[k]; }).sort(function(a, b){ return b.letzt - a.letzt; });
+      box.innerHTML = '<p class="pr-hinweis">Fehler, die in den Browsern aufgetreten sind (höchstens 5 pro Seitenaufruf, gleiche nur einmal). Behoben? Einfach löschen.</p>'+
+        (liste.length ? '<div class="settings-actions" style="margin-bottom:8px;"><button type="button" class="btn btn-danger btn-sm" id="flAlle">Alle '+snap.size+' löschen</button></div>' : '')+
+        '<div class="settings-list rm-liste">'+(liste.length ? liste.map(function(g, i){
+          return '<div class="rm-eintrag"><div class="rm-kopf"><span class="rm-tag">'+g.ids.length+'×</span>'+
+            (g.test === g.ids.length ? '<span class="rm-tag">🧪 nur Testseite</span>' : '')+
+            '<small class="rm-zeit">zuletzt '+esc(rmZeit(g.letzt))+'</small></div>'+
+            '<div class="rm-text rm-code">'+esc(g.msg)+'</div>'+
+            '<small class="rm-wer">'+esc(Object.keys(g.wer).slice(0, 12).join(', '))+(Object.keys(g.wer).length > 12 ? ' …' : '')+
+            ' · '+esc(Object.keys(g.quellen).join('/'))+(Object.keys(g.seiten).length ? ' · Seite: '+esc(Object.keys(g.seiten).join(', ')) : '')+'</small>'+
+            '<details><summary>Details</summary><pre class="rm-stack">'+esc(g.stack || '(kein Stack)')+'\n\n'+esc(g.ua)+'</pre></details>'+
+            '<div class="rm-fuss"><button type="button" class="btn btn-ghost btn-sm" data-flweg="'+i+'">🗑 Löschen</button></div></div>';
+        }).join('') : '<div class="empty-state" style="padding:10px;">Keine Fehler gemeldet. 🎉</div>')+'</div>';
+      function weg(ids, knopf){
+        knopf.disabled = true;
+        var teile = [];
+        for(var i = 0; i < ids.length; i += 400) teile.push(ids.slice(i, i + 400));
+        Promise.all(teile.map(function(t){
+          var b = writeBatch(db);
+          t.forEach(function(id){ b.delete(doc(db, 'fehlerLog', id)); });
+          return b.commit();
+        })).then(fehlerListe, function(err){ console.error(err); knopf.disabled = false; toast('Hat nicht geklappt.'); });
+      }
+      box.querySelectorAll('[data-flweg]').forEach(function(b){
+        b.addEventListener('click', function(){ weg(liste[+b.getAttribute('data-flweg')].ids, b); });
+      });
+      var alle = document.getElementById('flAlle');
+      if(alle) alle.addEventListener('click', function(){
+        var ids = [];
+        liste.forEach(function(g){ ids = ids.concat(g.ids); });
+        weg(ids, alle);
+      });
+    }).catch(function(err){
+      console.error(err);
+      if(document.getElementById('rmInhalt')) box.innerHTML = '<div class="empty-state" style="padding:10px;">Konnte nicht geladen werden.</div>';
+    });
+  }
+}
+
 async function openSchulStatistik(){
   openModal('<h3>📊 Übersicht Schule</h3><div class="empty-state">Wird geladen …</div>', 'modal-wide');
   try{
@@ -13735,6 +14091,7 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-09-21-rueckmeldungen', datum:'2026-09-21', fuer:'lehrer', text:'💬 Neu: Rückmeldung an Jan. Unter ⚙️ Einstellungen › «💬 Rückmeldung schreiben» meldest du einen Fehler, einen Verbesserungsvorschlag oder Sonstiges (auf Wunsch mit Fach). Bei «Meine Rückmeldungen» siehst du, ob es geklappt hat ✅ oder nicht ❌ – mit Begründung.'},
   {id:'2026-09-21-abstimmungen', datum:'2026-09-21', fuer:'alle', text:'🗳️ Neu: Abstimmungen. Steht oben «🗳️ Abstimmung», darfst du bei einer Abstimmung für deine Klasse oder die ganze Schule mitmachen. Bis sie geschlossen wird, kannst du deine Stimme noch ändern.'},
   {id:'2026-09-21-abstimmungen-lp', datum:'2026-09-21', fuer:'lehrer', text:'🗳️ Klassenzimmer › Abstimmungen: eine oder mehrere Fragen an beliebige Klassen stellen (Schnellwahl: alle, 1./2./3. Jahrgang, alle G, alle E), anonym oder mit Namen, auf Wunsch mit Schlussdatum. Auswertung live nach Klasse oder Jahrgang und als sauber formatierte Excel-Datei (Übersicht, nach Klassen, Beteiligung, Einzelstimmen).'},
   {id:'2026-09-21-lernphase-fach', datum:'2026-09-21', fuer:'lehrer', text:'📚 Lernphase: Die Übungsauswahl funktioniert wieder – zuerst das Fach wählen, dann erscheinen dessen Übungen. 📌 «Immer im Vordergrund» öffnet in Chrome und Edge jetzt ein echtes Bild-in-Bild-Fenster mit scharfer Schrift, das sich jeder Grösse anpasst (Firefox: kleines eigenes Fenster, Safari wie bisher).'},
