@@ -491,6 +491,9 @@
   .eb-tab td:first-child,.eb-tab th:first-child{width:80px;text-align:center;}
   .eb-tab input[type=checkbox]{width:20px;height:20px;cursor:pointer;}
   .eb-tab tr.eb-da td{background:color-mix(in srgb, var(--good, #2E8B57) 10%, transparent);}
+  .eb-zeile{display:flex;flex-direction:column;gap:2px;min-width:0;padding-bottom:4px;}
+  .eb-auftrag{width:100%;font-size:13.5px;padding:5px 8px;}
+  .eb-tab .eb-auftrag{min-width:180px;}
   .cal-ferien-item .cal-ferien-tag{color:var(--bad);font-weight:700;}
   .push-card{border-left:5px solid #8B5CF6;}
   .push-hint{font-size:13px;color:var(--text-muted);margin:4px 0 10px;}
@@ -3882,10 +3885,12 @@ function renderKalender(){
    Mittwochmorgen 06:30–07:30 an festen Daten (EARLYBIRD_DATEN). Wer zu viele
    Einträge hat, wird von einer Lehrperson eingetragen.
    Firestore: earlybird/{datum}_{uid} -> {datum, uid, name, nachname, klasse,
-     vonUid, vonName, anwesend, am}  — ein Dokument pro Person und Termin, damit
+     vonUid, vonName, anwesend, am, auftrag}  — ein Dokument pro Person und Termin, damit
    Schüler:innen nur den eigenen Eintrag lesen (where uid ==) und nie die Liste.
    Lehrpersonen: 🐦 oben → «Eintragen» (Klasse wählen, ankreuzen) und «Ganze
    Schule» (alle eines Termins, Anwesenheit abhaken, drucken mit Logo).
+   `auftrag` = was die Person in der Stunde macht (für die Aufsicht); wird nur
+   in der Lehrpersonen-Ansicht angezeigt, nie bei Schüler:innen.
    Im 📅 Kalender stehen für alle die nächsten zwei Termine. */
 var EARLYBIRD_DATEN = [
   '2026-09-09','2026-09-23','2026-10-28','2026-11-11','2026-11-25','2026-12-09',
@@ -4025,11 +4030,14 @@ function earlybirdEintragenZeigen(body, alle, schueler){
   else h += '<div class="submission-list eb-liste">'+schueler.map(function(s){
     var e = drin[s.uid];
     var von = e && e.vonUid !== state.user.uid && e.vonName ? ' <small class="eb-von">von '+esc(e.vonName)+'</small>' : '';
-    return '<label class="submission-row"><input type="checkbox" class="eb-check" value="'+esc(s.uid)+'"'+(e ? ' checked' : '')+(isLeitung() ? ' disabled' : '')+'> <span>'+esc(s.n)+' '+esc(s.nn)+von+'</span></label>';
+    return '<div class="eb-zeile"><label class="submission-row"><input type="checkbox" class="eb-check" value="'+esc(s.uid)+'"'+(e ? ' checked' : '')+(isLeitung() ? ' disabled' : '')+'> <span>'+esc(s.n)+' '+esc(s.nn)+von+'</span></label>'+(e ? earlybirdAuftragFeld(e) : '')+'</div>';
   }).join('')+'</div>';
   h += '</div>';
   body.innerHTML = h;
   document.getElementById('ebKlasse').addEventListener('change', function(){ ebState.klasse = this.value; earlybirdBody(); });
+  var byEid = {};
+  alle.forEach(function(x){ byEid[x.id] = x; });
+  earlybirdAuftragVerdrahten(body, byEid);
   var byUid = {};
   schueler.forEach(function(s){ byUid[s.uid] = s; });
   body.querySelectorAll('.eb-check').forEach(function(cb){
@@ -4040,7 +4048,7 @@ function earlybirdEintragenZeigen(body, alle, schueler){
         ? setDoc(earlybirdRef(datum, s.uid), {
             datum:datum, uid:s.uid, name:s.n, nachname:s.nn || '', klasse:s.k,
             vonUid:state.user.uid, vonName:klasseInfo(state.profile.klasse).lp || state.profile.displayName || '',
-            anwesend:false, am:serverTimestamp()
+            anwesend:false, auftrag:'', am:serverTimestamp()
           })
         : deleteDoc(earlybirdRef(datum, s.uid));
       job.then(function(){
@@ -4055,6 +4063,31 @@ function earlybirdEintragenZeigen(body, alle, schueler){
   });
 }
 
+// Auftrag-Felder (Eintragen + Ganze Schule): speichern beim Verlassen des Felds.
+function earlybirdAuftragVerdrahten(host, byId){
+  host.querySelectorAll('.eb-auftrag').forEach(function(inp){
+    inp.addEventListener('keydown', function(ev){ if(ev.key === 'Enter'){ ev.preventDefault(); inp.blur(); } });
+    inp.addEventListener('change', function(){
+      var x = byId[inp.getAttribute('data-id')];
+      if(!x) return;
+      var neu = inp.value.trim().slice(0, 300);
+      if(neu === (x.auftrag || '')) return;
+      updateDoc(doc(db, 'earlybird', x.id), {auftrag:neu}).then(function(){
+        x.auftrag = neu;
+        toast('📝 Auftrag für '+(x.name || '?')+' gespeichert.');
+      }).catch(function(err){
+        console.error(err);
+        inp.value = x.auftrag || '';
+        toast('Auftrag konnte nicht gespeichert werden.');
+      });
+    });
+  });
+}
+function earlybirdAuftragFeld(x){
+  if(isLeitung()) return x.auftrag ? '<small class="eb-von">📝 '+esc(x.auftrag)+'</small>' : '';
+  return '<input type="text" class="eb-auftrag" maxlength="300" data-id="'+esc(x.id)+'" value="'+esc(x.auftrag || '')+'" placeholder="📝 Was macht '+esc(x.name || 'sie/er')+'?" aria-label="Auftrag für '+esc(earlybirdName(x))+'">';
+}
+
 function earlybirdSchuleZeigen(body, alle){
   var da = alle.filter(function(x){ return x.anwesend; }).length;
   var h = '<div class="card eb-card"><div class="eb-leiste">'+
@@ -4062,10 +4095,11 @@ function earlybirdSchuleZeigen(body, alle){
     '<button class="btn btn-primary btn-sm" id="ebDruck" type="button"'+(alle.length ? '' : ' disabled')+'>🖨️ Drucken</button></div>';
   if(!alle.length) h += '<div class="empty-state">Für diesen Termin ist noch niemand eingetragen.</div>';
   else {
-    h += '<table class="eb-tab"><thead><tr><th>Anwesend</th><th>Name</th><th>Klasse</th><th>Eingetragen von</th><th></th></tr></thead><tbody>';
+    h += '<table class="eb-tab"><thead><tr><th>Anwesend</th><th>Name</th><th>Klasse</th><th>Eingetragen von</th><th>Auftrag</th><th></th></tr></thead><tbody>';
     alle.forEach(function(x){
       h += '<tr'+(x.anwesend ? ' class="eb-da"' : '')+'><td><input type="checkbox" class="eb-anw" data-id="'+esc(x.id)+'"'+(x.anwesend ? ' checked' : '')+(isLeitung() ? ' disabled' : '')+' aria-label="Anwesend"></td>'+
         '<td>'+esc(earlybirdName(x))+'</td><td>'+esc(x.klasse || '')+'</td><td>'+esc(x.vonName || '')+'</td>'+
+        '<td>'+earlybirdAuftragFeld(x)+'</td>'+
         '<td>'+(isLeitung() ? '' : '<button class="btn btn-ghost btn-sm eb-weg" type="button" data-id="'+esc(x.id)+'" title="Austragen">✕</button>')+'</td></tr>';
     });
     h += '</tbody></table>';
@@ -4076,6 +4110,7 @@ function earlybirdSchuleZeigen(body, alle){
   alle.forEach(function(x){ byId[x.id] = x; });
   var druck = document.getElementById('ebDruck');
   if(druck) druck.addEventListener('click', function(){ earlybirdDrucken(ebState.datum, alle); });
+  earlybirdAuftragVerdrahten(body, byId);
   body.querySelectorAll('.eb-anw').forEach(function(cb){
     cb.addEventListener('change', function(){
       var x = byId[cb.getAttribute('data-id')];
@@ -4110,7 +4145,7 @@ function earlybirdSchuleZeigen(body, alle){
 function earlybirdDrucken(datum, alle){
   var basis = location.href.replace(/[#?].*$/, '').replace(/[^\/]*$/, '');
   var zeilen = alle.map(function(x, i){
-    return '<tr><td class="nr">'+(i+1)+'</td><td>'+esc(earlybirdName(x))+'</td><td>'+esc(x.klasse || '')+'</td><td>'+esc(x.vonName || '')+'</td><td class="box">'+(x.anwesend ? '☒' : '☐')+'</td></tr>';
+    return '<tr><td class="nr">'+(i+1)+'</td><td>'+esc(earlybirdName(x))+'</td><td>'+esc(x.klasse || '')+'</td><td>'+esc(x.vonName || '')+'</td><td>'+esc(x.auftrag || '')+'</td><td class="box">'+(x.anwesend ? '☒' : '☐')+'</td></tr>';
   }).join('');
   var css = '@page{size:A4;margin:2cm;}' +
     'body{font-family:Calibri,Carlito,"Segoe UI",Arial,sans-serif;font-size:11pt;line-height:1.4;color:#000;background:#fff;margin:0;}' +
@@ -4126,7 +4161,7 @@ function earlybirdDrucken(datum, alle){
     '<style>'+css+'</style></head><body><div class="werkzeug"><button type="button" onclick="window.print()">🖨️ Drucken / Als PDF sichern</button><span>Tipp: Im Druckdialog «Kopf- und Fusszeilen» ausschalten.</span></div>' +
     '<div class="blatt"><table class="kopf"><tr><td class="logo"><img src="'+esc(basis)+'assets/logo-pruefung.png" width="135" height="75" alt=""></td>' +
     '<td><div class="k1">Sekundarschule Altnau</div><div class="k2">Earlybird – '+esc(earlybirdDatumLang(datum))+'</div><div class="k1">'+EARLYBIRD_ZEIT+' Uhr · '+alle.length+' Schüler:in'+(alle.length === 1 ? '' : 'nen')+'</div></td></tr></table>' +
-    '<table class="liste"><tr><th class="nr">Nr.</th><th>Name</th><th>Klasse</th><th>Eingetragen von</th><th class="box" style="font-size:11pt">Anwesend</th></tr>'+zeilen+'</table>' +
+    '<table class="liste"><tr><th class="nr">Nr.</th><th>Name</th><th>Klasse</th><th>Eingetragen von</th><th>Auftrag</th><th class="box" style="font-size:11pt">Anwesend</th></tr>'+zeilen+'</table>' +
     '<div class="fuss"><span>Aufsicht: ________________________</span><span>Visum: ______________</span></div></div></body></html>';
   var url = URL.createObjectURL(new Blob([h], {type:'text/html;charset=utf-8'}));
   window.open(url, '_blank');
@@ -14893,6 +14928,7 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-09-22-earlybird-auftrag', datum:'2026-09-22', fuer:'lehrer', text:'🐦 Earlybird: Pro Schüler:in kannst du jetzt einen 📝 Auftrag eintragen (was sie/er in der Stunde macht). Die Aufsicht sieht ihn unter «🏫 Ganze Schule» und auf der gedruckten Liste – die Schüler:innen sehen ihn nicht.'},
   {id:'2026-09-22-earlybird', datum:'2026-09-22', fuer:'alle', text:'🐦 Im 📅 Kalender stehen jetzt die nächsten Earlybird-Termine (Mittwoch 06:30–07:30). Wenn du eingetragen bist, siehst du es dort.'},
   {id:'2026-09-22-earlybird-lp', datum:'2026-09-22', fuer:'lehrer', text:'🐦 Neu oben: Earlybird. Schüler:innen deiner (oder einer anderen) Klasse für einen Termin eintragen; unter «🏫 Ganze Schule» siehst du alle Eingetragenen, hakst ab, wer da war, und druckst die Liste mit Sek-Altnau-Logo.'},
   {id:'2026-09-22-kein-hallo', datum:'2026-09-22', fuer:'alle', text:'🧹 Die obere Leiste ist aufgeräumt: Das «Hallo, …» mit deinem Namen ist weg – so hat es mehr Platz.'},
