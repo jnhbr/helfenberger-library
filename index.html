@@ -303,6 +303,25 @@
   .da-table th:first-child{background:var(--surface-2);z-index:2;}
   .da-student-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px;margin-bottom:14px;}
   .da-student-card h4{margin:0 0 10px;}
+  .ws-toolbar{gap:8px;flex-wrap:wrap;justify-content:flex-start;align-items:center;}
+  .ws-kpis{display:flex;gap:10px;flex-wrap:wrap;margin:0 0 12px;}
+  .ws-kpis>div{background:var(--surface-2);border-radius:12px;padding:8px 14px;min-width:120px;}
+  .ws-kpis b{display:block;font-size:20px;}
+  .ws-kpis span{font-size:12px;color:var(--text-muted);}
+  .ws-bar{display:flex;height:12px;border-radius:99px;overflow:hidden;background:var(--surface-2);}
+  .ws-bar i{display:block;height:100%;}
+  .ws-b-ok{background:var(--good);} .ws-b-fix{background:#F59E0B;} .ws-b-teil{background:var(--brand);opacity:.55;} .ws-b-leer{background:transparent;}
+  .ws-mini{display:inline-block;vertical-align:middle;width:70px;height:8px;border-radius:99px;background:var(--surface-2);overflow:hidden;margin-right:6px;}
+  .ws-mini i{display:block;height:100%;background:var(--good);}
+  .ws-matrix th,.ws-matrix td.ws-td{text-align:center;padding:6px 5px;}
+  .ws-c{display:inline-block;min-width:28px;border-radius:8px;padding:1px 4px;font-size:12px;font-weight:700;}
+  .ws-c-ok{background:var(--good-soft);} .ws-c-fix{background:#FEF3C7;color:#92400E;} .ws-c-teil{background:var(--surface-2);color:var(--brand-ink,var(--brand));} .ws-c-leer{color:var(--text-muted);font-weight:400;}
+  .ws-name{background:none;border:0;padding:0;font:inherit;color:var(--brand-ink,var(--brand));font-weight:600;cursor:pointer;text-align:left;}
+  .ws-name:hover{text-decoration:underline;}
+  .ws-chips{display:flex;flex-wrap:wrap;gap:6px;}
+  .ws-chips span{background:var(--surface-2);border-radius:8px;padding:2px 9px;font-size:13px;}
+  .ws-posten summary{cursor:pointer;}
+  .ws-st{font-size:12.5px;font-weight:700;} .ws-st-ok{color:var(--good);} .ws-st-fix{color:#B45309;} .ws-st-teil{color:var(--brand-ink,var(--brand));} .ws-st-leer{color:var(--text-muted);font-weight:400;}
   .weak-bar-row{display:flex;align-items:center;gap:10px;margin:8px 0;}
   .weak-bar-label{width:220px;flex:none;font-size:13px;display:flex;align-items:center;gap:6px;}
   .weak-bar-track{flex:1;height:9px;background:var(--surface-2);border-radius:6px;overflow:hidden;}
@@ -4087,14 +4106,323 @@ function lsFachSetzen(subjId, offen){
   }catch(e){}
 }
 
+/* ===================== 🧩 WERKSTATT-ÜBERSICHT (Lehrperson) =====================
+   Für Werkstatt-Übungen, die aus mehreren Dateien bestehen (zurzeit die
+   Rechtschreib-Werkstatt, 4 Teile à 5 Posten). Jede Datei speichert ihren
+   Stand unter localStorage «rsw_werkstatt_teil<N>» – der generische Übungs-
+   stand-Sync legt das automatisch in progress/{uid}/resources/{rid}.storeJson.
+   Diese Ansicht liest das für eine Klasse / ein Niveau / eine 👥 Gruppe aus:
+   - Gruppenübersicht pro Posten (Stempel / Fehlerwörter offen / angefangen)
+     und die häufigsten Fehlerwörter,
+   - Tabelle Schüler:in × Posten, Klick → Detail 1:1 (jeder Auftrag, 1. Versuch,
+     offene Fehlerwörter).
+   Welche Übungen Werkstatt-Teile sind, wird am Dateinamen erkannt
+   (WS_DATEI_RE); Posten-/Auftragsnamen liefern die Dateien selbst mit (meta).
+   Keine neuen Regeln: progress/{uid}/resources darf die Lehrperson lesen. */
+
+var WS_DATEI_RE = /Rechtschreib-Werkstatt/i;
+var wsState = { quelle:null, gruppen:null, detailUid:null, sort:'name', daten:null, laedt:false };
+
+function wsQuelle(){
+  if(wsState.quelle === null) wsState.quelle = lsGet(LIB_PREFIX+'ws_quelle') || '';
+  return wsState.quelle;
+}
+function wsWahlHtml(q){
+  var alle = abstAlleKlassen();
+  function opt(v, t){ return '<option value="'+esc(v)+'"'+(v === q ? ' selected' : '')+'>'+esc(t)+'</option>'; }
+  var h = '<select class="sk-wahl" id="wsQuelle" title="Welche Schüler:innen?">';
+  h += opt('', (istKlasse(state.klasse) ? 'Klasse ' : '') + klasseLabel());
+  h += '<optgroup label="Niveau">' + opt('n:G', 'Alle G-Klassen') + opt('n:E', 'Alle E-Klassen');
+  ['G1','G2','G3','E1','E2','E3'].forEach(function(n){
+    var ks = alle.filter(function(k){ return k.indexOf(n) === 0; });
+    if(ks.length) h += opt('n:'+n, n + ' (' + ks.join(', ') + ')');
+  });
+  h += '</optgroup><optgroup label="Klasse">';
+  alle.forEach(function(k){ if(k !== state.klasse) h += opt('k:'+k, k); });
+  h += '</optgroup>';
+  if(wsState.gruppen && wsState.gruppen.length){
+    h += '<optgroup label="👥 Meine Gruppen">';
+    wsState.gruppen.forEach(function(g){ h += opt('g:'+g.id, g.name); });
+    h += '</optgroup>';
+  }
+  return h + '</select>';
+}
+
+// Stände eines progress-Dokuments: {teilNr: stand}
+function wsAusDoc(data){
+  var out = {};
+  if(!data || !data.storeJson) return out;
+  var store;
+  try{ store = JSON.parse(data.storeJson) || {}; }catch(e){ return out; }
+  Object.keys(store).forEach(function(k){
+    var m = k.match(/^rsw_werkstatt_teil(\d)$/);
+    if(!m) return;
+    try{
+      var st = JSON.parse(store[k]);
+      if(st && typeof st === 'object'){ st._rev = data.storeRev || 0; out[m[1]] = st; }
+    }catch(e){}
+  });
+  return out;
+}
+
+async function wsLaden(q){
+  var roster = await sprecherRosterLaden(q);
+  // Werkstatt-Übungen aller betroffenen Klassen (eigene Seite + Klassen der Schüler:innen)
+  var klassen = {};
+  klassen[state.klasse] = true;
+  roster.forEach(function(s){ if(s.klasse) klassen[s.klasse] = true; });
+  var resIds = {};
+  await Promise.all(Object.keys(klassen).map(function(k){
+    return getDocs(collection(db, 'klassen', k, 'resources')).then(function(snap){
+      snap.forEach(function(d){
+        var r = d.data();
+        if(WS_DATEI_RE.test(r.fileName || '') || WS_DATEI_RE.test(r.title || '')) resIds[d.id] = true;
+      });
+    }).catch(function(err){ console.error('Übungen von '+k+' nicht lesbar', err); });
+  }));
+  var ids = Object.keys(resIds);
+  var reads = [];
+  roster.forEach(function(stu){
+    ids.forEach(function(rid){
+      reads.push(getDoc(doc(db, 'progress', stu.uid, 'resources', rid)).then(function(snap){
+        return {uid:stu.uid, data:snap.exists() ? snap.data() : null};
+      }).catch(function(){ return {uid:stu.uid, data:null}; }));
+    });
+  });
+  var res = await Promise.all(reads);
+  var proStu = {}, meta = {all:null, auftr:{}};
+  res.forEach(function(r){
+    var teile = wsAusDoc(r.data);
+    Object.keys(teile).forEach(function(nr){
+      var st = teile[nr];
+      if(!proStu[r.uid]) proStu[r.uid] = {};
+      // Liegt derselbe Teil in mehreren Übungen (z. B. zweimal hochgeladen): neuester Stand gewinnt
+      if(!proStu[r.uid][nr] || st._rev > proStu[r.uid][nr]._rev) proStu[r.uid][nr] = st;
+      if(st.meta){
+        if(st.meta.all && !meta.all) meta.all = st.meta.all;
+        Object.keys(st.meta.auftr || {}).forEach(function(tid){ meta.auftr[tid] = st.meta.auftr[tid]; });
+      }
+    });
+  });
+  return {roster:roster, proStu:proStu, meta:meta, anzUebungen:ids.length};
+}
+
+// Auswertung einer Schülerin / eines Schülers
+function wsAuswerten(teile, meta){
+  var r = {posten:{}, auftrDone:0, auftrChecked:0, auftrTotal:0, stempel:0, offen:[], gefestigt:0, zuletzt:0, begonnen:false};
+  (meta.all || []).forEach(function(p){
+    var st = teile && teile[p.part];
+    var liste = meta.auftr[p.id] || Array.apply(null, {length:p.n}).map(function(_, i){ return {nr:i+1, instr:'', kind:''}; });
+    var box = st && st.box ? Object.keys(st.box).map(function(k){ return st.box[k]; }).filter(function(e){ return e && e.topic === p.id; }) : [];
+    var offenWoerter = box.filter(function(e){ return !e.done; });
+    var auftr = liste.map(function(a){
+      var key = p.id + '/' + a.nr, s = st && st.auftr ? st.auftr[key] : null;
+      var status = 'open';
+      if(s && s.phase >= 2) status = offenWoerter.some(function(e){ return e.auftr === key; }) ? 'fix' : 'done';
+      else if(s && (s.phase === 1 || (s.vals && Object.keys(s.vals).length))) status = 'half';
+      return {nr:a.nr, instr:a.instr, kind:a.kind, status:status, score:s && s.score, score2:s && s.score2};
+    });
+    var done = auftr.filter(function(a){ return a.status === 'done'; }).length;
+    var checked = auftr.filter(function(a){ return a.status === 'done' || a.status === 'fix'; }).length;
+    var started = auftr.filter(function(a){ return a.status !== 'open'; }).length;
+    var stempel = auftr.length > 0 && done === auftr.length && !offenWoerter.length;
+    r.posten[p.id] = {auftr:auftr, done:done, checked:checked, started:started, n:auftr.length, offen:offenWoerter, gefestigt:box.length - offenWoerter.length, stempel:stempel};
+    r.auftrDone += done; r.auftrChecked += checked; r.auftrTotal += auftr.length;
+    if(stempel) r.stempel++;
+    if(started) r.begonnen = true;
+    r.gefestigt += box.length - offenWoerter.length;
+    offenWoerter.forEach(function(e){ r.offen.push(e); });
+  });
+  Object.keys(teile || {}).forEach(function(nr){ var t = teile[nr]; if(t.savedAt && t.savedAt > r.zuletzt) r.zuletzt = t.savedAt; });
+  return r;
+}
+function wsPostenStatus(ps){
+  if(!ps || !ps.started) return 'leer';
+  if(ps.stempel) return 'stempel';
+  if(ps.checked === ps.n) return 'fix';
+  return 'teil';
+}
+function wsZelle(ps){
+  var s = wsPostenStatus(ps);
+  if(s === 'stempel') return '<span class="ws-c ws-c-ok" title="Stempel: alles erledigt">✅</span>';
+  if(s === 'fix') return '<span class="ws-c ws-c-fix" title="Alle Aufträge kontrolliert, '+ps.offen.length+' Fehlerwörter noch offen">🔁'+ps.offen.length+'</span>';
+  if(s === 'teil') return '<span class="ws-c ws-c-teil" title="'+ps.checked+' von '+ps.n+' Aufträgen kontrolliert">'+ps.checked+'/'+ps.n+'</span>';
+  return '<span class="ws-c ws-c-leer">–</span>';
+}
+function wsDatum(ms){
+  if(!ms) return '–';
+  var d = new Date(ms);
+  return d.toLocaleDateString('de-CH', {day:'2-digit', month:'2-digit'}) + ' ' + d.toLocaleTimeString('de-CH', {hour:'2-digit', minute:'2-digit'});
+}
+function wsBalken(anteile){ // [{n, cls, t}]
+  var tot = anteile.reduce(function(s, a){ return s + a.n; }, 0) || 1;
+  return '<div class="ws-bar">' + anteile.map(function(a){ return a.n ? '<i class="'+a.cls+'" style="width:'+(a.n/tot*100)+'%" title="'+esc(a.t+': '+a.n)+'"></i>' : ''; }).join('') + '</div>';
+}
+
+function renderWerkstattUebersicht(){
+  clearSubjectWatchers(); clearOverviewWatchers(); unwatchAllProgress();
+  var html = '<div class="back-row"><button class="btn btn-ghost btn-sm" id="backBtn">&larr; Lernstand-Übersicht</button></div>';
+  html += '<h2>🧩 Werkstatt-Übersicht</h2>';
+  html += '<p class="muted" style="margin:-6px 0 14px;">Rechtschreib-Werkstatt (alle 4 Teile zusammen): wer bei welchem Posten wie weit ist. ✅ = Stempel (alles erledigt) · 🔁 = alle Aufträge kontrolliert, Fehlerwörter noch offen · 2/4 = so viele Aufträge kontrolliert · – = noch nicht begonnen. Klick auf einen Namen zeigt alle Details. Der Stand kommt an, sobald die Schüler:innen die Werkstatt in der Library geöffnet haben.</p>';
+  html += '<div class="da-toolbar ws-toolbar">' + wsWahlHtml(wsQuelle()) +
+    '<select class="sk-wahl" id="wsSort"><option value="name"'+(wsState.sort==='name'?' selected':'')+'>Sortieren: Name</option><option value="fort"'+(wsState.sort==='fort'?' selected':'')+'>Sortieren: am weitesten zuerst</option><option value="wenig"'+(wsState.sort==='wenig'?' selected':'')+'>Sortieren: am wenigsten zuerst</option></select>' +
+    '<button class="btn btn-ghost btn-sm" id="wsPrint" type="button">🖨️ Drucken</button>' +
+    '<button class="btn btn-ghost btn-sm" id="wsCsv" type="button">⬇️ CSV</button>' +
+    '<button class="btn btn-ghost btn-sm" id="wsReload" type="button">↻ Neu laden</button></div>';
+  html += '<div id="wsBody"><div class="empty-state">Wird geladen …</div></div>';
+  renderChrome(html);
+  document.getElementById('backBtn').addEventListener('click', function(){ state.route = {name:'lernstand'}; render(); });
+  document.getElementById('wsQuelle').addEventListener('change', function(e){
+    wsState.quelle = e.target.value; lsSet(LIB_PREFIX+'ws_quelle', wsState.quelle);
+    wsState.detailUid = null; wsState.daten = null; renderWerkstattUebersicht();
+  });
+  document.getElementById('wsSort').addEventListener('change', function(e){ wsState.sort = e.target.value; wsZeichnen(); });
+  document.getElementById('wsReload').addEventListener('click', function(){ wsState.daten = null; sprecherState.rosters = {}; renderWerkstattUebersicht(); });
+  document.getElementById('wsPrint').addEventListener('click', function(){ window.print(); });
+  document.getElementById('wsCsv').addEventListener('click', wsCsv);
+  if(!wsState.gruppen){
+    loadMeineGruppen().then(function(list){
+      wsState.gruppen = list || [];
+      if(wsState.gruppen.length && state.route.name === 'werkstatt') renderWerkstattUebersicht();
+    }).catch(function(err){ console.error(err); wsState.gruppen = []; });
+  }
+  if(wsState.daten && wsState.daten.q === wsQuelle()){ wsZeichnen(); return; }
+  var q = wsQuelle();
+  wsLaden(q).then(function(d){
+    d.q = q; wsState.daten = d;
+    if(state.route.name === 'werkstatt') wsZeichnen();
+  }).catch(function(err){
+    console.error(err);
+    var body = document.getElementById('wsBody');
+    if(body) body.innerHTML = '<div class="empty-state">Übersicht konnte nicht geladen werden.</div>';
+  });
+}
+
+function wsZeilen(){
+  var d = wsState.daten;
+  var rows = d.roster.map(function(stu){ return {stu:stu, r:wsAuswerten(d.proStu[stu.uid], d.meta)}; });
+  rows.sort(function(a, b){
+    if(wsState.sort === 'fort') return (b.r.auftrDone - a.r.auftrDone) || (b.r.auftrChecked - a.r.auftrChecked);
+    if(wsState.sort === 'wenig') return (a.r.auftrDone - b.r.auftrDone) || (a.r.auftrChecked - b.r.auftrChecked);
+    return (a.stu.displayName || '').localeCompare(b.stu.displayName || '', 'de');
+  });
+  return rows;
+}
+
+function wsZeichnen(){
+  var body = document.getElementById('wsBody');
+  if(!body) return;
+  var d = wsState.daten, meta = d.meta;
+  if(!d.anzUebungen){ body.innerHTML = '<div class="empty-state">Keine Rechtschreib-Werkstatt gefunden. Lade die Werkstatt-Dateien (Dateiname «Rechtschreib-Werkstatt_Teil…») als Übungen hoch.</div>'; return; }
+  if(!meta.all){ body.innerHTML = '<div class="empty-state">Noch niemand aus dieser Auswahl hat die Werkstatt geöffnet ('+d.roster.length+' Schüler:innen).</div>'; return; }
+  if(wsState.detailUid){ wsDetail(body); return; }
+  var rows = wsZeilen(), n = rows.length || 1;
+  var h = '';
+
+  // --- Gruppenübersicht ---
+  var totStempel = 0, totDone = 0, totAll = 0, nieBegonnen = 0, fehlerZaehl = {};
+  rows.forEach(function(x){
+    totStempel += x.r.stempel; totDone += x.r.auftrDone; totAll += x.r.auftrTotal;
+    if(!x.r.begonnen) nieBegonnen++;
+    var gesehen = {};
+    x.r.offen.forEach(function(e){ var w = e.w; if(gesehen[w]) return; gesehen[w] = 1; fehlerZaehl[w] = (fehlerZaehl[w] || 0) + 1; });
+  });
+  h += '<div class="da-student-card"><h4>👥 Gruppenübersicht · '+rows.length+' Schüler:innen</h4>';
+  h += '<div class="ws-kpis">' +
+    '<div><b>'+(Math.round(totStempel/n*10)/10)+'</b><span>Ø Stempel von '+meta.all.length+'</span></div>' +
+    '<div><b>'+(totAll ? Math.round(totDone/totAll*100) : 0)+'%</b><span>aller Aufträge erledigt</span></div>' +
+    '<div><b>'+nieBegonnen+'</b><span>noch nicht begonnen</span></div></div>';
+  h += '<div class="table-scroll"><table class="da-table ws-gruppe"><thead><tr><th>Posten</th><th>✅ Stempel</th><th>🔁 Wörter offen</th><th>✎ angefangen</th><th>– nicht begonnen</th><th style="min-width:160px">Verteilung</th></tr></thead><tbody>';
+  meta.all.forEach(function(p){
+    var c = {stempel:0, fix:0, teil:0, leer:0};
+    rows.forEach(function(x){ c[wsPostenStatus(x.r.posten[p.id])]++; });
+    h += '<tr><td>'+p.nr+'. '+esc(p.icon+' '+p.title)+' <span class="tiny muted">Teil '+p.part+'</span></td><td>'+c.stempel+'</td><td>'+c.fix+'</td><td>'+c.teil+'</td><td>'+c.leer+'</td><td>' +
+      wsBalken([{n:c.stempel, cls:'ws-b-ok', t:'Stempel'}, {n:c.fix, cls:'ws-b-fix', t:'Wörter offen'}, {n:c.teil, cls:'ws-b-teil', t:'angefangen'}, {n:c.leer, cls:'ws-b-leer', t:'nicht begonnen'}]) + '</td></tr>';
+  });
+  h += '</tbody></table></div>';
+  var top = Object.keys(fehlerZaehl).sort(function(a, b){ return fehlerZaehl[b] - fehlerZaehl[a] || a.localeCompare(b, 'de'); }).slice(0, 25);
+  if(top.length) h += '<p style="margin:14px 0 6px;"><b>Häufigste offene Fehlerwörter</b> <span class="tiny muted">(bei wie vielen Schüler:innen noch in der Übungskiste)</span></p><div class="ws-chips">' +
+    top.map(function(w){ return '<span>'+esc(w)+' <b>'+fehlerZaehl[w]+'</b></span>'; }).join('') + '</div>';
+  h += '</div>';
+
+  // --- Schüler:innen × Posten ---
+  h += '<div class="table-scroll"><table class="da-table ws-matrix"><thead><tr><th>Schüler:in</th><th>Aufträge erledigt</th><th>Stempel</th><th>Wörter offen</th><th>zuletzt</th>';
+  meta.all.forEach(function(p){ h += '<th title="'+esc(p.title)+'">'+p.nr+'<br>'+esc(p.icon)+'</th>'; });
+  h += '</tr></thead><tbody>';
+  rows.forEach(function(x){
+    var pct = x.r.auftrTotal ? Math.round(x.r.auftrDone / x.r.auftrTotal * 100) : 0;
+    h += '<tr><td><button class="ws-name" type="button" data-uid="'+esc(x.stu.uid)+'">'+esc(x.stu.displayName || '?')+'</button></td>' +
+      '<td><div class="ws-mini"><i style="width:'+pct+'%"></i></div><span class="tiny">'+x.r.auftrDone+' / '+x.r.auftrTotal+'</span></td>' +
+      '<td>'+x.r.stempel+' / '+meta.all.length+'</td><td>'+(x.r.offen.length || '–')+'</td><td class="tiny">'+wsDatum(x.r.zuletzt)+'</td>';
+    meta.all.forEach(function(p){ h += '<td class="ws-td">'+wsZelle(x.r.posten[p.id])+'</td>'; });
+    h += '</tr>';
+  });
+  h += '</tbody></table></div>';
+  body.innerHTML = h;
+  Array.prototype.forEach.call(body.querySelectorAll('.ws-name'), function(b){
+    b.addEventListener('click', function(){ wsState.detailUid = b.getAttribute('data-uid'); wsZeichnen(); window.scrollTo(0, 0); });
+  });
+}
+
+function wsDetail(body){
+  var d = wsState.daten, meta = d.meta;
+  var stu = d.roster.filter(function(s){ return s.uid === wsState.detailUid; })[0];
+  if(!stu){ wsState.detailUid = null; wsZeichnen(); return; }
+  var r = wsAuswerten(d.proStu[stu.uid], meta);
+  var LAB = {done:'<span class="ws-st ws-st-ok">✓ erledigt</span>', fix:'<span class="ws-st ws-st-fix">🔁 Fehlerwörter offen</span>', half:'<span class="ws-st ws-st-teil">✎ angefangen</span>', open:'<span class="ws-st ws-st-leer">○ offen</span>'};
+  var h = '<div class="back-row"><button class="btn btn-ghost btn-sm" id="wsZurueck" type="button">&larr; alle Schüler:innen</button></div>';
+  h += '<div class="da-student-card"><h4>'+esc(stu.displayName || '?')+'</h4><div class="ws-kpis">' +
+    '<div><b>'+r.stempel+' / '+meta.all.length+'</b><span>Stempel</span></div>' +
+    '<div><b>'+r.auftrDone+' / '+r.auftrTotal+'</b><span>Aufträge erledigt</span></div>' +
+    '<div><b>'+r.offen.length+'</b><span>Fehlerwörter offen</span></div>' +
+    '<div><b>'+r.gefestigt+'</b><span>Fehlerwörter gefestigt</span></div>' +
+    '<div><b style="font-size:15px">'+esc(wsDatum(r.zuletzt))+'</b><span>zuletzt gearbeitet</span></div></div></div>';
+  meta.all.forEach(function(p){
+    var ps = r.posten[p.id];
+    h += '<details class="da-student-card ws-posten"'+(wsPostenStatus(ps) === 'leer' ? '' : ' open')+'><summary><b>'+p.nr+'. '+esc(p.icon+' '+p.title)+'</b> <span class="tiny muted">Teil '+p.part+'</span> ' + wsZelle(ps) + '</summary>';
+    h += '<table class="da-table" style="margin-top:10px"><thead><tr><th>Auftrag</th><th>Status</th><th>1. Versuch</th><th>Wiederholung</th></tr></thead><tbody>';
+    ps.auftr.forEach(function(a){
+      var sc = a.score ? a.score[0]+' / '+a.score[1]+' ('+Math.round(a.score[0]/a.score[1]*100)+'%)' : '–';
+      var sc2 = a.score2 ? a.score2[0]+' / '+a.score2[1] : '–';
+      h += '<tr><td style="white-space:normal">'+a.nr+'. '+esc(a.instr || '')+(a.kind === 'diktat' ? ' 🎧' : '')+'</td><td>'+LAB[a.status]+'</td><td>'+sc+'</td><td>'+sc2+'</td></tr>';
+    });
+    h += '</tbody></table>';
+    if(ps.offen.length) h += '<p style="margin:10px 0 4px"><b>Fehlerwörter in der Übungskiste:</b></p><div class="ws-chips">' +
+      ps.offen.map(function(e){ return '<span title="'+esc((e.ctx || '').replace('⟪⟫', '___'))+'">'+esc(e.w)+(e.errs > 1 ? ' <b>'+e.errs+'×</b>' : '')+' <i class="tiny muted">Schritt '+((e.stage || 0) + 1)+'/3</i></span>'; }).join('') + '</div>';
+    if(ps.gefestigt) h += '<p class="tiny muted" style="margin:8px 0 0">🏅 '+ps.gefestigt+' Fehlerwörter bereits gefestigt.</p>';
+    h += '</details>';
+  });
+  body.innerHTML = h;
+  document.getElementById('wsZurueck').addEventListener('click', function(){ wsState.detailUid = null; wsZeichnen(); });
+}
+
+function wsCsv(){
+  var d = wsState.daten;
+  if(!d || !d.meta.all){ toast('Noch keine Daten.'); return; }
+  var head = ['Schüler:in', 'Aufträge erledigt', 'Aufträge total', 'Stempel', 'Fehlerwörter offen', 'zuletzt'];
+  d.meta.all.forEach(function(p){ head.push(p.nr + ' ' + p.title); });
+  var rows = [head];
+  wsZeilen().forEach(function(x){
+    var row = [x.stu.displayName, x.r.auftrDone, x.r.auftrTotal, x.r.stempel, x.r.offen.length, x.r.zuletzt ? wsDatum(x.r.zuletzt) : ''];
+    d.meta.all.forEach(function(p){
+      var ps = x.r.posten[p.id], s = wsPostenStatus(ps);
+      row.push(s === 'stempel' ? 'Stempel' : s === 'fix' ? 'Wörter offen (' + ps.offen.length + ')' : s === 'teil' ? ps.checked + '/' + ps.n : '');
+    });
+    rows.push(row);
+  });
+  downloadTextFile('werkstatt-'+todayStr()+'.csv', rows.map(function(r){ return r.map(csvField).join(','); }).join('\r\n'), 'text/csv');
+}
+
 function renderLernstandUebersicht(){
   clearSubjectWatchers(); clearOverviewWatchers(); unwatchAllProgress();
   var html = '<div class="back-row"><button class="btn btn-ghost btn-sm" id="backBtn">&larr; Start</button></div>';
   html += '<h2>📈 Lernstand-Übersicht</h2>';
   html += '<p class="muted" style="margin:-6px 0 14px;">Aktueller Stand pro Schüler:in und Übung, über alle Fächer. „↺" = wie oft zurückgesetzt, mit dem jeweiligen Stand unmittelbar davor. „⏱" = wie lange die Übung schon offen war (nur aktive Zeit, kein Hintergrund-Tab). Nur für dich sichtbar.</p>';
+  html += '<div class="da-toolbar" style="justify-content:flex-start;"><button class="btn btn-primary btn-sm" id="werkstattBtn" type="button">🧩 Werkstatt-Übersicht</button></div>';
   html += '<div id="lernstandBody"><div class="empty-state">Wird geladen …</div></div>';
   renderChrome(html);
   document.getElementById('backBtn').addEventListener('click', goHome);
+  document.getElementById('werkstattBtn').addEventListener('click', function(){ wsState.detailUid = null; state.route = {name:'werkstatt'}; render(); });
 
   loadLernstandUebersicht().then(function(result){
     var body = document.getElementById('lernstandBody');
@@ -9949,6 +10277,7 @@ function mountAmpel(host){
   html += '</div>';
   html += '<div class="am-points" id="amPoints">Ruhe-Punkte: 0</div>';
   html += '<div class="am-status" id="amStatus">Mikrofon wird gefragt …</div>';
+  html += '<button class="btn btn-sm" id="amRetry" type="button" style="display:none">🎤 Mikrofon erneut versuchen</button>';
   html += '<div class="am-sliders">';
   html += '<label>grün/gelb <input type="range" id="amG" min="5" max="90" value="'+thrGreen+'"></label>';
   html += '<label>gelb/rot <input type="range" id="amR" min="10" max="99" value="'+thrRed+'"></label>';
@@ -9988,14 +10317,71 @@ function mountAmpel(host){
   }
   beamer.cleanups.push(cleanup);
 
+  var retryBtn = host.querySelector('#amRetry');
+  retryBtn.addEventListener('click', start);
+
   if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
-    statusEl.textContent = 'Dieses Gerät stellt kein Mikrofon zur Verfügung.';
+    statusEl.textContent = window.isSecureContext === false
+      ? 'Das Mikrofon geht nur über https:// — die Library über die normale Adresse öffnen.'
+      : 'Dieses Gerät stellt kein Mikrofon zur Verfügung.';
     return;
   }
-  navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false, noiseSuppression:false, autoGainControl:false}}).then(function(s){
+
+  // Manche Geräte/Browser lehnen die «rohen» Constraints ab (Overconstrained)
+  // — dann einfach mit {audio:true} nochmals versuchen.
+  function holeMikrofon(){
+    return navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false, noiseSuppression:false, autoGainControl:false}})
+      .catch(function(err){
+        if(err && (err.name === 'OverconstrainedError' || err.name === 'TypeError' || err.name === 'NotReadableError')){
+          return navigator.mediaDevices.getUserMedia({audio:true});
+        }
+        throw err;
+      });
+  }
+
+  function fehlerText(err){
+    var n = err && err.name;
+    var mac = /Mac/.test(navigator.platform || navigator.userAgent || '');
+    if(n === 'NotAllowedError' || n === 'SecurityError' || n === 'PermissionDeniedError'){
+      return 'Mikrofon blockiert. Links in der Adressleiste (Schloss-/Regler-Symbol) für diese Seite «Mikrofon: Zulassen» wählen'
+        + (mac ? ' — und in den macOS-Systemeinstellungen › Datenschutz & Sicherheit › Mikrofon den Browser erlauben' : '')
+        + '. Dann «Mikrofon erneut versuchen».';
+    }
+    if(n === 'NotFoundError' || n === 'DevicesNotFoundError'){
+      return 'Kein Mikrofon gefunden. Mikrofon/Headset anschliessen und «Mikrofon erneut versuchen».';
+    }
+    if(n === 'NotReadableError' || n === 'TrackStartError' || n === 'AbortError'){
+      return 'Das Mikrofon ist gerade von einem anderen Programm belegt (z. B. Teams/Zoom). Dort schliessen und erneut versuchen.';
+    }
+    return 'Mikrofon konnte nicht gestartet werden' + (n ? ' (' + n + ')' : '') + '. «Mikrofon erneut versuchen».';
+  }
+
+  function start(){
+    if(stopped) return;
+    retryBtn.style.display = 'none';
+    statusEl.textContent = 'Mikrofon wird gefragt …';
+    holeMikrofon().then(laeuft, function(err){
+      console.error('Lärmampel', err);
+      if(stopped) return;
+      statusEl.textContent = fehlerText(err);
+      retryBtn.style.display = '';
+    });
+  }
+
+  function laeuft(s){
     if(stopped){ s.getTracks().forEach(function(tr){ tr.stop(); }); return; }
+    if(stream){ stream.getTracks().forEach(function(tr){ try{ tr.stop(); }catch(e){} }); }
+    if(ctx){ try{ ctx.close(); }catch(e){} }
+    if(raf) cancelAnimationFrame(raf);
     stream = s;
     ctx = new (window.AudioContext || window.webkitAudioContext)();
+    // Ohne vorherigen Klick startet der AudioContext in Chrome/Safari
+    // «suspended» — dann bleibt der Pegel stumm auf 0.
+    if(ctx.state === 'suspended'){
+      ctx.resume().catch(function(){});
+      var wecken = function(){ if(ctx) ctx.resume().catch(function(){}); };
+      host.addEventListener('pointerdown', wecken, {once:true});
+    }
     var src = ctx.createMediaStreamSource(s);
     var analyser = ctx.createAnalyser();
     analyser.fftSize = 1024;
@@ -10027,9 +10413,9 @@ function mountAmpel(host){
       raf = requestAnimationFrame(loop);
     }
     loop();
-  }).catch(function(){
-    statusEl.textContent = 'Kein Zugriff aufs Mikrofon. In den Browser-Einstellungen für diese Seite erlauben und das Werkzeug neu öffnen.';
-  });
+  }
+
+  start();
 }
 
 /* ---------- 🗣 Wer darf sprechen ----------
@@ -14227,6 +14613,8 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-09-22-werkstatt-uebersicht', datum:'2026-09-22', fuer:'lehrer', text:'🧩 Neu in der 📈 Lernstand-Übersicht: «Werkstatt-Übersicht» für die Rechtschreib-Werkstatt – pro Klasse, Niveau oder 👥 Gruppe siehst du, wer bei welchem Posten wie weit ist (Stempel, offene Fehlerwörter), die häufigsten Fehlerwörter und per Klick alle Details einer Schülerin / eines Schülers.'},
+  {id:'2026-09-22-laermampel-mikro', datum:'2026-09-22', fuer:'lehrer', text:'🔊 Lärmampel: klarere Meldung, warum das Mikrofon nicht geht (blockiert, keins gefunden, belegt) und neuer Knopf «Mikrofon erneut versuchen» — Werkzeug muss nicht mehr neu geöffnet werden.'},
   {id:'2026-09-22-tools', datum:'2026-09-22', fuer:'alle', text:'🧰 Neu auf der Startseite: «Tools». PDFs und Fotos verkleinern, PDFs (auch Fotos) zusammenführen, PDF-Seiten löschen, drehen oder verschieben, PDF in Bilder, 📷 Foto-Scanner (Handyfoto eines Blatts gerade ziehen – wie gescannt), 🔳 QR-Code, 🔢 Seitenzahlen & Wasserzeichen, 🗞️ mehrere Seiten pro Blatt, ✂️ Bild zuschneiden und 🎙️ Ton aufnehmen. Alles passiert auf deinem Gerät – nichts wird hochgeladen.'},
   {id:'2026-09-22-ruhephase-auswahl', datum:'2026-09-22', fuer:'lehrer', text:'⏱ Ruhephase: Bei «dürfen FLÜSTERN» wählst du jetzt, woher die Namen kommen – eigene Klasse, eine andere Klasse, ein Niveau (z. B. G3 oder alle E-Klassen) oder eine deiner 👥 Gruppen.'},
   {id:'2026-09-21-rueckmeldungen', datum:'2026-09-21', fuer:'lehrer', text:'💬 Neu: Rückmeldung an Jan. Unter ⚙️ Einstellungen › «💬 Rückmeldung schreiben» meldest du einen Fehler, einen Verbesserungsvorschlag oder Sonstiges (auf Wunsch mit Fach). Bei «Meine Rückmeldungen» siehst du, ob es geklappt hat ✅ oder nicht ❌ – mit Begründung.'},
@@ -27502,6 +27890,7 @@ function render(){
   if(state.route.name === 'resource'){ renderResource(state.route.resource); return; }
   if(state.route.name === 'diktatauswertung'){ renderDiktatAuswertung(); return; }
   if(state.route.name === 'lernstand'){ renderLernstandUebersicht(); return; }
+  if(state.route.name === 'werkstatt'){ renderWerkstattUebersicht(); return; }
   if(state.route.name === 'kalender'){ renderKalender(); return; }
   if(state.route.name === 'stundenplan'){ renderStundenplan(); return; }
   if(state.route.name === 'klassenzimmer'){ renderKlassenzimmer(); return; }
