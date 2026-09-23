@@ -805,6 +805,10 @@
   .pf-banner-info{background:var(--surface-2);border-color:#E8B72C;}
   .pf-banner-info .pf-banner-title{color:var(--text);}
   .pf-banner-sub{font-size:13.5px;color:var(--text-muted);margin:-4px 0 8px;}
+  .pf-banner-kopf{display:flex;align-items:flex-start;gap:10px;}
+  .pf-banner-kopf .pf-banner-title{flex:1;}
+  .pf-banner-x{border:0;background:transparent;color:var(--text-muted);font-size:22px;line-height:1;cursor:pointer;padding:0 2px;}
+  .pf-banner-x:hover{color:var(--text);}
   .pf-banner-when{color:var(--bad);font-size:13.5px;font-weight:600;}
   .pf-done{background:var(--bad);color:#fff;}
   .pf-btn-due{background:var(--bad-soft);color:var(--bad);animation:pfPulse 1.6s ease-in-out infinite;}
@@ -12006,6 +12010,15 @@ function pflanzeGegossen(id){
   pflanzenSpeichern(list, '💧 '+name+' gegossen.');
 }
 
+// Der Ferienhinweis ist nur zum Lesen — einmal weggeklickt bleibt er weg, bis sich
+// sein Inhalt ändert (andere Ferien, andere Pflanzen oder andere Besuchstage).
+function pfFerienHinweisKey(ferien, hinweise){
+  return 'hl_pf_ferienhinweis_' + kkHash(ferien.start + '|' + hinweise.join('|'));
+}
+function pfHinweisWeg(key){
+  try{ return localStorage.getItem(key) === '1'; }catch(e){ return false; }
+}
+
 function pflanzenBannerHtml(){
   var f = pflanzenFaellig();
   var h = '';
@@ -12034,9 +12047,14 @@ function pflanzenBannerHtml(){
     if(rest.length) hinweise.push('<b>'+esc(p.name)+'</b>: '+esc(pfTageListe(rest)));
   });
   if(hinweise.length){
-    h += '<div class="pf-banner pf-banner-info"><div class="pf-banner-title">🧳 '+esc(ferien.label)+': Diese Pflanzen halten nicht durch</div>'
-      + '<div class="pf-banner-sub">Vorher kräftig giessen und an diesen Tagen vorbeikommen (oder mit nach Hause nehmen):</div>'
-      + '<div class="pf-banner-list">'+hinweise.map(function(x){ return '<div>'+x+'</div>'; }).join('')+'</div></div>';
+    var fKey = pfFerienHinweisKey(ferien, hinweise);
+    if(!pfHinweisWeg(fKey)){
+      h += '<div class="pf-banner pf-banner-info"><div class="pf-banner-kopf">'
+        + '<div class="pf-banner-title">🧳 '+esc(ferien.label)+': Diese Pflanzen halten nicht durch</div>'
+        + '<button class="pf-banner-x" type="button" data-pf-zu="'+esc(fKey)+'" title="Gelesen — ausblenden" aria-label="Hinweis ausblenden">×</button></div>'
+        + '<div class="pf-banner-sub">Vorher kräftig giessen und an diesen Tagen vorbeikommen (oder mit nach Hause nehmen):</div>'
+        + '<div class="pf-banner-list">'+hinweise.map(function(x){ return '<div>'+x+'</div>'; }).join('')+'</div></div>';
+    }
   }
   return h;
 }
@@ -12060,6 +12078,12 @@ function updatePflanzenAnzeige(){
 function bindPflanzenDone(root){
   Array.prototype.forEach.call(root.querySelectorAll('[data-pf-done]'), function(b){
     b.addEventListener('click', function(){ b.disabled = true; pflanzeGegossen(b.getAttribute('data-pf-done')); });
+  });
+  Array.prototype.forEach.call(root.querySelectorAll('[data-pf-zu]'), function(b){
+    b.addEventListener('click', function(){
+      try{ localStorage.setItem(b.getAttribute('data-pf-zu'), '1'); }catch(e){}
+      updatePflanzenAnzeige();
+    });
   });
 }
 
@@ -14927,6 +14951,7 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-09-23-ferienhinweis-weg', datum:'2026-09-23', fuer:'lehrer', text:'🧳 Der Ferienhinweis «Diese Pflanzen halten nicht durch» lässt sich jetzt mit × wegklicken, sobald du ihn gelesen hast. Er kommt erst wieder, wenn sich etwas daran ändert (andere Ferien, andere Pflanzen oder Tage).'},
   {id:'2026-09-22-earlybird-auftrag', datum:'2026-09-22', fuer:'lehrer', text:'🐦 Earlybird: Pro Schüler:in kannst du jetzt einen 📝 Auftrag eintragen (was sie/er in der Stunde macht). Die Aufsicht sieht ihn unter «🏫 Ganze Schule» und auf der gedruckten Liste – die Schüler:innen sehen ihn nicht.'},
   {id:'2026-09-22-earlybird', datum:'2026-09-22', fuer:'alle', text:'🐦 Im 📅 Kalender stehen jetzt die nächsten Earlybird-Termine (Mittwoch 06:30–07:30). Wenn du eingetragen bist, siehst du es dort.'},
   {id:'2026-09-22-earlybird-lp', datum:'2026-09-22', fuer:'lehrer', text:'🐦 Neu oben: Earlybird. Schüler:innen deiner (oder einer anderen) Klasse für einen Termin eintragen; unter «🏫 Ganze Schule» siehst du alle Eingetragenen, hakst ab, wer da war, und druckst die Liste mit Sek-Altnau-Logo.'},
