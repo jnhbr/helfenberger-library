@@ -66,21 +66,25 @@ async function main(){
 
   var dueDate = tomorrowDateStrZurich();
 
-  // Absicherung gegen Doppelversand: der erste nicht erzwungene Lauf legt
-  // das Log-Dokument für dueDate atomar an (create schlägt fehl, wenn es schon
-  // existiert) - alle weiteren Läufe desselben Tages tun dann nichts mehr.
+  // Absicherung gegen Doppelversand: pro dueDate ein Log-Dokument. Erst ein
+  // Lauf, der bis zum Schluss kommt, setzt fertig:true — alle weiteren Läufe
+  // desselben Tages tun dann nichts mehr. Bricht ein Lauf ab (z. B. am
+  // 23.09.2026: Firestore-Tageskontingent «Quota exceeded»), versucht es der
+  // nächste Lauf nochmals, statt den Tag als erledigt anzusehen. Die Läufe
+  // laufen nie gleichzeitig (concurrency im Workflow).
   // Bei FORCE_SEND (manueller Testlauf) wird weder geprüft noch markiert,
   // damit Tests den automatischen Versand nicht blockieren.
   var logRef = db.collection('reminderLog').doc(dueDate);
   if(!force){
-    try{
-      await logRef.create({ hour: z.hour, minute: z.minute, checkedAt: admin.firestore.FieldValue.serverTimestamp() });
-    }catch(err){
-      if(err.code !== 6) throw err; // 6 = ALREADY_EXISTS
-      var logSnap = await logRef.get();
-      console.log('Für ' + dueDate + ' wurde bereits verschickt (Lauf um ' + logSnap.data().hour + ' Uhr) - nichts zu tun.');
+    var logSnap = await logRef.get();
+    var log = logSnap.exists ? logSnap.data() : null;
+    // ältere Einträge (vor fertig) gelten als erledigt, sobald entryCount steht
+    if(log && (log.fertig === true || (log.fertig === undefined && log.entryCount !== undefined))){
+      console.log('Für ' + dueDate + ' wurde bereits verschickt (Lauf um ' + log.hour + ' Uhr) - nichts zu tun.');
       return;
     }
+    if(log) console.log('Ein früherer Lauf für ' + dueDate + ' (' + log.hour + ' Uhr) ist nicht fertig geworden - neuer Versuch.');
+    await logRef.set({ hour: z.hour, minute: z.minute, checkedAt: admin.firestore.FieldValue.serverTimestamp(), fertig: false }, { merge: true });
   }
 
   if(!process.env.VAPID_PUBLIC_KEY || !process.env.VAPID_PRIVATE_KEY){
@@ -113,6 +117,7 @@ async function main(){
     await logRef.update({ entryCount: entryCount });
   }
   if(!entryCount){
+    if(!force) await logRef.update({ fertig: true });
     console.log('Keine Einträge fällig am ' + dueDate + ' - keine Erinnerungen zu verschicken.');
     return;
   }
@@ -162,7 +167,15 @@ async function main(){
       }
     }
   }
+  if(!force) await logRef.update({ fertig: true, sent: sent, removed: removed, failed: failed });
   console.log('Fertig: ' + sent + ' verschickt, ' + removed + ' veraltete Abos entfernt, ' + failed + ' Fehler.');
 }
 
-main().catch(function(err){ console.error(err); process.exit(1); });
+main().catch(function(err){
+  if(err && (err.code === 8 || /RESOURCE_EXHAUSTED|Quota exceeded/i.test(String(err.message)))){
+    console.error('Firestore-Tageskontingent aufgebraucht (Gratis-Tarif «Spark»): heute sind keine Schreib-/Lesezugriffe mehr möglich. ' +
+      'Der nächste Lauf versucht es nochmals. Dauerhafte Lösung: Firebase-Projekt auf den Tarif «Blaze» umstellen.');
+  }
+  console.error(err);
+  process.exit(1);
+});

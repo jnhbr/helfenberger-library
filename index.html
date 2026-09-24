@@ -601,6 +601,8 @@
   .toast.show{opacity:1;transform:translateX(-50%) translateY(-6px);}
 
   .spinner-wrap{flex:1;display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:14px;}
+  .kontingent-band{position:fixed;left:50%;top:10px;transform:translateX(-50%);z-index:2147483000;max-width:min(680px,calc(100vw - 24px));background:#fff4d6;color:#5a3d00;border:1px solid #e0b64a;border-radius:12px;padding:10px 38px 10px 14px;font-size:14px;line-height:1.4;box-shadow:0 8px 24px -10px rgba(0,0,0,.4);}
+  .kontingent-band button{position:absolute;right:8px;top:6px;border:0;background:none;font-size:16px;cursor:pointer;color:inherit;}
 
   @media (max-width:560px){
     .content{padding:20px 14px 50px;}
@@ -1900,6 +1902,26 @@
   .pr-q-bild svg{max-width:100%;height:auto;}
   .pr-q-frage{font-size:18px;font-weight:700;line-height:1.4;margin:0 0 14px;}
   .pr-q-opts{display:flex;flex-direction:column;gap:8px;}
+  /* ✍️ Rechtschreib-Prüfung (Lücken, Auswahl, Hördiktat) */
+  .rsw-text{font-size:18px;line-height:2.4;margin:0 0 10px;}
+  .rsw-text .rsw-hint{font-size:.78em;color:var(--text-muted);margin-right:2px;}
+  .rsw-gap{font:inherit;font-weight:700;color:var(--brand);border:0;border-bottom:2px solid var(--border);background:var(--surface-2);border-radius:6px 6px 0 0;padding:0 4px;text-align:center;min-width:2.4ch;height:1.7em;vertical-align:baseline;margin:0 1px;}
+  .rsw-gap:focus{outline:none;border-bottom-color:var(--brand);}
+  .rsw-ch{display:inline-flex;gap:3px;align-items:baseline;margin:0 2px;}
+  .rsw-ch i{color:var(--text-muted);font-style:normal;}
+  .rsw-ch button{font:inherit;font-size:16px;font-weight:600;line-height:1.5;border:1.5px solid var(--border);background:var(--surface);color:inherit;border-radius:8px;padding:0 8px;cursor:pointer;}
+  .rsw-ch button.sel{border-color:var(--brand);background:var(--surface-2);color:var(--brand);}
+  .rsw-player{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 14px;padding:10px 12px;border:1px solid var(--border);border-radius:12px;background:var(--surface-2);}
+  .rsw-zeilen{display:flex;flex-direction:column;gap:10px;}
+  .rsw-zeilen label{display:flex;gap:10px;align-items:flex-start;}
+  .rsw-zeilen label span{font-weight:700;min-width:1.6em;padding-top:8px;}
+  .rsw-zeilen .rsw-in{flex:1;font-size:17px;}
+  .rsw-teilwahl{margin:0 0 10px;}
+  .rsw-teil{border:1px solid var(--border);border-radius:10px;padding:8px 10px 2px;margin:0 0 8px;}
+  .rsw-teil-kopf{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 6px;}
+  .rsw-vorschau{max-height:260px;overflow:auto;border:1px dashed var(--border);border-radius:10px;padding:6px 10px;margin:4px 0 8px;}
+  .rsw-liste{margin:4px 0 6px;padding-left:22px;font-size:13px;line-height:1.5;}
+  .rsw-liste li{margin:2px 0;}
   .pr-q-tf{flex-direction:row;}
   .pr-q-tf .pr-q-opt{flex:1;text-align:center;}
   .pr-q-opt{text-align:left;font:inherit;font-size:15px;padding:12px 14px;border-radius:12px;border:2px solid var(--border);background:var(--surface);color:var(--text);cursor:pointer;}
@@ -2313,7 +2335,25 @@ console.error = function(){
     else if(typeof a === 'string') texte.push(a);
   }
   if(err) fehlerMelden('console', err, texte.join(' ').slice(0, 200));
+  if(err && err.code === 'resource-exhausted') kontingentWarnung();
 };
+/* Firestore-Tageslimit (Gratis-Tarif «Spark») erreicht: Schreiben/Lesen schlägt
+   fehl, bis das Kontingent um 09:00 Uhr (Mitternacht US-Westküste) zurückgesetzt
+   wird. Einmal pro Seitenaufruf ein Band zeigen, damit niemand neu lädt (dann
+   ginge der nur lokal gespeicherte Stand verloren) oder an einen Bug glaubt. */
+var kontingentGezeigt = false;
+function kontingentWarnung(){
+  if(kontingentGezeigt) return;
+  kontingentGezeigt = true;
+  try{
+    var b = document.createElement('div');
+    b.className = 'kontingent-band';
+    b.innerHTML = '⚠️ <b>Die Datenbank hat ihr Tageslimit erreicht.</b> Speichern klappt gerade nicht — bitte die Seite <b>nicht neu laden</b>. ' +
+      'Dein Stand bleibt auf diesem Gerät und wird später nachgeholt. <button type="button" aria-label="Schliessen">✕</button>';
+    b.querySelector('button').addEventListener('click', function(){ b.remove(); });
+    document.body.appendChild(b);
+  }catch(e){}
+}
 
 /* ===================== KLASSEN =====================
    Seit Herbst 2026 teilen sich drei Klassen die App. Alles, was zu einer Klasse
@@ -2345,7 +2385,9 @@ const KLASSEN = [
   seite('flp', 'flp-haeberli', 'Häberli'),
   seite('isf', 'isf-theus', 'Theus'), seite('isf', 'isf-peter', 'Peter'),
   seite('praktikum', 'praktikum-1', 'Praktikant 1'), seite('praktikum', 'praktikum-2', 'Praktikant 2'),
-  seite('praktikum', 'praktikum-3', 'Praktikant 3'), seite('praktikum', 'praktikum-4', 'Praktikant 4')
+  seite('praktikum', 'praktikum-3', 'Praktikant 3'), seite('praktikum', 'praktikum-4', 'Praktikant 4'),
+  // Zivi (Zivildienst): gleiche Rechte wie die Praktikant:innen, generisches Konto «zivi»
+  seite('praktikum', 'praktikum-zivi', 'Zivi')
 ];
 const KLASSE_ANSICHT_KEY = 'hl_klasseAnsicht'; // sessionStorage: gewählte Klasse der Lehrperson (nur dieser Tab)
 function klasseInfo(id){
@@ -4451,7 +4493,9 @@ function wsWahlHtml(q){
     if(ks.length) h += opt('n:'+n, n + ' (' + ks.join(', ') + ')');
   });
   h += '</optgroup><optgroup label="Klasse">';
-  alle.forEach(function(k){ if(k !== state.klasse) h += opt('k:'+k, k); });
+  // Die offene Klasse steht hier auch (sonst sucht man sie unter «Klasse» vergebens
+  // und erwischt das Niveau «G3 (G3a, G3b)»).
+  alle.forEach(function(k){ h += opt('k:'+k, k); });
   h += '</optgroup>';
   if(wsState.gruppen && wsState.gruppen.length){
     h += '<optgroup label="👥 Meine Gruppen">';
@@ -4590,7 +4634,7 @@ function renderWerkstattUebersicht(){
     wsState.detailUid = null; wsState.daten = null; renderWerkstattUebersicht();
   });
   document.getElementById('wsSort').addEventListener('change', function(e){ wsState.sort = e.target.value; wsZeichnen(); });
-  document.getElementById('wsReload').addEventListener('click', function(){ wsState.daten = null; sprecherState.rosters = {}; renderWerkstattUebersicht(); });
+  document.getElementById('wsReload').addEventListener('click', function(){ wsState.daten = null; wsState.laedt = false; sprecherState.rosters = {}; renderWerkstattUebersicht(); });
   document.getElementById('wsPrint').addEventListener('click', function(){ window.print(); });
   document.getElementById('wsCsv').addEventListener('click', wsCsv);
   if(!wsState.gruppen){
@@ -4601,10 +4645,19 @@ function renderWerkstattUebersicht(){
   }
   if(wsState.daten && wsState.daten.q === wsQuelle()){ wsZeichnen(); return; }
   var q = wsQuelle();
+  // Läuft die gleiche Auswahl schon, nicht doppelt laden.
+  if(wsState.laedt === q) return;
+  wsState.laedt = q;
   wsLaden(q).then(function(d){
+    // Hat man inzwischen etwas anderes gewählt (z. B. erst «G3», dann «G3b»),
+    // darf das langsamere, ältere Ergebnis die neue Auswahl nicht überschreiben.
+    if(wsState.laedt === q) wsState.laedt = false;
+    if(q !== wsQuelle()) return;
     d.q = q; wsState.daten = d;
     if(state.route.name === 'werkstatt') wsZeichnen();
   }).catch(function(err){
+    if(wsState.laedt === q) wsState.laedt = false;
+    if(q !== wsQuelle()) return;
     console.error(err);
     var body = document.getElementById('wsBody');
     if(body) body.innerHTML = '<div class="empty-state">Übersicht konnte nicht geladen werden.</div>';
@@ -5624,8 +5677,9 @@ function doLogout(){
   signOut(auth).then(function(){ location.reload(); }, function(){ location.reload(); });
 }
 
-var lastAuthedUid = null;
-onAuthStateChanged(auth, async function(user){
+var lastAuthedUid = null, profilVersuche = 0;
+onAuthStateChanged(auth, authGeaendert);
+async function authGeaendert(user){
   // onAuthStateChanged feuert nicht nur bei An-/Abmeldung, sondern z.B. auch
   // nach stillem Token-Refresh erneut für dieselbe Person - ohne diese Sperre
   // hat das mitten in einem offenen Dialog (z.B. Hausaufgabe eintragen) auf
@@ -5650,7 +5704,11 @@ onAuthStateChanged(auth, async function(user){
     return;
   }
   try{
-    var snap = await getDoc(doc(db, 'students', user.uid));
+    // Server nicht erreichbar oder Datenbank-Limit erreicht: das eigene Profil
+    // aus dem Zwischenspeicher nehmen, statt ewig bei «Lädt …» zu hängen.
+    var profRef = doc(db, 'students', user.uid), snap;
+    try{ snap = await getDoc(profRef); }
+    catch(err0){ snap = await getDocFromCache(profRef).catch(function(){ throw err0; }); }
     if(!snap.exists()){
       toast('Kein Profil gefunden – bitte Lehrperson kontaktieren.');
       await signOut(auth);
@@ -5717,11 +5775,18 @@ onAuthStateChanged(auth, async function(user){
       loadStreak().then(updateStreakButton);
       erledigtLoad();
     }
+    profilVersuche = 0;
   }catch(err){
     console.error(err);
-    toast('Fehler beim Laden des Profils.');
+    // Nicht im «Lädt …» stehen lassen: Bescheid geben und von selbst nochmals versuchen.
+    profilVersuche++;
+    app.innerHTML = '<div class="spinner-wrap"><div style="text-align:center">Verbindung zur Datenbank gestört — neuer Versuch in Kürze …' +
+      (err && err.code === 'resource-exhausted' ? '<br><small>Die Datenbank hat ihr Tageslimit erreicht.</small>' : '') + '</div></div>';
+    setTimeout(function(){
+      if(auth.currentUser && auth.currentUser.uid === user.uid && !state.profile) authGeaendert(auth.currentUser);
+    }, Math.min(60000, 10000 * profilVersuche));
   }
-});
+}
 
 /* ===================== ROUTER ===================== */
 
@@ -9701,6 +9766,11 @@ var LIB_PREFIX = 'hl_';        // eigene Schlüssel der Shell — werden nie syn
 var SYNC_MAX_BYTES = 600000;   // Sicherheitsabstand zum 1-MiB-Limit eines Firestore-Dokuments
 var SYNC_POLL_MS = 1500;
 var SYNC_DEBOUNCE_MS = 800;
+// Höchstens ein Schreibvorgang pro Übung in diesem Abstand (Rest beim Verlassen,
+// Wegwechseln oder Schliessen). Früher wurde bei jeder Tipp-Pause geschrieben —
+// am 23.09.2026 hat das (Rechtschreib-Werkstatt speichert bei jedem Tastendruck,
+// ganze Schule gleichzeitig) das Tages-Schreibkontingent von Firestore gesprengt.
+var SYNC_MIN_INTERVAL_MS = 20000;
 
 var syncState = {
   resourceId: null,   // Übung, die gerade offen ist
@@ -9708,7 +9778,8 @@ var syncState = {
   baseline: {},       // localStorage-Stand beim Öffnen — Vergleichsbasis
   lastWritten: null,  // zuletzt geschriebenes JSON (spart unnötige Schreibvorgänge)
   pollTimer: null,
-  writeTimer: null
+  writeTimer: null,
+  lastWriteAt: 0      // wann zuletzt nach Firestore geschrieben (Drossel)
 };
 
 function lsGet(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } }
@@ -9804,9 +9875,12 @@ function buildStorePayload(){
   return { keys: keys, json: JSON.stringify(store) };
 }
 
+// Drossel statt reinem Entprellen: ein schon geplanter Schreibvorgang bleibt
+// stehen (er nimmt beim Auslösen den dann aktuellen Stand mit).
 function scheduleStoreWrite(rid){
-  clearTimeout(syncState.writeTimer);
-  syncState.writeTimer = setTimeout(function(){ writeStore(rid); }, SYNC_DEBOUNCE_MS);
+  if(syncState.writeTimer) return;
+  var warten = Math.max(SYNC_DEBOUNCE_MS, syncState.lastWriteAt + SYNC_MIN_INTERVAL_MS - Date.now());
+  syncState.writeTimer = setTimeout(function(){ syncState.writeTimer = null; writeStore(rid); }, warten);
 }
 
 /* ===================== LERNSTAND-HISTORIE (überlebt "Zurücksetzen") =====
@@ -9829,6 +9903,10 @@ function scheduleStoreWrite(rid){
    nicht mehr rekonstruierbar. */
 
 var PROGRESS_HISTORY_MAX = 50;
+// Zuletzt gelesener/geschriebener Stand pro Übung: spart das Vorab-Lesen bei
+// jedem Schreiben (beide Schreibwege laufen durch writeProgressWithHistory).
+var progressBekannt = {};
+var PROGRESS_BEKANNT_MS = 10*60*1000;
 
 // Rechnet die auf progress/{uid}/resources/{rid} gespeicherten Rohdaten in
 // einen einzigen, vergleichbaren "Lernstand" um - unabhängig davon, ob die
@@ -9871,8 +9949,9 @@ function summaryAmount(s){
 // ihn dann als history-Eintrag, bevor die neuen Felder geschrieben werden.
 async function writeProgressWithHistory(uid, rid, newFields){
   var ref_ = doc(db, 'progress', uid, 'resources', rid);
-  var before = null;
-  try{
+  var before = null, bk = progressBekannt[uid + '/' + rid];
+  if(bk && Date.now() - bk.at < PROGRESS_BEKANNT_MS) before = bk.data;
+  else try{
     var snap = await getDoc(ref_);
     before = snap.exists() ? snap.data() : null;
   }catch(e){
@@ -9889,9 +9968,14 @@ async function writeProgressWithHistory(uid, rid, newFields){
     history.push({ archivedAt: new Date().toISOString(), summary: oldSummary });
     if(history.length > PROGRESS_HISTORY_MAX) history = history.slice(history.length - PROGRESS_HISTORY_MAX);
     payload.history = history;
+    merged.history = history;
   }
+  progressBekannt[uid + '/' + rid] = {data:merged, at:(bk && before === bk.data) ? bk.at : Date.now()};
 
-  return setDoc(ref_, payload, {merge:true});
+  return setDoc(ref_, payload, {merge:true}).catch(function(err){
+    delete progressBekannt[uid + '/' + rid];
+    throw err;
+  });
 }
 
 function writeStore(rid){
@@ -9908,6 +9992,7 @@ function writeStore(rid){
   setLocalRev(rid, rev);
   saveTrackedKeys(rid, syncState.tracked);
   syncState.lastWritten = payload.json;
+  syncState.lastWriteAt = Date.now();
   writeProgressWithHistory(state.user.uid, rid, {
     storeJson: payload.json,
     storeKeys: payload.keys,
@@ -9921,10 +10006,14 @@ function writeStore(rid){
 
 // Beim Verlassen der Übung (oder der Seite) noch einmal alles sichern.
 function flushResourceSync(){
+  progressMeldungFlush();
   var rid = syncState.resourceId;
   if(!rid) return;
   clearTimeout(syncState.writeTimer);
+  syncState.writeTimer = null;
   checkLocalChanges(rid);
+  clearTimeout(syncState.writeTimer);
+  syncState.writeTimer = null;
   writeStore(rid);
 }
 
@@ -9938,6 +10027,7 @@ function stopResourceSync(){
   syncState.tracked = {};
   syncState.baseline = {};
   syncState.lastWritten = null;
+  syncState.lastWriteAt = 0;
 }
 
 window.addEventListener('pagehide', flushResourceSync);
@@ -10307,15 +10397,24 @@ window.addEventListener('message', function(e){
   // Eine Fortschrittsmeldung heisst: in der Übung ist gerade etwas passiert —
   // guter Moment, auch den localStorage-Stand einzusammeln.
   checkLocalChanges(resourceId);
-  clearTimeout(progressWriteTimers[resourceId]);
-  progressWriteTimers[resourceId] = setTimeout(function(){
-    writeProgressWithHistory(state.user.uid, resourceId, {
-      stats: data.stats || {},
-      total: typeof data.total === 'number' ? data.total : null,
-      updatedAt: serverTimestamp()
-    }).catch(function(err){ console.error('progress write failed', err); });
-  }, 500);
+  // Gedrosselt wie der Stand-Sync: die Meldung wird gemerkt und höchstens alle
+  // SYNC_MIN_INTERVAL_MS geschrieben (sofort beim Verlassen der Übung).
+  progressMeldung.offen[resourceId] = {stats:data.stats || {}, total:typeof data.total === 'number' ? data.total : null};
+  if(progressWriteTimers[resourceId]) return;
+  var warten = Math.max(500, (progressMeldung.zuletzt[resourceId] || 0) + SYNC_MIN_INTERVAL_MS - Date.now());
+  progressWriteTimers[resourceId] = setTimeout(function(){ progressMeldungSchreiben(resourceId); }, warten);
 });
+var progressMeldung = {offen:{}, zuletzt:{}};
+function progressMeldungSchreiben(rid){
+  clearTimeout(progressWriteTimers[rid]); progressWriteTimers[rid] = null;
+  var m = progressMeldung.offen[rid];
+  if(!m || !state.user) return;
+  delete progressMeldung.offen[rid];
+  progressMeldung.zuletzt[rid] = Date.now();
+  writeProgressWithHistory(state.user.uid, rid, {stats:m.stats, total:m.total, updatedAt:serverTimestamp()})
+    .catch(function(err){ console.error('progress write failed', err); });
+}
+function progressMeldungFlush(){ Object.keys(progressMeldung.offen).forEach(progressMeldungSchreiben); }
 
 
 /* =====================================================================
@@ -14951,6 +15050,10 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-09-24-rsw-pruefung', datum:'2026-09-24', fuer:'lehrer', text:'✍️ Neu im 📝 Prüfungsmodus: «Rechtschreib-Werkstatt». Posten wählen (z. B. nur Teil 1), Anzahl Aufgaben und Aufgabentypen – die Library zieht eine Mischung aus Lückentexten, Auswahl-Aufgaben und kurzen Hördiktaten (einzelne Sätze oder Wörter aus den Audios) und korrigiert automatisch. Wählst du «Im Werkstatt-Pass: Prüfung Teil 1–4», sehen die Schüler:innen im Pass, ob sie die Prüfung geschrieben haben, und ihre Note. Für die Hördiktate die neuen Werkstatt-Dateien per «Datei ersetzen» hochladen (Stände bleiben).'},
+  {id:'2026-09-24-rsw-tempo', datum:'2026-09-24', fuer:'alle', text:'🎧 Rechtschreib-Werkstatt: Die Audios kannst du jetzt auch mit 1,5× oder 2× abspielen (oder langsamer mit 0,75×). Im Werkstatt-Pass steht nach je fünf Posten die Prüfung zu diesem Teil – mit deiner Note, sobald sie da ist.'},
+  {id:'2026-09-24-werkstatt-klasse', datum:'2026-09-24', fuer:'lehrer', text:'🧩 Werkstatt-Übersicht: Wählst du eine einzelne Klasse, kommt jetzt wirklich nur diese Klasse (vorher konnte eine langsamer ladende frühere Auswahl, z. B. der ganze Jahrgang, sie überschreiben). Die eigene Klasse steht jetzt auch unter «Klasse».'},
+  {id:'2026-09-24-sparsamer', datum:'2026-09-24', fuer:'lehrer', text:'⚙️ Die Library speichert Übungsstände jetzt gebündelt (höchstens alle 20 Sekunden und beim Verlassen der Übung) statt bei jeder Tipp-Pause. Das schont das Tageskontingent der Datenbank, das am 23.09. aufgebraucht war (darum fehlten die Erinnerungen und die Lernphase zeigte alle als weg). Ist das Kontingent doch einmal voll, erscheint oben ein gelber Hinweis.'},
   {id:'2026-09-23-ferienhinweis-weg', datum:'2026-09-23', fuer:'lehrer', text:'🧳 Der Ferienhinweis «Diese Pflanzen halten nicht durch» lässt sich jetzt mit × wegklicken, sobald du ihn gelesen hast. Er kommt erst wieder, wenn sich etwas daran ändert (andere Ferien, andere Pflanzen oder Tage).'},
   {id:'2026-09-22-earlybird-auftrag', datum:'2026-09-22', fuer:'lehrer', text:'🐦 Earlybird: Pro Schüler:in kannst du jetzt einen 📝 Auftrag eintragen (was sie/er in der Stunde macht). Die Aufsicht sieht ihn unter «🏫 Ganze Schule» und auf der gedruckten Liste – die Schüler:innen sehen ihn nicht.'},
   {id:'2026-09-22-earlybird', datum:'2026-09-22', fuer:'alle', text:'🐦 Im 📅 Kalender stehen jetzt die nächsten Earlybird-Termine (Mittwoch 06:30–07:30). Wenn du eingetragen bist, siehst du es dort.'},
@@ -18492,10 +18595,13 @@ function pipZeichnen(titel, sub, eintraege, leerText){
    (getDocsFromServer), und bei einem Listener-Fehler nach 5 s neu verbinden.
    ✋ Handzeichen: praesenz/{uid}.hand = ms; die Lehrperson quittiert mit
    lernphasen/{lpUid}.erledigt.{uid} = ms (Hand ist oben, solange hand > erledigt). */
-var LPH_HB_MS = 20000;        // Lebenszeichen der Schüler:innen
-var LPH_STALE_MS = 60000;     // so lange nichts gehört = «keine Verbindung»
+// Wechsel (Tab weg, zurück, andere Übung) werden sofort gemeldet; das
+// Lebenszeichen dazwischen nur alle 30 s — jede Meldung ist ein Firestore-
+// Schreibvorgang plus ein Lesevorgang bei der Lehrperson.
+var LPH_HB_MS = 30000;        // Lebenszeichen der Schüler:innen
+var LPH_STALE_MS = 75000;     // so lange nichts gehört = «keine Verbindung»
 var LPH_SORT_KEY = 'lib_lernphase_sort';
-var LPH_POLL_MS = 20000;      // Rückfall: so oft direkt beim Server nachfragen
+var LPH_POLL_MS = 30000;      // Rückfall: so oft direkt beim Server nachfragen
 var lph = { unsub:null, aktiv:null, hb:null, drin:null, erste:false, blurT:null, poll:null, retry:null, hand:0, handBtn:null, handGesehen:{},
             phase:null, phaseUnsub:null, praes:{}, empfangen:{}, rausLokal:{}, praesUnsub:null,
             panel:null, tab:null, offen:true, tick:null, gruppen:null };
@@ -19213,7 +19319,7 @@ var PRUEF_BLOOM = [
   {id:'erinnern', name:'Erinnern', icon:'🧠'}, {id:'verstehen', name:'Verstehen', icon:'💡'}, {id:'anwenden', name:'Anwenden', icon:'🛠️'}
 ];
 var PRUEF_BLOOM_STD = {G:[50, 35, 15], E:[30, 40, 30]};
-var PRUEF_TYPEN = {mc:'Auswahl', tf:'Wahr/Falsch', text:'Kurzantwort', zahl:'Rechnen', zuordnen:'Zuordnen', reihenfolge:'Reihenfolge', offen:'Offen', diktat:'Diktat'};
+var PRUEF_TYPEN = {mc:'Auswahl', tf:'Wahr/Falsch', text:'Kurzantwort', zahl:'Rechnen', zuordnen:'Zuordnen', reihenfolge:'Reihenfolge', offen:'Offen', diktat:'Diktat', luecke:'Lückentext', hoeren:'Hördiktat'};
 /* Aufgabenformate: wie die Antwort gegeben wird. Standard 30/40/20/10 — gut
    zwei Drittel der Fragen verlangen, dass man die Antwort selbst weiss und
    hinschreibt. Fehlen der Übung Kurzantwort-Fragen, werden Auswahlfragen mit
@@ -19514,6 +19620,7 @@ function pruefWarteBetreten(p, geste){
   document.addEventListener('visibilitychange', pruefWarteMelden);
   // Inhalt schon jetzt holen, damit der Start auch bei langsamer Verbindung sofort geht.
   if(pruefArt(p) === 'nativ' && p.contentId) loadResourceHtml(p.contentId).catch(function(){});
+  if(p.rsw) rswAudioVorladen(p);
 }
 function pruefWarteFs(){
   var w = pruef.warte; if(!w) return;
@@ -19785,6 +19892,7 @@ function pruefSessionStopp(){
   var s = pruef.sess;
   if(s && s.frame){ try{ s.frame.srcdoc = ''; }catch(e){} }
   if(s){ clearInterval(s.uhr); clearTimeout(s.ladeT1); clearTimeout(s.ladeT2); }
+  if(s && s.rswAu){ try{ s.rswAu.pause(); }catch(e){} }
   pruef.sess = null;
 }
 
@@ -19868,6 +19976,7 @@ function pruefErzwingeAbgabe(){
 /* ---------- Schüler:in: Sperrbildschirm ---------- */
 
 function pruefStudentUpdate(){
+  if(rswPassFenster) rswPassSenden();
   if(pruefIstLehrer() || !state.user) return;
   var aktiv = null;
   pruef.list.some(function(p){
@@ -20405,6 +20514,7 @@ function pruefBankBewerten(p, loes, antworten, korrektur){
   (p.fragen || []).forEach(function(q){
     var L = loes[q.id]; if(!L) return;
     if(q.typ === 'diktat'){ details = details.concat(pruefDiktatDetails(q, L, antworten[q.id], korrektur)); return; }
+    if(q.typ === 'luecke' || q.typ === 'hoeren'){ details.push(rswBewerten(q, L, antworten[q.id], korrektur)); return; }
     var v = antworten[q.id], max = +q.punkte > 0 ? +q.punkte : (L.punkte || 1), pkt = 0, a = '–', hinweis = '';
     if(q.typ === 'mc'){ if(v != null && q.optionen[v] != null) a = q.optionen[v]; pkt = v === L.loesung ? max : 0; }
     else if(q.typ === 'tf'){ a = v === true ? 'Wahr' : v === false ? 'Falsch' : '–'; pkt = v === L.loesung ? max : 0; }
@@ -20525,6 +20635,11 @@ function pruefBankStart(p, sess, ov, saved){
   document.getElementById('prBank').addEventListener('click', pruefBankKlick);
   document.getElementById('prBank').addEventListener('input', pruefBankEingabe);
   document.getElementById('prBank').addEventListener('change', pruefBankEingabe);
+  if(p.rsw){
+    document.getElementById('prBank').addEventListener('keydown', rswTaste);
+    document.getElementById('prBank').addEventListener('paste', function(e){ if(e.target.classList && e.target.classList.contains('rsw-in')) e.preventDefault(); });
+    rswAudioVorladen(p);
+  }
   pruefBankZeichnen();
   if(p.status === 'beendet' || sess.zeitUm) pruefErzwingeAbgabe();
 }
@@ -20537,13 +20652,16 @@ function pruefBankBeantwortet(b){ return b.fragen.filter(function(q){ return pru
 function pruefBankZeichnen(){
   var s = pruef.sess; if(!s || !s.bank) return;
   var b = s.bank, q = b.fragen[b.i], v = b.ans[q.id], n = b.fragen.length, done = pruefBankBeantwortet(b);
+  rswAudioStopp();
   if(q.typ === 'diktat'){ pruefDiktatZeichnen(b, q, v); return; }
   var h = '<div class="pr-q-kopf"><span class="pr-badge">'+esc(q.kat)+'</span>'+(+q.punkte > 0 ? '<span class="pr-q-pkt">'+pruefZahlText(+q.punkte)+' P.</span>' : '')+'<span>Frage '+(b.i+1)+' von '+n+' · '+done+' beantwortet</span></div>';
   h += '<div class="pr-q-bar"><div style="width:'+Math.round(done / n * 100)+'%"></div></div>';
   if(q.kontext) h += '<p class="pr-q-kontext">'+esc(q.kontext)+'</p>';
   if(q.bild != null && b.p.bilder && b.p.bilder[q.bild]) h += '<div class="pr-q-bild">'+b.p.bilder[q.bild]+'</div>';
   h += '<p class="pr-q-frage">'+esc(q.frage)+'</p>';
-  if(q.typ === 'mc'){
+  if(q.typ === 'luecke' || q.typ === 'hoeren'){
+    h += rswFrageHtml(q, v);
+  } else if(q.typ === 'mc'){
     h += '<div class="pr-q-opts">' + q.optionen.map(function(o, i){ return '<button class="pr-q-opt'+(v === i ? ' sel' : '')+'" data-v="'+i+'" type="button">'+esc(o)+'</button>'; }).join('') + '</div>';
   } else if(q.typ === 'tf'){
     h += '<div class="pr-q-opts pr-q-tf"><button class="pr-q-opt'+(v === true ? ' sel' : '')+'" data-v="true" type="button">Wahr</button><button class="pr-q-opt'+(v === false ? ' sel' : '')+'" data-v="false" type="button">Falsch</button></div>';
@@ -20574,6 +20692,7 @@ function pruefBankZeichnen(){
   el.innerHTML = h;
   var inp = document.getElementById('prBankIn');
   if(inp) setTimeout(function(){ try{ inp.focus({preventScroll:true}); }catch(e){} }, 30);
+  if(q.typ === 'luecke' || q.typ === 'hoeren') rswNachZeichnen(q);
 }
 function pruefDiktatZeichnen(b, q, v){
   var h = '<div class="pr-q-kopf"><span class="pr-badge">✍️ Diktat</span><span id="prDiktatZahl">'+pruefDiktatWoerter(v)+' Wörter</span></div>';
@@ -20595,6 +20714,7 @@ function pruefBankSetze(v){
 function pruefBankKlick(e){
   var s = pruef.sess; if(!s || !s.bank || s.ending) return;
   var b = s.bank, q = b.fragen[b.i], t = e.target.closest('button'); if(!t) return;
+  if((q.typ === 'luecke' || q.typ === 'hoeren') && rswKlick(t, b, q)) return;
   if(t.hasAttribute('data-v')){
     var raw = t.getAttribute('data-v');
     pruefBankSetze(q.typ === 'tf' ? raw === 'true' : +raw);
@@ -20616,6 +20736,7 @@ function pruefBankKlick(e){
 function pruefBankEingabe(e){
   var s = pruef.sess; if(!s || !s.bank || s.ending) return;
   var b = s.bank, q = b.fragen[b.i], t = e.target;
+  if((q.typ === 'luecke' || q.typ === 'hoeren') && rswEingabe(e, b, q)) return;
   if(t.id === 'prDiktatIn'){
     if(e.type !== 'input') return;
     pruefBankSetze(t.value);
@@ -20688,7 +20809,7 @@ function renderPruefungen(){
   var html = '';
   html += '<div class="back-row"><button class="btn btn-ghost btn-sm" id="backBtn" type="button">&larr; Klassenzimmer</button></div>';
   html += '<h2 class="page-welcome" style="margin-bottom:6px;">📝 Prüfungen</h2>';
-  html += '<p class="kz-intro">Online-Prüfung aus einer Übung, aus einem ⚡ Übungstrainer, aus 🧮 SIKORE oder als ⌨️ Abschreibprüfung — die Art wählst du in «➕ Neue Prüfung». Dort stellst du auch ein, für welche Klasse und für wen (ganze Klasse oder eine 👥 Gruppe) die Prüfung ist. Wer die Prüfung verlässt, wird gesperrt, bis du entsperrst.</p>';
+  html += '<p class="kz-intro">Online-Prüfung aus einer Übung, aus einem ⚡ Übungstrainer, aus 🧮 SIKORE, als ⌨️ Abschreibprüfung oder aus der ✍️ Rechtschreib-Werkstatt — die Art wählst du in «➕ Neue Prüfung». Dort stellst du auch ein, für welche Klasse und für wen (ganze Klasse oder eine 👥 Gruppe) die Prüfung ist. Wer die Prüfung verlässt, wird gesperrt, bis du entsperrst.</p>';
   html += '<div class="back-row"><button class="btn btn-primary btn-sm" id="prNeu" type="button">➕ Neue Prüfung</button><button class="btn btn-ghost btn-sm" id="prSikoreUeb" type="button">📊 SIKORE-Übersicht</button></div>';
   html += '<div id="prListe"><div class="empty-state">Wird geladen …</div></div>';
   renderChrome(html);
@@ -20710,6 +20831,7 @@ function pruefBeschreibung(p, lang){
   if(pruefArt(p) === 'sikore') return fuer + sikoreBeschreibung(p);
   if(pruefArt(p) === 'tippen') return fuer + tippPrBeschreibung(p);
   if(pruefArt(p) === 'mt') return fuer + mtPrBeschreibung(p);
+  if(p.rsw) return fuer + rswBeschreibung(p);
   var c = p.cfg || {}, teile = [(p.resourceTitel || '') + (c.quellen && c.quellen.length ? ' + ' + c.quellen.map(function(x){ return x.titel; }).join(', ') : '')];
   if(p.diktat) teile.push('✍️ Diktat · ' + (p.woerterInfo || '?') + ' Wörter');
   else teile.push(pruefAnzahl(p) + ' Fragen' + (pruefArt(p) === 'bank' && p.maxPunkte ? ' (' + pruefZahlText(p.maxPunkte) + ' Punkte)' : '') + (c.niveau ? ' · Niveau ' + c.niveau : ''));
@@ -20759,7 +20881,7 @@ function pruefArtWahlHtml(aktiv){
   // darum «⚡ Übungstrainer» aktiv, damit man von dort zurückkommt.
   if(aktiv === 'sikore' || aktiv === 'tippen') aktiv = 'mt';
   return '<label class="modal-label">Art der Prüfung</label><div class="pr-art-wahl">' +
-    [['uebung','📄 Aus einer Übung'],['mt','⚡ Übungstrainer']].map(function(a){
+    [['uebung','📄 Aus einer Übung'],['mt','⚡ Übungstrainer'],['rsw','✍️ Rechtschreib-Werkstatt']].map(function(a){
       return '<button type="button" class="btn btn-sm '+(a[0] === aktiv ? 'btn-primary' : 'btn-ghost')+'" data-prart="'+a[0]+'">'+a[1]+'</button>';
     }).join('') + '</div>';
 }
@@ -20792,6 +20914,7 @@ function pruefNeuNachWechsel(art){
     if(art === 'sikore') sikoreEditor(null);
     else if(art === 'tippen') tippPrEditor(null);
     else if(art === 'mt') mtPrEditor(null);
+    else if(art === 'rsw') rswPrEditor(null);
     else pruefEditor(null);
   })();
 }
@@ -20806,6 +20929,7 @@ function pruefKopfVerdrahten(art){
       if(a === 'sikore') sikoreEditor(null);
       else if(a === 'tippen') tippPrEditor(null);
       else if(a === 'mt') mtPrEditor(null);
+      else if(a === 'rsw') rswPrEditor(null);
       else pruefEditor(null);
     });
   });
@@ -20884,7 +21008,15 @@ async function pruefEditor(p){
     if(token !== prEditorToken) return;   // inzwischen wurde eine andere Art gewählt
     var fachName = function(r){ var s = subjectById(r.subject); return s ? s.name : (r.subject || ''); };
     uebungen.sort(function(a,b){ return fachName(a).localeCompare(fachName(b), 'de') || (a.title || '').localeCompare(b.title || '', 'de', {numeric:true}); });
-    if(!uebungen.length){ uiInfo('Keine passende Übung gefunden', 'Prüfungen gehen mit Prüfungsvorbereitungen (Quiz), Mathe-Übungen, Diktaten und Pöstlergeografie. Lade zuerst so eine Übung hoch.'); return; }
+    if(!uebungen.length){
+      // Im Dialog bleiben, damit man oben noch eine andere Art (⚡, ✍️ …) wählen kann.
+      openModal('<h3>'+(neu ? '➕ Neue Prüfung' : '✏️ Prüfung bearbeiten')+'</h3>'+kopf+
+        '<p class="pr-hinweis pr-warn">Keine passende Übung gefunden. Prüfungen «aus einer Übung» gehen mit Prüfungsvorbereitungen (Quiz), Mathe-Übungen, Diktaten und Pöstlergeografie — oder wähle oben eine andere Art.</p>'+
+        '<div class="modal-actions"><button class="btn btn-ghost btn-sm" id="modalCancel" type="button">Schliessen</button></div>', 'pr-modal');
+      if(neu) pruefKopfVerdrahten('uebung');
+      document.getElementById('modalCancel').addEventListener('click', closeModal);
+      return;
+    }
   }
   var h = '<h3>'+(neu ? '➕ Neue Prüfung' : '✏️ Prüfung bearbeiten')+'</h3>' + kopf;
   h += '<label class="modal-label">Titel</label><input type="text" id="prTitel" class="modal-input" maxlength="80" value="'+esc(p ? p.titel : '')+'" placeholder="z.B. Prüfung Industrialisierung">';
@@ -21675,7 +21807,8 @@ function pruefDruckConfig(p, loes){
     var a = {titel:(q.kat && !q.eigen ? q.kat : (PRUEF_TYPEN[q.typ] || 'Aufgabe')), punkte:pk, stellung:q.frage || '', antwortzeilen:2};
     if(q.kontext) a.kontext = q.kontext;
     if(q.bild != null && (p.bilder || [])[q.bild] != null) a.bild = q.bild;
-    if(q.typ === 'mc'){ a.optionen = (q.optionen || []).slice(); a.korrekt = L.loesung; a.antwortzeilen = 1; }
+    if(q.typ === 'luecke' || q.typ === 'hoeren') rswDruckAufgabe(q, L, a);
+    else if(q.typ === 'mc'){ a.optionen = (q.optionen || []).slice(); a.korrekt = L.loesung; a.antwortzeilen = 1; }
     else if(q.typ === 'tf'){
       a.stellung = 'Stimmt die Aussage? Kreuze an.';
       a.tabelle = {kopf:['Aussage', 'richtig', 'falsch'], spalten:[6, 1, 1], zeilenhoehe:400,
@@ -21929,7 +22062,7 @@ function pruefMonitorZeichnen(){
   if(pruefArt(p) === 'sikore') h += '<button class="btn btn-ghost btn-sm" data-a="sikoreDruck" type="button">🖨️ Blätter drucken</button>';
   h += '<button class="btn btn-ghost btn-sm" data-a="bearbeiten" type="button">✏️ Bearbeiten</button>';
   if(pruefArt(p) === 'bank' && !p.diktat) h += '<button class="btn btn-ghost btn-sm" data-a="punkte" type="button">🧮 Aufgaben & Punkte</button>';
-  if(pruefArt(p) === 'bank' && !p.diktat && p.status === 'entwurf') h += '<button class="btn btn-ghost btn-sm" data-a="baukasten" type="button">🧩 Baukasten</button>';
+  if(pruefArt(p) === 'bank' && !p.diktat && !p.rsw && p.status === 'entwurf') h += '<button class="btn btn-ghost btn-sm" data-a="baukasten" type="button">🧩 Baukasten</button>';
   if(pruefArt(p) === 'bank') h += '<button class="btn btn-ghost btn-sm" data-a="drucken" type="button">🖨️ Drucken (PDF/Word)</button>';
   if(p.status !== 'offen') h += '<button class="btn btn-ghost btn-sm" data-a="loeschen" type="button">🗑 Löschen</button>';
   h += '</div>';
@@ -22047,7 +22180,7 @@ function pruefMonitorVerdrahten(p){
     else if(a === 'resultate') pruefResultateUmschalten(p);
     else if(a === 'vorschau') pruefStarten(p, false, true);
     else if(a === 'pip') pipStarten('pruef', p.id);
-    else if(a === 'bearbeiten'){ if(pruefArt(p) === 'sikore') sikoreEditor(p); else if(pruefArt(p) === 'tippen') tippPrEditor(p); else if(pruefArt(p) === 'mt') mtPrEditor(p); else pruefEditor(p); }
+    else if(a === 'bearbeiten'){ if(pruefArt(p) === 'sikore') sikoreEditor(p); else if(pruefArt(p) === 'tippen') tippPrEditor(p); else if(pruefArt(p) === 'mt') mtPrEditor(p); else if(p.rsw) rswPrEditor(p); else pruefEditor(p); }
     else if(a === 'sikoreDruck') sikoreDruckDialog(p);
     else if(a === 'punkte') pruefAufgabenPunkte(p);
     else if(a === 'baukasten') pruefBaukasten(p);
@@ -26244,6 +26377,767 @@ function mtPrEditor(p){
       var id = neu ? 'p' + Date.now().toString(36) : p.id;
       if(neu){ data.status = 'entwurf'; data.resultateFrei = false; data.seed = Math.floor(Math.random() * 2147483646) + 1; data.createdAt = serverTimestamp(); data.createdBy = state.user.uid; }
       if(neu) await setDoc(pruefRef(id), data); else await updateDoc(pruefRef(id), data);
+      closeModal();
+      if(neu){ state.route = {name:'pruefung', id:id}; render(); }
+      else {
+        toast('Gespeichert.');
+        if(p.resultateFrei) pruefNotenEintragen(Object.assign({}, p, data)).catch(pruefFehler);
+      }
+    }catch(err){ this.disabled = false; pruefFehler(err); }
+  });
+}
+
+/* ===================== ✍️ RECHTSCHREIB-PRÜFUNG (aus der Rechtschreib-Werkstatt) =====================
+   Prüfungen › «➕ Neue Prüfung» › Art «✍️ Rechtschreibung». Die Lehrperson wählt
+   Posten (1–20), Aufgabentypen und die Anzahl Aufgaben; die Library liest die
+   Aufträge direkt aus den hochgeladenen Werkstatt-Dateien (var TOPICS / ITEM_TIMES,
+   Dateiname «Rechtschreib-Werkstatt», WS_DATEI_RE) und zieht daraus eine
+   gemischte Prüfung:
+   - ✍️ Lücken schreiben (typ 'luecke', Textlücken; lange Texte satzweise),
+   - ☑️ Richtiges auswählen (typ 'luecke' mit Auswahl-Lücken: das/dass, m/mm-Paare,
+     Zusammen/Getrennt),
+   - 🎧 Hördiktat (typ 'hoeren'): einzelne Sätze bzw. 2–3 Wörter aus einem Diktat
+     — nie das ganze. Die Zeiten der Sätze im Audio (ITEM_TIMES) stecken seit
+     24.09.2026 in den Werkstatt-Dateien (Whisper-Abgleich, build_times.py); ältere
+     Dateien liefern keine Hördiktate.
+   Gespeichert wird wie eine Bank-Prüfung (art 'bank', dazu p.rsw = {posten, typen,
+   anzahl, passTeil, quellen:{teil:{rid, cid}}}): Fragen ohne Lösung im Prüfungs-
+   dokument, Lösungen in intern/loesung, korrigiert auf dem Gerät der Lehrperson
+   (pruefBankBewerten → rswBewerten). Damit gehen Monitor, Warteraum, 🧮 Aufgaben &
+   Punkte, Drucken, Freigabe und Notenrechner ohne Sonderweg.
+   Audio: die Schüler:innen laden beim Start die Werkstatt-Datei (resourceContent,
+   meist schon im Zwischenspeicher) und spielen nur den Abschnitt des Satzes ab.
+   Punkte: 1 pro Lücke; Hördiktat 1 pro Wort bzw. 2 pro Satz (−1 pro Fehler).
+   Werkstatt-Pass: passTeil = 1–4 → im Pass jeder Werkstatt-Datei steht nach dem
+   jeweils 5. Posten «Prüfung Teil N» mit Status und Note (rswPassStand, per
+   postMessage __rswPruefFrage / __rswPruefStand). */
+var RSW_ANZAHL = [6, 8, 10, 12, 15, 20, 25, 30];
+var RSW_TYPEN = [
+  {id:'schreiben', icon:'✍️', name:'Lücken schreiben'},
+  {id:'wahl', icon:'☑️', name:'Richtiges auswählen'},
+  {id:'hoeren', icon:'🎧', name:'Hördiktat (einzelne Sätze/Wörter)'}
+];
+
+/* ---------- Werkstatt-Dateien lesen ---------- */
+// Eine JSON-Variable aus der Datei (build_html.py schreibt sie je auf eine Zeile).
+function rswJsonVar(html, name){
+  var key = '\nvar ' + name + ' = ', i = html.indexOf(key);
+  if(i < 0) return null;
+  var s = i + key.length, e = html.indexOf('\n', s);
+  var roh = html.slice(s, e < 0 ? html.length : e).trim().replace(/;$/, '');
+  try{ return JSON.parse(roh); }catch(err){ return null; }
+}
+var rswDateiCache = {};   // contentId -> {part, topics, times}
+function rswDateiLesen(cid){
+  if(!rswDateiCache[cid]) rswDateiCache[cid] = loadResourceHtml(cid).then(function(html){
+    var m = html.match(/\nvar PART = (\d+);/);
+    return {part:m ? +m[1] : 0, topics:rswJsonVar(html, 'TOPICS') || [], times:rswJsonVar(html, 'ITEM_TIMES')};
+  }).catch(function(err){ delete rswDateiCache[cid]; throw err; });
+  return rswDateiCache[cid];
+}
+// Alle Werkstatt-Teile der offenen Klasse: {teile:{nr:{rid, cid, titel, d}}, topics:[… in Posten-Reihenfolge]}
+async function rswQuellenLaden(){
+  var snap = await getDocs(kcol('resources')), kand = [];
+  snap.forEach(function(d){
+    var r = Object.assign({id:d.id}, d.data());
+    if(r.pdf || r.externalUrl || r.linkUrl) return;
+    if(WS_DATEI_RE.test(r.fileName || '') || WS_DATEI_RE.test(r.title || '')) kand.push(r);
+  });
+  var gelesen = await Promise.all(kand.map(function(r){
+    var cid = resourceContentId(r);
+    return rswDateiLesen(cid).then(function(d){ return {r:r, cid:cid, d:d}; }, function(err){ console.error('Werkstatt-Datei', r.title, err); return null; });
+  }));
+  var teile = {};
+  gelesen.forEach(function(x){
+    if(!x || !x.d.part || !x.d.topics.length) return;
+    var alt = teile[x.d.part];
+    // Liegt ein Teil doppelt da: die Fassung mit Satzzeiten, sonst die neuere.
+    var besser = !alt || (!!x.d.times && !alt.d.times) || (!!x.d.times === !!alt.d.times && pruefMs(x.r.uploadedAt) > pruefMs(alt.r.uploadedAt));
+    if(besser) teile[x.d.part] = {rid:x.r.id, cid:x.cid, titel:x.r.title || x.r.fileName || '', d:x.d};
+  });
+  var topics = [];
+  Object.keys(teile).sort().forEach(function(nr){ teile[nr].d.topics.forEach(function(t){ topics.push(Object.assign({part:+nr}, t)); }); });
+  topics.sort(function(a, b){ return a.nr - b.nr; });
+  return {teile:teile, topics:topics};
+}
+
+/* ---------- Aufgaben bilden ---------- */
+function rswIstLuecke(x){ return x && typeof x === 'object'; }
+function rswBankKopf(h){ return /–|-/.test(h) && h.split(/[–-]/).length > 3; }
+// Langen Lückentext in Sätze teilen (Lücken bleiben ganz); nur Sätze mit Lücke.
+function rswSaetze(s){
+  var out = [], cur = [];
+  s.forEach(function(x){
+    if(rswIstLuecke(x)){ cur.push(x); return; }
+    var re = /[.!?]["“”»]?\s+(?=[A-ZÄÖÜ„«"(])/g, last = 0, m;
+    while((m = re.exec(x))){
+      cur.push(x.slice(last, m.index + m[0].length).replace(/\s+$/, ''));
+      out.push(cur); cur = []; last = m.index + m[0].length;
+    }
+    if(last < x.length) cur.push(x.slice(last));
+  });
+  if(cur.length) out.push(cur);
+  return out.filter(function(z){ return z.some(rswIstLuecke); });
+}
+function rswLueckenZahl(u){ return u.filter(rswIstLuecke).length; }
+function rswTextLaenge(u){ return u.reduce(function(n, x){ return n + (typeof x === 'string' ? x.length : (x.a || '').length); }, 0); }
+// Wortpaare «Kamm/Kam, …» (m/mm) → Auswahl-Lücken
+function rswPaarEinheit(it){
+  var u = [];
+  it.ab.split(',').forEach(function(g, gi){
+    var opts = g.split('/').map(function(o){ return o.trim(); }).filter(Boolean);
+    if(opts.length < 2) return;
+    var corr = opts.filter(function(o){ return (it.corr || []).indexOf(o) >= 0; })[0] || opts[0];
+    if(gi) u.push('  ·  ');
+    u.push({opts:opts, a:corr});
+  });
+  return u;
+}
+// Alle möglichen Aufgaben eines Postens: [{cat, pid, nr, titel, auftrag, instr, units, audio, hoeren, bank, src}]
+function rswPostenAufgaben(t, times){
+  var out = [];
+  t.auftraege.forEach(function(a){
+    var basis = {pid:t.id, nr:t.nr, titel:t.title, part:t.part, auftrag:a.nr, instr:a.instr};
+    var bank = null;
+    a.items.forEach(function(it){ if(it.h !== undefined && rswBankKopf(it.h)) bank = it.h; });
+    var tItems = a.items.filter(function(it){ return it.t !== undefined || it.s !== undefined; });   // wie build_times.py
+    var tm = a.audio && times && times[a.audio];
+    if(a.kind === 'diktat'){
+      if(!tm) return;
+      var wort = /wortdiktat/i.test(a.instr), gr = wort ? 3 : 1;
+      for(var i = 0; i < tItems.length; i += gr){
+        var grp = [], ok = true;
+        for(var j = i; j < Math.min(tItems.length, i + gr); j++){ if(!tm[j] || tItems[j].t === undefined) ok = false; grp.push(j); }
+        if(!ok || !grp.length) continue;
+        out.push(Object.assign({}, basis, {cat:'hoeren', src:t.id + '/' + a.nr + '/' + i,
+          audio:{t:t.part, k:a.audio, v:tm[grp[0]][0], b:tm[grp[grp.length - 1]][1]},
+          hoeren:{wort:wort, texte:grp.map(function(k){ return tItems[k].t; })}}));
+      }
+      return;
+    }
+    // Lücken-Aufträge
+    var einheiten = [];
+    tItems.forEach(function(it, idx){
+      if(!it.s || it.s.some(function(x){ return rswIstLuecke(x) && x.free; })) return;
+      // Hör-Lückentext: kurzer Abschnitt mit Zeit → mit Audio
+      if(tm && tm[idx] && rswLueckenZahl(it.s) <= 8 && rswTextLaenge(it.s) <= 260){
+        out.push(Object.assign({}, basis, {cat:'hoeren', src:t.id + '/' + a.nr + '/h' + idx, units:[it.s],
+          audio:{t:t.part, k:a.audio, v:tm[idx][0], b:tm[idx][1]}}));
+        return;
+      }
+      var lang = rswTextLaenge(it.s) > 150 || rswLueckenZahl(it.s) > 6;
+      (lang ? rswSaetze(it.s) : [it.s]).forEach(function(u){ einheiten.push({u:u, idx:idx}); });
+    });
+    a.items.forEach(function(it, idx){ if(it.ab !== undefined){ var u = rswPaarEinheit(it); if(u.length) einheiten.push({u:u, idx:'p' + idx}); } });
+    // Kleine Einheiten bündeln: pro Aufgabe etwa 4–6 Lücken
+    var cur = [];
+    function fertig(){
+      if(!cur.length) return;
+      var units = cur.map(function(e){ return e.u; });
+      var alleWahl = units.every(function(u){ return u.filter(rswIstLuecke).every(function(x){ return x.opts; }); });
+      out.push(Object.assign({}, basis, {cat:alleWahl ? 'wahl' : 'schreiben', src:t.id + '/' + a.nr + '/' + cur[0].idx, units:units, bank:bank}));
+      cur = [];
+    }
+    einheiten.forEach(function(e){
+      var n = cur.reduce(function(s, x){ return s + rswLueckenZahl(x.u); }, 0);
+      var l = cur.reduce(function(s, x){ return s + rswTextLaenge(x.u); }, 0);
+      if(cur.length && (n + rswLueckenZahl(e.u) > 6 || l + rswTextLaenge(e.u) > 260)) fertig();
+      cur.push(e);
+      if(cur.reduce(function(s, x){ return s + rswLueckenZahl(x.u); }, 0) >= 4) fertig();
+    });
+    fertig();
+  });
+  return out;
+}
+function rswAnweisung(instr, wahl){
+  var s = String(instr || '').replace(/^Höre dir (die Audiodatei|das Audiodiktat) an und /i, '').replace(/\s*Notiere.*$/i, '').trim();
+  if(!s) s = wahl ? 'Wähle das Richtige.' : 'Fülle die Lücken.';
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+// Aufgabe → öffentliche Frage q + Lösung L (wie pruefFrageBauen)
+function rswFrageBauen(x, id){
+  var q = {id:id, kat:'Posten ' + x.nr + ' · ' + x.titel, bloom:'anwenden', src:x.src}, L;
+  if(x.hoeren){
+    var n = x.hoeren.texte.length, w = x.hoeren.wort;
+    q.typ = 'hoeren'; q.audio = x.audio; q.zeilen = n; q.wort = w;
+    q.frage = w ? 'Hör zu und schreib ' + (n > 1 ? 'die ' + n + ' Wörter auf – jedes in ein eigenes Feld.' : 'das Wort auf.') : 'Hör zu und schreib den Satz auf.' + (n > 1 ? '' : ' Satzzeichen zählen nicht.');
+    L = {typ:'hoeren', text:x.hoeren.texte.slice(), wort:w, punkte:n * (w ? 1 : 2), anzeige:x.hoeren.texte.map(rswAltText).join(' / ')};
+  } else {
+    var teile = [], gaps = [], anz = [];
+    // Alle Textlücken einer Aufgabe gleich breit — sonst verrät die Breite die
+    // Lösung (das/dass, l/ll …).
+    var breit = 0;
+    x.units.forEach(function(u){ u.forEach(function(s){ if(rswIstLuecke(s) && !s.opts) breit = Math.max(breit, String(s.a || '').split(' / ')[0].length); }); });
+    breit = Math.max(3, Math.min(18, breit + 1.5));
+    x.units.forEach(function(u, ui){
+      var zeile = '';
+      if(ui) teile.push('\n');
+      u.forEach(function(s){
+        if(!rswIstLuecke(s)){
+          if(typeof teile[teile.length - 1] === 'string' && teile[teile.length - 1] !== '\n') teile[teile.length - 1] += s; else teile.push(s);
+          zeile += s; return;
+        }
+        var g = gaps.length;
+        if(s.opts){ teile.push({g:g, o:s.opts.slice()}); gaps.push(s.a); }
+        else { teile.push({g:g, w:breit}); gaps.push(s.a); }
+        zeile += '[' + String(s.a).split(' / ')[0] + ']';
+      });
+      anz.push(zeile);
+    });
+    var wahl = x.cat === 'wahl';
+    q.typ = 'luecke'; q.teile = teile;
+    q.frage = rswAnweisung(x.instr, wahl) + (x.audio ? ' (Hörtext: zuerst anhören.)' : '');
+    if(x.bank) q.kontext = /^Wörter/i.test(x.bank) ? x.bank : 'Wörter zum Einsetzen: ' + x.bank;
+    if(x.audio) q.audio = x.audio;
+    L = {typ:'luecke', gaps:gaps, punkte:gaps.length, anzeige:anz.join(' / ')};
+  }
+  q.punkte = L.punkte;
+  return {q:q, L:L};
+}
+// Zieht die Prüfung: reihum über die Posten und die Aufgabentypen, zufällig mit Seed.
+function rswZiehen(quellen, cfg, seed){
+  var rnd = pruefRng(seed), pool = {}, alle = [];
+  var typen = (cfg.typen && cfg.typen.length ? cfg.typen : RSW_TYPEN.map(function(t){ return t.id; }));
+  (cfg.posten || []).forEach(function(pid){
+    var t = quellen.topics.filter(function(x){ return x.id === pid; })[0];
+    if(!t) return;
+    var tm = (quellen.teile[t.part] || {d:{}}).d.times;
+    var z = {};
+    rswPostenAufgaben(t, tm).forEach(function(a){ if(typen.indexOf(a.cat) >= 0) (z[a.cat] = z[a.cat] || []).push(a); });
+    Object.keys(z).forEach(function(c){ z[c] = pruefMischen(z[c], rnd); z[c].forEach(function(a){ alle.push(a); }); });
+    if(Object.keys(z).length) pool[pid] = z;
+  });
+  var posten = (cfg.posten || []).filter(function(pid){ return pool[pid]; });
+  var cats = pruefMischen(typen.filter(function(c){ return posten.some(function(pid){ return pool[pid][c] && pool[pid][c].length; }); }), rnd);
+  var weg = {}, gezogen = [];
+  function nimm(liste){
+    while(liste && liste.length){ var a = liste.shift(); if(!weg[a.src]){ weg[a.src] = 1; return a; } }
+    return null;
+  }
+  var anzahl = Math.max(1, +cfg.anzahl || 10);
+  for(var i = 0; i < anzahl && posten.length && cats.length; i++){
+    // Posten reihum; der Typ rückt pro Runde weiter, damit jeder Posten verschiedene Typen bekommt
+    var pid = posten[i % posten.length], cat = cats[(i % posten.length + Math.floor(i / posten.length)) % cats.length];
+    var a = nimm(pool[pid][cat]);
+    if(!a) cats.some(function(c){ return (a = nimm(pool[pid][c])); });
+    if(!a) posten.some(function(p2){ return (a = nimm(pool[p2][cat])); });
+    if(!a) posten.some(function(p2){ return cats.some(function(c){ return (a = nimm(pool[p2][c])); }); });
+    if(!a) break;
+    gezogen.push(a);
+  }
+  var catOrd = {schreiben:0, wahl:1, hoeren:2};
+  gezogen.sort(function(a, b){ return (a.nr - b.nr) || (catOrd[a.cat] - catOrd[b.cat]) || (a.auftrag - b.auftrag); });
+  var fragen = [], loesungen = {}, max = 0;
+  gezogen.forEach(function(a, i){
+    var b = rswFrageBauen(a, 'q' + i);
+    fragen.push(b.q); loesungen[b.q.id] = b.L; max += b.L.punkte;
+  });
+  return {fragen:fragen, loesungen:loesungen, maxPunkte:max, verfuegbar:alle.length};
+}
+
+/* ---------- Korrigieren (wie in der Werkstatt) ---------- */
+function rswNorm(s){ return String(s == null ? '' : s).replace(/ /g, ' ').replace(/[’‘`´]/g, "'").replace(/ß/g, 'ss').replace(/\s+/g, ' ').trim(); }
+function rswVarianten(a){
+  var parts = String(a).split(' / ').map(function(x){ return x.trim(); });
+  var art = (parts[0].match(/^(der|die|das)\s/) || [])[1], out = [];
+  parts.forEach(function(p){ out.push(p); if(art && !/^(der|die|das)\s/.test(p)) out.push(art + ' ' + p); });
+  out.slice().forEach(function(p){ var m = p.match(/^(der|die|das)\s+(.+)$/); if(m) out.push(m[2]); });
+  return out;
+}
+function rswLueckeOk(erwartet, gegeben, wahl){
+  if(wahl) return gegeben === erwartet;
+  var g = rswNorm(gegeben);
+  if(!g) return false;
+  return rswVarianten(erwartet).some(function(v){ return rswNorm(v) === g; });
+}
+function rswTokens(s){
+  return rswNorm(s).split(' ').map(function(w){ return w.replace(/^[.,;:!?„“"«»()\[\]\-–—…]+|[.,;:!?„“"«»()\[\]\-–—…]+$/g, ''); }).filter(Boolean);
+}
+function rswAltListe(s){
+  var m = String(s).match(/\{([^}]+)\}/);
+  if(!m) return [String(s)];
+  var res = [];
+  m[1].split('|').forEach(function(opt){ rswAltListe(String(s).replace(m[0], opt)).forEach(function(x){ res.push(x); }); });
+  return res;
+}
+function rswAltText(s){ return String(s).replace(/\{([^}]+)\}/g, function(_, g){ var o = g.split('|'); return o[0] + ' (auch: ' + o.slice(1).join(', ') + ')'; }); }
+// LCS über Wörter; fehlende + zusätzliche zwischen zwei richtigen Wörtern = Verschreiber
+function rswDiff(soll, ist){
+  var n = soll.length, m = ist.length, i, j, T = [];
+  for(i = 0; i <= n; i++) T.push(new Array(m + 1).fill(0));
+  for(i = n - 1; i >= 0; i--) for(j = m - 1; j >= 0; j--) T[i][j] = soll[i] === ist[j] ? T[i + 1][j + 1] + 1 : Math.max(T[i + 1][j], T[i][j + 1]);
+  var ops = [], miss = [], extra = [];
+  function flush(){
+    for(var k = 0; k < Math.max(miss.length, extra.length); k++){
+      if(k < miss.length && k < extra.length) ops.push({t:'sub', e:miss[k], g:extra[k]});
+      else if(k < miss.length) ops.push({t:'miss', e:miss[k]}); else ops.push({t:'extra', g:extra[k]});
+    }
+    miss = []; extra = [];
+  }
+  i = 0; j = 0;
+  while(i < n && j < m){
+    if(soll[i] === ist[j]){ flush(); ops.push({t:'ok', e:soll[i]}); i++; j++; }
+    else if(T[i + 1][j] >= T[i][j + 1]) miss.push(soll[i++]);
+    else extra.push(ist[j++]);
+  }
+  while(i < n) miss.push(soll[i++]);
+  while(j < m) extra.push(ist[j++]);
+  flush();
+  return ops;
+}
+function rswSatzFehler(soll, ist){
+  var best = null, got = rswTokens(ist);
+  rswAltListe(soll).forEach(function(v){
+    var ops = rswDiff(rswTokens(v), got), f = ops.filter(function(o){ return o.t !== 'ok'; });
+    if(!best || f.length < best.length) best = f;
+  });
+  return best || [];
+}
+function rswAnsListe(v, n){ var a = Array.isArray(v) ? v.slice(0, n) : []; while(a.length < n) a.push(null); return a; }
+function rswGapZahl(q){ return q.typ === 'hoeren' ? (+q.zeilen || 1) : (q.teile || []).filter(function(x){ return x && typeof x === 'object'; }).length; }
+// Ergebnis einer Rechtschreib-Aufgabe (eine Detailzeile wie pruefBankBewerten)
+function rswBewerten(q, L, v, korrektur){
+  var roh = 0, rohMax = 0, a = '', fehler = [];
+  if(q.typ === 'hoeren'){
+    var zeilen = rswAnsListe(v, (L.text || []).length);
+    (L.text || []).forEach(function(t, j){
+      var ist = zeilen[j] || '';
+      if(L.wort){
+        rohMax += 1;
+        var ok = !!rswNorm(ist) && rswAltListe(t).some(function(x){ return rswNorm(x) === rswNorm(ist); });
+        if(ok) roh += 1; else fehler.push('«' + (rswNorm(ist) || '–') + '» statt «' + rswAltListe(t)[0] + '»');
+      } else {
+        rohMax += 2;
+        var f = rswNorm(ist) ? rswSatzFehler(t, ist) : [{t:'leer'}];
+        roh += Math.max(0, 2 - f.length);
+        f.forEach(function(o){
+          fehler.push(o.t === 'sub' ? '«' + o.g + '» statt «' + o.e + '»' : o.t === 'miss' ? '«' + o.e + '» fehlt' : o.t === 'extra' ? '«' + o.g + '» zu viel' : 'Satz ' + (j + 1) + ' leer');
+        });
+      }
+    });
+    a = zeilen.map(function(x){ return x || '–'; }).join(' / ');
+  } else {
+    var ant = rswAnsListe(v, (L.gaps || []).length);
+    rohMax = (L.gaps || []).length;
+    var istText = '';
+    (q.teile || []).forEach(function(x){
+      if(typeof x === 'string'){ istText += x === '\n' ? ' / ' : x; return; }
+      var ok = rswLueckeOk(L.gaps[x.g], ant[x.g], !!x.o);
+      if(ok) roh++; else fehler.push('«' + (ant[x.g] || '–') + '» statt «' + String(L.gaps[x.g]).split(' / ')[0] + '»');
+      istText += '[' + (ant[x.g] || '…') + ']';
+    });
+    a = ant.some(function(x){ return x != null && x !== ''; }) ? istText : '–';
+  }
+  var max = +q.punkte > 0 ? +q.punkte : (L.punkte || rohMax || 1);
+  var pkt = rohMax ? (max === rohMax ? roh : pruefHalb(max * roh / rohMax)) : 0;
+  var hand = pruefKorr(korrektur, q.id, max);
+  if(hand != null) pkt = hand;
+  var hinweis = (q.typ === 'hoeren' ? '' : roh + ' von ' + rohMax + ' Lücken richtig') + (fehler.length ? (q.typ === 'hoeren' ? '' : ' · ') + fehler.slice(0, 12).join(', ') : '');
+  return {id:q.id, typ:q.typ, f:q.frage + (q.typ === 'hoeren' ? ' 🎧' : ''), kat:q.kat, a:a, r:L.anzeige || '', ok:pkt >= max, teil:pkt > 0 && pkt < max,
+    pkt:pkt, max:max, hinweis:hinweis, bloom:q.bloom || '', hand:hand != null};
+}
+
+/* ---------- Audio für die Hör-Aufgaben ---------- */
+var rswAudioDateien = {};   // contentId -> Promise<AUDIO_B64-Objekt>
+var rswAudioUrls = {};      // contentId|key -> Blob-URL
+function rswAudioUrl(p, audio){
+  var q = (p.rsw && p.rsw.quellen && p.rsw.quellen[audio.t]) || null;
+  if(!q || !q.cid) return Promise.reject(new Error('Werkstatt-Datei für Teil ' + audio.t + ' fehlt.'));
+  var k = q.cid + '|' + audio.k;
+  if(rswAudioUrls[k]) return Promise.resolve(rswAudioUrls[k]);
+  if(!rswAudioDateien[q.cid]) rswAudioDateien[q.cid] = loadResourceHtml(q.cid).then(function(html){
+    var o = rswJsonVar(html, 'AUDIO_B64');
+    if(!o) throw new Error('Keine Audios in der Werkstatt-Datei.');
+    return o;
+  }).catch(function(err){ delete rswAudioDateien[q.cid]; throw err; });
+  return rswAudioDateien[q.cid].then(function(o){
+    var b64 = o[audio.k];
+    if(!b64) throw new Error('Audio fehlt: ' + audio.k);
+    var bin = atob(b64), arr = new Uint8Array(bin.length);
+    for(var i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+    rswAudioUrls[k] = URL.createObjectURL(new Blob([arr], {type:'audio/mp4'}));
+    return rswAudioUrls[k];
+  });
+}
+// Schon im Warteraum bzw. beim Start alle nötigen Audios holen.
+function rswAudioVorladen(p){
+  if(!p || !p.rsw) return;
+  (p.fragen || []).forEach(function(q){ if(q.audio) rswAudioUrl(p, q.audio).catch(function(){}); });
+}
+function rswAudioStopp(){
+  var s = pruef.sess;
+  if(s && s.rswAu){ try{ s.rswAu.pause(); }catch(e){} s.rswAu.rswStop = null; }
+}
+function rswAbspielen(q, btn){
+  var s = pruef.sess; if(!s || !s.bank || !q.audio) return;
+  var au = s.rswAu || (s.rswAu = new Audio());
+  if(!au.paused && au.rswQ === q.id){ au.pause(); rswPlayerZeichnen(q); return; }
+  var info = document.getElementById('rswPlInfo');
+  if(info) info.textContent = 'Audio wird geladen …';
+  if(btn) btn.disabled = true;
+  rswAudioUrl(s.bank.p, q.audio).then(function(url){
+    if(pruef.sess !== s) return;
+    if(btn) btn.disabled = false;
+    au.rswQ = q.id;
+    if(!au.rswGebunden){
+      au.rswGebunden = true;
+      au.addEventListener('timeupdate', function(){ if(au.rswStop != null && au.currentTime >= au.rswStop){ au.pause(); au.rswStop = null; } });
+      ['play', 'pause', 'ended'].forEach(function(ev){ au.addEventListener(ev, function(){ var ss = pruef.sess; if(ss && ss.bank){ var qq = ss.bank.fragen[ss.bank.i]; if(qq && qq.id === au.rswQ) rswPlayerZeichnen(qq); } }); });
+    }
+    function los(){
+      au.playbackRate = s.rswLangsam ? 0.8 : 1;
+      try{ au.currentTime = q.audio.v; }catch(e){}
+      au.rswStop = q.audio.b;
+      var pr = au.play();
+      if(pr && pr.catch) pr.catch(function(err){ console.warn('Audio', err); });
+    }
+    if(au.src !== url){ au.src = url; au.addEventListener('loadedmetadata', los, {once:true}); au.load(); }
+    else los();
+  }).catch(function(err){
+    console.error('Hör-Aufgabe', err);
+    if(btn) btn.disabled = false;
+    var el = document.getElementById('rswPlInfo');
+    if(el) el.textContent = '⚠️ Audio konnte nicht geladen werden — bitte der Lehrperson Bescheid geben.';
+  });
+}
+function rswPlayerHtml(q){
+  return '<div class="rsw-player"><button class="btn btn-primary btn-sm" data-rsw-play="1" type="button" id="rswPlay">▶︎ Anhören</button>' +
+    '<button class="btn btn-ghost btn-sm" data-rsw-slow="1" type="button" id="rswSlow">🐢 langsamer</button>' +
+    '<span class="pr-hinweis" id="rswPlInfo">Du kannst so oft anhören, wie du willst.</span></div>';
+}
+function rswPlayerZeichnen(q){
+  var s = pruef.sess, b = document.getElementById('rswPlay'), sl = document.getElementById('rswSlow');
+  if(!s) return;
+  var laeuft = s.rswAu && !s.rswAu.paused && s.rswAu.rswQ === q.id;
+  if(b) b.innerHTML = laeuft ? '⏸ Pause' : '▶︎ Anhören';
+  if(sl) sl.classList.toggle('btn-primary', !!s.rswLangsam), sl.classList.toggle('btn-ghost', !s.rswLangsam);
+  var info = document.getElementById('rswPlInfo');
+  if(info && laeuft) info.textContent = 'Hör gut zu …';
+  else if(info && /geladen|zu …/.test(info.textContent)) info.textContent = 'Du kannst so oft anhören, wie du willst.';
+}
+
+/* ---------- Schüler:in: Aufgaben zeichnen ---------- */
+function rswFrageHtml(q, v){
+  var h = '';
+  if(q.audio) h += rswPlayerHtml(q);
+  if(q.typ === 'hoeren'){
+    var z = rswAnsListe(v, +q.zeilen || 1);
+    h += '<div class="rsw-zeilen">' + z.map(function(x, j){
+      return '<label><span>' + (j + 1) + '.</span>' + (q.wort
+        ? '<input type="text" class="modal-input rsw-in" data-g="' + j + '" value="' + esc(x || '') + '" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-gramm="false">'
+        : '<textarea class="modal-input rsw-in" rows="2" data-g="' + j + '" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-gramm="false">' + esc(x || '') + '</textarea>') + '</label>';
+    }).join('') + '</div>';
+    return h;
+  }
+  var ant = rswAnsListe(v, rswGapZahl(q));
+  h += '<div class="rsw-text">' + (q.teile || []).map(function(x){
+    if(typeof x === 'string') return x === '\n' ? '<br>' : esc(x).replace(/\(([a-zäöüA-ZÄÖÜ])\/([a-zäöüA-ZÄÖÜ])\)/g, '<span class="rsw-hint">($1/$2)</span>');
+    if(x.o) return '<span class="rsw-ch">' + x.o.map(function(o){
+      return '<button type="button" data-rsw-g="' + x.g + '" data-rsw-o="' + esc(o) + '" class="' + (ant[x.g] === o ? 'sel' : '') + '">' + esc(o) + '</button>';
+    }).join('<i>/</i>') + '</span>';
+    return '<input type="text" class="rsw-in rsw-gap" data-g="' + x.g + '" style="width:' + (+x.w || 4) + 'ch" value="' + esc(ant[x.g] || '') + '" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-gramm="false" aria-label="Lücke">';
+  }).join('') + '</div>';
+  return h;
+}
+function rswNachZeichnen(q){
+  if(q.audio) rswPlayerZeichnen(q);
+  var erstes = document.querySelector('#prBank .rsw-in');
+  if(erstes) setTimeout(function(){ try{ erstes.focus({preventScroll:true}); }catch(e){} }, 30);
+}
+// Eingabe/Klick in einer Rechtschreib-Aufgabe. true = erledigt.
+function rswEingabe(e, b, q){
+  var t = e.target;
+  if(!t.classList || !t.classList.contains('rsw-in') || e.type !== 'input') return false;
+  var arr = rswAnsListe(b.ans[q.id], rswGapZahl(q));
+  arr[+t.getAttribute('data-g')] = t.value.trim() ? t.value.slice(0, 300) : null;
+  pruefBankSetze(arr);
+  rswZaehlerNachfuehren(b, q);
+  return true;
+}
+function rswKlick(t, b, q){
+  if(t.hasAttribute('data-rsw-play')){ rswAbspielen(q, t); return true; }
+  if(t.hasAttribute('data-rsw-slow')){
+    var s = pruef.sess; s.rswLangsam = !s.rswLangsam;
+    if(s.rswAu && !s.rswAu.paused) s.rswAu.playbackRate = s.rswLangsam ? 0.8 : 1;
+    rswPlayerZeichnen(q); return true;
+  }
+  if(t.hasAttribute('data-rsw-o')){
+    var g = +t.getAttribute('data-rsw-g'), arr = rswAnsListe(b.ans[q.id], rswGapZahl(q));
+    arr[g] = t.getAttribute('data-rsw-o');
+    pruefBankSetze(arr);
+    Array.prototype.forEach.call(t.parentNode.querySelectorAll('button'), function(o){ o.classList.toggle('sel', o === t); });
+    rswZaehlerNachfuehren(b, q);
+    return true;
+  }
+  return false;
+}
+function rswZaehlerNachfuehren(b, q){
+  var kopf = document.querySelector('.pr-q-kopf span:last-child');
+  if(kopf) kopf.textContent = 'Frage ' + (b.i + 1) + ' von ' + b.fragen.length + ' · ' + pruefBankBeantwortet(b) + ' beantwortet';
+  var dot = document.querySelector('.pr-q-dots [data-go="' + b.i + '"]');
+  if(dot) dot.classList.toggle('done', pruefBankHat(b.ans[q.id]));
+}
+function rswTaste(e){
+  var t = e.target;
+  if(e.key !== 'Enter' || !t.classList || !t.classList.contains('rsw-in') || e.shiftKey) return;
+  e.preventDefault();
+  var alle = Array.prototype.slice.call(document.querySelectorAll('#prBank .rsw-in')), i = alle.indexOf(t);
+  if(alle[i + 1]) alle[i + 1].focus();
+}
+
+/* ---------- Werkstatt-Pass: Stand der Prüfungen ---------- */
+var rswPassFenster = null;
+window.addEventListener('message', function(e){
+  var d = e.data;
+  if(!d || !d.__rswPruefFrage || !state.user) return;
+  // nur aus einer Übung, die hier in der Library offen ist
+  var eigen = Array.prototype.some.call(document.querySelectorAll('iframe'), function(f){ return f.contentWindow === e.source; });
+  if(!eigen) return;
+  rswPassFenster = e.source;
+  rswPassSenden();
+});
+function rswPassStand(){
+  if(pruefIstLehrer()) return {lehrer:true, teile:{}};
+  var teile = {};
+  pruef.list.filter(function(p){ return p.rsw && +p.rsw.passTeil >= 1 && p.status !== 'entwurf'; })
+    .sort(function(a, b){ return pruefMs(a.createdAt) - pruefMs(b.createdAt); })
+    .forEach(function(p){
+      var t = pruef.mine[p.id], nr = +p.rsw.passTeil, x = {status:'offen', titel:p.titel};
+      if(t && t.status === 'abgegeben'){
+        var note = p.resultateFrei && typeof t.punkte === 'number' ? pruefNote(p, t.punkte, t.max) : null;
+        x = note != null ? {status:'note', note:Math.round(note * 100) / 100, titel:p.titel} : {status:'geschrieben', titel:p.titel};
+      } else if(t && (t.status === 'laeuft' || t.status === 'gesperrt')) x = {status:'laeuft', titel:p.titel};
+      else if(p.status === 'offen') x = {status:'laeuft', titel:p.titel};
+      // Eine spätere Prüfung zum selben Teil ersetzt die frühere nur, wenn sie etwas zu sagen hat.
+      var alt = teile[nr];
+      if(!alt || x.status !== 'offen' || alt.status === 'offen') teile[nr] = x;
+    });
+  return {teile:teile};
+}
+function rswPassSenden(){
+  var w = rswPassFenster;
+  if(!w) return;
+  if(w.closed){ rswPassFenster = null; return; }
+  try{ w.postMessage(Object.assign({__rswPruefStand:true}, rswPassStand()), '*'); }catch(e){ rswPassFenster = null; }
+}
+
+/* ---------- Beschreibung, Drucken ---------- */
+function rswBeschreibung(p){
+  var r = p.rsw || {}, ps = r.posten || [], teile = ['✍️ Rechtschreib-Werkstatt'];
+  var nrs = ps.map(function(id){ var m = String(id).match(/^(\d+)_/); return m ? +m[1] : 0; }).filter(Boolean).sort(function(a, b){ return a - b; });
+  if(nrs.length) teile.push('Posten ' + rswBereiche(nrs));
+  teile.push(pruefAnzahl(p) + ' Aufgaben' + (p.maxPunkte ? ' (' + pruefZahlText(p.maxPunkte) + ' Punkte)' : ''));
+  if(+r.passTeil) teile.push('im Werkstatt-Pass: Prüfung Teil ' + r.passTeil);
+  if(+p.zeitMin > 0) teile.push('⏱ ' + p.zeitMin + ' Min.');
+  teile.push('Massstab: ' + pruefSkalaText(p));
+  return teile.join(' · ');
+}
+function rswBereiche(nrs){
+  var out = [], i = 0;
+  while(i < nrs.length){ var j = i; while(j + 1 < nrs.length && nrs[j + 1] === nrs[j] + 1) j++; out.push(i === j ? String(nrs[i]) : nrs[i] + '–' + nrs[j]); i = j + 1; }
+  return out.join(', ');
+}
+function rswDruckAufgabe(q, L, a){
+  if(q.typ === 'hoeren'){
+    a.titel = q.kat; a.stellung = '🎧 Hördiktat (wird vorgelesen): ' + q.frage;
+    a.antwortzeilen = (+q.zeilen || 1) * (q.wort ? 1 : 2);
+    a.loesung = (L.text || []).map(rswAltText);
+    return a;
+  }
+  a.titel = q.kat; a.stellung = q.frage;
+  var zeilen = [[]], loes = [[]];
+  (q.teile || []).forEach(function(x){
+    if(x === '\n'){ zeilen.push([]); loes.push([]); return; }
+    if(typeof x === 'string'){ zeilen[zeilen.length - 1].push(x); loes[loes.length - 1].push(x); return; }
+    zeilen[zeilen.length - 1].push(x.o ? '(' + x.o.join(' / ') + ')' : new Array(Math.max(6, Math.round(+x.w || 4) + 2) + 1).join('_'));
+    loes[loes.length - 1].push('[' + String((L.gaps || [])[x.g] || '').split(' / ')[0] + ']');
+  });
+  a.tabelle = {kopf:[x0(q)], spalten:[8], zeilenhoehe:500, zeilen:zeilen.map(function(z){ return [z.join('')]; })};
+  function x0(qq){ return qq.teile.some(function(t){ return t && t.o; }) ? 'Unterstreiche / kreise das Richtige ein' : 'Fülle die Lücken aus'; }
+  a.loesung = loes.map(function(z){ return z.join(''); });
+  a.antwortzeilen = 0;
+  return a;
+}
+
+/* ---------- Lehrperson: Editor ---------- */
+async function rswPrEditor(p){
+  var neu = !p, fix = !neu && p.status !== 'entwurf', r0 = (p && p.rsw) || {};
+  var token = ++prEditorToken, kopf = pruefKopfHtml('rsw', neu);
+  openModal('<h3>✍️ ' + (neu ? 'Neue Rechtschreib-Prüfung' : 'Rechtschreib-Prüfung bearbeiten') + '</h3>' + kopf + '<p class="pr-hinweis" id="rswLade">Werkstatt-Dateien werden gelesen …</p>', 'pr-modal pr-modal-breit');
+  if(neu) pruefKopfVerdrahten('rsw');
+  var quellen = null;
+  if(!fix){
+    try{ quellen = await rswQuellenLaden(); }catch(err){ console.error(err); }
+    if(token !== prEditorToken) return;
+    if(!quellen || !quellen.topics.length){
+      var el0 = document.getElementById('rswLade');
+      if(el0) el0.innerHTML = '⚠️ In dieser Klasse ist keine Rechtschreib-Werkstatt hochgeladen (Dateiname «Rechtschreib-Werkstatt_Teil…»). Lade zuerst die vier Werkstatt-Dateien als Übungen hoch.';
+      return;
+    }
+  }
+  var skw = JSON.parse(JSON.stringify(pruefSkala(p || {})));
+  if(skw.typ === 'tabelle') skw = {typ:'dbk'};
+  var posten = r0.posten ? r0.posten.slice() : (quellen ? quellen.topics.filter(function(t){ return t.part === 1; }).map(function(t){ return t.id; }) : []);
+  var typen = r0.typen ? r0.typen.slice() : RSW_TYPEN.map(function(t){ return t.id; });
+  var anzahl = +r0.anzahl || 10, seed = (p && p.seed) || Math.floor(Math.random() * 2147483646) + 1, neuZiehen = neu;
+  var zug = null;
+  var h = '<h3>✍️ ' + (neu ? 'Neue Rechtschreib-Prüfung' : 'Rechtschreib-Prüfung bearbeiten') + '</h3>' + kopf;
+  h += '<p class="pr-hinweis">Prüfung aus der <b>Rechtschreib-Werkstatt</b>: Du wählst die Posten, die Library zieht daraus eine Mischung aus Lückentexten, Auswahl-Aufgaben und kurzen Hördiktaten (einzelne Sätze oder Wörter aus den Audios — nie das ganze Diktat). Korrigiert wird automatisch wie in der Werkstatt (Gross/Klein zählt, ß = ss), jede Aufgabe lässt sich von Hand umwerten.</p>';
+  h += '<label class="modal-label">Titel</label><input type="text" id="prTitel" class="modal-input" maxlength="80" value="' + esc(p ? p.titel : '') + '">';
+  if(fix){
+    h += '<p class="pr-hinweis">Die Prüfung wurde schon freigegeben — die Aufgaben bleiben. Ändern lassen sich Titel, Werkstatt-Pass, Gewichtung und Notenmassstab (Punkte unter «🧮 Aufgaben & Punkte»).</p>';
+    h += '<p class="pr-hinweis"><b>' + esc(rswBeschreibung(p)) + '</b></p>';
+  } else {
+    h += '<label class="modal-label">Posten <span class="pr-hinweis" id="rswPostenInfo"></span></label><div class="rsw-teilwahl">';
+    [1, 2, 3, 4].forEach(function(nr){
+      var ts = quellen.topics.filter(function(t){ return t.part === nr; });
+      if(!ts.length) return;
+      h += '<div class="rsw-teil"><div class="rsw-teil-kopf"><b>Teil ' + nr + '</b><button class="btn btn-ghost btn-sm" type="button" data-rsw-teil="' + nr + '">nur Teil ' + nr + '</button>' +
+        (quellen.teile[nr] && !quellen.teile[nr].d.times ? '<small class="pr-warn" title="Diese Werkstatt-Datei ist noch die alte Fassung ohne Satzzeiten">ohne Hördiktate – neue Datei hochladen</small>' : '') + '</div><div class="pr-kats">' +
+        ts.map(function(t){ return '<label><input type="checkbox" value="' + esc(t.id) + '"' + (posten.indexOf(t.id) >= 0 ? ' checked' : '') + '> ' + t.nr + '. ' + esc(t.icon + ' ' + t.title) + '</label>'; }).join('') + '</div></div>';
+    });
+    h += '<div class="pr-kats"><button class="btn btn-ghost btn-sm" type="button" data-rsw-alle="1">Alle 20</button><button class="btn btn-ghost btn-sm" type="button" data-rsw-keine="1">Keine</button></div></div>';
+    h += '<label class="modal-label">Aufgabentypen</label><div class="pr-kats" id="rswTypen">' + RSW_TYPEN.map(function(t){
+      return '<label><input type="checkbox" value="' + t.id + '"' + (typen.indexOf(t.id) >= 0 ? ' checked' : '') + '> ' + t.icon + ' ' + esc(t.name) + '</label>';
+    }).join('') + '</div>';
+    h += '<div class="pr-grid2"><div><label class="modal-label">Anzahl Aufgaben</label><select id="rswAnz" class="modal-input">' +
+      RSW_ANZAHL.map(function(n){ return '<option value="' + n + '"' + (n === anzahl ? ' selected' : '') + '>' + n + '</option>'; }).join('') + '</select></div>';
+    h += '<div><label class="modal-label">Zeitlimit in Minuten (leer = keins)</label><input type="number" id="prZeit" class="modal-input" min="1" max="120" step="1" value="' + esc(p ? (p.zeitMin ? String(p.zeitMin) : '') : '30') + '"></div></div>';
+    h += '<div id="rswVorschau" class="rsw-vorschau"></div>';
+    h += '<div class="pr-kats"><button class="btn btn-ghost btn-sm" type="button" id="rswNeu">🎲 Andere Aufgaben ziehen</button></div>';
+    h += '<label class="pr-check"><input type="checkbox" id="prMischen"' + (p && p.cfg && p.cfg.mischen ? ' checked' : '') + '> Reihenfolge der Aufgaben pro Person mischen (alle haben dieselben Aufgaben)</label>';
+  }
+  h += '<div class="pr-grid2"><div><label class="modal-label">Im Werkstatt-Pass anzeigen als</label><select id="rswPass" class="modal-input"><option value="0">– nicht im Pass –</option>' +
+    [1, 2, 3, 4].map(function(n){ return '<option value="' + n + '"' + (+r0.passTeil === n ? ' selected' : '') + '>📝 Prüfung Teil ' + n + '</option>'; }).join('') + '</select></div>';
+  h += '<div><label class="modal-label">Gewichtung im Notenrechner</label><input type="number" id="prGewicht" class="modal-input" min="0.5" max="10" step="0.5" value="' + esc(String(p && p.gewicht ? p.gewicht : 1)) + '"></div></div>';
+  h += '<p class="pr-hinweis">Im Werkstatt-Pass steht nach dem 5., 10., 15. und 20. Posten «Prüfung Teil 1–4». Wählst du hier einen Teil, sehen die Schüler:innen dort, ob sie diese Prüfung geschrieben haben, und nach «📣 Resultate freigeben» ihre Note.</p>';
+  h += '<h4 class="pr-h4">Notenmassstab</h4>';
+  h += '<div class="pr-grid2"><div><label class="modal-label">Massstab</label><select id="prSkala" class="modal-input">' + SIKORE_SKALEN.map(function(o){ return '<option value="' + o[0] + '">' + esc(o[1]) + '</option>'; }).join('') + '</select></div>';
+  h += '<div><label class="modal-label">Noten runden auf</label><select id="prRund" class="modal-input">' + [['0.1','Zehntel'],['0.25','Viertel'],['0.5','Halbe']].map(function(o){
+    return '<option value="' + o[0] + '"' + (String((p && p.rundung) || 0.1) === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select></div></div>';
+  h += '<div id="prSkalaFelder"></div><p class="pr-hinweis" id="prMaxInfo"></p>';
+  h += pruefFuerHtml(p, fix);
+  h += '<div class="modal-actions"><button class="btn btn-ghost btn-sm" id="modalCancel" type="button">Abbrechen</button><button class="btn btn-primary btn-sm" id="modalOk" type="button">Speichern</button></div>';
+  openModal(h, 'pr-modal pr-modal-breit');
+  if(neu) pruefKopfVerdrahten('rsw');
+  pruefFuerLaden();
+  document.getElementById('modalCancel').addEventListener('click', closeModal);
+  var num = function(id){ var e = document.getElementById(id); return e ? parseFloat(String(e.value).replace(',', '.')) : NaN; };
+  function auswahlLesen(){
+    if(fix) return;
+    posten = Array.prototype.map.call(modalEl.querySelectorAll('.rsw-teilwahl input:checked'), function(i){ return i.value; });
+    typen = Array.prototype.map.call(modalEl.querySelectorAll('#rswTypen input:checked'), function(i){ return i.value; });
+    anzahl = +document.getElementById('rswAnz').value || 10;
+  }
+  function passVorschlag(){
+    var teile = {};
+    posten.forEach(function(id){ var t = quellen.topics.filter(function(x){ return x.id === id; })[0]; if(t) teile[t.part] = 1; });
+    var k = Object.keys(teile);
+    var sel = document.getElementById('rswPass');
+    if(sel && !r0.passTeil) sel.value = k.length === 1 ? k[0] : '0';
+    var tEl = document.getElementById('prTitel');
+    if(tEl && neu && (!tEl.value.trim() || /^Rechtschreibung( Teil \d| Posten .*)?$/.test(tEl.value.trim()))){
+      tEl.value = k.length === 1 ? 'Rechtschreibung Teil ' + k[0] : posten.length ? 'Rechtschreibung Posten ' + rswBereiche(posten.map(function(id){ return +String(id).split('_')[0]; }).sort(function(a, b){ return a - b; })) : 'Rechtschreibung';
+    }
+  }
+  function vorschauZeichnen(){
+    if(fix) return;
+    var box = document.getElementById('rswVorschau');
+    zug = posten.length && typen.length ? rswZiehen(quellen, {posten:posten, typen:typen, anzahl:anzahl}, seed) : null;
+    var pi = document.getElementById('rswPostenInfo');
+    if(pi) pi.textContent = posten.length + ' gewählt';
+    if(!zug || !zug.fragen.length){ box.innerHTML = '<p class="pr-hinweis pr-warn">Wähle mindestens einen Posten und einen Aufgabentyp.</p>'; maxInfo(); return; }
+    var zahl = {};
+    zug.fragen.forEach(function(q){ var c = q.typ === 'hoeren' ? 'hoeren' : (q.teile || []).some(function(x){ return x && x.o; }) && !(q.teile || []).some(function(x){ return x && typeof x === 'object' && !x.o; }) ? 'wahl' : 'schreiben'; if(q.audio && q.typ === 'luecke') c = 'hoeren'; zahl[c] = (zahl[c] || 0) + 1; });
+    var hb = '<p class="pr-hinweis"><b>So sieht die Prüfung aus:</b> ' + zug.fragen.length + ' Aufgaben · ' + zug.maxPunkte + ' Punkte · ' +
+      RSW_TYPEN.map(function(t){ return t.icon + ' ' + (zahl[t.id] || 0); }).join(' · ') +
+      (zug.fragen.length < anzahl ? ' <span class="pr-warn">(mehr gibt es mit dieser Auswahl nicht)</span>' : '') + '</p><ol class="rsw-liste">';
+    zug.fragen.forEach(function(q){
+      var L = zug.loesungen[q.id];
+      hb += '<li><span class="pr-badge">' + esc(q.kat) + '</span> ' + (q.audio ? '🎧 ' : '') + esc(q.typ === 'hoeren' ? L.anzeige : L.anzeige.replace(/\s+/g, ' ').slice(0, 140) + (L.anzeige.length > 140 ? ' …' : '')) + ' <small>(' + q.punkte + ' P.)</small></li>';
+    });
+    box.innerHTML = hb + '</ol>';
+    maxInfo();
+  }
+  function maxInfo(){
+    var el = document.getElementById('prMaxInfo'); if(!el) return;
+    var m = fix ? p.maxPunkte : (zug ? zug.maxPunkte : 0);
+    el.textContent = m ? 'Total ' + m + ' Punkte (1 pro Lücke, beim Hördiktat 1 pro Wort bzw. 2 pro Satz). Die Note kommt im Notenrechner unter Deutsch.' : '';
+  }
+  function skalaMerken(){
+    var t = skw.typ;
+    if(t === 'dbk6'){ var a = num('prP6'); if(!isNaN(a)) skw.p6 = a; }
+    if(t === 'knick'){ var b = num('prKnick'); if(!isNaN(b)) skw.prozent = b; }
+    if(t === 'fehler'){ var c1 = num('prAbzug'), c2 = num('prFrei'); if(!isNaN(c1)) skw.abzug = c1; if(!isNaN(c2)) skw.frei = c2; }
+  }
+  function skalaZeichnen(){
+    var t = skw.typ, f = '';
+    document.getElementById('prSkala').value = t;
+    if(t === 'dbk') f = '<p class="pr-hinweis">Note = 5 × Punkte ÷ Maximalpunkte + 1 (DBK Thurgau).</p>';
+    else if(t === 'dbk6') f = '<div class="pr-grid2"><div><label class="modal-label">Punkte für eine 6</label><input type="number" id="prP6" class="modal-input" min="1" step="0.5" value="' + esc(skw.p6 != null ? String(skw.p6) : '') + '"></div><div></div></div>';
+    else if(t === 'knick') f = '<div class="pr-grid2"><div><label class="modal-label">Note 4 bei … % der Punkte</label><input type="number" id="prKnick" class="modal-input" min="1" max="99" step="1" value="' + esc(String(skw.prozent || 60)) + '"></div><div></div></div>';
+    else if(t === 'fehler') f = '<div class="pr-grid2"><div><label class="modal-label">Abzug pro Fehler (Note)</label><input type="number" id="prAbzug" class="modal-input" min="0.05" max="2" step="0.05" value="' + esc(String(skw.abzug || 0.25)) + '"></div>' +
+      '<div><label class="modal-label">Fehler für eine 6</label><input type="number" id="prFrei" class="modal-input" min="0" step="0.5" value="' + esc(String(skw.frei || 0)) + '"></div></div>';
+    document.getElementById('prSkalaFelder').innerHTML = f;
+    maxInfo();
+  }
+  document.getElementById('prSkala').addEventListener('change', function(){ skalaMerken(); skw.typ = this.value; skalaZeichnen(); });
+  if(!fix){
+    modalEl.querySelector('.rsw-teilwahl').addEventListener('click', function(e){
+      var b = e.target.closest('button'); if(!b) return;
+      var teil = b.getAttribute('data-rsw-teil');
+      Array.prototype.forEach.call(modalEl.querySelectorAll('.rsw-teilwahl input[type=checkbox]'), function(i){
+        var t = quellen.topics.filter(function(x){ return x.id === i.value; })[0];
+        i.checked = b.hasAttribute('data-rsw-alle') ? true : b.hasAttribute('data-rsw-keine') ? false : !!(t && String(t.part) === teil);
+      });
+      auswahlLesen(); neuZiehen = true; passVorschlag(); vorschauZeichnen();
+    });
+    modalEl.querySelector('.rsw-teilwahl').addEventListener('change', function(){ auswahlLesen(); neuZiehen = true; passVorschlag(); vorschauZeichnen(); });
+    document.getElementById('rswTypen').addEventListener('change', function(){ auswahlLesen(); neuZiehen = true; vorschauZeichnen(); });
+    document.getElementById('rswAnz').addEventListener('change', function(){ auswahlLesen(); neuZiehen = true; vorschauZeichnen(); });
+    document.getElementById('rswNeu').addEventListener('click', function(){ seed = Math.floor(Math.random() * 2147483646) + 1; neuZiehen = true; vorschauZeichnen(); });
+    passVorschlag();
+    vorschauZeichnen();
+  }
+  skalaZeichnen();
+  document.getElementById('modalOk').addEventListener('click', async function(){
+    var titel = document.getElementById('prTitel').value.trim();
+    if(!titel){ toast('Bitte einen Titel eingeben.'); return; }
+    skalaMerken();
+    var sk = {typ:skw.typ};
+    if(sk.typ === 'dbk6'){ sk.p6 = skw.p6; if(!(sk.p6 > 0)){ toast('«Punkte für eine 6» angeben.'); return; } }
+    if(sk.typ === 'knick'){ sk.prozent = skw.prozent || 60; if(!(sk.prozent > 0 && sk.prozent < 100)){ toast('Grenze für die 4 muss zwischen 1 und 99 % liegen.'); return; } }
+    if(sk.typ === 'fehler'){ sk.abzug = skw.abzug || 0.25; sk.frei = Math.max(0, skw.frei || 0); if(!(sk.abzug > 0 && sk.abzug <= 2)){ toast('Abzug pro Fehler muss zwischen 0.05 und 2 liegen.'); return; } }
+    var gew = num('prGewicht'), passTeil = +document.getElementById('rswPass').value || 0;
+    var data = {titel:titel.slice(0, 80), skala:sk, rundung:+document.getElementById('prRund').value || 0.1, gewicht:gew > 0 && gew <= 10 ? gew : 1, fach:'deutsch', subject:'deutsch'};
+    Object.assign(data, pruefFuerDaten(p));
+    var loesung = null;
+    if(fix){
+      data.rsw = Object.assign({}, p.rsw, {passTeil:passTeil});
+    } else {
+      auswahlLesen();
+      if(!zug || !zug.fragen.length){ toast('Wähle mindestens einen Posten und einen Aufgabentyp.'); return; }
+      var z = num('prZeit');
+      data.zeitMin = z > 0 ? Math.min(120, Math.round(z)) : 0;
+      data.cfg = {anzahl:zug.fragen.length, mischen:document.getElementById('prMischen').checked};
+      var quellenRef = {};
+      Object.keys(quellen.teile).forEach(function(nr){ quellenRef[nr] = {rid:quellen.teile[nr].rid, cid:quellen.teile[nr].cid}; });
+      data.rsw = {posten:posten, typen:typen, anzahl:anzahl, passTeil:passTeil, quellen:quellenRef};
+      data.resourceTitel = 'Rechtschreib-Werkstatt';
+      if(neuZiehen || !p || !p.fragen){
+        data.art = 'bank'; data.seed = seed; data.fragen = zug.fragen; data.maxPunkte = zug.maxPunkte;
+        loesung = zug.loesungen;
+      }
+    }
+    this.disabled = true;
+    try{
+      var id = neu ? 'p' + Date.now().toString(36) : p.id;
+      if(neu){ data.status = 'entwurf'; data.resultateFrei = false; data.createdAt = serverTimestamp(); data.createdBy = state.user.uid; }
+      var batch = writeBatch();
+      if(neu) batch.set(pruefRef(id), data); else batch.update(pruefRef(id), data);
+      if(loesung) batch.set(loesRef(id), {loesungen:loesung});
+      await batch.commit();
+      if(loesung) pruef.loes[id] = loesung;
       closeModal();
       if(neu){ state.route = {name:'pruefung', id:id}; render(); }
       else {

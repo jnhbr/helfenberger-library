@@ -3,6 +3,7 @@
  *
  *   node schule-konten.js pruefen   <Logins.xlsx>   (nur anzeigen, was passieren würde)
  *   node schule-konten.js konten    <Logins.xlsx>   (Konten + Login-Aliase anlegen/nachführen)
+ *   node schule-konten.js konten    <Logins.xlsx> zivi   (nur diese Konten, ohne Aliase)
  *   node schule-konten.js verteilen                 (G3b-Übungen + Ordner in leere Seiten kopieren)
  *   node schule-konten.js mathegruppe               (einmalig: Elena/Letizia -> Gruppe «Mathe G3b»)
  *
@@ -52,6 +53,8 @@ function seitenId(l) {
   if (KLASSEN.indexOf(l.klasseRoh) >= 0) return { klasse: l.klasseRoh, art: 'klp' };
   const k = l.klasseRoh.toLowerCase();
   if (k.indexOf('isf') >= 0) return { klasse: 'isf-' + l.username, art: 'isf' };
+  // Zivi: wie Praktikum, eigene Seite praktikum-zivi (Konto «zivi»)
+  if (k.indexOf('zivi') >= 0) return { klasse: 'praktikum-' + l.username, art: 'praktikum' };
   if (k.indexOf('praktikum') >= 0) return { klasse: 'praktikum-' + l.username.replace(/\D/g, ''), art: 'praktikum' };
   return { klasse: 'flp-' + l.username, art: 'flp' };
 }
@@ -168,8 +171,17 @@ async function upsert(username, displayName, passwort, claims, profil) {
   return { uid: user.uid, neu: neu };
 }
 
-async function konten(file, trocken) {
+// nur (optional): Liste von Benutzernamen — dann werden nur diese Konten
+// angelegt/nachgeführt (z. B. «node schule-konten.js konten Logins.xlsx zivi»),
+// alle anderen und die Login-Aliase bleiben unberührt.
+async function konten(file, trocken, nur) {
   const p = await planen(file);
+  if (nur && nur.length) {
+    p.plan = p.plan.filter(function (s) { return nur.indexOf(s.username) >= 0; });
+    p.lehrer = p.lehrer.filter(function (l) { return nur.indexOf(l.username) >= 0; });
+    p.aliasDocs = {};
+    if (!p.plan.length && !p.lehrer.length) throw new Error('Keines dieser Konten steht in der Liste: ' + nur.join(', '));
+  }
   const neu = p.plan.filter(function (s) { return s.neu; });
   const umzug = p.plan.filter(function (s) { return !s.neu && s.alt.klasse !== s.klasse; });
   console.log('Schüler:innen: ' + p.plan.length + ' (neu ' + neu.length + ', bestehend ' + (p.plan.length - neu.length) + ')');
@@ -194,6 +206,7 @@ async function konten(file, trocken) {
       { displayName: l.displayName, vorname: l.vorname, role: 'teacher', klasse: l.klasse, art: l.art });
     console.log((r.neu ? 'neu LP   ' : 'ok LP    ') + l.klasse + ' ' + l.username);
   }
+  if (nur && nur.length) return;
   const batch = db.bulkWriter();
   Object.keys(p.aliasDocs).forEach(function (k) { batch.set(db.collection('loginAliases').doc(k), { konten: p.aliasDocs[k] }); });
   await batch.close();
@@ -270,8 +283,9 @@ async function mathegruppe() {
 
 (async function () {
   const modus = process.argv[2], file = process.argv[3];
-  if (modus === 'pruefen') await konten(file, true);
-  else if (modus === 'konten') await konten(file, false);
+  const nur = process.argv.slice(4).map(function (u) { return u.trim().toLowerCase(); }).filter(Boolean);
+  if (modus === 'pruefen') await konten(file, true, nur);
+  else if (modus === 'konten') await konten(file, false, nur);
   else if (modus === 'verteilen') await verteilen();
   else if (modus === 'mathegruppe') await mathegruppe();
   else { console.log('Modus: pruefen | konten | verteilen | mathegruppe'); process.exit(1); }
