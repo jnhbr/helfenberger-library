@@ -274,6 +274,11 @@
   .resource-card.current{border-color:var(--bad);box-shadow:var(--shadow), inset 4px 0 0 var(--bad);}
   .resource-info{flex:1;min-width:200px;}
   .resource-info h4{margin:0 0 4px;font-size:15.5px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+  .chip-lehrer{background:#E2E6EC;color:#334155;border-radius:999px;padding:2px 10px;font-size:11px;font-weight:700;letter-spacing:.02em;white-space:nowrap;}
+  .resource-card.lehrer-html{border-style:dashed;background:var(--surface-2);}
+  .btn-lehrer.active{background:#475569;color:#fff;border-color:#475569;}
+  .lp-check{display:flex;gap:10px;align-items:flex-start;margin:12px 0 4px;font-size:14px;line-height:1.4;cursor:pointer;}
+  .lp-check input{margin-top:3px;flex:none;width:18px;height:18px;}
   .chip-current{background:var(--bad-soft);color:var(--bad);border-radius:999px;padding:2px 10px;font-size:11px;font-weight:700;letter-spacing:.02em;}
   .resource-bar{height:6px;border-radius:99px;background:var(--surface-2);overflow:hidden;width:100%;max-width:260px;margin-top:6px;}
   .resource-bar span{display:block;height:100%;border-radius:99px;}
@@ -560,6 +565,7 @@
   .dropzone.drag{border-color:var(--brand);background:var(--surface-2);color:var(--text);}
   .dropzone input[type=file]{display:none;}
   .dropzone .dz-title{font-weight:700;color:var(--text);margin-bottom:4px;}
+  .dropzone-lp{padding:16px 20px;margin-top:-10px;border-color:#94A3B8;background:var(--surface-2);font-size:14px;}
   .upload-progress{margin-top:14px;font-size:13px;color:var(--brand-ink);display:none;}
   .upload-progress.show{display:block;}
 
@@ -2511,6 +2517,11 @@ function isFremdeKlasse(){
    der Schulleitung ohnehin nur Leserechte. */
 const LEITUNG_ANSICHT_KEY = 'hl_leitungAnsicht'; // sessionStorage: 'lehrer' | 'schueler'
 function isLeitung(){ return !!(state.profile && state.profile.leitung); }
+// 🔒 Lehrer-HTMLs (z. B. Unterrichtsplanung): liegen im Fach/Ordner direkt neben den Übungen,
+// sind aber nur für Lehrpersonen sichtbar (Feld nurLehrer:true). Wie beim Lehrerbereich ein
+// Filter in der App — überall, wo Schüler:innen Übungen sehen, sowie in Lernstand/Prüfungen.
+function istLehrerHtml(r){ return !!(r && r.nurLehrer); }
+function fuerRolleSichtbar(r){ return !istLehrerHtml(r) || !!(state.profile && state.profile.role === 'teacher'); }
 var leitungHinweis = { at:0, input:0 };
 ['pointerdown','keydown'].forEach(function(ev){
   document.addEventListener(ev, function(){ leitungHinweis.input = Date.now(); }, true);
@@ -3032,6 +3043,7 @@ function uiCalendarEntryForm(existing, onSaved){
       var found = {};
       snap.forEach(function(d){
         var res = d.data();
+        if(istLehrerHtml(res)) return;   // Lehrer-HTMLs nie im Kalender der Klasse verlinken
         var label = (res.pdf ? '📄 ' : res.externalUrl ? '🔗 ' : '') + (res.title || res.fileName || d.id);
         rows.push({id:d.id, label:label, current:!!res.current});
         if(selectedLinks.hasOwnProperty(d.id)){ found[d.id] = true; selectedLinks[d.id] = label; }
@@ -3660,7 +3672,7 @@ function renderGruppenFach(){
     if(state.route.name !== 'gruppenfach' || state.route.gruppeId !== g.id) return;
     var folders = {}, resources = [];
     res[0].forEach(function(d){ folders[d.id] = Object.assign({id:d.id}, d.data()); });
-    res[1].forEach(function(d){ resources.push(Object.assign({id:d.id}, d.data())); });
+    res[1].forEach(function(d){ var r = Object.assign({id:d.id}, d.data()); if(fuerRolleSichtbar(r)) resources.push(r); });
     if(!resources.length){ listEl.innerHTML = '<div class="empty-state">Hier gibt es noch keine Übungen.</div>'; return; }
     function pfad(fid){
       var teile = [], guard = 0, f = folders[fid];
@@ -3790,7 +3802,7 @@ function wireCalendarResourceLinks(container){
       var quelle = btn.getAttribute('data-klasse');
       try{
         var snap = await getDoc(quelle ? kdocFor(quelle, 'resources', rid) : kdoc('resources', rid));
-        if(!snap.exists()){ toast('Diese Übung wurde entfernt.'); return; }
+        if(!snap.exists() || !fuerRolleSichtbar(snap.data())){ toast('Diese Übung wurde entfernt.'); return; }
         goResource(Object.assign({id:rid}, snap.data()));
       }catch(err){ console.error(err); toast('Übung konnte nicht geöffnet werden.'); }
     });
@@ -4344,7 +4356,7 @@ async function loadDiktatAuswertung(){
   resSnap.forEach(function(d){
     var data = d.data();
     var title = data.title || data.fileName || '';
-    if(/diktat/i.test(title)) diktatResources.push(Object.assign({id:d.id}, data));
+    if(/diktat/i.test(title) && !istLehrerHtml(data)) diktatResources.push(Object.assign({id:d.id}, data));
   });
   diktatResources.sort(function(a,b){ return (a.title||'').localeCompare(b.title||'', 'de'); });
   result.resources = diktatResources;
@@ -4490,7 +4502,7 @@ async function loadLernstandUebersicht(){
   var resources = [];
   resSnap.forEach(function(d){
     var data = d.data();
-    if(LERNSTAND_EXCLUDED_SUBJECTS.indexOf(data.subject) !== -1) return;
+    if(LERNSTAND_EXCLUDED_SUBJECTS.indexOf(data.subject) !== -1 || istLehrerHtml(data)) return;
     resources.push(Object.assign({id:d.id}, data));
   });
   resources.sort(function(a,b){
@@ -4614,7 +4626,7 @@ async function vociUebersicht(fach){
     var res = [];
     (await getDocs(query(kcol('resources'), where('subject', '==', fach)))).forEach(function(d){
       var r = Object.assign({id:d.id}, d.data());
-      if(!r.linkUrl && !r.externalUrl && !r.pdf && VOCI_RE.test((r.fileName || '') + ' ' + (r.title || ''))) res.push(r);
+      if(!r.linkUrl && !r.externalUrl && !r.pdf && !istLehrerHtml(r) && VOCI_RE.test((r.fileName || '') + ' ' + (r.title || ''))) res.push(r);
     });
     if(!res.length){
       openModal('<h3>'+esc(titel)+'</h3><p class="pr-hinweis">In diesem Fach gibt es auf dieser Seite keinen Voci-Trainer (Datei «vocabulaire.html» bzw. «vocabulary.html»).</p>'+
@@ -4777,7 +4789,7 @@ async function wsLaden(q){
     return getDocs(collection(db, 'klassen', k, 'resources')).then(function(snap){
       snap.forEach(function(d){
         var r = d.data();
-        if(WS_DATEI_RE.test(r.fileName || '') || WS_DATEI_RE.test(r.title || '')) resIds[d.id] = true;
+        if(!istLehrerHtml(r) && (WS_DATEI_RE.test(r.fileName || '') || WS_DATEI_RE.test(r.title || ''))) resIds[d.id] = true;
       });
     }).catch(function(err){ console.error('Übungen von '+k+' nicht lesbar', err); });
   }));
@@ -5060,7 +5072,7 @@ async function lrLaden(q){
     return getDocs(collection(db, 'klassen', k, 'resources')).then(function(snap){
       snap.forEach(function(d){
         var r = d.data();
-        if(LR_DATEI_RE.test(r.fileName || '') || LR_DATEI_RE.test(r.title || '')) resIds[d.id] = true;
+        if(!istLehrerHtml(r) && (LR_DATEI_RE.test(r.fileName || '') || LR_DATEI_RE.test(r.title || ''))) resIds[d.id] = true;
       });
     }).catch(function(err){ console.error('Übungen von '+k+' nicht lesbar', err); });
   }));
@@ -7060,7 +7072,7 @@ function watchSubjectOverview(subjectId){
     var metaEl = document.getElementById('meta-'+subjectId);
     var barEl = document.getElementById('bar-'+subjectId);
     if(!metaEl || !barEl) return; // navigated away
-    var count = snap.size;
+    var count = snap.docs.filter(function(d){ return fuerRolleSichtbar(d.data()); }).length;
     metaEl.textContent = count===0 ? 'Noch keine Übung' : (count+' Übung'+(count===1?'':'en'));
     barEl.style.width = '0%';
   }, function(err){ console.error(err); });
@@ -8499,7 +8511,7 @@ function openSearchModal(){
     }
     var allResources = res[0].docs.map(function(d){ return Object.assign({id:d.id}, d.data()); }).concat(lmvzV.resources).filter(function(r){
       var s = subjectById(r.subject);
-      return s && (!s.teacherOnly || isTeacher);
+      return s && (!s.teacherOnly || isTeacher) && fuerRolleSichtbar(r);
     });
 
     function renderResults(qstr){
@@ -8973,6 +8985,12 @@ function renderSubject(subjectId, folderId){
     html += '<input type="file" id="fileInput" accept=".html,.htm,.pdf,text/html,application/pdf">';
     html += '<div class="upload-progress" id="uploadProgress"></div>';
     html += '</div>';
+    // 🔒 Lehrer-HTML: alles, was hier abgelegt wird, sehen nur Lehrpersonen
+    html += '<div class="dropzone dropzone-lp" id="dropzoneLp">';
+    html += '<div class="dz-title">🔒 Lehrer-HTML hinzufügen</div>';
+    html += '<div>HTML-Datei hierher ziehen oder <label for="fileInputLp" style="color:var(--brand);text-decoration:underline;cursor:pointer;">Datei auswählen</label> – z. B. Unterrichtsplanung oder Präp. Liegt neben den Übungen, nur Lehrpersonen sehen sie.</div>';
+    html += '<input type="file" id="fileInputLp" accept=".html,.htm,text/html">';
+    html += '</div>';
     html += '<div class="back-row"><button class="btn btn-ghost btn-sm" id="newFolderBtn" type="button">+ Neuer Ordner</button></div>';
   }
 
@@ -9037,7 +9055,7 @@ function renderSubject(subjectId, folderId){
   var qr = query(kcol('resources'), where('subject','==',subjectId));
   state.resourceUnsub = onSnapshot(qr, function(snap){
     state.resources = [];
-    snap.forEach(function(d){ state.resources.push(Object.assign({id:d.id}, d.data())); });
+    snap.forEach(function(d){ var r = Object.assign({id:d.id}, d.data()); if(fuerRolleSichtbar(r)) state.resources.push(r); });
     lmvzMerge();
     loaded.res = true;
     maybeRender();
@@ -9135,7 +9153,7 @@ function renderFolderContents(){
   });
 
   resources.forEach(function(r){
-    if(!r.virtual && !r.pdf && !r.externalUrl) watchProgress(r.id, function(p){ updateResourceBar(r.id, p); });
+    if(!r.virtual && !r.pdf && !r.externalUrl && !istLehrerHtml(r)) watchProgress(r.id, function(p){ updateResourceBar(r.id, p); });
     var openBtn = document.getElementById('open-'+r.id);
     if(openBtn) openBtn.addEventListener('click', function(){ goResource(r); });
     if(!isTeacher || r.virtual) return;
@@ -9153,6 +9171,16 @@ function renderFolderContents(){
     if(replBtn) replBtn.addEventListener('click', function(){ pickReplacementFile(r); });
     var ueditBtn = document.getElementById('uedit-'+r.id);
     if(ueditBtn) ueditBtn.addEventListener('click', function(){ openUebungEditor(r); });
+    var lpBtn = document.getElementById('lp-'+r.id);
+    if(lpBtn) lpBtn.addEventListener('click', function(){
+      lpBtn.disabled = true;
+      // false statt Feld löschen: so zieht auch die nächtliche Spiegelung die Änderung nach.
+      var patch = { nurLehrer: !istLehrerHtml(r) };
+      if(patch.nurLehrer && r.current) patch.current = false;
+      updateDoc(kdoc('resources', r.id), patch)
+        .then(function(){ toast(patch.nurLehrer ? '«'+(r.title || r.fileName)+'» sehen jetzt nur noch Lehrpersonen.' : '«'+(r.title || r.fileName)+'» ist wieder für alle sichtbar.'); })
+        .catch(function(err){ console.error(err); lpBtn.disabled = false; toast('Hat nicht geklappt.'); });
+    });
     var empBtn = document.getElementById('emp-'+r.id);
     if(empBtn) empBtn.addEventListener('click', function(){
       empBtn.disabled = true;
@@ -9381,22 +9409,24 @@ function resourceCardHtml(r, index, total, isTeacher){
       '<div class="resource-actions"><button class="btn btn-primary btn-sm" id="open-'+r.id+'">Öffnen</button></div></div>';
   }
   var uploaded = r.uploadedAt && r.uploadedAt.toDate ? r.uploadedAt.toDate().toLocaleDateString('de-CH') : '';
-  var html = '<div class="resource-card'+(r.current?' current':'')+'" id="card-'+r.id+'">';
+  var lp = istLehrerHtml(r);
+  var html = '<div class="resource-card'+(r.current?' current':'')+(lp?' lehrer-html':'')+'" id="card-'+r.id+'">';
   if(isTeacher){
     html += '<div class="move-btns">';
     html += '<button class="move-btn" id="up-'+r.id+'" type="button" title="Nach oben"'+(index===0?' disabled':'')+'><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 15l6-6 6 6"/></svg></button>';
     html += '<button class="move-btn" id="down-'+r.id+'" type="button" title="Nach unten"'+(index===total-1?' disabled':'')+'><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></button>';
     html += '</div>';
   }
-  html += '<div class="resource-info"><h4>'+esc(r.title || r.fileName)+(r.current?' <span class="chip-current">Aktuell</span>':'')+'</h4>';
-  html += '<div class="resource-bar"><span id="pbar-'+r.id+'" style="width:0%;background:var(--brand)"></span></div>';
-  var metaStart = r.pdf ? '📄 PDF' : r.externalUrl ? '🔗 Link · öffnet in neuem Tab' : 'Noch nicht geübt';
+  html += '<div class="resource-info"><h4>'+esc(r.title || r.fileName)+(r.current?' <span class="chip-current">Aktuell</span>':'')+(lp?' <span class="chip-lehrer">🔒 Nur Lehrpersonen</span>':'')+'</h4>';
+  if(!lp) html += '<div class="resource-bar"><span id="pbar-'+r.id+'" style="width:0%;background:var(--brand)"></span></div>';
+  var metaStart = lp ? 'Lehrer-HTML · für Schüler:innen unsichtbar' : r.pdf ? '📄 PDF' : r.externalUrl ? '🔗 Link · öffnet in neuem Tab' : 'Noch nicht geübt';
   html += '<div class="resource-meta" id="pmeta-'+r.id+'">'+metaStart+(uploaded?' · hinzugefügt am '+uploaded:'')+'</div>';
   html += '</div>';
   html += '<div class="resource-actions">';
   html += '<button class="btn btn-primary btn-sm" id="open-'+r.id+'">Öffnen</button>';
   if(isTeacher){
-    if(!r.externalUrl){
+    if(!r.externalUrl && !r.pdf) html += '<button class="btn btn-sm btn-lehrer'+(lp?' active':'')+'" id="lp-'+r.id+'" type="button" title="'+(lp?'Wieder für alle sichtbar machen':'Nur für Lehrpersonen sichtbar machen (z. B. Unterrichtsplanung)')+'">'+(lp?'🔓 Für alle sichtbar machen':'🔒 Nur Lehrpersonen')+'</button>';
+    if(!r.externalUrl && !lp){
       html += '<button class="btn btn-sm btn-current'+(r.current?' active':'')+'" id="cur-'+r.id+'">'+(r.current?'Nicht mehr aktuell':'Als aktuell markieren')+'</button>';
     }
     if(heimKlasse() && !isFremdeKlasse()){
@@ -10197,6 +10227,28 @@ function wireDropzone(subjectId){
     if(input.files && input.files.length){ handleUpload(subjectId, state.route.folderId || null, input.files[0]); input.value=''; }
   });
   document.getElementById('dzLinkBtn').addEventListener('click', function(){ askAddLink(subjectId, state.route.folderId || null); });
+
+  // 🔒 Lehrer-HTML-Ablage: Häkchen «Nur für Lehrpersonen» ist schon gesetzt
+  var dzLp = document.getElementById('dropzoneLp');
+  var inputLp = document.getElementById('fileInputLp');
+  if(!dzLp || !inputLp) return;
+  function lpDatei(file){
+    if(!isHtmlFile(file)){ toast('Als Lehrer-HTML gehen nur HTML-Dateien (.html).'); return; }
+    handleUpload(subjectId, state.route.folderId || null, file, true);
+  }
+  ['dragenter','dragover'].forEach(function(evt){
+    dzLp.addEventListener(evt, function(e){ e.preventDefault(); dzLp.classList.add('drag'); });
+  });
+  ['dragleave','drop'].forEach(function(evt){
+    dzLp.addEventListener(evt, function(e){ e.preventDefault(); dzLp.classList.remove('drag'); });
+  });
+  dzLp.addEventListener('drop', function(e){
+    var files = e.dataTransfer.files;
+    if(files && files.length) lpDatei(files[0]);
+  });
+  inputLp.addEventListener('change', function(){
+    if(inputLp.files && inputLp.files.length){ lpDatei(inputLp.files[0]); inputLp.value=''; }
+  });
 }
 
 // Link-Eintrag (z.B. PDF in iCloud/OneDrive/Google Drive): in Firestore liegt
@@ -10246,7 +10298,7 @@ function readFileAsText(file){
   });
 }
 
-function handleUpload(subjectId, folderId, file){
+function handleUpload(subjectId, folderId, file, nurLehrerVorwahl){
   if(!isHtmlFile(file) && !isPdfFile(file)){
     toast('Bitte eine HTML- oder PDF-Datei hochladen (.html / .pdf).');
     return;
@@ -10257,12 +10309,37 @@ function handleUpload(subjectId, folderId, file){
   }
   var suggested = file.name.replace(/\.(html?|pdf)$/i,'').replace(/[_-]+/g,' ');
   var where_ = folderId ? ('Ordner «'+(folderById(folderId) ? folderById(folderId).name : '')+'»') : 'Fach-Hauptebene';
-  uiPrompt(isPdfFile(file) ? 'Titel für dieses PDF' : 'Titel für diese Übung', 'Die Datei wird in der '+where_+' abgelegt.', suggested, 'Hochladen', function(title){
-    doUpload(subjectId, folderId, file, title);
-  });
+  if(isPdfFile(file)){
+    uiPrompt('Titel für dieses PDF', 'Die Datei wird in der '+where_+' abgelegt.', suggested, 'Hochladen', function(title){
+      doUpload(subjectId, folderId, file, title);
+    });
+    return;
+  }
+  // HTML: zusätzlich als 🔒 Lehrer-HTML markierbar (nur für Lehrpersonen sichtbar)
+  openModal(
+    '<h3>'+(nurLehrerVorwahl ? '🔒 Titel für dieses Lehrer-HTML' : 'Titel für diese Übung')+'</h3>'+
+    '<p>Die Datei wird in der '+esc(where_)+' abgelegt.</p>'+
+    '<input type="text" id="modalInput" value="'+esc(suggested)+'" maxlength="60">'+
+    '<label class="lp-check"><input type="checkbox" id="modalNurLehrer"'+(nurLehrerVorwahl?' checked':'')+'> <span><b>🔒 Nur für Lehrpersonen</b> – z. B. Unterrichtsplanung oder Präp. Liegt hier neben den Übungen, Schüler:innen sehen sie nicht.</span></label>'+
+    '<div class="modal-actions">'+
+      '<button class="btn btn-ghost btn-sm" id="modalCancel" type="button">Abbrechen</button>'+
+      '<button class="btn btn-primary btn-sm" id="modalOk" type="button">Hochladen</button>'+
+    '</div>'
+  );
+  var input = document.getElementById('modalInput');
+  input.focus(); input.select();
+  function submit(){
+    var v = input.value.trim();
+    if(!v){ input.focus(); return; }
+    var nurLehrer = document.getElementById('modalNurLehrer').checked;
+    closeModal(); doUpload(subjectId, folderId, file, v, nurLehrer);
+  }
+  document.getElementById('modalOk').addEventListener('click', submit);
+  document.getElementById('modalCancel').addEventListener('click', closeModal);
+  input.addEventListener('keydown', function(e){ if(e.key === 'Enter') submit(); });
 }
 
-async function doUpload(subjectId, folderId, file, title){
+async function doUpload(subjectId, folderId, file, title, nurLehrer){
   var progEl = document.getElementById('uploadProgress');
   if(!progEl) return;
   progEl.textContent = 'Lade «'+file.name+'» hoch …';
@@ -10286,6 +10363,7 @@ async function doUpload(subjectId, folderId, file, title){
       version: 0
     };
     if(pdf) meta.pdf = true;
+    if(nurLehrer && !pdf) meta.nurLehrer = true;
     batch.set(kdoc('resources', resId), meta);
     batch.set(doc(db,'resourceContent', resId), { chunkCount: chunks.length, bytes: bytes, ownerUid: state.user.uid });
     chunks.forEach(function(chunk, i){
@@ -10743,6 +10821,7 @@ var currentViewerResourceId = null;
 var progressWriteTimers = {};
 
 function renderResource(r){
+  if(!fuerRolleSichtbar(r)){ toast('Diese Seite ist nur für Lehrpersonen.'); state.route = {name:'home'}; render(); return; }
   clearOverviewWatchers();
   clearSubjectWatchers();
   unwatchAllProgress();
@@ -15619,6 +15698,7 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-09-25-lehrer-html', datum:'2026-09-25', fuer:'lehrer', text:'🔒 Neu: Lehrer-HTMLs. HTML-Datei in das neue Feld «🔒 Lehrer-HTML hinzufügen» ziehen (oder beim normalen Hochladen «Nur für Lehrpersonen» ankreuzen, oder später bei einer Übung auf «🔒 Nur Lehrpersonen» tippen) – die Datei liegt dann direkt neben den Übungen, z. B. die Unterrichtsplanung im Lektüre-Ordner, Schüler:innen sehen sie aber nirgends (auch nicht in Lernstand, Suche oder Prüfungen).'},
   {id:'2026-09-25-baukasten-nativ', datum:'2026-09-25', fuer:'lehrer', text:'🧩 Baukasten jetzt auch für Prüfungen aus Bildtrainer-Übungen (Körper, Plattentektonik, Wald, …) und der Pöstlergeografie: Aufgaben mit Lösung ansehen, löschen, ordnen, mit 🎲 tauschen oder mit 🔁 gezielt ersetzen – auch aus anderen Bereichen. Dafür die neue Fassung der Übung per «Datei ersetzen» hochladen (Lernstände bleiben).'},
   {id:'2026-09-25-lesereise-uebersicht', datum:'2026-09-25', fuer:'lehrer', text:'📖 Neu in der 📈 Lernstand-Übersicht (Fach Deutsch): «Lesereise-Übersicht» für Lektüre-Lesereisen – wer bei welchem Kapitel steht, Kapitel-Checks beim ersten Versuch, und per Klick auf einen Namen das ganze Lesetagebuch (Zusammenfassungen, Steckbriefe, Beziehungsnetz, Texte).'},
   {id:'2026-09-25-hilfe-aktuell', datum:'2026-09-25', fuer:'lehrer', text:'📖 Die Anleitung für Lehrpersonen (⚙️ Einstellungen › ❓ Hilfe) ist auf dem neuesten Stand – neu mit Übungstrainern, Karteikarten & Voci, Rechtschreib-Werkstatt, allen Prüfungsarten und dem 🧩 Baukasten, Lernstand-Spezialübersichten, 🐦 Earlybird und 🧰 Tools.'},
@@ -19703,7 +19783,7 @@ function openLernphase(){
   });
   kkLoad().catch(function(){}).then(function(){ return getDocs(kcol('resources')); }).then(function(snap){
     if(!document.getElementById('lphFach')) return;
-    var dazu = function(r){ if(!r || r.externalUrl) return; (proFach[r.subject || ''] = proFach[r.subject || ''] || []).push(r); };
+    var dazu = function(r){ if(!r || r.externalUrl || istLehrerHtml(r)) return; (proFach[r.subject || ''] = proFach[r.subject || ''] || []).push(r); };
     snap.forEach(function(d){ dazu(Object.assign({id:d.id}, d.data())); });
     // Virtuelle Trainer einzeln absichern: fällt einer aus, sollen die übrigen Übungen trotzdem erscheinen.
     [function(){ return sikoreVirtuell().resources; }, function(){ return tippVirtuell(TIPP_SUBJECT); },
@@ -21664,8 +21744,8 @@ async function pruefEditor(p, vorwahl){
       var snap = await getDocs(kcol('resources'));
       snap.forEach(function(d){
         var r = Object.assign({id:d.id}, d.data()), s = subjectById(r.subject);
-        // Lehrerbereich und Berufswahl: nie Prüfungsstoff
-        if(r.linkUrl || r.externalUrl || r.pdf || (s && (s.teacherOnly || s.id === 'berufswahl'))) return;
+        // Lehrerbereich, Lehrer-HTMLs und Berufswahl: nie Prüfungsstoff
+        if(r.linkUrl || r.externalUrl || r.pdf || istLehrerHtml(r) || (s && (s.teacherOnly || s.id === 'berufswahl'))) return;
         uebungen.push(r);
       });
       // Nur Übungen anbieten, aus denen sich wirklich eine Prüfung machen lässt.
@@ -22201,7 +22281,7 @@ async function pruefBaukasten(p){
   try{
     (await getDocs(kcol('resources'))).forEach(function(d){
       var r = Object.assign({id:d.id}, d.data()), sj = subjectById(r.subject);
-      if(r.linkUrl || r.externalUrl || r.pdf || (sj && (sj.teacherOnly || sj.id === 'berufswahl'))) return;
+      if(r.linkUrl || r.externalUrl || r.pdf || istLehrerHtml(r) || (sj && (sj.teacherOnly || sj.id === 'berufswahl'))) return;
       uebListe.push(r);
       titel[resourceContentId(r)] = titel[resourceContentId(r)] || r.title || r.fileName || 'Übung';
     });
@@ -28112,7 +28192,7 @@ async function rswQuellenLaden(){
   var snap = await getDocs(kcol('resources')), kand = [];
   snap.forEach(function(d){
     var r = Object.assign({id:d.id}, d.data());
-    if(r.pdf || r.externalUrl || r.linkUrl) return;
+    if(r.pdf || r.externalUrl || r.linkUrl || istLehrerHtml(r)) return;
     if(WS_DATEI_RE.test(r.fileName || '') || WS_DATEI_RE.test(r.title || '')) kand.push(r);
   });
   var gelesen = await Promise.all(kand.map(function(r){
