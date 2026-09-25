@@ -1844,6 +1844,11 @@
   .pr-bk-pool > div{min-width:0;overflow-wrap:anywhere;}
   .pr-bk-eigen{margin-top:12px;border-top:1px solid var(--border);padding-top:8px;}
   .pr-bk-eigen > summary{cursor:pointer;font-weight:600;}
+  .pr-bk-ziel{border-color:var(--brand);box-shadow:inset 0 0 0 1px var(--brand);}
+  .pr-bk-ersetzt{padding:8px 10px;border:1px solid var(--brand);border-radius:10px;color:var(--text);}
+  .pr-bk-ersetzt[hidden]{display:none;}
+  .mt-bk .mt-felder{pointer-events:none;}
+  .mt-bk-akt{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end;margin-top:8px;}
   .pr-druck{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0;}
   @media (max-width:560px){ .pr-bk-row{grid-template-columns:24px 1fr;} .pr-bk-akt{grid-column:2;flex-direction:row;justify-content:space-between;} .pr-druck{grid-template-columns:1fr;} }
   .pr-regeln{display:flex;flex-direction:column;gap:8px;background:var(--surface-2);border-radius:var(--radius-sm);padding:12px 14px;margin:0 0 16px;font-size:14px;line-height:1.45;}
@@ -15097,6 +15102,7 @@ const NEUIGKEITEN = [
   {id:'2026-09-25-gehirn-latein', datum:'2026-09-25', fuer:'alle', text:'🔥 Für Profis: Im Übungstrainer «🧠 Das Gehirn» gibt es das Level «Extrem: Latein» – Lobus frontalis, Corpus callosum, Medulla oblongata & Co. antippen, übersetzen und selbst richtig schreiben.'},
   {id:'2026-09-25-gehirn', datum:'2026-09-25', fuer:'alle', text:'🧠 Neuer Übungstrainer in Biologie: «Das Gehirn». Finde die vier Hirnlappen, Kleinhirn und Hirnstamm im Bild, schau dir das Gehirn im Längsschnitt an (Balken, Zwischenhirn, Hirnanhangdrüse, Rückenmark) und lerne, was welcher Teil macht – dazu Fachbegriffe wie Synapse und Reflex.'},
   {id:'2026-09-24-echte-koerperbilder', datum:'2026-09-24', fuer:'alle', text:'🦴🫀 Die Übungstrainer «Das Skelett» und «Organe im Körper» zeigen jetzt echte anatomische Zeichnungen statt Skizzen. Mit 🔍 oben rechts im Bild kannst du es vergrössern.'},
+  {id:'2026-09-25-pruefung-baukasten-alle', datum:'2026-09-25', fuer:'lehrer', text:'🧩 Prüfungen › «🧩 Baukasten» gibt es jetzt für alle Prüfungen aus einer Übung (auch ältere), für Rechtschreib-Werkstatt- und ⚡ Übungstrainer-Prüfungen: Aufgaben mit Lösungen ansehen, einzeln löschen, mit 🎲 gegen eine zufällige aus demselben Bereich/Posten mit gleichem Typ tauschen oder mit 🔁 durch eine selbst gewählte ersetzen. Das geht auch nach dem Freigeben – bis jemand die Prüfung startet, danach nur noch ansehen. Beim Übungstrainer hat jede Person eigene Zahlen: du siehst die Fassung einer gewählten Person, 🎲 würfelt die Stelle für alle neu.'},
   {id:'2026-09-24-rsw-pruefung', datum:'2026-09-24', fuer:'lehrer', text:'✍️ Neu im 📝 Prüfungsmodus: «Rechtschreib-Werkstatt». Posten wählen (z. B. nur Teil 1), Anzahl Aufgaben und Aufgabentypen – die Library zieht eine Mischung aus Lückentexten, Auswahl-Aufgaben und kurzen Hördiktaten (einzelne Sätze oder Wörter aus den Audios) und korrigiert automatisch. Wählst du «Im Werkstatt-Pass: Prüfung Teil 1–4», sehen die Schüler:innen im Pass, ob sie die Prüfung geschrieben haben, und ihre Note. Für die Hördiktate die neuen Werkstatt-Dateien per «Datei ersetzen» hochladen (Stände bleiben).'},
   {id:'2026-09-24-rsw-tempo', datum:'2026-09-24', fuer:'alle', text:'🎧 Rechtschreib-Werkstatt: Die Audios kannst du jetzt auch mit 1,5× oder 2× abspielen (oder langsamer mit 0,75×). Im Werkstatt-Pass steht nach je fünf Posten die Prüfung zu diesem Teil – mit deiner Note, sobald sie da ist.'},
   {id:'2026-09-25-lernstand-spezial', datum:'2026-09-25', fuer:'lehrer', text:'📈 Lernstand-Übersicht aufgeräumt: Die 📊 SIKORE-Übersicht steht jetzt direkt im Fach Mathe, die 🧩 Werkstatt-Übersicht direkt im Fach Deutsch (jeweils zuoberst im aufgeklappten Fach).'},
@@ -21514,11 +21520,36 @@ function pruefEigeneFrage(e){
   return {typ:'offen', kat:'eigen', frage:e.frage, loesung:e.loesung};
 }
 
+// Aufgaben löschen/austauschen geht, bis jemand die Prüfung gestartet hat
+// (dann gibt es eine Teilnahme) — sonst passen gespeicherte Antworten nicht
+// mehr zu den Aufgaben. «Zurücksetzen» einer Teilnahme gibt das wieder frei.
+async function pruefGestartetZahl(p){ return (await getDocs(teilCol(p.id))).size; }
+function pruefBkGesperrtHtml(n){
+  return '<p class="pr-hinweis pr-warn">🔒 ' + n + (n === 1 ? ' Person hat' : ' Personen haben') + ' die Prüfung schon gestartet – die Aufgaben lassen sich nur noch ansehen. Punkte gehen weiterhin unter «🧮 Aufgaben & Punkte».</p>';
+}
+async function pruefBkNochFrei(p){
+  var n = 0;
+  try{ n = await pruefGestartetZahl(p); }catch(err){ console.error(err); }
+  if(n) toast('🔒 Inzwischen hat jemand die Prüfung gestartet – die Aufgaben bleiben, wie sie sind.');
+  return !n;
+}
+// Lösung einer (gezogenen oder umgewandelten) Übungsfrage als kurzer Text fürs Anschauen.
+function pruefLoesungHtml(f){
+  if(!f) return '';
+  if(f.typ === 'mc') return (f.optionen || []).map(function(o, j){ return j === f.loesung ? '<b>'+esc(o)+' ✓</b>' : esc(o); }).join(' · ');
+  if(f.typ === 'text') return '✓ <b>'+esc((f.loesung || []).join(' / '))+'</b>';
+  if(f.typ === 'zuordnen') return (f.links || []).map(function(l, j){ return esc(l)+' → <b>'+esc((f.rechts || [])[j])+'</b>'; }).join(' · ');
+  if(f.typ === 'reihenfolge') return '✓ '+(f.items || []).map(esc).join(' → ');
+  var t = pruefAntwortText(f);
+  return t ? (f.typ === 'offen' ? 'Musterlösung: ' : '✓ ') + '<b>'+esc(t)+'</b>' : '';
+}
+
 async function pruefBaukasten(p){
-  if(p.status !== 'entwurf'){ uiInfo('🧩 Baukasten', 'Die Prüfung wurde schon freigegeben – die Aufgaben bleiben, wie sie sind. Punkte lassen sich weiterhin unter «🧮 Aufgaben & Punkte» ändern.'); return; }
   openModal('<h3>🧩 Baukasten</h3><p class="pr-hinweis">Übung und Lösungen werden geladen …</p>', 'pr-modal pr-modal-breit');
-  var loes = {};
+  var loes = {}, gestartet = 0;
   try{ loes = await pruefLoesungLaden(p.id); }catch(err){ console.error(err); }
+  try{ gestartet = await pruefGestartetZahl(p); }catch(err){ console.error(err); }
+  var nurAnsehen = gestartet > 0;
   // Mehrere Übungen: infos[contentId] = ausgelesene Fragen; die Hauptübung ist p.contentId,
   // Aufgaben aus anderen Übungen tragen q.srcC (deren contentId).
   var LEER = {art:'bank', fragen:[], kategorien:[]}, infos = {}, titel = {};
@@ -21571,7 +21602,7 @@ async function pruefBaukasten(p){
     if(als === 'mc' && f.typ !== 'mc' && q.optionen) zuletzt.v = [Object.assign({}, f, {typ:'mc', frage:q.frage, optionen:q.optionen, loesung:L.loesung})];
     bs.push(zuletzt);
   });
-  var filterKat = '', suche = '';
+  var filterKat = '', suche = '', ersetzen = null;
 
   function bausteinText(b){
     if(b.eigen) return b.eigen.frage;
@@ -21588,31 +21619,53 @@ async function pruefBaukasten(p){
   function summe(){ return Math.round(bs.reduce(function(s, b){ return s + b.punkte * anzahlFragen(b); }, 0) * 100) / 100; }
   function benutzt(){ var u = {}; bs.forEach(function(b){ if(b.f) u[b.cid + '|' + b.i] = 1; }); return u; }
 
+  function loesungHtml(b){
+    if(b.eigen) return 'Musterlösung: <b>'+esc(b.eigen.loesung)+'</b>';
+    if(b.fix) return b.fix.L.anzeige ? '✓ <b>'+esc(b.fix.L.anzeige)+'</b>' : '';
+    var vs = bausteinVarianten(b);
+    if(vs.length > 1) return vs.map(function(v){ return esc(v.frage)+' → <b>'+esc((v.loesung || [])[0] || '')+'</b>'; }).join(' · ');
+    return pruefLoesungHtml(vs[0]);
+  }
   function listeHtml(){
     if(!bs.length) return '<div class="empty-state">Noch keine Aufgaben – unten hinzufügen.</div>';
     return bs.map(function(b, k){
       var typ;
-      if(b.f){
+      if(nurAnsehen){
+        var tv = b.f ? bausteinVarianten(b)[0] : null;
+        typ = '<span class="pr-badge">'+esc(b.eigen ? (b.eigen.typ === 'text' ? '🔤 selbst hinschreiben' : '✍️ frei formulieren') : PRUEF_TYPEN[(tv || b.fix.q).typ] || (tv || b.fix.q).typ)+'</span>';
+      } else if(b.f){
         typ = '<select class="modal-input pr-bk-als" data-als="'+k+'">' + pruefAlsMoeglich(b.f, infoVon(b)).map(function(a){
           return '<option value="'+a.id+'"'+(b.als === a.id ? ' selected' : '')+'>'+esc(a.id === 'orig' ? (PRUEF_TYPEN[b.f.typ] || b.f.typ) + ' (wie Übung)' : a.name)+'</option>';
         }).join('') + '</select>';
       } else if(b.eigen){
         typ = '<select class="modal-input pr-bk-als" data-eigtyp="'+k+'"><option value="offen"'+(b.eigen.typ !== 'text' ? ' selected' : '')+'>✍️ frei formulieren</option><option value="text"'+(b.eigen.typ === 'text' ? ' selected' : '')+'>🔤 selbst hinschreiben</option></select>';
       } else typ = '<span class="pr-badge">'+esc(PRUEF_TYPEN[b.fix.q.typ] || b.fix.q.typ)+'</span>';
-      var n = anzahlFragen(b), opts = '';
-      if(b.f && b.als === 'mc'){
-        var mv = bausteinVarianten(b)[0];
-        if(mv) opts = '<div class="pr-bk-opts">'+mv.optionen.map(function(o, j){ return j === mv.loesung ? '<b>'+esc(o)+' ✓</b>' : esc(o); }).join(' · ')+
-          ' <button class="btn btn-ghost btn-sm" data-neumisch="'+k+'" type="button" title="andere falsche Antworten">🎲</button></div>';
-      }
-      return '<div class="pr-bk-row"><span class="pr-ap-nr">'+(k+1)+'.</span>'+
-        '<div class="pr-bk-f"><div class="pr-ap-meta">'+typ+'<small>'+esc(b.f ? (katVon(b)[b.f.kat] || b.f.kat || '') + (b.cid !== p.contentId ? ' · 📚 ' + (titel[b.cid] || 'andere Übung') : '') : b.eigen ? '✏️ eigene Aufgabe' : (b.fix.q.kat || ''))+(n > 1 ? ' · ergibt '+n+' Fragen' : '')+'</small></div>'+
-        '<div>'+esc(bausteinText(b))+'</div>'+opts+'</div>'+
-        '<div class="pr-bk-akt"><label class="pr-ap-p"><input type="number" class="modal-input" data-pk="'+k+'" min="0.5" max="50" step="0.5" value="'+b.punkte+'"><span>P.'+(n > 1 ? ' je' : '')+'</span></label>'+
+      var n = anzahlFragen(b), opts = loesungHtml(b), bild = b.f ? b.f.bild : b.fix && b.fix.q.bild != null;
+      if(opts || bild) opts = '<div class="pr-bk-opts">'+(bild ? '🖼️ mit Bild · ' : '')+opts+
+        (b.f && b.als === 'mc' && b.f.typ !== 'mc' && !nurAnsehen ? ' <button class="btn btn-ghost btn-sm" data-neumisch="'+k+'" type="button" title="andere falsche Antworten">🎲</button>' : '')+'</div>';
+      var akt = nurAnsehen ? '<div class="pr-bk-akt"><span>'+pruefZahlText(b.punkte)+' P.'+(n > 1 ? ' je' : '')+'</span></div>'
+        : '<div class="pr-bk-akt"><label class="pr-ap-p"><input type="number" class="modal-input" data-pk="'+k+'" min="0.5" max="50" step="0.5" value="'+b.punkte+'"><span>P.'+(n > 1 ? ' je' : '')+'</span></label>'+
         '<span><button class="btn btn-ghost btn-sm" data-hoch="'+k+'" type="button" title="nach oben"'+(k ? '' : ' disabled')+'>↑</button>'+
         '<button class="btn btn-ghost btn-sm" data-runter="'+k+'" type="button" title="nach unten"'+(k < bs.length - 1 ? '' : ' disabled')+'>↓</button>'+
-        '<button class="btn btn-ghost btn-sm" data-weg="'+k+'" type="button" title="entfernen">✕</button></span></div></div>';
+        '<button class="btn btn-ghost btn-sm" data-weg="'+k+'" type="button" title="entfernen">✕</button></span>'+
+        '<span>'+(b.f ? '<button class="btn btn-ghost btn-sm" data-tausch="'+k+'" type="button" title="zufällig austauschen: andere Aufgabe aus demselben Bereich, gleicher Typ">🎲</button>' : '')+
+        '<button class="btn btn-ghost btn-sm'+(ersetzen === k ? ' btn-primary' : '')+'" data-ersetzen="'+k+'" type="button" title="durch eine Aufgabe ersetzen, die du unten auswählst">🔁</button></span></div>';
+      return '<div class="pr-bk-row'+(ersetzen === k ? ' pr-bk-ziel' : '')+'"><span class="pr-ap-nr">'+(k+1)+'.</span>'+
+        '<div class="pr-bk-f"><div class="pr-ap-meta">'+typ+'<small>'+esc(b.f ? (katVon(b)[b.f.kat] || b.f.kat || '') + (b.cid !== p.contentId ? ' · 📚 ' + (titel[b.cid] || 'andere Übung') : '') : b.eigen ? '✏️ eigene Aufgabe' : (b.fix.q.kat || ''))+(n > 1 ? ' · ergibt '+n+' Fragen' : '')+'</small></div>'+
+        '<div>'+esc(bausteinText(b))+'</div>'+opts+'</div>'+akt+'</div>';
     }).join('');
+  }
+  // 🎲 Gleicher Bereich, gleicher Typ, noch nicht in der Prüfung.
+  function tauschen(k){
+    var b = bs[k], qi = infoVon(b), u = benutzt();
+    var kand = qi.fragen.map(function(f, i){ return {f:f, i:i}; }).filter(function(x){
+      return !u[b.cid + '|' + x.i] && x.f.typ === b.f.typ && x.f.kat === b.f.kat && x.f.typ !== 'diktat';
+    });
+    if(!kand.length){ toast('Keine weitere Aufgabe mit demselben Bereich und Typ – mit 🔁 selbst eine auswählen.'); return; }
+    var x = kand[Math.floor(Math.random() * kand.length)];
+    var als = b.als === 'orig' || pruefAlsTyp(x.f, b.als, qi, pruefRng(1)).length ? b.als : 'orig';
+    bs[k] = {cid:b.cid, i:x.i, f:x.f, als:als, punkte:b.punkte};
+    zeichnen();
   }
   function poolHtml(){
     var u = benutzt(), t = suche.trim().toLowerCase();
@@ -21624,7 +21677,7 @@ async function pruefBaukasten(p){
     if(!info.fragen.length) return '<div class="empty-state">Aus dieser Übung lassen sich keine Fragen auslesen (geht mit Prüfungsvorbereitungen/Quiz und Mathe-Übungen) – eigene Aufgaben gehen trotzdem.</div>';
     if(!liste.length) return '<div class="empty-state">Keine weiteren Fragen'+(filterKat || t ? ' für diese Auswahl' : '')+'.</div>';
     return liste.slice(0, 80).map(function(x){
-      return '<div class="pr-bk-pool"><button class="btn btn-ghost btn-sm" data-dazu="'+x.i+'" type="button" title="zur Prüfung">＋</button>'+
+      return '<div class="pr-bk-pool"><button class="btn btn-ghost btn-sm" data-dazu="'+x.i+'" type="button" title="'+(ersetzen != null ? 'ersetzt Aufgabe '+(ersetzen+1) : 'zur Prüfung')+'">'+(ersetzen != null ? '🔁' : '＋')+'</button>'+
         '<div><span class="pr-badge">'+esc(PRUEF_TYPEN[x.f.typ] || x.f.typ)+'</span> <small>'+esc(katName[x.f.kat] || x.f.kat || '')+' · '+esc(PRUEF_BLOOM.filter(function(bl){ return bl.id === pruefBloom(x.f); }).map(function(bl){ return bl.icon; }).join(''))+'</small><div>'+
         esc(x.f.frage || (x.f.links ? 'Zuordnen: ' + x.f.links.join(', ') : x.f.items ? 'Reihenfolge: ' + x.f.items.join(', ') : ''))+'</div></div></div>';
     }).join('') + (liste.length > 80 ? '<p class="pr-hinweis">… und '+(liste.length - 80)+' weitere – mit Bereich oder Suche eingrenzen.</p>' : '');
@@ -21633,15 +21686,28 @@ async function pruefBaukasten(p){
     var el = document.getElementById('prBkListe');
     if(!el) return;
     el.innerHTML = listeHtml();
-    document.getElementById('prBkPool').innerHTML = poolHtml();
     document.getElementById('prBkKopf').innerHTML = bs.length + ' Aufgaben · <b>' + pruefZahlText(summe()) + '</b> Punkte';
+    if(nurAnsehen) return;
+    document.getElementById('prBkPool').innerHTML = poolHtml();
+    var ez = document.getElementById('prBkErsetzt');
+    ez.hidden = ersetzen == null;
+    if(ersetzen != null) ez.innerHTML = '🔁 Wähle unten die Aufgabe (oder schreib eine eigene), die <b>Nr. '+(ersetzen+1)+'</b> ersetzt. <button class="btn btn-ghost btn-sm" data-ersetzenweg="1" type="button">Abbrechen</button>';
   }
 
   var h = '<h3>🧩 Baukasten: '+esc(p.titel)+'</h3>';
-  h += '<p class="pr-hinweis">Aufgaben zusammenstellen, ordnen und pro Aufgabe den Typ wählen. Die Reihenfolge hier gilt auch für den Druck (online wird sie pro Person gemischt, falls eingestellt).</p>';
+  if(nurAnsehen){
+    h += pruefBkGesperrtHtml(gestartet) + '<p class="pr-hinweis" id="prBkKopf"></p><div class="pr-ap" id="prBkListe"></div>';
+    h += '<div class="modal-actions"><button class="btn btn-primary btn-sm" id="modalCancel" type="button">Schliessen</button></div>';
+    openModal(h, 'pr-modal pr-modal-breit');
+    zeichnen();
+    document.getElementById('modalCancel').addEventListener('click', closeModal);
+    return;
+  }
+  h += '<p class="pr-hinweis">Aufgaben ansehen, zusammenstellen, ordnen und pro Aufgabe den Typ wählen. ✕ löscht eine Aufgabe, 🎲 tauscht sie gegen eine zufällige aus demselben Bereich mit gleichem Typ, 🔁 ersetzt sie durch eine, die du unten auswählst. Geht, bis jemand die Prüfung startet. Die Reihenfolge hier gilt auch für den Druck (online wird sie pro Person gemischt, falls eingestellt).</p>';
   h += '<p class="pr-hinweis" id="prBkKopf"></p>';
   h += '<div class="pr-ap" id="prBkListe"></div>';
   h += '<h4 class="pr-h4">➕ Aufgaben hinzufügen</h4>';
+  h += '<p class="pr-hinweis pr-bk-ersetzt" id="prBkErsetzt" hidden></p>';
   h += '<label class="modal-label">Aus Übung</label><select id="prBkQuelle" class="modal-input">' + (function(){
     var o = '', fach = null, hatHaupt = false;
     uebListe.forEach(function(r){
@@ -21683,11 +21749,26 @@ async function pruefBaukasten(p){
     var k;
     if((k = b.getAttribute('data-hoch')) != null){ k = +k; var x = bs[k]; bs[k] = bs[k-1]; bs[k-1] = x; zeichnen(); }
     else if((k = b.getAttribute('data-runter')) != null){ k = +k; var y = bs[k]; bs[k] = bs[k+1]; bs[k+1] = y; zeichnen(); }
-    else if((k = b.getAttribute('data-weg')) != null){ bs.splice(+k, 1); zeichnen(); }
+    else if((k = b.getAttribute('data-weg')) != null){ bs.splice(+k, 1); ersetzen = null; zeichnen(); }
     else if((k = b.getAttribute('data-neumisch')) != null){ bs[+k].v = null; zeichnen(); }
+    else if((k = b.getAttribute('data-tausch')) != null) tauschen(+k);
+    else if((k = b.getAttribute('data-ersetzen')) != null){
+      k = +k;
+      ersetzen = ersetzen === k ? null : k;
+      var zb = bs[k];
+      if(ersetzen != null && zb.f && zb.cid === quelle){ filterKat = zb.f.kat || ''; document.getElementById('prBkKat').value = filterKat; }
+      zeichnen();
+      if(ersetzen != null) document.getElementById('prBkErsetzt').scrollIntoView({block:'start', behavior:'smooth'});
+    }
+    else if(b.hasAttribute('data-ersetzenweg')){ ersetzen = null; zeichnen(); }
     else if((k = b.getAttribute('data-dazu')) != null){
-      var f = info.fragen[+k];
-      bs.push({cid:quelle, i:+k, f:f, als:'orig', punkte:pruefPunkteVorschlag(f)});
+      var f = info.fragen[+k], nb = {cid:quelle, i:+k, f:f, als:'orig', punkte:pruefPunkteVorschlag(f)};
+      if(ersetzen != null){
+        var ziel = ersetzen; bs[ziel] = nb; ersetzen = null; zeichnen();
+        var zr = document.querySelectorAll('#prBkListe .pr-bk-row')[ziel]; if(zr) zr.scrollIntoView({block:'nearest', behavior:'smooth'});
+        return;
+      }
+      bs.push(nb);
       zeichnen();
       var liste = document.getElementById('prBkListe'); liste.scrollTop = liste.scrollHeight;
     }
@@ -21696,7 +21777,8 @@ async function pruefBaukasten(p){
       if(!fr){ document.getElementById('prBkEF').focus(); return; }
       if(!lo){ toast('Bitte eine Musterlösung angeben (für Korrektur und Lösungsblatt).'); document.getElementById('prBkEL').focus(); return; }
       if(ty === 'text' && !pruefKurzeAntwort(lo)){ toast('«Selbst hinschreiben» braucht eine kurze Antwort (höchstens 4 Wörter) – sonst «frei formulieren» wählen.'); return; }
-      bs.push({eigen:{typ:ty, frage:fr, loesung:lo}, punkte:ty === 'text' ? 1 : 2});
+      var eb2 = {eigen:{typ:ty, frage:fr, loesung:lo}, punkte:ty === 'text' ? 1 : 2};
+      if(ersetzen != null){ bs[ersetzen] = eb2; ersetzen = null; } else bs.push(eb2);
       document.getElementById('prBkEF').value = ''; document.getElementById('prBkEL').value = '';
       zeichnen();
     }
@@ -21756,6 +21838,7 @@ async function pruefBaukasten(p){
     if(JSON.stringify(upd).length > 900000){ toast('Zu viele/zu grosse Aufgaben – bitte weniger wählen.'); return; }
     this.disabled = true;
     try{
+      if(!(await pruefBkNochFrei(p))){ this.disabled = false; return; }
       await writeBatch().update(pruefRef(p.id), upd).set(loesRef(p.id), {loesungen:loesungen}).commit();
       pruef.loes[p.id] = loesungen;
       closeModal();
@@ -22109,7 +22192,7 @@ function pruefMonitorZeichnen(){
   if(pruefArt(p) === 'sikore') h += '<button class="btn btn-ghost btn-sm" data-a="sikoreDruck" type="button">🖨️ Blätter drucken</button>';
   h += '<button class="btn btn-ghost btn-sm" data-a="bearbeiten" type="button">✏️ Bearbeiten</button>';
   if(pruefArt(p) === 'bank' && !p.diktat) h += '<button class="btn btn-ghost btn-sm" data-a="punkte" type="button">🧮 Aufgaben & Punkte</button>';
-  if(pruefArt(p) === 'bank' && !p.diktat && !p.rsw && p.status === 'entwurf') h += '<button class="btn btn-ghost btn-sm" data-a="baukasten" type="button">🧩 Baukasten</button>';
+  if((pruefArt(p) === 'bank' && !p.diktat) || pruefArt(p) === 'mt') h += '<button class="btn btn-ghost btn-sm" data-a="baukasten" type="button" title="Aufgaben ansehen, einzeln löschen oder austauschen — bis jemand die Prüfung startet">🧩 Baukasten</button>';
   if(pruefArt(p) === 'bank') h += '<button class="btn btn-ghost btn-sm" data-a="drucken" type="button">🖨️ Drucken (PDF/Word)</button>';
   if(p.status !== 'offen') h += '<button class="btn btn-ghost btn-sm" data-a="loeschen" type="button">🗑 Löschen</button>';
   h += '</div>';
@@ -22230,7 +22313,7 @@ function pruefMonitorVerdrahten(p){
     else if(a === 'bearbeiten'){ if(pruefArt(p) === 'sikore') sikoreEditor(p); else if(pruefArt(p) === 'tippen') tippPrEditor(p); else if(pruefArt(p) === 'mt') mtPrEditor(p); else if(p.rsw) rswPrEditor(p); else pruefEditor(p); }
     else if(a === 'sikoreDruck') sikoreDruckDialog(p);
     else if(a === 'punkte') pruefAufgabenPunkte(p);
-    else if(a === 'baukasten') pruefBaukasten(p);
+    else if(a === 'baukasten'){ if(pruefArt(p) === 'mt') mtPrBaukasten(p); else if(p.rsw) rswBaukasten(p); else pruefBaukasten(p); }
     else if(a === 'drucken') pruefDruckDialog(p);
     else if(a === 'alleEntsperren'){
       var batch = writeBatch();
@@ -26263,19 +26346,33 @@ async function mtUebersicht(def){
    umschaltbar wie bei den anderen Arten. */
 var MT_PR_ANZAHL = [5, 8, 10, 12, 15, 20, 25, 30];
 function mtPrCfg(p){
-  var c = (p && p.cfg) || {};
-  return {trainer:String(c.trainer || ''), level:Math.max(1, +c.level || 1), anzahl:Math.max(1, +c.anzahl || 10), uniq:c.uniq === true,
-    mix:(Array.isArray(c.mix) ? c.mix : []).map(String)};
+  var c = (p && p.cfg) || {}, slots = Array.isArray(c.slots) && c.slots.length ? c.slots.map(Number) : null;
+  return {trainer:String(c.trainer || ''), level:Math.max(1, +c.level || 1), anzahl:slots ? slots.length : Math.max(1, +c.anzahl || 10), uniq:c.uniq === true,
+    mix:(Array.isArray(c.mix) ? c.mix : []).map(String), slots:slots, basis:Math.max(1, +c.basis || +c.anzahl || 10)};
 }
 // Bei einem Sammel-Trainer zieht die Prüfung nur aus den gewählten Teil-Übungen.
 function mtPrDef(p){
   var c = mtPrCfg(p), def = mtDef(c.trainer);
   return def && def.mix && c.mix.length ? mtMixDef(def, c.mix) : def;
 }
+// Mit cfg.slots (🧩 Baukasten): Zahl ≥ 0 = Aufgabe Nr. n der ursprünglichen
+// Ziehung (bleibt also genau gleich), Zahl < 0 = ausgetauschte Stelle mit
+// eigener Zufallsfolge je Person, ohne Doppelte.
 function mtPrFragen(p, uid){
   var c = mtPrCfg(p), def = mtPrDef(p);
   if(!def) return [];
-  return mtFragen(def, c.level, c.anzahl, (((+p.seed || 1) >>> 0) ^ pruefPersonSeed(uid || '')) >>> 0 || 1, !c.uniq);
+  var seed = (((+p.seed || 1) >>> 0) ^ pruefPersonSeed(uid || '')) >>> 0 || 1;
+  if(!c.slots) return mtFragen(def, c.level, c.anzahl, seed, !c.uniq);
+  var basis = mtFragen(def, c.level, c.basis, seed, !c.uniq), gesehen = {};
+  c.slots.forEach(function(s){ if(s >= 0 && basis[s]) gesehen[mtSchluessel(basis[s])] = 1; });
+  return c.slots.map(function(s, i){
+    if(s >= 0 && basis[s]) return basis[s];
+    var q, k, v = 0, r = (Math.abs(s) || i + 1) >>> 0;
+    do{ q = mtFragen(def, c.level, 1, ((((seed ^ r) >>> 0) + v * 7919) >>> 0) || 1, true)[0]; k = mtSchluessel(q); v++; }
+    while(c.uniq && gesehen[k] && v < 40);
+    gesehen[k] = 1;
+    return q;
+  });
 }
 function mtPrFelder(fragen){ return fragen.reduce(function(n, q){ return n + q.felder.length; }, 0); }
 // Resultat einer Person (Lehrperson und Vorschau): ein Punkt pro Kästchen.
@@ -26410,7 +26507,7 @@ function mtPrEditor(p){
   h += '<div id="mtPrMixBox"></div>';
   h += '<div class="pr-grid2"><div><label class="modal-label">Level</label><select id="mtPrLevel" class="modal-input"'+(fix ? ' disabled' : '')+'></select></div>';
   h += '<div><label class="modal-label">Anzahl Aufgaben</label><select id="mtPrAnz" class="modal-input"'+(fix ? ' disabled' : '')+'>'+
-    MT_PR_ANZAHL.map(function(n){ return '<option value="'+n+'"'+(n === c.anzahl ? ' selected' : '')+'>'+n+'</option>'; }).join('')+'</select></div></div>';
+    (MT_PR_ANZAHL.indexOf(c.anzahl) < 0 ? MT_PR_ANZAHL.concat([c.anzahl]).sort(function(a, b){ return a - b; }) : MT_PR_ANZAHL).map(function(n){ return '<option value="'+n+'"'+(n === c.anzahl ? ' selected' : '')+'>'+n+'</option>'; }).join('')+'</select></div></div>';
   h += '<div class="pr-grid2"><div><label class="modal-label">Zeitlimit in Minuten (leer = keins)</label><input type="number" id="prZeit" class="modal-input" min="1" max="120" step="1" value="'+esc(p ? (p.zeitMin ? String(p.zeitMin) : '') : '10')+'"'+(fix ? ' disabled' : '')+'></div>';
   h += '<div><label class="modal-label">Gewichtung im Notenrechner</label><input type="number" id="prGewicht" class="modal-input" min="0.5" max="10" step="0.5" value="'+esc(String(p && p.gewicht ? p.gewicht : 1))+'"></div></div>';
   h += '<h4 class="pr-h4">Notenmassstab</h4>';
@@ -26517,6 +26614,10 @@ function mtPrEditor(p){
     else {
       data.cfg = {trainer:d.id, level:+document.getElementById('mtPrLevel').value || 1, anzahl:+document.getElementById('mtPrAnz').value || 10, uniq:true};
       if(d.mix) data.cfg.mix = mixIds;
+      // Im 🧩 Baukasten geänderte Aufgaben behalten, solange Trainer, Level, Übungen und Anzahl gleich bleiben.
+      if(c.slots && d.id === c.trainer && data.cfg.level === c.level && data.cfg.anzahl === c.anzahl && (mixIds || []).join() === c.mix.join() && p.cfg.uniq === true){
+        data.cfg.slots = c.slots; data.cfg.basis = c.basis;
+      }
       var z = num('prZeit');
       data.zeitMin = z > 0 ? Math.min(120, Math.round(z)) : 0;
     }
@@ -26531,6 +26632,81 @@ function mtPrEditor(p){
         toast('Gespeichert.');
         if(p.resultateFrei) pruefNotenEintragen(Object.assign({}, p, data)).catch(pruefFehler);
       }
+    }catch(err){ this.disabled = false; pruefFehler(err); }
+  });
+}
+
+/* ---------- Lehrperson: 🧩 Baukasten einer Übungstrainer-Prüfung ----------
+   Die Aufgaben entstehen pro Person (andere Zahlen, bei gemischten Trainern
+   auch andere Aufgabenarten). Angesehen wird darum die Fassung einer Person
+   (wählbar); ✕ nimmt eine Stelle für alle heraus, 🎲 würfelt die Aufgabe an
+   dieser Stelle für alle neu, ＋ hängt eine Stelle an. Gespeichert wird das
+   als cfg.slots (siehe mtPrFragen): Zahl ≥ 0 = ursprüngliche Aufgabe Nr. n,
+   Zahl < 0 = ausgetauscht. Ohne slots bleibt alles wie bisher. */
+function mtPrNeuerSlot(){ return -(Math.floor(Math.random() * 2147483646) + 1); }
+async function mtPrBaukasten(p){
+  var def = mtPrDef(p);
+  if(!def){ uiInfo('🧩 Baukasten', 'Den Trainer dieser Prüfung gibt es nicht mehr.'); return; }
+  openModal('<h3>🧩 Baukasten</h3><p class="pr-hinweis">Wird geladen …</p>', 'pr-modal pr-modal-breit');
+  var gestartet = 0, roster = [];
+  try{ gestartet = await pruefGestartetZahl(p); }catch(err){ console.error(err); }
+  try{ roster = rosterFuerFach(await loadStudentRoster(), pruefFach(p)); }catch(err){ console.error(err); }
+  if(Array.isArray(p.mitglieder)) roster = roster.filter(function(s){ return p.mitglieder.indexOf(s.uid) >= 0; });
+  var nurAnsehen = gestartet > 0, c = mtPrCfg(p);
+  var slots = c.slots ? c.slots.slice() : Array.from({length:c.anzahl}, function(_, i){ return i; }), basis = c.slots ? c.basis : c.anzahl;
+  var wer = roster.length ? roster[0].uid : state.user.uid;
+  function fragenFuer(uid){ return mtPrFragen(Object.assign({}, p, {cfg:Object.assign({}, p.cfg, {slots:slots, basis:basis, anzahl:slots.length})}), uid); }
+  function zeichnen(){
+    var el = document.getElementById('mtBkListe'); if(!el) return;
+    var fr = fragenFuer(wer), ans = {}, marks = {};
+    fr.forEach(function(q, i){ q.felder.forEach(function(f, j){ ans[i+'_'+j] = [].concat(f.loesung)[0]; marks[i+'_'+j] = 'ok'; }); });
+    el.innerHTML = fr.length ? mtBlattHtmlFuer(fr, ans, marks, def.num) : '<div class="empty-state">Keine Aufgaben – unten eine hinzufügen.</div>';
+    Array.prototype.forEach.call(el.querySelectorAll('.mt-in'), function(i){ i.value = mtAnzeige(i.value); i.tabIndex = -1; });
+    if(!nurAnsehen) Array.prototype.forEach.call(el.querySelectorAll('.mt-karte'), function(k, i){
+      var d = document.createElement('div');
+      d.className = 'mt-bk-akt';
+      d.innerHTML = '<button class="btn btn-ghost btn-sm" data-tausch="'+i+'" type="button" title="Aufgabe an dieser Stelle für alle neu würfeln">🎲 austauschen</button>'+
+        '<button class="btn btn-ghost btn-sm" data-weg="'+i+'" type="button" title="Aufgabe an dieser Stelle für alle entfernen">✕ löschen</button>';
+      k.querySelector('.mt-body').appendChild(d);
+    });
+    document.getElementById('mtBkKopf').innerHTML = slots.length + ' Aufgaben · <b>' + mtPrFelder(fr) + '</b> Punkte bei dieser Person (1 pro Kästchen)';
+  }
+  var h = '<h3>🧩 Baukasten: '+esc(p.titel)+'</h3>';
+  h += nurAnsehen ? pruefBkGesperrtHtml(gestartet)
+    : '<p class="pr-hinweis">Jede Person bekommt eigene Aufgaben (andere Zahlen, bei gemischten Trainern auch andere Aufgabenarten) – hier siehst du die Fassung der gewählten Person, mit Lösungen. <b>🎲 austauschen</b> würfelt die Aufgabe an dieser Stelle für alle neu, <b>✕ löschen</b> nimmt sie für alle heraus. Geht, bis jemand die Prüfung startet.</p>';
+  h += '<label class="modal-label">Fassung von</label><select id="mtBkWer" class="modal-input">' +
+    roster.map(function(s){ return '<option value="'+esc(s.uid)+'">👤 '+esc(s.displayName || s.username || s.uid)+'</option>'; }).join('') +
+    '<option value="'+esc(state.user.uid)+'"'+(roster.length ? '' : ' selected')+'>👀 deine Fassung (wie «Ausprobieren»)</option></select>';
+  h += '<p class="pr-hinweis" id="mtBkKopf"></p><div class="mt-wrap mt-bk" id="mtBkListe"></div>';
+  if(!nurAnsehen) h += '<div class="pr-kats"><button class="btn btn-ghost btn-sm" id="mtBkDazu" type="button">＋ Aufgabe hinzufügen</button></div>';
+  h += '<div class="modal-actions">' + (nurAnsehen ? '<button class="btn btn-primary btn-sm" id="modalCancel" type="button">Schliessen</button>'
+    : '<button class="btn btn-ghost btn-sm" id="modalCancel" type="button">Abbrechen</button><button class="btn btn-primary btn-sm" id="modalOk" type="button">Speichern</button>') + '</div>';
+  openModal(h, 'pr-modal pr-modal-breit');
+  zeichnen();
+  document.getElementById('modalCancel').addEventListener('click', closeModal);
+  document.getElementById('mtBkWer').addEventListener('change', function(){ wer = this.value; zeichnen(); });
+  if(nurAnsehen) return;
+  document.getElementById('mtBkListe').addEventListener('click', function(e){
+    var b = e.target.closest('button'); if(!b) return;
+    var k;
+    if((k = b.getAttribute('data-tausch')) != null){ slots[+k] = mtPrNeuerSlot(); zeichnen(); }
+    else if((k = b.getAttribute('data-weg')) != null){
+      if(slots.length <= 1){ toast('Mindestens eine Aufgabe.'); return; }
+      slots.splice(+k, 1); zeichnen();
+    }
+  });
+  document.getElementById('mtBkDazu').addEventListener('click', function(){
+    if(slots.length >= 60){ toast('Höchstens 60 Aufgaben.'); return; }
+    slots.push(mtPrNeuerSlot()); zeichnen();
+    var karten = document.querySelectorAll('#mtBkListe .mt-karte'); if(karten.length) karten[karten.length - 1].scrollIntoView({block:'nearest', behavior:'smooth'});
+  });
+  document.getElementById('modalOk').addEventListener('click', async function(){
+    this.disabled = true;
+    try{
+      if(!(await pruefBkNochFrei(p))){ this.disabled = false; return; }
+      await updateDoc(pruefRef(p.id), {'cfg.slots':slots, 'cfg.basis':basis, 'cfg.anzahl':slots.length});
+      closeModal();
+      toast('Prüfung gespeichert: ' + slots.length + ' Aufgaben.');
     }catch(err){ this.disabled = false; pruefFehler(err); }
   });
 }
@@ -27128,7 +27304,12 @@ async function rswPrEditor(p){
   var posten = r0.posten ? r0.posten.slice() : (quellen ? quellen.topics.filter(function(t){ return t.part === 1; }).map(function(t){ return t.id; }) : []);
   var typen = r0.typen ? r0.typen.slice() : RSW_TYPEN.map(function(t){ return t.id; });
   var anzahl = +r0.anzahl || 10, seed = (p && p.seed) || Math.floor(Math.random() * 2147483646) + 1, neuZiehen = neu;
-  var zug = null;
+  var zug = null, bkLoes = null;
+  // Im 🧩 Baukasten zusammengestellt: die gespeicherten Aufgaben zeigen und behalten, bis oben etwas geändert wird.
+  if(!fix && p && p.cfg && p.cfg.baukasten && p.fragen){
+    try{ bkLoes = await pruefLoesungLaden(p.id); }catch(err){ console.error(err); }
+    if(token !== prEditorToken) return;
+  }
   var h = '<h3>✍️ ' + (neu ? 'Neue Rechtschreib-Prüfung' : 'Rechtschreib-Prüfung bearbeiten') + '</h3>' + kopf;
   h += '<p class="pr-hinweis">Prüfung aus der <b>Rechtschreib-Werkstatt</b>: Du wählst die Posten, die Library zieht daraus eine Mischung aus Lückentexten, Auswahl-Aufgaben und kurzen Hördiktaten (einzelne Sätze oder Wörter aus den Audios — nie das ganze Diktat). Korrigiert wird automatisch wie in der Werkstatt (Gross/Klein zählt, ß = ss), jede Aufgabe lässt sich von Hand umwerten.</p>';
   h += '<label class="modal-label">Titel</label><input type="text" id="prTitel" class="modal-input" maxlength="80" value="' + esc(p ? p.titel : '') + '">';
@@ -27191,7 +27372,8 @@ async function rswPrEditor(p){
   function vorschauZeichnen(){
     if(fix) return;
     var box = document.getElementById('rswVorschau');
-    zug = posten.length && typen.length ? rswZiehen(quellen, {posten:posten, typen:typen, anzahl:anzahl}, seed) : null;
+    zug = !neuZiehen && bkLoes ? {fragen:p.fragen, loesungen:bkLoes, maxPunkte:p.maxPunkte || 0}
+      : posten.length && typen.length ? rswZiehen(quellen, {posten:posten, typen:typen, anzahl:anzahl}, seed) : null;
     var pi = document.getElementById('rswPostenInfo');
     if(pi) pi.textContent = posten.length + ' gewählt';
     if(!zug || !zug.fragen.length){ box.innerHTML = '<p class="pr-hinweis pr-warn">Wähle mindestens einen Posten und einen Aufgabentyp.</p>'; maxInfo(); return; }
@@ -27199,9 +27381,10 @@ async function rswPrEditor(p){
     zug.fragen.forEach(function(q){ var c = q.typ === 'hoeren' ? 'hoeren' : (q.teile || []).some(function(x){ return x && x.o; }) && !(q.teile || []).some(function(x){ return x && typeof x === 'object' && !x.o; }) ? 'wahl' : 'schreiben'; if(q.audio && q.typ === 'luecke') c = 'hoeren'; zahl[c] = (zahl[c] || 0) + 1; });
     var hb = '<p class="pr-hinweis"><b>So sieht die Prüfung aus:</b> ' + zug.fragen.length + ' Aufgaben · ' + zug.maxPunkte + ' Punkte · ' +
       RSW_TYPEN.map(function(t){ return t.icon + ' ' + (zahl[t.id] || 0); }).join(' · ') +
-      (zug.fragen.length < anzahl ? ' <span class="pr-warn">(mehr gibt es mit dieser Auswahl nicht)</span>' : '') + '</p><ol class="rsw-liste">';
+      (!neuZiehen && bkLoes ? ' <span class="pr-warn">(im 🧩 Baukasten zusammengestellt – änderst du oben etwas, wird neu gezogen)</span>'
+        : zug.fragen.length < anzahl ? ' <span class="pr-warn">(mehr gibt es mit dieser Auswahl nicht)</span>' : '') + '</p><ol class="rsw-liste">';
     zug.fragen.forEach(function(q){
-      var L = zug.loesungen[q.id];
+      var L = zug.loesungen[q.id] || {anzeige:''};
       hb += '<li><span class="pr-badge">' + esc(q.kat) + '</span> ' + (q.audio ? '🎧 ' : '') + esc(q.typ === 'hoeren' ? L.anzeige : L.anzeige.replace(/\s+/g, ' ').slice(0, 140) + (L.anzeige.length > 140 ? ' …' : '')) + ' <small>(' + q.punkte + ' P.)</small></li>';
     });
     box.innerHTML = hb + '</ol>';
@@ -27268,9 +27451,10 @@ async function rswPrEditor(p){
       var z = num('prZeit');
       data.zeitMin = z > 0 ? Math.min(120, Math.round(z)) : 0;
       data.cfg = {anzahl:zug.fragen.length, mischen:document.getElementById('prMischen').checked};
+      if(!neuZiehen && bkLoes) data.cfg.baukasten = true;
       var quellenRef = {};
       Object.keys(quellen.teile).forEach(function(nr){ quellenRef[nr] = {rid:quellen.teile[nr].rid, cid:quellen.teile[nr].cid}; });
-      data.rsw = {posten:posten, typen:typen, anzahl:anzahl, passTeil:passTeil, quellen:quellenRef};
+      data.rsw = {posten:posten, typen:typen, anzahl:anzahl, passTeil:passTeil, quellen:!neuZiehen && bkLoes ? Object.assign(quellenRef, r0.quellen || {}) : quellenRef};
       data.resourceTitel = 'Rechtschreib-Werkstatt';
       if(neuZiehen || !p || !p.fragen){
         data.art = 'bank'; data.seed = seed; data.fragen = zug.fragen; data.maxPunkte = zug.maxPunkte;
@@ -27292,6 +27476,172 @@ async function rswPrEditor(p){
         toast('Gespeichert.');
         if(p.resultateFrei) pruefNotenEintragen(Object.assign({}, p, data)).catch(pruefFehler);
       }
+    }catch(err){ this.disabled = false; pruefFehler(err); }
+  });
+}
+
+/* ---------- Lehrperson: 🧩 Baukasten einer Rechtschreib-Prüfung ----------
+   Gezogene Aufgaben mit Lösung ansehen, einzeln löschen, verschieben, per 🎲
+   gegen eine andere Aufgabe desselben Postens mit gleichem Typ tauschen oder
+   per 🔁 durch eine selbst gewählte aus der Werkstatt ersetzen — bis jemand
+   die Prüfung startet. Behaltene Aufgaben bleiben unverändert (auch ihre
+   Punkte), neue entstehen wie beim Ziehen (rswFrageBauen). */
+function rswAufgabeTyp(q){
+  if(q.typ === 'hoeren' || q.audio) return 'hoeren';
+  var t = q.teile || [];
+  return t.some(function(x){ return x && typeof x === 'object' && !x.o; }) ? 'schreiben' : 'wahl';
+}
+async function rswBaukasten(p){
+  openModal('<h3>🧩 Baukasten</h3><p class="pr-hinweis">Aufgaben und Werkstatt werden geladen …</p>', 'pr-modal pr-modal-breit');
+  var loes = {}, gestartet = 0, quellen = null;
+  try{ loes = await pruefLoesungLaden(p.id); }catch(err){ console.error(err); }
+  try{ gestartet = await pruefGestartetZahl(p); }catch(err){ console.error(err); }
+  var nurAnsehen = gestartet > 0;
+  if(!nurAnsehen){ try{ quellen = await rswQuellenLaden(); }catch(err){ console.error(err); } }
+  var alle = [], nachSrc = {}, typName = {};
+  RSW_TYPEN.forEach(function(t){ typName[t.id] = t.icon + ' ' + t.name; });
+  if(quellen) quellen.topics.forEach(function(t){
+    var tm = (quellen.teile[t.part] || {d:{}}).d.times;
+    rswPostenAufgaben(t, tm).forEach(function(a){ alle.push(a); nachSrc[a.src] = a; });
+  });
+  var bs = (p.fragen || []).map(function(q){
+    var L = loes[q.id] || {};
+    return {q:q, L:L, typ:nachSrc[q.src] ? nachSrc[q.src].cat : rswAufgabeTyp(q), pid:String(q.src || '').split('/')[0], punkte:+q.punkte > 0 ? +q.punkte : (L.punkte || 1)};
+  });
+  function ausAufgabe(a){ var r = rswFrageBauen(a, 'neu'); return {q:r.q, L:r.L, typ:a.cat, pid:a.pid, punkte:r.L.punkte, neu:true}; }
+  var anzeigeCache = {};
+  function anzeigeVon(a){ return anzeigeCache[a.src] || (anzeigeCache[a.src] = rswFrageBauen(a, 'x').L.anzeige || ''); }
+  var ersetzen = null, fPosten = '', fTyp = '', suche = '';
+  function benutzt(){ var u = {}; bs.forEach(function(b){ if(b.q.src) u[b.q.src] = 1; }); return u; }
+  function summe(){ return Math.round(bs.reduce(function(s, b){ return s + b.punkte; }, 0) * 100) / 100; }
+  function listeHtml(){
+    if(!bs.length) return '<div class="empty-state">Noch keine Aufgaben – unten hinzufügen.</div>';
+    return bs.map(function(b, k){
+      var akt = nurAnsehen ? '<div class="pr-bk-akt"><span>'+pruefZahlText(b.punkte)+' P.</span></div>'
+        : '<div class="pr-bk-akt"><span>'+pruefZahlText(b.punkte)+' P.</span>'+
+        '<span><button class="btn btn-ghost btn-sm" data-hoch="'+k+'" type="button" title="nach oben"'+(k ? '' : ' disabled')+'>↑</button>'+
+        '<button class="btn btn-ghost btn-sm" data-runter="'+k+'" type="button" title="nach unten"'+(k < bs.length - 1 ? '' : ' disabled')+'>↓</button>'+
+        '<button class="btn btn-ghost btn-sm" data-weg="'+k+'" type="button" title="entfernen">✕</button></span>'+
+        '<span><button class="btn btn-ghost btn-sm" data-tausch="'+k+'" type="button" title="zufällig austauschen: andere Aufgabe aus demselben Posten, gleicher Typ">🎲</button>'+
+        '<button class="btn btn-ghost btn-sm'+(ersetzen === k ? ' btn-primary' : '')+'" data-ersetzen="'+k+'" type="button" title="durch eine Aufgabe ersetzen, die du unten auswählst">🔁</button></span></div>';
+      return '<div class="pr-bk-row'+(ersetzen === k ? ' pr-bk-ziel' : '')+'"><span class="pr-ap-nr">'+(k+1)+'.</span>'+
+        '<div class="pr-bk-f"><div class="pr-ap-meta"><span class="pr-badge">'+esc(typName[b.typ] || b.typ)+'</span><small>'+esc(b.q.kat || '')+(b.neu ? ' · neu' : '')+'</small></div>'+
+        '<div>'+esc(b.q.frage || '')+'</div><div class="pr-bk-opts">'+(b.q.audio ? '🎧 ' : '')+esc(b.L.anzeige || '')+'</div></div>'+akt+'</div>';
+    }).join('');
+  }
+  function poolHtml(){
+    if(!quellen || !alle.length) return '<div class="empty-state">⚠️ Die Werkstatt-Dateien dieser Klasse liessen sich nicht lesen – löschen geht trotzdem.</div>';
+    var u = benutzt(), t = suche.trim().toLowerCase();
+    var liste = alle.filter(function(a){
+      if(u[a.src]) return false;
+      if(fPosten ? a.pid !== fPosten : (p.rsw && p.rsw.posten || []).indexOf(a.pid) < 0) return false;
+      if(fTyp && a.cat !== fTyp) return false;
+      return !t || anzeigeVon(a).toLowerCase().indexOf(t) >= 0;
+    });
+    if(!liste.length) return '<div class="empty-state">Keine weiteren Aufgaben für diese Auswahl.</div>';
+    return liste.slice(0, 60).map(function(a){
+      var an = anzeigeVon(a);
+      return '<div class="pr-bk-pool"><button class="btn btn-ghost btn-sm" data-dazu="'+esc(a.src)+'" type="button" title="'+(ersetzen != null ? 'ersetzt Aufgabe '+(ersetzen+1) : 'zur Prüfung')+'">'+(ersetzen != null ? '🔁' : '＋')+'</button>'+
+        '<div><span class="pr-badge">'+esc(typName[a.cat] || a.cat)+'</span> <small>Posten '+esc(String(a.nr))+' · '+esc(a.titel || '')+'</small><div>'+esc(an.replace(/\s+/g, ' ').slice(0, 200) + (an.length > 200 ? ' …' : ''))+'</div></div></div>';
+    }).join('') + (liste.length > 60 ? '<p class="pr-hinweis">… und '+(liste.length - 60)+' weitere – mit Posten, Typ oder Suche eingrenzen.</p>' : '');
+  }
+  function zeichnen(){
+    var el = document.getElementById('prBkListe');
+    if(!el) return;
+    el.innerHTML = listeHtml();
+    document.getElementById('prBkKopf').innerHTML = bs.length + ' Aufgaben · <b>' + pruefZahlText(summe()) + '</b> Punkte';
+    if(nurAnsehen) return;
+    document.getElementById('prBkPool').innerHTML = poolHtml();
+    var ez = document.getElementById('prBkErsetzt');
+    ez.hidden = ersetzen == null;
+    if(ersetzen != null) ez.innerHTML = '🔁 Wähle unten die Aufgabe, die <b>Nr. '+(ersetzen+1)+'</b> ersetzt. <button class="btn btn-ghost btn-sm" data-ersetzenweg="1" type="button">Abbrechen</button>';
+  }
+  var h = '<h3>🧩 Baukasten: '+esc(p.titel)+'</h3>';
+  if(nurAnsehen){
+    h += pruefBkGesperrtHtml(gestartet) + '<p class="pr-hinweis" id="prBkKopf"></p><div class="pr-ap" id="prBkListe"></div>';
+    h += '<div class="modal-actions"><button class="btn btn-primary btn-sm" id="modalCancel" type="button">Schliessen</button></div>';
+    openModal(h, 'pr-modal pr-modal-breit');
+    zeichnen();
+    document.getElementById('modalCancel').addEventListener('click', closeModal);
+    return;
+  }
+  h += '<p class="pr-hinweis">Die gezogenen Aufgaben mit Lösung (in [Klammern]). ✕ löscht eine Aufgabe, 🎲 tauscht sie gegen eine zufällige aus demselben Posten mit gleichem Typ, 🔁 ersetzt sie durch eine, die du unten auswählst. Geht, bis jemand die Prüfung startet.</p>';
+  h += '<p class="pr-hinweis" id="prBkKopf"></p><div class="pr-ap" id="prBkListe"></div>';
+  h += '<h4 class="pr-h4">➕ Aufgaben aus der Werkstatt</h4><p class="pr-hinweis pr-bk-ersetzt" id="prBkErsetzt" hidden></p>';
+  h += '<div class="pr-grid2"><select id="prBkPosten" class="modal-input"><option value="">Posten dieser Prüfung</option>' + (quellen ? quellen.topics.map(function(t){
+    return '<option value="'+esc(t.id)+'">'+t.nr+'. '+esc(t.icon + ' ' + t.title)+'</option>'; }).join('') : '') + '</select>'+
+    '<select id="prBkTyp" class="modal-input"><option value="">Alle Typen</option>' + RSW_TYPEN.map(function(t){ return '<option value="'+t.id+'">'+esc(t.icon+' '+t.name)+'</option>'; }).join('') + '</select></div>';
+  h += '<input type="search" id="prBkSuche" class="modal-input" placeholder="🔍 in den Aufgaben suchen" autocomplete="off">';
+  h += '<div class="pr-ap pr-bk-poolliste" id="prBkPool"></div>';
+  h += '<div class="modal-actions"><button class="btn btn-ghost btn-sm" id="modalCancel" type="button">Abbrechen</button><button class="btn btn-primary btn-sm" id="modalOk" type="button">Speichern</button></div>';
+  openModal(h, 'pr-modal pr-modal-breit');
+  zeichnen();
+  var host = modalEl.querySelector('.pr-modal');
+  document.getElementById('prBkPosten').addEventListener('change', function(){ fPosten = this.value; document.getElementById('prBkPool').innerHTML = poolHtml(); });
+  document.getElementById('prBkTyp').addEventListener('change', function(){ fTyp = this.value; document.getElementById('prBkPool').innerHTML = poolHtml(); });
+  document.getElementById('prBkSuche').addEventListener('input', function(){ suche = this.value; document.getElementById('prBkPool').innerHTML = poolHtml(); });
+  host.addEventListener('click', function(e){
+    var b = e.target.closest('button'); if(!b) return;
+    var k;
+    if((k = b.getAttribute('data-hoch')) != null){ k = +k; var x = bs[k]; bs[k] = bs[k-1]; bs[k-1] = x; ersetzen = null; zeichnen(); }
+    else if((k = b.getAttribute('data-runter')) != null){ k = +k; var y = bs[k]; bs[k] = bs[k+1]; bs[k+1] = y; ersetzen = null; zeichnen(); }
+    else if((k = b.getAttribute('data-weg')) != null){ bs.splice(+k, 1); ersetzen = null; zeichnen(); }
+    else if((k = b.getAttribute('data-tausch')) != null){
+      k = +k;
+      var alt = bs[k], u = benutzt();
+      var kand = alle.filter(function(a){ return !u[a.src] && a.pid === alt.pid && a.cat === alt.typ; });
+      if(!kand.length){ toast(quellen ? 'Keine weitere Aufgabe mit demselben Posten und Typ – mit 🔁 selbst eine auswählen.' : 'Die Werkstatt-Dateien liessen sich nicht lesen.'); return; }
+      bs[k] = ausAufgabe(kand[Math.floor(Math.random() * kand.length)]);
+      zeichnen();
+    }
+    else if((k = b.getAttribute('data-ersetzen')) != null){
+      k = +k;
+      ersetzen = ersetzen === k ? null : k;
+      if(ersetzen != null){
+        fPosten = bs[k].pid || ''; fTyp = bs[k].typ || '';
+        document.getElementById('prBkPosten').value = fPosten; document.getElementById('prBkTyp').value = fTyp;
+      }
+      zeichnen();
+      if(ersetzen != null) document.getElementById('prBkErsetzt').scrollIntoView({block:'start', behavior:'smooth'});
+    }
+    else if(b.hasAttribute('data-ersetzenweg')){ ersetzen = null; zeichnen(); }
+    else if((k = b.getAttribute('data-dazu')) != null){
+      var a = nachSrc[k]; if(!a) return;
+      if(ersetzen != null){
+        var ziel = ersetzen; bs[ziel] = ausAufgabe(a); ersetzen = null; zeichnen();
+        var zr = document.querySelectorAll('#prBkListe .pr-bk-row')[ziel]; if(zr) zr.scrollIntoView({block:'nearest', behavior:'smooth'});
+        return;
+      }
+      bs.push(ausAufgabe(a));
+      zeichnen();
+    }
+  });
+  document.getElementById('modalCancel').addEventListener('click', closeModal);
+  document.getElementById('modalOk').addEventListener('click', async function(){
+    if(!bs.length){ toast('Mindestens eine Aufgabe.'); return; }
+    var fragen = [], loesungen = {}, posten = [];
+    bs.forEach(function(b, i){
+      var q = JSON.parse(JSON.stringify(b.q)), L = JSON.parse(JSON.stringify(b.L));
+      q.id = 'q' + i; q.punkte = b.punkte; L.punkte = b.punkte;
+      fragen.push(q); loesungen[q.id] = L;
+      if(b.pid && posten.indexOf(b.pid) < 0) posten.push(b.pid);
+    });
+    var nrVon = function(id){ return +String(id).split('_')[0] || 0; };
+    posten.sort(function(a, b){ return nrVon(a) - nrVon(b); });
+    var upd = {fragen:fragen, maxPunkte:Math.round(summe() * 100) / 100, 'cfg.anzahl':fragen.length, 'cfg.baukasten':true, 'rsw.posten':posten};
+    // Neue Aufgaben aus einem Teil, den die Prüfung noch nicht kannte: dessen Datei merken (für die Audios).
+    if(quellen){
+      var qr = Object.assign({}, (p.rsw && p.rsw.quellen) || {});
+      Object.keys(quellen.teile).forEach(function(nr){ if(!qr[nr]) qr[nr] = {rid:quellen.teile[nr].rid, cid:quellen.teile[nr].cid}; });
+      upd['rsw.quellen'] = qr;
+    }
+    this.disabled = true;
+    try{
+      if(!(await pruefBkNochFrei(p))){ this.disabled = false; return; }
+      await writeBatch().update(pruefRef(p.id), upd).set(loesRef(p.id), {loesungen:loesungen}).commit();
+      pruef.loes[p.id] = loesungen;
+      closeModal();
+      toast('Prüfung gespeichert: ' + fragen.length + ' Aufgaben, ' + pruefZahlText(upd.maxPunkte) + ' Punkte.');
     }catch(err){ this.disabled = false; pruefFehler(err); }
   });
 }
