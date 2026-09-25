@@ -768,6 +768,17 @@
   .ls-fach[open] > summary::before{transform:rotate(90deg);}
   .ls-fach > summary .ls-fach-count{margin-left:auto;font-family:inherit;font-size:12px;font-weight:500;color:var(--text-muted);}
   .ls-fach-body{padding:0 16px 16px;}
+  .ls-fach > summary .ls-fach-tag{font-family:system-ui,sans-serif;font-size:11.5px;font-weight:600;color:var(--text-muted);background:var(--surface-2);border-radius:999px;padding:2px 9px;}
+  /* Eigene Übersichten eines Fachs (SIKORE in Mathe, Werkstatt in Deutsch) —
+     als Karte zuoberst im Klappfach. */
+  .ls-spezial{display:flex;align-items:center;gap:14px;width:100%;text-align:left;font:inherit;color:inherit;cursor:pointer;background:var(--surface-2);border:1px solid var(--border);border-radius:12px;padding:12px 16px;margin:2px 0 14px;transition:border-color .15s,box-shadow .15s;}
+  .ls-spezial:hover{border-color:var(--brand);box-shadow:0 0 0 2px color-mix(in srgb, var(--brand) 18%, transparent);}
+  .ls-spezial-icon{font-size:26px;line-height:1;}
+  .ls-spezial-text{flex:1;min-width:0;}
+  .ls-spezial-text b{display:block;font-size:15px;}
+  .ls-spezial-text span{display:block;font-size:12.5px;color:var(--text-muted);margin-top:2px;}
+  .ls-spezial-pfeil{font-size:18px;color:var(--text-muted);}
+  @media print{ .ls-spezial,.ls-fach-tag{display:none !important;} }
 
 
   /* ---------- Stadt Land Fluss ---------- */
@@ -4790,21 +4801,32 @@ function wsCsv(){
   downloadTextFile('werkstatt-'+todayStr()+'.csv', rows.map(function(r){ return r.map(csvField).join(','); }).join('\r\n'), 'text/csv');
 }
 
+// Fächer mit einer eigenen, ausführlicheren Übersicht: erscheinen als Karte
+// zuoberst im jeweiligen Klappfach der Lernstand-Übersicht.
+var LS_SPEZIAL = {
+  mathe: {icon:'📊', kurz:'SIKORE', titel:'SIKORE-Übersicht', text:'Level mit Auf-/Abstieg, Üben diese Woche, Wochenziel und Bestzeiten pro Schüler:in',
+    oeffnen:function(){ sikoreUebersicht(); }},
+  deutsch: {icon:'🧩', kurz:'Werkstatt', titel:'Werkstatt-Übersicht', text:'Rechtschreib-Werkstatt: wer bei welchem Posten wie weit ist, Stempel und offene Fehlerwörter',
+    oeffnen:function(){ wsState.detailUid = null; state.route = {name:'werkstatt'}; render(); }}
+};
+
 function renderLernstandUebersicht(){
   clearSubjectWatchers(); clearOverviewWatchers(); unwatchAllProgress();
   var html = '<div class="back-row"><button class="btn btn-ghost btn-sm" id="backBtn">&larr; Start</button></div>';
   html += '<h2>📈 Lernstand-Übersicht</h2>';
   html += '<p class="muted" style="margin:-6px 0 14px;">Aktueller Stand pro Schüler:in und Übung, über alle Fächer. „↺" = wie oft zurückgesetzt, mit dem jeweiligen Stand unmittelbar davor. „⏱" = wie lange die Übung schon offen war (nur aktive Zeit, kein Hintergrund-Tab). Nur für dich sichtbar.</p>';
-  html += '<div class="da-toolbar" style="justify-content:flex-start;"><button class="btn btn-primary btn-sm" id="werkstattBtn" type="button">🧩 Werkstatt-Übersicht</button></div>';
   html += '<div id="lernstandBody"><div class="empty-state">Wird geladen …</div></div>';
   renderChrome(html);
   document.getElementById('backBtn').addEventListener('click', goHome);
-  document.getElementById('werkstattBtn').addEventListener('click', function(){ wsState.detailUid = null; state.route = {name:'werkstatt'}; render(); });
 
   loadLernstandUebersicht().then(function(result){
     var body = document.getElementById('lernstandBody');
     if(!body) return;
     var subjectIds = Object.keys(result.bySubject).filter(function(id){ return result.bySubject[id].resources.length>0; });
+    // Fächer mit eigener Übersicht erscheinen auch ohne gewöhnliche Übungen.
+    Object.keys(LS_SPEZIAL).forEach(function(id){
+      if(subjectIds.indexOf(id) === -1 && subjectById(id)) subjectIds.push(id);
+    });
     subjectIds.sort(function(a,b){
       var sa = subjectById(a), sb = subjectById(b);
       return (sa?sa.name:a).localeCompare(sb?sb.name:b, 'de');
@@ -4815,11 +4837,18 @@ function renderLernstandUebersicht(){
       '<button class="btn btn-ghost btn-sm" id="lsCsvBtn" type="button">⬇️ CSV</button>'+
       '<button class="btn btn-ghost btn-sm" id="lsReloadBtn" type="button">↻ Neu laden</button></div>';
     subjectIds.forEach(function(subjId){
-      var sub = result.bySubject[subjId];
+      var sub = result.bySubject[subjId] || {resources:[], cell:{}};
       var s = subjectById(subjId);
+      var sp = LS_SPEZIAL[subjId];
       h += '<details class="ls-fach" data-subj="'+esc(subjId)+'"'+(lsFachOffen(subjId)?' open':'')+'>';
-      h += '<summary>'+esc(s?s.name:subjId)+'<span class="ls-fach-count">'+sub.resources.length+' '+(sub.resources.length===1?'Übung':'Übungen')+'</span></summary>';
+      h += '<summary>'+esc(s?s.name:subjId)+(sp ? '<span class="ls-fach-tag">'+sp.icon+' '+esc(sp.kurz)+'</span>' : '')+
+        '<span class="ls-fach-count">'+sub.resources.length+' '+(sub.resources.length===1?'Übung':'Übungen')+'</span></summary>';
       h += '<div class="ls-fach-body">';
+      if(sp){
+        h += '<button class="ls-spezial" type="button" data-ls-spezial="'+esc(subjId)+'"><span class="ls-spezial-icon">'+sp.icon+'</span>'+
+          '<span class="ls-spezial-text"><b>'+esc(sp.titel)+'</b><span>'+esc(sp.text)+'</span></span><span class="ls-spezial-pfeil">›</span></button>';
+      }
+      if(!sub.resources.length){ h += '</div></details>'; return; }
       h += '<div class="table-scroll"><table class="da-table"><thead><tr><th>Schüler:in</th>';
       sub.resources.forEach(function(res){ h += '<th>'+esc(res.title||res.fileName)+'</th>'; });
       h += '</tr></thead><tbody>';
@@ -4860,6 +4889,9 @@ function renderLernstandUebersicht(){
     });
 
     body.innerHTML = h;
+    Array.prototype.forEach.call(body.querySelectorAll('[data-ls-spezial]'), function(b){
+      b.addEventListener('click', LS_SPEZIAL[b.getAttribute('data-ls-spezial')].oeffnen);
+    });
     // Offen/zu je Fach merken.
     Array.prototype.forEach.call(body.querySelectorAll('.ls-fach'), function(d){
       d.addEventListener('toggle', function(){ lsFachSetzen(d.getAttribute('data-subj'), d.open); });
@@ -4874,6 +4906,7 @@ function renderLernstandUebersicht(){
       var rows = [['Fach','Schüler:in','Übung','Stand','Anzahl Reset','Lernzeit (Std.)']];
       subjectIds.forEach(function(subjId){
         var sub = result.bySubject[subjId];
+        if(!sub) return;
         var s = subjectById(subjId);
         rosterFuerFach(result.students, subjId).forEach(function(stu){
           sub.resources.forEach(function(res){
@@ -15061,9 +15094,12 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-09-25-gehirn-latein', datum:'2026-09-25', fuer:'alle', text:'🔥 Für Profis: Im Übungstrainer «🧠 Das Gehirn» gibt es das Level «Extrem: Latein» – Lobus frontalis, Corpus callosum, Medulla oblongata & Co. antippen, übersetzen und selbst richtig schreiben.'},
+  {id:'2026-09-25-gehirn', datum:'2026-09-25', fuer:'alle', text:'🧠 Neuer Übungstrainer in Biologie: «Das Gehirn». Finde die vier Hirnlappen, Kleinhirn und Hirnstamm im Bild, schau dir das Gehirn im Längsschnitt an (Balken, Zwischenhirn, Hirnanhangdrüse, Rückenmark) und lerne, was welcher Teil macht – dazu Fachbegriffe wie Synapse und Reflex.'},
   {id:'2026-09-24-echte-koerperbilder', datum:'2026-09-24', fuer:'alle', text:'🦴🫀 Die Übungstrainer «Das Skelett» und «Organe im Körper» zeigen jetzt echte anatomische Zeichnungen statt Skizzen. Mit 🔍 oben rechts im Bild kannst du es vergrössern.'},
   {id:'2026-09-24-rsw-pruefung', datum:'2026-09-24', fuer:'lehrer', text:'✍️ Neu im 📝 Prüfungsmodus: «Rechtschreib-Werkstatt». Posten wählen (z. B. nur Teil 1), Anzahl Aufgaben und Aufgabentypen – die Library zieht eine Mischung aus Lückentexten, Auswahl-Aufgaben und kurzen Hördiktaten (einzelne Sätze oder Wörter aus den Audios) und korrigiert automatisch. Wählst du «Im Werkstatt-Pass: Prüfung Teil 1–4», sehen die Schüler:innen im Pass, ob sie die Prüfung geschrieben haben, und ihre Note. Für die Hördiktate die neuen Werkstatt-Dateien per «Datei ersetzen» hochladen (Stände bleiben).'},
   {id:'2026-09-24-rsw-tempo', datum:'2026-09-24', fuer:'alle', text:'🎧 Rechtschreib-Werkstatt: Die Audios kannst du jetzt auch mit 1,5× oder 2× abspielen (oder langsamer mit 0,75×). Im Werkstatt-Pass steht nach je fünf Posten die Prüfung zu diesem Teil – mit deiner Note, sobald sie da ist.'},
+  {id:'2026-09-25-lernstand-spezial', datum:'2026-09-25', fuer:'lehrer', text:'📈 Lernstand-Übersicht aufgeräumt: Die 📊 SIKORE-Übersicht steht jetzt direkt im Fach Mathe, die 🧩 Werkstatt-Übersicht direkt im Fach Deutsch (jeweils zuoberst im aufgeklappten Fach).'},
   {id:'2026-09-24-werkstatt-klasse', datum:'2026-09-24', fuer:'lehrer', text:'🧩 Werkstatt-Übersicht: Wählst du eine einzelne Klasse, kommt jetzt wirklich nur diese Klasse (vorher konnte eine langsamer ladende frühere Auswahl, z. B. der ganze Jahrgang, sie überschreiben). Die eigene Klasse steht jetzt auch unter «Klasse».'},
   {id:'2026-09-24-sparsamer', datum:'2026-09-24', fuer:'lehrer', text:'⚙️ Die Library speichert Übungsstände jetzt gebündelt (höchstens alle 20 Sekunden und beim Verlassen der Übung) statt bei jeder Tipp-Pause. Das schont das Tageskontingent der Datenbank, das am 23.09. aufgebraucht war (darum fehlten die Erinnerungen und die Lernphase zeigte alle als weg). Ist das Kontingent doch einmal voll, erscheint oben ein gelber Hinweis.'},
   {id:'2026-09-23-ferienhinweis-weg', datum:'2026-09-23', fuer:'lehrer', text:'🧳 Der Ferienhinweis «Diese Pflanzen halten nicht durch» lässt sich jetzt mit × wegklicken, sobald du ihn gelesen hast. Er kommt erst wieder, wenn sich etwas daran ändert (andere Ferien, andere Pflanzen oder Tage).'},
@@ -20822,12 +20858,11 @@ function renderPruefungen(){
   html += '<div class="back-row"><button class="btn btn-ghost btn-sm" id="backBtn" type="button">&larr; Klassenzimmer</button></div>';
   html += '<h2 class="page-welcome" style="margin-bottom:6px;">📝 Prüfungen</h2>';
   html += '<p class="kz-intro">Online-Prüfung aus einer Übung, aus einem ⚡ Übungstrainer, aus 🧮 SIKORE, als ⌨️ Abschreibprüfung oder aus der ✍️ Rechtschreib-Werkstatt — die Art wählst du in «➕ Neue Prüfung». Dort stellst du auch ein, für welche Klasse und für wen (ganze Klasse oder eine 👥 Gruppe) die Prüfung ist. Wer die Prüfung verlässt, wird gesperrt, bis du entsperrst.</p>';
-  html += '<div class="back-row"><button class="btn btn-primary btn-sm" id="prNeu" type="button">➕ Neue Prüfung</button><button class="btn btn-ghost btn-sm" id="prSikoreUeb" type="button">📊 SIKORE-Übersicht</button></div>';
+  html += '<div class="back-row"><button class="btn btn-primary btn-sm" id="prNeu" type="button">➕ Neue Prüfung</button></div>';
   html += '<div id="prListe"><div class="empty-state">Wird geladen …</div></div>';
   renderChrome(html);
   document.getElementById('backBtn').addEventListener('click', function(){ state.route = {name:'klassenzimmer'}; render(); });
   document.getElementById('prNeu').addEventListener('click', function(){ pruefEditor(null); });
-  document.getElementById('prSikoreUeb').addEventListener('click', sikoreUebersicht);
   startPruefungWatcher();
   pruefListeZeichnen();
 }
@@ -25420,6 +25455,107 @@ function mtGenBSkelett(l){
     tipp:name + ': ' + (MT_B_KNOCHEN[name] || 'Merk dir die Lage im Skelett') + '.'};
 }
 
+/* ---------- 🧠 Das Gehirn (Seitenansicht + Längsschnitt) ---------- */
+// Echte Zeichnungen (Wikimedia Commons) mit Klickflächen aus den Umrissen – erzeugt mit
+// ~/Desktop/Claude/Projekte/bildtrainer (build/library-snippet-gehirn.mjs, Thema «koerper»).
+// Namen/Reihenfolge der Figuren nie ändern: Prüfungen erzeugen ihre Aufgaben aus dem Seed neu.
+var MT_B_HIRN_SEITE_BILD = {cls:'echt breit', vb:'9698 -8 1436 1016', grund:'<image href="assets/koerper/gehirn.svg" x="9706" y="0" width="1420" height="1000"/>',
+  alt:'Gehirn von der Seite mit den vier Hirnlappen (Zeichnung nach Gray’s Anatomy, Mysid – gemeinfrei)'};
+var MT_B_HIRN_SEITE_FIG = [
+  {v:'Stirnlappen', tx:10025, ty:388, form:'<path class="hot-f" fill-rule="evenodd" d="M10371 8L10398 8L10428 13L10498 15L10514 16L10514 19L10511 19L10491 74L10455 78L10428 85L10401 100L10393 112L10391 130L10401 155L10408 161L10409 178L10400 194L10386 208L10379 222L10366 268L10347 309L10346 335L10340 358L10332 374L10309 397L10304 408L10305 416L10338 459L10316 469L10296 488L10253 498L10210 512L10178 530L10155 549L10139 576L10120 623L10114 631L10104 642L10097 644L10085 658L10070 682L10061 711L10059 750L10055 754L9992 763L9941 765L9879 761L9851 753L9837 746L9823 734L9817 724L9806 721L9793 713L9774 694L9755 660L9743 620L9738 581L9726 568L9718 546L9718 523L9720 516L9719 491L9723 484L9716 459L9718 424L9724 406L9731 374L9747 346L9763 330L9766 305L9777 284L9796 268L9816 258L9820 243L9831 225L9845 206L9876 178L9933 141L9962 128L9989 120L9999 110L10026 94L10067 79L10104 74L10144 58L10170 54L10188 42L10222 30L10261 23L10309 22L10332 13Z"/>'},
+  {v:'Scheitellappen', tx:10606, ty:223, form:'<path class="hot-f" fill-rule="evenodd" d="M10514 18L10534 19L10553 27L10574 24L10625 26L10646 31L10659 38L10678 54L10695 52L10724 59L10740 70L10773 85L10812 109L10846 136L10876 167L10905 180L10923 192L10936 206L10948 227L10951 245L10962 252L10987 278L10998 295L11009 320L11001 320L10991 331L10976 342L10896 424L10890 464L10503 402L10469 403L10447 410L10418 426L10396 448L10362 449L10340 457L10334 453L10305 416L10304 408L10309 397L10332 374L10340 358L10346 335L10347 309L10366 268L10379 222L10383 213L10400 194L10409 178L10408 161L10401 155L10391 130L10393 112L10401 100L10428 85L10455 78L10491 74L10511 19Z"/>'},
+  {v:'Schläfenlappen', tx:10357, ty:656, form:'<path class="hot-f" fill-rule="evenodd" d="M10480 402L10513 403L10890 464L10894 500L10907 535L10904 545L10866 576L10853 611L10837 643L10831 648L10815 655L10812 662L10792 681L10773 690L10776 698L10784 705L10823 715L10861 717L10862 720L10826 718L10781 707L10747 726L10717 736L10690 749L10660 757L10604 761L10561 768L10537 767L10526 761L10519 768L10494 783L10468 791L10447 803L10432 807L10432 810L10405 815L10393 837L10378 851L10355 865L10313 876L10281 877L10253 888L10221 889L10195 882L10179 874L10160 858L10144 851L10118 834L10102 818L10086 788L10061 760L10058 754L10059 721L10065 695L10073 676L10085 658L10097 644L10104 642L10120 623L10139 576L10155 549L10178 530L10210 512L10253 498L10296 488L10316 469L10343 455L10370 448L10396 448L10405 437L10430 418L10463 405ZM11028 694L11029 697L11020 701L10982 710L10932 710L10905 706L10979 705Z"/>'},
+  {v:'Hinterhauptslappen', tx:10989, ty:579, form:'<path class="hot-f" fill-rule="evenodd" d="M11003 319L11010 319L11017 323L11034 342L11040 352L11042 373L11057 386L11065 398L11076 422L11083 447L11104 469L11114 492L11114 511L11111 519L11115 543L11114 572L11098 620L11081 655L11067 674L11054 681L11050 679L11050 683L11046 682L11028 694L10993 703L10960 706L10905 705L10889 714L10876 718L10831 717L10781 703L10776 698L10773 690L10792 681L10812 662L10815 655L10831 648L10837 643L10853 611L10866 576L10878 564L10897 551L10907 539L10892 486L10890 455L10896 424L10960 356L10963 356Z"/>'},
+  {v:'Kleinhirn', tx:10782, ty:820, form:'<path class="hot-f" fill-rule="evenodd" d="M10905 706L10932 710L10982 710L10987 742L10987 769L10985 785L10975 807L10962 822L10928 849L10896 866L10890 876L10876 888L10792 932L10765 941L10729 947L10705 947L10679 944L10651 937L10591 912L10538 881L10529 881L10514 876L10503 866L10496 855L10490 834L10488 814L10483 808L10478 795L10478 788L10504 777L10526 761L10537 767L10561 768L10604 761L10660 757L10690 749L10717 736L10747 726L10781 707L10826 718L10862 720L10885 715Z"/>'},
+  {v:'Hirnstamm', tx:10610, ty:957, form:'<path class="hot-f" fill-rule="evenodd" d="M10476 788L10479 800L10488 814L10488 826L10494 849L10500 862L10510 873L10523 880L10538 881L10591 912L10639 931L10664 958L10664 963L10636 983L10608 998L10603 998L10557 939L10527 908L10503 889L10468 871L10445 846L10430 814L10432 807L10447 803Z"/>'}
+];
+var MT_B_HIRN_SCHNITT_BILD = {cls:'echt', vb:'11188 -8 921 1016', grund:'<image href="assets/koerper/gehirn-schnitt.svg" x="11196" y="0" width="905" height="1000"/>',
+  alt:'Gehirn im Längsschnitt (Zeichnung: Patrick J. Lynch, CC BY 2.5)'};
+var MT_B_HIRN_SCHNITT_FIG = [
+  {v:'Grosshirn', tx:11359, ty:184, form:'<path class="hot-f" fill-rule="evenodd" d="M11511 0L11555 0L11567 5L11589 5L11596 0L11628 0L11640 5L11649 7L11690 5L11702 7L11706 10L11726 9L11756 20L11774 24L11785 31L11811 32L11824 36L11851 58L11871 67L11888 69L11897 74L11928 96L11971 141L11990 155L12012 178L12022 197L12029 215L12037 225L12039 239L12057 261L12071 283L12075 306L12085 323L12095 346L12101 366L12101 407L12092 427L12092 449L12089 467L12080 486L12067 503L12059 509L12050 513L12027 512L12007 499L12000 492L11992 479L11979 474L11959 454L11919 424L11918 425L11932 435L11944 449L11941 453L11931 453L11930 445L11924 443L11914 431L11906 429L11900 433L11896 426L11878 418L11870 412L11857 415L11853 419L11851 428L11850 425L11849 413L11843 409L11833 407L11827 410L11822 417L11806 422L11799 427L11798 431L11793 430L11785 432L11777 438L11775 442L11775 452L11771 459L11773 471L11770 475L11769 480L11772 485L11773 497L11779 509L11786 515L11797 521L11783 520L11773 516L11761 508L11745 492L11726 455L11718 425L11720 389L11727 375L11742 362L11751 359L11769 359L11780 363L11786 368L11796 369L11802 364L11802 359L11764 305L11735 291L11696 282L11685 282L11634 290L11578 333L11547 354L11547 355L11563 362L11568 367L11576 381L11578 389L11578 409L11575 419L11571 430L11562 441L11537 466L11529 471L11525 478L11520 481L11509 486L11495 488L11480 488L11448 484L11431 478L11419 471L11391 465L11352 444L11310 426L11299 422L11283 420L11254 403L11246 394L11238 381L11228 375L11216 359L11206 320L11196 297L11196 255L11202 237L11203 214L11212 193L11220 183L11234 169L11241 146L11260 121L11273 106L11292 91L11305 83L11321 68L11345 53L11366 44L11379 41L11392 33L11419 27L11448 13L11463 7L11480 5L11500 7ZM11659 169L11627 171L11592 175L11529 186L11496 196L11472 207L11461 214L11445 229L11429 253L11423 273L11423 287L11430 308L11436 314L11445 317L11466 328L11493 356L11502 360L11511 360L11517 357L11519 354L11523 333L11526 297L11540 264L11543 262L11575 243L11583 241L11642 236L11702 243L11720 246L11769 268L11775 273L11807 300L11832 336L11838 363L11847 360L11853 354L11859 344L11861 335L11861 323L11858 310L11843 286L11822 264L11780 241L11776 240L11737 214L11721 198L11717 191L11704 181L11694 175L11679 171ZM11702 390L11703 448L11690 426L11690 420ZM11855 398L11852 399L11871 401ZM11892 408L11907 417L11899 411ZM11617 461L11618 461L11618 470L11617 473L11609 476L11605 481L11601 490L11600 505L11595 507L11594 500L11590 493L11579 487L11583 481L11607 466ZM11828 515L11832 515L11833 530L11823 527L11823 515ZM11626 601L11627 604L11623 606L11622 604ZM11627 604L11630 607L11626 610L11624 607ZM11671 613L11672 614L11667 618L11666 616ZM11643 616L11647 619L11651 618L11654 622L11639 621ZM11661 622L11665 626L11663 627L11663 634L11659 636L11658 630ZM11676 691L11677 694L11672 697L11672 694ZM11726 710L11733 710L11733 712L11717 753ZM11668 738L11672 742L11669 746L11672 748L11669 752L11667 751ZM11663 766L11667 770L11665 773L11663 772ZM11658 789L11663 793L11660 795L11662 799L11659 802L11661 804L11657 807L11660 810L11656 813L11659 817L11659 820L11655 823L11658 826L11658 830L11655 832L11657 834L11657 838L11655 839L11656 846L11652 850L11652 837ZM11714 824L11718 828L11718 830L11714 827ZM11713 828L11717 832L11717 837L11713 833ZM11713 833L11717 837L11717 841L11712 837ZM11711 838L11716 842L11716 846L11711 842ZM11710 844L11715 847L11715 851L11710 847ZM11709 850L11714 854L11714 857L11709 854ZM11708 857L11713 861L11713 864L11708 860ZM11711 961L11712 969L11708 965ZM11712 969L11713 974L11710 975L11708 972ZM11717 989L11717 997L11713 993Z"/>'},
+  {v:'Balken', tx:11488, ty:259, form:'<path class="hot-f" fill-rule="evenodd" d="M11659 169L11679 171L11694 175L11704 181L11713 187L11721 198L11737 214L11776 240L11780 241L11822 264L11843 286L11858 310L11861 323L11861 335L11859 344L11853 354L11847 360L11838 363L11832 336L11807 300L11770 269L11720 246L11709 244L11636 236L11577 242L11547 259L11540 264L11527 294L11523 333L11519 354L11517 357L11511 360L11502 360L11493 356L11466 328L11445 317L11436 314L11430 308L11423 287L11423 273L11429 253L11445 229L11456 219L11472 207L11496 196L11529 186L11592 175L11627 171Z"/>'},
+  {v:'Zwischenhirn', tx:11679, ty:348, form:'<path class="hot-f" fill-rule="evenodd" d="M11685 282L11696 282L11733 290L11764 305L11799 354L11802 359L11802 364L11796 369L11788 369L11780 363L11769 359L11751 359L11740 363L11727 375L11721 389L11703 389L11690 425L11681 415L11668 406L11649 401L11633 404L11623 409L11618 415L11614 422L11613 444L11618 461L11607 466L11598 473L11594 474L11583 481L11580 487L11562 481L11548 483L11543 487L11540 487L11538 483L11523 483L11521 479L11526 477L11529 471L11537 466L11571 430L11578 409L11578 389L11572 372L11563 362L11547 355L11547 354L11578 333L11632 291Z"/>'},
+  {v:'Hirnanhangdrüse', tx:11523, ty:519, form:'<path class="hot-f" fill-rule="evenodd" d="M11520 480L11523 483L11538 483L11541 487L11538 492L11538 497L11541 504L11548 512L11552 523L11552 537L11547 548L11543 552L11532 557L11520 557L11507 550L11498 534L11494 518L11494 500L11498 492L11503 488Z"/>'},
+  {v:'Kleinhirn', tx:11902, ty:551, form:'<path class="hot-f" fill-rule="evenodd" d="M11833 407L11843 409L11849 413L11850 425L11851 428L11853 419L11857 415L11870 412L11878 418L11896 426L11900 433L11906 429L11917 433L11922 442L11930 445L11931 453L11941 453L11944 450L11956 453L11959 458L11961 467L11975 476L11976 487L11987 496L11989 510L11994 518L11994 523L12000 533L12000 545L11993 565L11989 568L11989 576L11984 582L11978 595L11969 598L11969 604L11963 611L11958 614L11950 617L11941 627L11931 632L11920 646L11905 645L11904 647L11896 647L11892 649L11884 651L11869 650L11867 653L11856 657L11848 657L11842 653L11834 655L11821 654L11810 648L11800 648L11793 644L11788 622L11782 621L11774 603L11773 593L11777 569L11786 546L11798 534L11809 528L11822 526L11833 530L11831 515L11797 521L11786 515L11777 506L11773 497L11773 488L11769 480L11769 477L11773 471L11771 459L11775 452L11775 442L11783 433L11793 430L11798 431L11799 427L11806 422L11822 417L11827 410Z"/>'},
+  {v:'Hirnstamm', tx:11671, ty:537, form:'<path class="hot-f" fill-rule="evenodd" d="M11645 401L11668 406L11686 419L11702 445L11709 463L11724 484L11741 524L11748 552L11748 596L11741 654L11733 685L11675 685L11672 689L11666 676L11670 671L11666 675L11664 674L11668 668L11664 672L11663 671L11661 667L11664 662L11663 660L11659 664L11663 658L11658 661L11658 658L11662 654L11657 658L11656 651L11657 634L11659 636L11663 634L11662 632L11663 631L11663 630L11665 625L11663 622L11654 622L11651 618L11647 619L11644 616L11640 620L11637 620L11627 611L11630 605L11627 601L11623 604L11621 604L11625 598L11621 602L11618 598L11597 556L11594 542L11594 511L11595 507L11600 505L11601 490L11605 481L11609 476L11617 473L11618 470L11618 460L11613 444L11614 422L11618 415L11623 409L11633 404ZM11671 613L11666 617L11669 618L11672 614ZM11758 620L11761 620L11765 622L11769 638L11771 638L11775 634L11779 628L11779 622L11781 620L11788 622L11789 628L11789 633L11788 634L11789 636L11788 641L11792 644L11792 650L11788 657L11787 658L11783 654L11787 659L11783 656L11781 657L11785 662L11779 669L11768 689L11763 685L11743 685L11749 658L11755 640L11756 622ZM11703 389L11720 389L11718 425L11724 451L11739 482L11754 502L11764 511L11783 520L11802 521L11823 516L11823 527L11812 527L11798 534L11786 546L11781 555L11776 574L11773 597L11782 620L11779 622L11779 628L11771 638L11769 638L11765 622L11761 620L11757 621L11755 640L11749 658L11745 678L11733 710L11726 710L11726 707L11735 676L11744 638L11748 596L11748 552L11744 536L11734 505L11724 484L11712 468L11703 450ZM11789 632L11793 640L11793 645L11788 641L11789 636L11788 634Z"/>'},
+  {v:'Rückenmark', tx:11697, ty:771, form:'<path class="hot-f" fill-rule="evenodd" d="M11675 685L11733 685L11716 756L11742 685L11763 685L11767 689L11744 737L11723 802L11719 822L11715 819L11718 823L11718 828L11714 824L11717 832L11713 828L11712 833L11712 837L11716 842L11711 838L11711 842L11715 845L11715 847L11710 844L11710 847L11714 850L11714 854L11709 850L11709 854L11713 856L11713 861L11708 857L11708 860L11712 863L11712 870L11708 866L11711 870L11709 890L11711 962L11708 965L11712 969L11708 973L11710 975L11714 973L11717 989L11713 993L11717 997L11717 1000L11659 1000L11654 989L11653 978L11651 962L11651 852L11656 846L11655 839L11657 838L11657 834L11655 832L11658 830L11658 826L11655 823L11659 820L11659 817L11656 813L11660 810L11657 807L11661 804L11659 801L11662 799L11660 795L11663 793L11659 790L11661 774L11662 771L11663 773L11667 771L11663 767L11666 750L11669 752L11672 749L11669 747L11672 743L11669 739L11669 732L11672 718L11672 697L11677 694L11677 691L11672 694L11672 689Z"/>'}
+];
+var MT_B_HIRN_AUFGABE = {'Stirnlappen':'plant, entscheidet und steuert die Bewegungen',
+  'Scheitellappen':'verarbeitet Berührung, Schmerz und Temperatur', 'Schläfenlappen':'verarbeitet das Hören und hilft beim Erinnern',
+  'Hinterhauptslappen':'verarbeitet das Sehen', 'Kleinhirn':'sorgt für das Gleichgewicht und fein abgestimmte Bewegungen',
+  'Hirnstamm':'steuert Atmung, Herzschlag und Schlucken – ganz automatisch', 'Grosshirn':'ist für Denken, Lernen, Sprache und Gedächtnis zuständig',
+  'Balken':'verbindet die linke und die rechte Hälfte des Grosshirns', 'Zwischenhirn':'regelt Hunger, Durst, Schlaf und Körpertemperatur',
+  'Hirnanhangdrüse':'steuert mit Hormonen das Wachstum und andere Drüsen', 'Rückenmark':'leitet Signale zwischen Gehirn und Körper und steuert Reflexe'};
+var MT_B_NERVEN = [
+  ['Nervenzelle','leitet Signale als elektrische Impulse weiter (auch «Neuron» genannt)'],
+  ['Synapse','Kontaktstelle, an der eine Nervenzelle das Signal an die nächste Zelle weitergibt'],
+  ['Reflex','blitzschnelle, automatische Reaktion, die übers Rückenmark läuft – ohne Nachdenken'],
+  ['Reiz','etwas, das ein Sinnesorgan wahrnimmt, z. B. Licht, Schall oder Wärme'],
+  ['Nerv','Bündel aus vielen Nervenfasern, das Signale durch den Körper leitet'],
+  ['Zentralnervensystem','Gehirn und Rückenmark zusammen'],
+  ['Hirnhälfte','die linke steuert die rechte Körperseite – und umgekehrt'],
+  ['Gedächtnis','speichert, was wir gelernt und erlebt haben']
+];
+// 🔥 Level 7: lateinische Fachbegriffe. [Latein, Deutsch, weitere richtige Schreibweisen]
+// Die ersten elf entsprechen den Figuren in den beiden Zeichnungen (Deutsch = Figurname).
+var MT_B_HIRN_LATEIN = [
+  ['Lobus frontalis','Stirnlappen'], ['Lobus parietalis','Scheitellappen'], ['Lobus temporalis','Schläfenlappen'],
+  ['Lobus occipitalis','Hinterhauptslappen'], ['Cerebellum','Kleinhirn'], ['Truncus cerebri','Hirnstamm',['Truncus encephali']],
+  ['Cerebrum','Grosshirn',['Telencephalon']], ['Corpus callosum','Balken'], ['Diencephalon','Zwischenhirn'],
+  ['Hypophysis','Hirnanhangdrüse',['Hypophyse','Glandula pituitaria']], ['Medulla spinalis','Rückenmark'],
+  ['Encephalon','Gehirn'], ['Cortex cerebri','Grosshirnrinde'], ['Gyrus','Hirnwindung'], ['Sulcus','Hirnfurche'],
+  ['Hemisphaerium','Hirnhälfte',['Hemisphaerium cerebri','Hemispherium','Hemisphäre','Hemisphaere']], ['Mesencephalon','Mittelhirn'], ['Pons','Brücke'],
+  ['Medulla oblongata','verlängertes Mark'], ['Thalamus','Sehhügel'], ['Ventriculus','Hirnkammer',['Ventrikel']],
+  ['Liquor cerebrospinalis','Hirnwasser (Nervenwasser)',['Liquor']], ['Meninges','Hirnhäute'], ['Dura mater','harte Hirnhaut'],
+  ['Arachnoidea','Spinnengewebshaut',['Arachnoidea mater']], ['Pia mater','weiche Hirnhaut'], ['Fornix','Hirngewölbe'],
+  ['Hippocampus','Ammonshorn'], ['Corpus amygdaloideum','Mandelkern',['Amygdala']], ['Glandula pinealis','Zirbeldrüse',['Corpus pineale','Epiphyse','Epiphysis']],
+  ['Insula','Inselrinde',['Lobus insularis']], ['Nervus opticus','Sehnerv'], ['Chiasma opticum','Sehnervenkreuzung'],
+  ['Neuron','Nervenzelle'], ['Axon','Nervenfaser (Neurit)',['Neurit']], ['Substantia grisea','graue Substanz'], ['Substantia alba','weisse Substanz'],
+  ['Cranium','Schädel'], ['Columna vertebralis','Wirbelsäule'], ['Systema nervosum centrale','Zentralnervensystem',['ZNS']]
+];
+function mtHirnLat(deutsch){ return MT_B_HIRN_LATEIN.filter(function(x){ return x[1] === deutsch; })[0]; }
+function mtGenBHirnLatein(){
+  var art = mtZuf(1, 4), schnitt = mtZufall() < 0.5;
+  var bild = schnitt ? MT_B_HIRN_SCHNITT_BILD : MT_B_HIRN_SEITE_BILD, figs = schnitt ? MT_B_HIRN_SCHNITT_FIG : MT_B_HIRN_SEITE_FIG;
+  var f = mtAus(figs), lat = mtHirnLat(f.v);
+  var loes = function(x){ return [x[0]].concat(x[2] || []); };
+  var merk = function(x){ return x[0] + ' = ' + x[1] + ((x[2] || []).length ? ' (auch: ' + x[2].join(', ') + ')' : '') + '.'; };
+  if(art === 1) return {frage:'Wo liegt: ' + lat[0] + '? Tippe die Stelle im Bild an.',
+    felder:[{typ:'bild', bild:mtKoerperBild(figs, bild, f.v, figs.length, false), loesung:f.v}], tipp:merk(lat)};
+  if(art === 2) return {frage:'Wie heisst der markierte Teil auf Latein? (genaue Schreibweise)', svg:mtEchtBildHtml(bild, f),
+    felder:[{loesung:loes(lat), text:true}], tipp:merk(lat)};
+  var x = mtAus(MT_B_HIRN_LATEIN), rest = mtMisch(MT_B_HIRN_LATEIN.filter(function(y){ return y[0] !== x[0]; })).slice(0, 4);
+  if(art === 3){
+    if(mtZufall() < 0.5) return {frage:'Was heisst «' + x[0] + '» auf Deutsch?',
+      felder:[{typ:'wahl', optionen:mtMisch([x[1]].concat(rest.map(function(y){ return y[1]; }))), loesung:x[1]}], tipp:merk(x)};
+    return {frage:'Wie heisst «' + x[1] + '» auf Latein?',
+      felder:[{typ:'wahl', optionen:mtMisch([x[0]].concat(rest.map(function(y){ return y[0]; }))), loesung:x[0]}], tipp:merk(x)};
+  }
+  return {frage:'Schreib den lateinischen Fachbegriff: «' + x[1] + '»', felder:[{loesung:loes(x), text:true}], tipp:merk(x)};
+}
+function mtGenBGehirn(l){
+  if(l === 7) return mtGenBHirnLatein();
+  if(l === 6) l = mtZuf(1, 5);
+  if(l === 5){
+    var p = mtAus(MT_B_NERVEN), rest = mtMisch(MT_B_NERVEN.filter(function(x){ return x[0] !== p[0]; }));
+    if(mtZufall() < 0.5) return {frage:'Welcher Begriff passt?  «'+p[1]+'»',
+      felder:[{typ:'wahl', optionen:mtMisch([p[0], rest[0][0], rest[1][0], rest[2][0]]), loesung:p[0]}], tipp:p[0]+': '+p[1]+'.'};
+    return {frage:'Was bedeutet: '+p[0]+'?', felder:[{typ:'wahl', optionen:mtMisch([p[1], rest[0][1], rest[1][1]]), loesung:p[1]}], tipp:p[0]+': '+p[1]+'.'};
+  }
+  // Level 1: Seitenansicht, Level 2: Längsschnitt, sonst eine der beiden Zeichnungen
+  var schnitt = l === 2 || (l >= 3 && mtZufall() < 0.5);
+  var bild = schnitt ? MT_B_HIRN_SCHNITT_BILD : MT_B_HIRN_SEITE_BILD, figs = schnitt ? MT_B_HIRN_SCHNITT_FIG : MT_B_HIRN_SEITE_FIG;
+  var f = mtAus(figs), name = f.v, info = name + ' ' + MT_B_HIRN_AUFGABE[name] + '.';
+  if(l === 3){
+    var rest3 = mtMisch(figs.filter(function(x){ return x.v !== name; })).slice(0, 3).map(function(x){ return x.v; });
+    return {frage:'Welcher Teil des Gehirns ist markiert?', svg:mtEchtBildHtml(bild, f),
+      felder:[{typ:'wahl', optionen:mtMisch([name].concat(rest3)), loesung:name}], tipp:info};
+  }
+  var frage = l === 4 ? 'Welcher Teil des Gehirns ' + MT_B_HIRN_AUFGABE[name] + '? Tippe ihn an.' : 'Wo ist: ' + name + '? Tippe die Stelle im Bild an.';
+  return {frage:frage, felder:[{typ:'bild', bild:mtKoerperBild(figs, bild, name, figs.length, false), loesung:name}],
+    tipp:l === 1 ? 'Die vier Lappen des Grosshirns: Stirn- (vorne), Scheitel- (oben), Schläfen- (seitlich unten) und Hinterhauptslappen (hinten). ' + info : info};
+}
+
 /* ---------- ⚗️ Periodensystem im Bild ---------- */
 function mtPseListe(){ return MT_C_ELEMENTE.filter(function(e){ return MT_C_POS[e[0]]; }); }
 function mtGenCPseBild(l){
@@ -25646,6 +25782,9 @@ var MT_TRAINER = [
   {id:'mt_b_skelett', fach:'biologie', icon:'🦴', name:'Das Skelett', kurz:'Am Bild lernen: Knochen im Skelett antippen.',
    deko:['🦴','💀','🦵','🦶'], grad:'linear-gradient(135deg,#3A2A1A 0%,#6B4A2A 55%,#A9642E 100%)',
    levels:['Knochen im Bild finden','Welcher Knochen ist markiert?','Aufgabe → Knochen antippen','Alles gemischt'], gen:mtGenBSkelett},
+  {id:'mt_b_gehirn', fach:'biologie', icon:'🧠', name:'Das Gehirn', kurz:'Am Bild lernen: Hirnlappen, Kleinhirn, Hirnstamm – auch im Längsschnitt.',
+   deko:['🧠','⚡','👁️','🦴'], grad:'linear-gradient(135deg,#4A1260 0%,#7B2C9E 55%,#B04FD6 100%)',
+   levels:['Hirnlappen finden','Gehirn im Längsschnitt','Welcher Teil ist markiert?','Aufgabe → Teil antippen','Nerven-Fachbegriffe','Alles gemischt','🔥 Extrem: Latein'], gen:mtGenBGehirn},
 
   /* ⚗️ Chemie */
   {id:'mt_c_pse', fach:'chemie', icon:'⚗️', name:'Periodensystem', kurz:'Symbol, Name und Ordnungszahl.',
