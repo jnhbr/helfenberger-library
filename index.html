@@ -1377,6 +1377,8 @@
   .kk-tipp{text-align:center;color:var(--text-muted);font-size:12.5px;margin:4px 0 0;}
   .kk-fertig-combo,.kk-fertig-serie{font-weight:700;font-size:16px;}
   .kk-fertig-serie .kk-flamme{font-size:24px;}
+  .voc-ueb-row{grid-template-columns:minmax(110px,1.6fr) .7fr .9fr .7fr .7fr .7fr;}
+  @media (max-width:640px){ .voc-ueb-row{grid-template-columns:1fr 1fr;} }
   .kk-schwer{display:flex;flex-direction:column;gap:6px;margin:6px 0 10px;}
   .kk-schwer-zeile{display:flex;gap:10px;flex-wrap:wrap;align-items:center;background:var(--surface-2);border-radius:var(--radius-sm);padding:7px 12px;}
   .kk-schwer-zeile span:first-child{flex:1;min-width:160px;}
@@ -4546,6 +4548,163 @@ function lsFachSetzen(subjId, offen){
   }catch(e){}
 }
 
+/* ===================== 🗣️ VOCI-ÜBERSICHT (Lehrperson) =====================
+   Für die Voci-Trainer «Vocabulaire dis donc!» (Französisch) und «Vocabulary
+   Open World» (Englisch). Sie speichern ihren Lernstand im localStorage
+   (frvoc_/envoc_ + stand, serie); der Übungsstand-Sync legt das automatisch in
+   progress/{uid}/resources/{rid}.storeJson. Diese Ansicht liest das für die
+   Klasse aus: pro Schüler:in 🔥 Serie, geübte und sichere Wörter, diese Woche,
+   zuletzt — dazu die schwierigsten Wörter der Klasse, filterbar nach Unit.
+   Unit-Namen und deutsche Bedeutungen kommen aus der Trainer-Datei selbst
+   (var VOC). Welche Übung ein Voci-Trainer ist, zeigt der Dateiname/Titel
+   (VOCI_RE) und der Stand selbst (Schlüssel frvoc_stand/envoc_stand).
+   Keine neuen Regeln: progress/{uid}/resources darf die Lehrperson lesen. */
+var VOCI_PRE = {franzoesisch:'frvoc_', englisch:'envoc_'};
+var VOCI_RE = /vocabula|voci|vokab/i;
+
+// Wörter und Units aus der Trainer-Datei: {woerter:{buch|unit|wort: {d, unit}}, units:[{id, name}]}
+function vociDaten(html){
+  var i = html.indexOf('\nvar VOC = ');
+  if(i < 0) return null;
+  var s = i + 11, e = html.indexOf(';\n', s);
+  var V;
+  try{ V = JSON.parse(html.slice(s, e)); }catch(err){ return null; }
+  var out = {woerter:{}, units:[]};
+  (V.buecher || []).forEach(function(b){
+    (b.unites || b.units || []).forEach(function(u){
+      var uid = b.id + '|' + u.id, gruppen = [];
+      if(u.niveaus) ['g', 'e'].forEach(function(n){ gruppen = gruppen.concat(u.niveaus[n] || []); });
+      else gruppen = u.gruppen || [];
+      out.units.push({id:uid, name:(b.name || b.id) + ' · ' + (u.name || u.id)});
+      gruppen.forEach(function(g){ (g.w || []).forEach(function(w){
+        if(w && w.f) out.woerter[uid + '|' + w.f] = {d:w.d || '', unit:uid};
+      }); });
+    });
+  });
+  return out;
+}
+// Stand eines Schülers aus seinen progress-Dokumenten: pro Wort (ohne Niveau) zusammengefasst.
+function vociAusDocs(docs, pre){
+  var woerter = {}, serie = {};
+  docs.forEach(function(data){
+    if(!data || !data.storeJson) return;
+    var store;
+    try{ store = JSON.parse(data.storeJson) || {}; }catch(e){ return; }
+    var st = {}, se = {};
+    try{ st = JSON.parse(store[pre + 'stand'] || '{}') || {}; }catch(e){}
+    try{ se = JSON.parse(store[pre + 'serie'] || '{}') || {}; }catch(e){}
+    Object.keys(se).forEach(function(t){ serie[t] = Math.max(serie[t] || 0, +se[t] || 0); });
+    Object.keys(st).forEach(function(k){
+      var p = k.split('|'), e = st[k] || {};
+      if(p.length < 3) return;
+      // Französisch: buch|unite|niveau|wort, Englisch: buch|unit|wort
+      var id = p[0] + '|' + p[1] + '|' + p.slice(pre === 'frvoc_' ? 3 : 2).join('|');
+      var w = woerter[id] || (woerter[id] = {r:0, f:0, box:0, z:0, unit:p[0] + '|' + p[1]});
+      w.r += +e.r || 0; w.f += +e.f || 0;
+      w.box = Math.max(w.box, +e.box || 0); w.z = Math.max(w.z, +e.z || 0);
+    });
+  });
+  return {woerter:woerter, serie:serie};
+}
+
+async function vociUebersicht(fach){
+  var pre = VOCI_PRE[fach], titel = '🗣️ Voci-Übersicht ' + subjectName(fach);
+  openModal('<h3>'+esc(titel)+'</h3><p>Wird geladen …</p>', 'pr-modal pr-modal-breit');
+  try{
+    var res = [];
+    (await getDocs(query(kcol('resources'), where('subject', '==', fach)))).forEach(function(d){
+      var r = Object.assign({id:d.id}, d.data());
+      if(!r.linkUrl && !r.externalUrl && !r.pdf && VOCI_RE.test((r.fileName || '') + ' ' + (r.title || ''))) res.push(r);
+    });
+    if(!res.length){
+      openModal('<h3>'+esc(titel)+'</h3><p class="pr-hinweis">In diesem Fach gibt es auf dieser Seite keinen Voci-Trainer (Datei «vocabulaire.html» bzw. «vocabulary.html»).</p>'+
+        '<div class="modal-actions"><button class="btn btn-primary btn-sm" id="modalOk" type="button">Schliessen</button></div>', 'pr-modal');
+      document.getElementById('modalOk').addEventListener('click', closeModal);
+      return;
+    }
+    var voc = null;
+    for(var i=0;i<res.length && !voc;i++){
+      try{ voc = vociDaten(await loadResourceHtml(resourceContentId(res[i]))); }catch(err){ console.error(err); }
+    }
+    voc = voc || {woerter:{}, units:[]};
+    var roster = rosterFuerFach(await loadStudentRoster(), fach);
+    var rows = await Promise.all(roster.map(function(s){
+      return Promise.all(res.map(function(r){
+        return getDoc(doc(db, 'progress', s.uid, 'resources', r.id)).then(function(d){ return d.exists() ? d.data() : null; }).catch(function(){ return null; });
+      })).then(function(docs){ return Object.assign({s:s}, vociAusDocs(docs, pre)); });
+    }));
+    rows.sort(function(a, b){ return (a.s.displayName || a.s.username || '').localeCompare(b.s.displayName || b.s.username || '', 'de'); });
+    // Units zur Auswahl: die, in denen jemand geübt hat (in der Reihenfolge der Datei)
+    var geuebtIn = {};
+    rows.forEach(function(r){ Object.keys(r.woerter).forEach(function(id){ geuebtIn[r.woerter[id].unit] = 1; }); });
+    var units = voc.units.filter(function(u){ return geuebtIn[u.id]; });
+    Object.keys(geuebtIn).forEach(function(u){ if(!units.some(function(x){ return x.id === u; })) units.push({id:u, name:u.replace('|', ' · ')}); });
+    var filter = lsGet(LIB_PREFIX + 'voci_unit_' + fach) || '';
+    if(filter && !geuebtIn[filter]) filter = '';
+
+    function zeichnen(){
+      var woche = {}, h = '<h3>'+esc(titel)+'</h3>';
+      for(var t=0;t<7;t++){ var d = new Date(); d.setDate(d.getDate() - t); woche[localDateStr(d)] = 1; }
+      var zeilen = rows.map(function(r){
+        var ids = Object.keys(r.woerter).filter(function(id){ return !filter || r.woerter[id].unit === filter; });
+        var z = {geuebt:0, sitzt:0, zuletzt:0};
+        ids.forEach(function(id){ var w = r.woerter[id]; if(w.r + w.f) z.geuebt++; if(w.box >= 4) z.sitzt++; if(w.z > z.zuletzt) z.zuletzt = w.z; });
+        z.woche = Object.keys(r.serie).reduce(function(n, t){ return n + (woche[t] ? r.serie[t] : 0); }, 0);
+        z.serie = kkSerieAktuell(r.serie);
+        return {r:r, z:z};
+      });
+      var aktiv = zeilen.filter(function(x){ return x.z.woche > 0; }).length, brennt = zeilen.filter(function(x){ return x.z.serie > 0; }).length;
+      h += '<div class="pr-zahlen"><div><b>'+aktiv+' / '+zeilen.length+'</b><span>haben diese Woche geübt</span></div>'+
+        '<div><b>🔥 '+brennt+'</b><span>mit laufender Serie</span></div></div>';
+      h += '<div class="pr-grid2"><div><label class="modal-label" for="vociUnit">Unit</label><select class="modal-input" id="vociUnit"><option value="">Alle Units</option>'+
+        units.map(function(u){ return '<option value="'+esc(u.id)+'"'+(u.id === filter ? ' selected' : '')+'>'+esc(u.name)+'</option>'; }).join('')+'</select></div><div></div></div>';
+      h += '<p class="pr-hinweis">«Sitzen» = Box 4 oder 5 im Trainer. 🔥 = Tage am Stück mit mindestens '+KK_SERIE_MIN+' Antworten, «Woche» = Antworten der letzten 7 Tage (beides über alle Units). Der Stand kommt beim nächsten Speichern im Trainer an (höchstens ca. 20 s Verzögerung).</p>';
+      h += '<div class="sk-ueb"><div class="sk-ueb-row voc-ueb-row sk-ueb-kopf"><span>Name</span><span>🔥 Serie</span><span>Geübt</span><span>Sitzen</span><span>Woche</span><span>Zuletzt</span></div>';
+      zeilen.forEach(function(x){
+        var z = x.z;
+        h += '<div class="sk-ueb-row voc-ueb-row"><span><b>'+esc(x.r.s.displayName || x.r.s.username || x.r.s.uid)+'</b></span>'+
+          '<span>'+(z.serie ? '🔥 '+z.serie : '–')+'</span>'+
+          '<span>'+(z.geuebt ? z.geuebt+(z.geuebt === 1 ? ' Wort' : ' Wörter') : '<small>noch nicht</small>')+'</span>'+
+          '<span>'+(z.geuebt ? z.sitzt : '–')+'</span>'+
+          '<span>'+(z.woche || '–')+'</span>'+
+          '<span>'+(z.zuletzt ? new Date(z.zuletzt).toLocaleDateString('de-CH', {day:'numeric', month:'numeric'}) : '–')+'</span></div>';
+      });
+      h += '</div>';
+      // Schwierigste Wörter: bei wie vielen «wackelt» es (mehr Fehler als Treffer oder Box 1), wie oft falsch insgesamt
+      var agg = {};
+      rows.forEach(function(r){
+        Object.keys(r.woerter).forEach(function(id){
+          var w = r.woerter[id];
+          if(filter && w.unit !== filter) return;
+          if(!w.f) return;
+          var a = agg[id] || (agg[id] = {id:id, wer:0, x:0});
+          a.x += w.f;
+          if(w.f >= w.r || w.box <= 1) a.wer++;
+        });
+      });
+      var schwer = Object.keys(agg).map(function(id){ return agg[id]; }).filter(function(a){ return a.wer; })
+        .sort(function(a, b){ return b.wer - a.wer || b.x - a.x; }).slice(0, 20);
+      h += '<h4 class="pr-h4">🧗 Schwierigste Wörter der Klasse</h4>';
+      if(!schwer.length) h += '<p class="pr-hinweis">Noch keine Fehler gesammelt'+(filter ? ' in dieser Unit' : '')+'.</p>';
+      else h += '<div class="kk-schwer">' + schwer.map(function(a){
+        var p = a.id.split('|'), wort = p.slice(2).join('|'), info = voc.woerter[a.id], u = voc.units.filter(function(x){ return x.id === p[0] + '|' + p[1]; })[0];
+        return '<div class="kk-schwer-zeile"><span><b>'+esc(wort)+'</b>'+(info && info.d ? ' → '+esc(info.d) : '')+
+          (!filter && u ? ' <small>· '+esc(u.name)+'</small>' : '')+'</span>'+
+          '<small>'+a.wer+' Schüler:in'+(a.wer === 1 ? '' : 'nen')+' · '+a.x+'× falsch</small></div>';
+      }).join('') + '</div>';
+      h += '<div class="modal-actions"><button class="btn btn-primary btn-sm" id="modalOk" type="button">Schliessen</button></div>';
+      openModal(h, 'pr-modal pr-modal-breit');
+      document.getElementById('modalOk').addEventListener('click', closeModal);
+      document.getElementById('vociUnit').addEventListener('change', function(){
+        filter = this.value;
+        lsSet(LIB_PREFIX + 'voci_unit_' + fach, filter);
+        zeichnen();
+      });
+    }
+    zeichnen();
+  }catch(err){ console.error(err); closeModal(); toast('Voci-Übersicht konnte nicht geladen werden.'); }
+}
+
 /* ===================== 🧩 WERKSTATT-ÜBERSICHT (Lehrperson) =====================
    Für Werkstatt-Übungen, die aus mehreren Dateien bestehen (zurzeit die
    Rechtschreib-Werkstatt, 4 Teile à 5 Posten). Jede Datei speichert ihren
@@ -4864,13 +5023,316 @@ function wsCsv(){
   downloadTextFile('werkstatt-'+todayStr()+'.csv', rows.map(function(r){ return r.map(csvField).join(','); }).join('\r\n'), 'text/csv');
 }
 
+/* ===================== 📖 LESEREISE-ÜBERSICHT (Lehrperson) =====================
+   Für Lektüre-Übungsseiten «Lesereise» (z. B. «Wir Kinder vom Bahnhof Zoo»):
+   jedes Kapitel ist eine Station mit Kapitel-Check und Lesetagebuch. Die Seite
+   speichert ihren Stand unter localStorage «<kürzel>_lesereise_v<n>» – samt
+   meta (Buch, Stationen, Linien, Figuren, Beziehungen, Schreibaufträge). Der
+   generische Übungsstand-Sync legt das in progress/{uid}/resources/{rid}.storeJson.
+   Diese Ansicht zeigt pro Buch, wer wo steht, und per Klick das ganze
+   Lesetagebuch einer Person (Zusammenfassungen, Steckbriefe, Texte).
+   Welche Übungen Lesereisen sind, wird am Dateinamen/Titel erkannt (LR_DATEI_RE).
+   Keine neuen Regeln: progress/{uid}/resources darf die Lehrperson lesen. */
+
+var LR_DATEI_RE = /lesereise/i;
+var LR_KEY_RE = /^[a-z0-9]+_lesereise_v\d+$/;
+var lrState = { detailUid:null, sort:'name', daten:null, laedt:false, buch:'' };
+
+function lrAusDoc(data){
+  var out = {};
+  if(!data || !data.storeJson) return out;
+  var store;
+  try{ store = JSON.parse(data.storeJson) || {}; }catch(e){ return out; }
+  Object.keys(store).forEach(function(k){
+    if(!LR_KEY_RE.test(k)) return;
+    try{ var st = JSON.parse(store[k]); if(st && typeof st === 'object') out[k] = st; }catch(e){}
+  });
+  return out;
+}
+
+async function lrLaden(q){
+  var roster = await sprecherRosterLaden(q);
+  var klassen = {};
+  klassen[state.klasse] = true;
+  roster.forEach(function(s){ if(s.klasse) klassen[s.klasse] = true; });
+  var resIds = {};
+  await Promise.all(Object.keys(klassen).map(function(k){
+    return getDocs(collection(db, 'klassen', k, 'resources')).then(function(snap){
+      snap.forEach(function(d){
+        var r = d.data();
+        if(LR_DATEI_RE.test(r.fileName || '') || LR_DATEI_RE.test(r.title || '')) resIds[d.id] = true;
+      });
+    }).catch(function(err){ console.error('Übungen von '+k+' nicht lesbar', err); });
+  }));
+  var ids = Object.keys(resIds), reads = [];
+  roster.forEach(function(stu){
+    ids.forEach(function(rid){
+      reads.push(getDoc(doc(db, 'progress', stu.uid, 'resources', rid)).then(function(snap){
+        return {uid:stu.uid, data:snap.exists() ? snap.data() : null};
+      }).catch(function(){ return {uid:stu.uid, data:null}; }));
+    });
+  });
+  var res = await Promise.all(reads);
+  // buecher[key] = {meta, proStu:{uid: stand}} — liegt dieselbe Lesereise mehrfach vor: neuester Stand gewinnt
+  var buecher = {};
+  res.forEach(function(r){
+    var staende = lrAusDoc(r.data);
+    Object.keys(staende).forEach(function(k){
+      var st = staende[k];
+      if(!buecher[k]) buecher[k] = {meta:null, proStu:{}};
+      var b = buecher[k];
+      if(st.meta && st.meta.stationen && (!b.meta || (st.meta.v || 0) >= (b.meta.v || 0))) b.meta = st.meta;
+      var alt = b.proStu[r.uid];
+      if(!alt || (st.savedAt || 0) > (alt.savedAt || 0)) b.proStu[r.uid] = st;
+    });
+  });
+  Object.keys(buecher).forEach(function(k){ if(!buecher[k].meta) delete buecher[k]; });
+  return {roster:roster, buecher:buecher, anzUebungen:ids.length};
+}
+
+function lrWoerter(s){ s = String(s || '').trim(); return s ? s.split(/\s+/).length : 0; }
+function lrAuswerten(st, meta){
+  var n = meta.stationen.length, r = {n:n, done:0, stars:0, cur:-1, qAns:0, qFirst:0, badges:0, texte:0, fertigTexte:0, fin:null, zuletzt:0, begonnen:false};
+  if(!st) return r;
+  for(var i=0;i<n;i++){
+    var sd = st.st && st.st[i];
+    if(sd && sd.done){ r.done++; if(sd.star) r.stars++; }
+    else if(r.cur < 0) r.cur = i;
+  }
+  Object.keys(st.qs || {}).forEach(function(k){ var x = st.qs[k]; if(x && x.first !== undefined){ r.qAns++; if(x.first) r.qFirst++; } });
+  Object.keys(st.ch || {}).forEach(function(b){ if(st.ch[b] && st.ch[b].o && st.ch[b].m) r.badges++; });
+  (meta.schreiben || []).forEach(function(w){ var t = st.wr && st.wr[w.id] && st.wr[w.id].text; var z = lrWoerter(t); if(z) r.texte++; if(z >= 50) r.fertigTexte++; });
+  if(st.fin && st.fin.passed) r.fin = st.fin;
+  r.zuletzt = st.savedAt || 0;
+  r.begonnen = r.done > 0 || r.qAns > 0;
+  return r;
+}
+function lrStationText(meta, i){ return i < 0 ? '🏁 alle gelesen' : (i + 1) + '. ' + meta.stationen[i].t; }
+
+function renderLesereiseUebersicht(){
+  clearSubjectWatchers(); clearOverviewWatchers(); unwatchAllProgress();
+  var html = '<div class="back-row"><button class="btn btn-ghost btn-sm" id="backBtn">&larr; Lernstand-Übersicht</button></div>';
+  html += '<h2>📖 Lesereise-Übersicht</h2>';
+  html += '<p class="muted" style="margin:-6px 0 14px;">Lektüre-Lesereisen: wer bei welcher Station (Kapitel) steht, wie gut die Kapitel-Checks beim ersten Versuch klappen und was im Lesetagebuch steht. Klick auf einen Namen zeigt das ganze Lesetagebuch (Zusammenfassungen, Steckbriefe, Beziehungsnetz, Texte). Der Stand kommt an, sobald die Schüler:innen die Lesereise in der Library geöffnet haben.</p>';
+  html += '<div class="da-toolbar ws-toolbar">' + wsWahlHtml(wsQuelle()).replace('id="wsQuelle"', 'id="lrQuelle"') +
+    '<span id="lrBuchWahl"></span>' +
+    '<select class="sk-wahl" id="lrSort"><option value="name"'+(lrState.sort==='name'?' selected':'')+'>Sortieren: Name</option><option value="fort"'+(lrState.sort==='fort'?' selected':'')+'>Sortieren: am weitesten zuerst</option><option value="wenig"'+(lrState.sort==='wenig'?' selected':'')+'>Sortieren: am wenigsten zuerst</option></select>' +
+    '<button class="btn btn-ghost btn-sm" id="lrPrint" type="button">🖨️ Drucken</button>' +
+    '<button class="btn btn-ghost btn-sm" id="lrCsv" type="button">⬇️ CSV</button>' +
+    '<button class="btn btn-ghost btn-sm" id="lrReload" type="button">↻ Neu laden</button></div>';
+  html += '<div id="lrBody"><div class="empty-state">Wird geladen …</div></div>';
+  renderChrome(html);
+  document.getElementById('backBtn').addEventListener('click', function(){ state.route = {name:'lernstand'}; render(); });
+  document.getElementById('lrQuelle').addEventListener('change', function(e){
+    wsState.quelle = e.target.value; lsSet(LIB_PREFIX+'ws_quelle', wsState.quelle);
+    lrState.detailUid = null; lrState.daten = null; renderLesereiseUebersicht();
+  });
+  document.getElementById('lrSort').addEventListener('change', function(e){ lrState.sort = e.target.value; lrZeichnen(); });
+  document.getElementById('lrReload').addEventListener('click', function(){ lrState.daten = null; lrState.laedt = false; sprecherState.rosters = {}; renderLesereiseUebersicht(); });
+  document.getElementById('lrPrint').addEventListener('click', function(){ window.print(); });
+  document.getElementById('lrCsv').addEventListener('click', lrCsv);
+  if(!wsState.gruppen){
+    loadMeineGruppen().then(function(list){
+      wsState.gruppen = list || [];
+      if(wsState.gruppen.length && state.route.name === 'lesereise') renderLesereiseUebersicht();
+    }).catch(function(err){ console.error(err); wsState.gruppen = []; });
+  }
+  var q = wsQuelle();
+  if(lrState.daten && lrState.daten.q === q){ lrZeichnen(); return; }
+  if(lrState.laedt === q) return;
+  lrState.laedt = q;
+  lrLaden(q).then(function(d){
+    if(lrState.laedt === q) lrState.laedt = false;
+    if(q !== wsQuelle()) return;
+    d.q = q; lrState.daten = d;
+    if(state.route.name === 'lesereise') lrZeichnen();
+  }).catch(function(err){
+    if(lrState.laedt === q) lrState.laedt = false;
+    if(q !== wsQuelle()) return;
+    console.error(err);
+    var body = document.getElementById('lrBody');
+    if(body) body.innerHTML = '<div class="empty-state">Übersicht konnte nicht geladen werden.</div>';
+  });
+}
+
+function lrBuch(){
+  var d = lrState.daten, keys = Object.keys(d.buecher);
+  if(keys.indexOf(lrState.buch) < 0) lrState.buch = keys[0] || '';
+  return d.buecher[lrState.buch] || null;
+}
+function lrZeilen(buch){
+  var d = lrState.daten;
+  var rows = d.roster.map(function(stu){ return {stu:stu, st:buch.proStu[stu.uid], r:lrAuswerten(buch.proStu[stu.uid], buch.meta)}; });
+  rows.sort(function(a, b){
+    if(lrState.sort === 'fort') return (b.r.done - a.r.done) || (b.r.qAns - a.r.qAns);
+    if(lrState.sort === 'wenig') return (a.r.done - b.r.done) || (a.r.qAns - b.r.qAns);
+    return (a.stu.displayName || '').localeCompare(b.stu.displayName || '', 'de');
+  });
+  return rows;
+}
+
+function lrZeichnen(){
+  var body = document.getElementById('lrBody');
+  if(!body) return;
+  var d = lrState.daten, keys = Object.keys(d.buecher);
+  var bw = document.getElementById('lrBuchWahl');
+  if(!d.anzUebungen){ body.innerHTML = '<div class="empty-state">Keine Lesereise gefunden. Lade die Lesereise als Übung hoch (Dateiname mit «lesereise», z. B. «lesereise_bahnhof_zoo.html»).</div>'; return; }
+  if(!keys.length){ body.innerHTML = '<div class="empty-state">Noch niemand aus dieser Auswahl hat eine Lesereise geöffnet ('+d.roster.length+' Schüler:innen).</div>'; return; }
+  var buch = lrBuch(), meta = buch.meta;
+  if(bw){
+    bw.innerHTML = keys.length > 1 ? '<select class="sk-wahl" id="lrBuch">' + keys.map(function(k){ return '<option value="'+esc(k)+'"'+(k === lrState.buch ? ' selected' : '')+'>📖 '+esc(d.buecher[k].meta.buch || k)+'</option>'; }).join('') + '</select>' : '';
+    var sel = document.getElementById('lrBuch');
+    if(sel) sel.onchange = function(){ lrState.buch = sel.value; lrState.detailUid = null; lrZeichnen(); };
+  }
+  if(lrState.detailUid){ lrDetail(body, buch); return; }
+  var rows = lrZeilen(buch), n = rows.length || 1, N = meta.stationen.length;
+  var totDone = 0, fertig = 0, nie = 0, qA = 0, qF = 0;
+  rows.forEach(function(x){ totDone += x.r.done; if(x.r.fin) fertig++; if(!x.r.begonnen) nie++; qA += x.r.qAns; qF += x.r.qFirst; });
+  var h = '<div class="da-student-card"><h4>📖 '+esc(meta.buch || '')+(meta.autor ? ' <span class="tiny muted">· '+esc(meta.autor)+'</span>' : '')+' · '+rows.length+' Schüler:innen</h4>';
+  h += '<div class="ws-kpis">' +
+    '<div><b>'+(Math.round(totDone/n*10)/10)+'</b><span>Ø Stationen von '+N+'</span></div>' +
+    '<div><b>'+(qA ? Math.round(qF/qA*100) : 0)+'%</b><span>Kapitel-Checks beim 1. Versuch richtig</span></div>' +
+    '<div><b>'+fertig+'</b><span>🏁 Endstation geschafft</span></div>' +
+    '<div><b>'+nie+'</b><span>noch nicht begonnen</span></div></div>';
+  // Linien: wie viele haben die Linie fertig / sind gerade darauf
+  var linien = Object.keys(meta.linien || {});
+  if(linien.length){
+    h += '<div class="table-scroll"><table class="da-table"><thead><tr><th>Linie</th><th>✅ fertig</th><th>▶ gerade dran</th><th>– noch nicht</th><th style="min-width:160px">Verteilung</th></tr></thead><tbody>';
+    linien.forEach(function(b){
+      var idx = []; meta.stationen.forEach(function(s, i){ if(s.b === b) idx.push(i); });
+      var c = {fertig:0, dran:0, leer:0};
+      rows.forEach(function(x){
+        var nd = idx.filter(function(i){ return x.st && x.st.st && x.st.st[i] && x.st.st[i].done; }).length;
+        if(nd === idx.length) c.fertig++; else if(nd > 0 || idx.indexOf(x.r.cur) >= 0 && x.r.begonnen) c.dran++; else c.leer++;
+      });
+      var L = meta.linien[b];
+      h += '<tr><td><span style="display:inline-block;background:'+esc(L.color || '#555')+';color:#fff;border-radius:5px;padding:0 6px;font-weight:800;font-size:12px">'+esc(L.line || b)+'</span> '+esc(L.name || '')+'</td><td>'+c.fertig+'</td><td>'+c.dran+'</td><td>'+c.leer+'</td><td>' +
+        wsBalken([{n:c.fertig, cls:'ws-b-ok', t:'fertig'}, {n:c.dran, cls:'ws-b-teil', t:'gerade dran'}, {n:c.leer, cls:'ws-b-leer', t:'noch nicht'}]) + '</td></tr>';
+    });
+    h += '</tbody></table></div>';
+  }
+  h += '</div>';
+  h += '<div class="table-scroll"><table class="da-table ws-matrix"><thead><tr><th>Schüler:in</th><th>Stationen</th><th>nächste Station</th><th>⭐</th><th>1. Versuch</th><th>🏅</th><th>✍️ Texte</th><th>🏁</th><th>zuletzt</th></tr></thead><tbody>';
+  rows.forEach(function(x){
+    var pct = Math.round(x.r.done / N * 100);
+    h += '<tr><td><button class="ws-name" type="button" data-uid="'+esc(x.stu.uid)+'">'+esc(x.stu.displayName || '?')+'</button></td>' +
+      '<td><div class="ws-mini"><i style="width:'+pct+'%"></i></div><span class="tiny">'+x.r.done+' / '+N+'</span></td>' +
+      '<td style="text-align:left;white-space:normal" class="tiny">'+(x.r.begonnen ? esc(lrStationText(meta, x.r.cur)) : '–')+'</td>' +
+      '<td>'+(x.r.stars || '–')+'</td><td>'+(x.r.qAns ? Math.round(x.r.qFirst / x.r.qAns * 100) + '%' : '–')+'</td>' +
+      '<td>'+(x.r.badges || '–')+'</td><td>'+(x.r.texte ? x.r.fertigTexte + ' / ' + x.r.texte : '–')+'</td>' +
+      '<td>'+(x.r.fin ? '✅ ' + (x.r.fin.best || 0) + '/15' : '–')+'</td><td class="tiny">'+wsDatum(x.r.zuletzt)+'</td></tr>';
+  });
+  h += '</tbody></table></div><p class="tiny muted">⭐ = Kapitel-Checks beim ersten Versuch fehlerfrei · 1. Versuch = Anteil der Fragen, die beim ersten Versuch stimmten · 🏅 = Linien-Abzeichen · ✍️ = Schreibaufträge mit mind. 50 Wörtern / angefangen · 🏁 = Abschlussquiz bestanden</p>';
+  body.innerHTML = h;
+  Array.prototype.forEach.call(body.querySelectorAll('.ws-name'), function(b){
+    b.addEventListener('click', function(){ lrState.detailUid = b.getAttribute('data-uid'); lrZeichnen(); window.scrollTo(0, 0); });
+  });
+}
+
+function lrDetail(body, buch){
+  var d = lrState.daten, meta = buch.meta;
+  var stu = d.roster.filter(function(s){ return s.uid === lrState.detailUid; })[0];
+  if(!stu){ lrState.detailUid = null; lrZeichnen(); return; }
+  var st = buch.proStu[stu.uid] || {}, r = lrAuswerten(st, meta), N = meta.stationen.length, moods = meta.moods || ['😣','😟','😐','🙂','😄'];
+  function txt(s){ return '<div style="white-space:pre-wrap;background:var(--surface-2);border-radius:10px;padding:8px 12px;margin:6px 0">'+esc(s)+'</div>'; }
+  var h = '<div class="back-row"><button class="btn btn-ghost btn-sm" id="lrZurueck" type="button">&larr; alle Schüler:innen</button></div>';
+  h += '<div class="da-student-card"><h4>'+esc(stu.displayName || '?')+' · 📖 '+esc(meta.buch || '')+(st.name && st.name !== stu.displayName ? ' <span class="tiny muted">(Name auf der Fahrkarte: '+esc(st.name)+')</span>' : '')+'</h4><div class="ws-kpis">' +
+    '<div><b>'+r.done+' / '+N+'</b><span>Stationen entwertet</span></div>' +
+    '<div><b>'+(r.qAns ? Math.round(r.qFirst / r.qAns * 100) : 0)+'%</b><span>beim 1. Versuch richtig</span></div>' +
+    '<div><b>⭐ '+r.stars+'</b><span>fehlerfreie Checks</span></div>' +
+    '<div><b>🏅 '+r.badges+'</b><span>Linien-Abzeichen</span></div>' +
+    '<div><b>'+(r.fin ? '✅ '+(r.fin.best || 0)+'/15' : '–')+'</b><span>Endstation</span></div>' +
+    '<div><b style="font-size:15px">'+esc(wsDatum(r.zuletzt))+'</b><span>zuletzt gearbeitet</span></div></div>' +
+    '<p class="tiny muted" style="margin:0">Nächste Station: '+esc(lrStationText(meta, r.cur))+'</p></div>';
+  // Lesetagebuch pro Linie
+  Object.keys(meta.linien || {}).forEach(function(b){
+    var L = meta.linien[b], idx = [];
+    meta.stationen.forEach(function(s, i){ if(s.b === b) idx.push(i); });
+    var nd = idx.filter(function(i){ return st.st && st.st[i] && st.st[i].done; }).length;
+    h += '<details class="da-student-card ws-posten"'+(nd ? ' open' : '')+'><summary><span style="display:inline-block;background:'+esc(L.color || '#555')+';color:#fff;border-radius:5px;padding:0 6px;font-weight:800;font-size:12px">'+esc(L.line || b)+'</span> <b>'+esc(L.name || '')+'</b> <span class="tiny muted">'+nd+' / '+idx.length+' entwertet</span></summary>';
+    idx.forEach(function(i){
+      var s = meta.stationen[i], sd = (st.st && st.st[i]) || {}, dd = sd.d || {};
+      var qa = 0, qf = 0;
+      for(var k=1;k<=(s.nq || 0);k++){ var x = st.qs && st.qs['s'+i+'-'+k]; if(x && x.first !== undefined){ qa++; if(x.first) qf++; } }
+      var leer = !sd.done && !dd.sum && !qa;
+      h += '<div style="border-top:1px solid var(--border);padding:10px 0">';
+      h += '<b>'+(i+1)+'. '+esc(s.t)+'</b> <span class="tiny muted">S. '+s.p+(s.e && s.e !== s.p ? '–'+s.e : '')+'</span> ' +
+        (sd.done ? '<span class="ws-st ws-st-ok">🎫 entwertet '+esc(sd.date || '')+(sd.star ? ' ⭐' : '')+'</span>' : leer ? '<span class="ws-st ws-st-leer">○ noch nicht</span>' : '<span class="ws-st ws-st-teil">✎ angefangen</span>') +
+        (qa ? ' <span class="tiny muted">· Check: '+qf+' / '+(s.nq || qa)+' beim 1. Versuch</span>' : '');
+      if(dd.mood) h += ' <span title="Stimmung Christiane" style="font-size:18px">'+esc(moods[dd.mood - 1] || '')+'</span>';
+      if(dd.sum) h += txt(dd.sum);
+      if(dd.quote) h += '<div class="tiny"><i>«'+esc(dd.quote)+'»</i>'+(dd.page ? ' (S. '+esc(dd.page)+')' : '')+'</div>';
+      if(dd.ask) h += '<div class="tiny">❓ '+esc(dd.ask)+'</div>';
+      h += '</div>';
+    });
+    h += '</details>';
+  });
+  // Figuren
+  var fh = '';
+  (meta.figuren || []).forEach(function(f){
+    var x = st.fig && st.fig[f.id];
+    if(!x || !(x.who || x.scene || x.end || (x.traits || []).length)) return;
+    fh += '<div style="border-top:1px solid var(--border);padding:8px 0"><b>'+esc(f.emoji+' '+f.name)+'</b>' + ((x.traits || []).length ? ' <span class="tiny muted">· '+esc(x.traits.join(', '))+'</span>' : '') +
+      (x.who ? txt(x.who) : '') + (x.scene ? '<div class="tiny">Wichtigste Szene: '+esc(x.scene)+'</div>' : '') + (x.end ? '<div class="tiny">Was wird aus der Figur: '+esc(x.end)+'</div>' : '') + '</div>';
+  });
+  if(fh) h += '<details class="da-student-card ws-posten" open><summary><b>👥 Figuren-Steckbriefe</b></summary>'+fh+'</details>';
+  // Beziehungsnetz
+  var nh = '', fname = {};
+  (meta.figuren || []).forEach(function(f){ fname[f.id] = f.name; });
+  (meta.edges || []).forEach(function(e){
+    var x = st.net && st.net[e.id];
+    if(!x || !(x.label || x.feel)) return;
+    var ok = x.label === e.label;
+    nh += '<tr><td style="white-space:normal">'+esc((fname[e.a] || e.a)+' ↔ '+(fname[e.b] || e.b))+'</td><td>'+(x.label ? (ok ? '✅ ' : '❌ ') + esc(x.label) : '–')+(x.label && !ok ? ' <span class="tiny muted">(richtig: '+esc(e.label)+')</span>' : '')+'</td><td>'+esc(x.feel || '–')+'</td></tr>';
+  });
+  if(nh) h += '<details class="da-student-card ws-posten"><summary><b>🕸️ Beziehungsnetz</b></summary><table class="da-table" style="margin-top:8px"><thead><tr><th>Figuren</th><th>Beziehung</th><th>Einschätzung</th></tr></thead><tbody>'+nh+'</tbody></table></details>';
+  // Stimmung & Spirale
+  var sp = st.sp || {};
+  if(st.moodNote || sp.r1 || sp.r2){
+    h += '<details class="da-student-card ws-posten" open><summary><b>📈 Stimmung & 🌀 Spirale</b></summary>';
+    if(st.moodNote) h += '<div class="tiny" style="margin-top:8px"><b>Tiefpunkt / Höhepunkt:</b></div>'+txt(st.moodNote);
+    if(sp.r1) h += '<div class="tiny"><b>Wo hätte sie aussteigen können?</b></div>'+txt(sp.r1);
+    if(sp.r2) h += '<div class="tiny"><b>Wer hätte helfen können?</b></div>'+txt(sp.r2);
+    h += '</details>';
+  }
+  // Schreibwerkstatt
+  var wh = '';
+  (meta.schreiben || []).forEach(function(w){
+    var x = st.wr && st.wr[w.id];
+    if(!x || !x.text) return;
+    wh += '<div style="border-top:1px solid var(--border);padding:8px 0"><b>'+esc((w.emoji || '✍️')+' '+w.title)+'</b> <span class="tiny muted">'+lrWoerter(x.text)+' Wörter'+(x.stars ? ' · '+'⭐'.repeat(x.stars) : '')+'</span>'+txt(x.text)+'</div>';
+  });
+  if(wh) h += '<details class="da-student-card ws-posten" open><summary><b>✍️ Schreibwerkstatt</b></summary>'+wh+'</details>';
+  body.innerHTML = h;
+  document.getElementById('lrZurueck').addEventListener('click', function(){ lrState.detailUid = null; lrZeichnen(); });
+}
+
+function lrCsv(){
+  var d = lrState.daten;
+  if(!d || !Object.keys(d.buecher || {}).length){ toast('Noch keine Daten.'); return; }
+  var buch = lrBuch(), meta = buch.meta;
+  var rows = [['Schüler:in', 'Stationen entwertet', 'Stationen total', 'nächste Station', 'fehlerfreie Checks', '1. Versuch %', 'Linien-Abzeichen', 'Texte (≥50 Wörter)', 'Endstation', 'zuletzt']];
+  lrZeilen(buch).forEach(function(x){
+    rows.push([x.stu.displayName, x.r.done, meta.stationen.length, x.r.begonnen ? lrStationText(meta, x.r.cur) : '', x.r.stars,
+      x.r.qAns ? Math.round(x.r.qFirst / x.r.qAns * 100) : '', x.r.badges, x.r.fertigTexte, x.r.fin ? (x.r.fin.best || 0) + '/15' : '', x.r.zuletzt ? wsDatum(x.r.zuletzt) : '']);
+  });
+  downloadTextFile('lesereise-'+todayStr()+'.csv', rows.map(function(r){ return r.map(csvField).join(','); }).join('\r\n'), 'text/csv');
+}
+
 // Fächer mit einer eigenen, ausführlicheren Übersicht: erscheinen als Karte
 // zuoberst im jeweiligen Klappfach der Lernstand-Übersicht.
 var LS_SPEZIAL = {
   mathe: {icon:'📊', kurz:'SIKORE', titel:'SIKORE-Übersicht', text:'Level mit Auf-/Abstieg, Üben diese Woche, Wochenziel und Bestzeiten pro Schüler:in',
     oeffnen:function(){ sikoreUebersicht(); }},
-  deutsch: {icon:'🧩', kurz:'Werkstatt', titel:'Werkstatt-Übersicht', text:'Rechtschreib-Werkstatt: wer bei welchem Posten wie weit ist, Stempel und offene Fehlerwörter',
-    oeffnen:function(){ wsState.detailUid = null; state.route = {name:'werkstatt'}; render(); }}
+  // Mehrere Übersichten pro Fach: als Liste angeben.
+  deutsch: [{icon:'🧩', kurz:'Werkstatt', titel:'Werkstatt-Übersicht', text:'Rechtschreib-Werkstatt: wer bei welchem Posten wie weit ist, Stempel und offene Fehlerwörter',
+    oeffnen:function(){ wsState.detailUid = null; state.route = {name:'werkstatt'}; render(); }},
+    {icon:'📖', kurz:'Lesereise', titel:'Lesereise-Übersicht', text:'Lektüre-Lesereisen: wer bei welchem Kapitel steht, Kapitel-Checks und das ganze Lesetagebuch pro Person',
+    oeffnen:function(){ lrState.detailUid = null; state.route = {name:'lesereise'}; render(); }}],
+  englisch: {icon:'🗣️', kurz:'Voci', titel:'Voci-Übersicht', text:'Voci-Trainer Open World: 🔥 Serie, wer wie viele Wörter kann und die schwierigsten Wörter der Klasse',
+    oeffnen:function(){ vociUebersicht('englisch'); }},
+  franzoesisch: {icon:'🗣️', kurz:'Voci', titel:'Voci-Übersicht', text:'Voci-Trainer dis donc!: 🔥 Serie, wer wie viele Wörter kann und die schwierigsten Wörter der Klasse',
+    oeffnen:function(){ vociUebersicht('franzoesisch'); }}
 };
 
 function renderLernstandUebersicht(){
@@ -4902,15 +5364,15 @@ function renderLernstandUebersicht(){
     subjectIds.forEach(function(subjId){
       var sub = result.bySubject[subjId] || {resources:[], cell:{}};
       var s = subjectById(subjId);
-      var sp = LS_SPEZIAL[subjId];
+      var sps = [].concat(LS_SPEZIAL[subjId] || []);
       h += '<details class="ls-fach" data-subj="'+esc(subjId)+'"'+(lsFachOffen(subjId)?' open':'')+'>';
-      h += '<summary>'+esc(s?s.name:subjId)+(sp ? '<span class="ls-fach-tag">'+sp.icon+' '+esc(sp.kurz)+'</span>' : '')+
+      h += '<summary>'+esc(s?s.name:subjId)+sps.map(function(sp){ return '<span class="ls-fach-tag">'+sp.icon+' '+esc(sp.kurz)+'</span>'; }).join('')+
         '<span class="ls-fach-count">'+sub.resources.length+' '+(sub.resources.length===1?'Übung':'Übungen')+'</span></summary>';
       h += '<div class="ls-fach-body">';
-      if(sp){
-        h += '<button class="ls-spezial" type="button" data-ls-spezial="'+esc(subjId)+'"><span class="ls-spezial-icon">'+sp.icon+'</span>'+
+      sps.forEach(function(sp, si){
+        h += '<button class="ls-spezial" type="button" data-ls-spezial="'+esc(subjId)+'" data-ls-nr="'+si+'"><span class="ls-spezial-icon">'+sp.icon+'</span>'+
           '<span class="ls-spezial-text"><b>'+esc(sp.titel)+'</b><span>'+esc(sp.text)+'</span></span><span class="ls-spezial-pfeil">›</span></button>';
-      }
+      });
       if(!sub.resources.length){ h += '</div></details>'; return; }
       h += '<div class="table-scroll"><table class="da-table"><thead><tr><th>Schüler:in</th>';
       sub.resources.forEach(function(res){ h += '<th>'+esc(res.title||res.fileName)+'</th>'; });
@@ -4953,7 +5415,7 @@ function renderLernstandUebersicht(){
 
     body.innerHTML = h;
     Array.prototype.forEach.call(body.querySelectorAll('[data-ls-spezial]'), function(b){
-      b.addEventListener('click', LS_SPEZIAL[b.getAttribute('data-ls-spezial')].oeffnen);
+      b.addEventListener('click', [].concat(LS_SPEZIAL[b.getAttribute('data-ls-spezial')])[+b.getAttribute('data-ls-nr') || 0].oeffnen);
     });
     // Offen/zu je Fach merken.
     Array.prototype.forEach.call(body.querySelectorAll('.ls-fach'), function(d){
@@ -15157,6 +15619,11 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-09-25-baukasten-nativ', datum:'2026-09-25', fuer:'lehrer', text:'🧩 Baukasten jetzt auch für Prüfungen aus Bildtrainer-Übungen (Körper, Plattentektonik, Wald, …) und der Pöstlergeografie: Aufgaben mit Lösung ansehen, löschen, ordnen, mit 🎲 tauschen oder mit 🔁 gezielt ersetzen – auch aus anderen Bereichen. Dafür die neue Fassung der Übung per «Datei ersetzen» hochladen (Lernstände bleiben).'},
+  {id:'2026-09-25-lesereise-uebersicht', datum:'2026-09-25', fuer:'lehrer', text:'📖 Neu in der 📈 Lernstand-Übersicht (Fach Deutsch): «Lesereise-Übersicht» für Lektüre-Lesereisen – wer bei welchem Kapitel steht, Kapitel-Checks beim ersten Versuch, und per Klick auf einen Namen das ganze Lesetagebuch (Zusammenfassungen, Steckbriefe, Beziehungsnetz, Texte).'},
+  {id:'2026-09-25-hilfe-aktuell', datum:'2026-09-25', fuer:'lehrer', text:'📖 Die Anleitung für Lehrpersonen (⚙️ Einstellungen › ❓ Hilfe) ist auf dem neuesten Stand – neu mit Übungstrainern, Karteikarten & Voci, Rechtschreib-Werkstatt, allen Prüfungsarten und dem 🧩 Baukasten, Lernstand-Spezialübersichten, 🐦 Earlybird und 🧰 Tools.'},
+  {id:'2026-09-25-voci-trainer-serie', datum:'2026-09-25', fuer:'alle', text:'🔥 Voci-Trainer (Vocabulaire dis donc! und Vocabulary Open World): Übst du pro Tag mindestens 10 Wörter, wächst deine Serie – mit Flammen für jeden Tag. Viele richtige Antworten am Stück zeigen deine 🔥-Glückssträhne. Neu: Richtung «🔀 gemischt», und ist beim Schreiben nur ein Akzent oder Buchstabe falsch, darfst du nochmals versuchen.'},
+  {id:'2026-09-25-voci-trainer-lp', datum:'2026-09-25', fuer:'lehrer', text:'🗣️ Voci-Trainer: In der 📈 Lernstand-Übersicht gibt es bei Englisch und Französisch neu die «Voci-Übersicht» – 🔥 Serie, geübte und sichere Wörter pro Person und die schwierigsten Wörter der Klasse, filterbar nach Unit. Und im 📝 Prüfungsmodus («📄 Aus einer Übung») lässt sich aus dem Voci-Trainer ein Voci-Test ziehen: Units wählen, Richtung, Anzahl – automatisch korrigiert, mit Akzent-Tasten.'},
   {id:'2026-09-25-karteikarten-spiele', datum:'2026-09-25', fuer:'alle', text:'🗂️ Karteikarten können mehr: Unter «Art» gibt es jetzt «Auswählen» (4 Antworten), «Paare finden» und die ⏱️ Tempo-Runde mit Rekord – und bei «Richtung» 🔀 gemischt. Beim Selber-Schreiben helfen Akzent-Tasten (é, è, ç …), und fehlt nur ein Akzent oder ein Buchstabe, darfst du es nochmals versuchen.'},
   {id:'2026-09-25-voci-serie', datum:'2026-09-25', fuer:'alle', text:'🔥 Neu: die Voci-Serie! Beantworte pro Tag mindestens 10 Karteikarten in einem Fach, dann brennt deine Flamme weiter. Und wer viele Karten am Stück richtig hat, sieht beim Üben die 🔥-Glückssträhne wachsen.'},
   {id:'2026-09-25-voci-test', datum:'2026-09-25', fuer:'lehrer', text:'📝 Voci-Test: Im Prüfungsmodus («📄 Aus einer Übung») stehen jetzt auch die 🗂️ Karteikarten-Sets zur Wahl – oder direkt im Set «📝 Voci-Test». Richtung(en) wählen, Anzahl, Mischung aus Selbst-Hinschreiben und Auswählen; jedes Wort kommt nur einmal vor, Akzent-Tasten gibt es auch in der Prüfung. Korrigiert wird automatisch (mit oder ohne Artikel, Varianten mit «/»), 🧩 Baukasten wie immer. Neu in der 📊 Klassenübersicht: «Schwierigste Wörter der Klasse», beide Richtungen und die 🔥 Serie jeder Person.'},
@@ -20312,6 +20779,66 @@ function pruefExtractImpl(){
     out.diktat = true;
     kat('diktat', '✍️ Diktat');
     add('diktat', {typ:'diktat', frage:'Diktat', text:text, alt:alt, woerter:woerter});
+  } else if(window.__libVOC && Array.isArray(window.__libVOC.buecher)){
+    // 🗣️ Voci-Trainer (dis donc! / Open World): pro Unit (Französisch: und Niveau G/E)
+    // ein Bereich, vorausgewählt ist nichts. Pro Wort und Richtung eine Kurzantwort
+    // und eine Auswahlfrage; f.gruppe = das Wort (kommt pro Prüfung nur einmal),
+    // f.ri = Richtung (der Editor kann auf eine Richtung beschränken).
+    var V = window.__libVOC, franz = V.buecher.some(function(b){ return b.unites; });
+    var sprache = franz ? 'Französisch' : 'Englisch', woerterVon = {};
+    var norm = function(x){ return String(x || '').toLowerCase().replace(/\s+/g, ' ').trim(); };
+    var varianten = function(x, sp){
+      var o = [];
+      var dazu = function(y){ y = String(y || '').replace(/\s+/g, ' ').trim(); if(y && o.indexOf(y) < 0) o.push(y); };
+      var ganz = plain(x);
+      dazu(ganz);
+      ganz.split(/\s*[,;]\s*|\s+\/\s+/).forEach(function(t){
+        [t, t.replace(/\([^)]*\)/g, ' '), t.replace(/[()]/g, '')].forEach(function(y){
+          dazu(y);
+          if(sp === 'de') dazu(String(y).trim().replace(/^(der|die|das|ein|eine|einen)\s+/i, ''));
+          if(sp === 'en') dazu(String(y).trim().replace(/^(to|a|an|the)\s+/i, ''));
+        });
+      });
+      return o;
+    };
+    V.buecher.forEach(function(b){
+      (b.unites || b.units || []).forEach(function(u){
+        (franz ? [['g', ' · Niveau G'], ['e', ' · Niveau E']] : [['', '']]).forEach(function(n){
+          var ws = [];
+          (franz ? ((u.niveaus || {})[n[0]] || []) : (u.gruppen || [])).forEach(function(g){
+            (g.w || []).forEach(function(w){ if(w && w.f && w.d) ws.push(w); });
+          });
+          if(ws.length < 4) return;
+          var k = b.id + '|' + u.id + (n[0] ? '|' + n[0] : '');
+          kat(k, plain(b.name) + ' · ' + plain(u.name) + n[1]);
+          woerterVon[k] = ws.length;
+          ws.forEach(function(w){
+            [['fd', w.f, w.d, 'Deutsch', 'de'], ['df', w.d, w.f, sprache, franz ? 'fr' : 'en']].forEach(function(r){
+              var frage = '«' + plain(r[1]) + '» → ' + r[3], ziel = plain(r[2]), gr = b.id + '|' + u.id + '|' + w.f;
+              // Französisch: der Artikel gehört dazu (zeigt das Geschlecht) — so steht es auch in der Frage.
+              if(r[4] === 'fr' && /^(le|la|les|un|une)\s|^l['’]/i.test(ziel)) frage += ' (mit Artikel)';
+              add(k, {typ:'text', ri:r[0], gruppe:gr, bloom:'erinnern', frage:frage, loesung:varianten(r[2], r[4])});
+              var andere = [], gesehen = {};
+              gesehen[norm(ziel)] = 1;
+              for(var v=0; v<40 && andere.length<3; v++){
+                var x = ws[Math.floor(Math.random() * ws.length)], a = plain(r[0] === 'fd' ? x.d : x.f);
+                if(!gesehen[norm(a)]){ gesehen[norm(a)] = 1; andere.push(a); }
+              }
+              if(andere.length < 3) return;
+              var opts = andere.concat([ziel]).sort(function(){ return Math.random() - 0.5; });
+              add(k, {typ:'mc', ri:r[0], gruppe:gr, bloom:'erinnern', keinUmwandeln:true, frage:frage, optionen:opts, loesung:opts.indexOf(ziel)});
+            });
+          });
+        });
+      });
+    });
+    out.kategorien.forEach(function(x){ x.anzahl = woerterVon[x.id] || 0; });
+    out.voci = true;
+    out.standardKats = [];
+    out.richtungen = [['fd', sprache + ' → Deutsch'], ['df', 'Deutsch → ' + sprache]];
+    out.formenStd = [0, 70, 30, 0];
+    out.bloomStd = [100, 0, 0];
+    if(franz) out.akzente = ['à', 'â', 'ç', 'é', 'è', 'ê', 'ë', 'î', 'ï', 'ô', 'ù', 'û', 'œ'];
   } else {
     return {art:'keine'};
   }
@@ -20323,7 +20850,7 @@ function pruefExtractImpl(){
 // pruefProbe auswerten kann. Chunk für Chunk, bricht beim ersten Treffer ab
 // (die Daten stehen vorne, vor Bildern/Audio). Ergebnis pro contentId im
 // Browser gemerkt — ein Inhalt ändert sich nie (Bearbeiten = neue contentId).
-var PRUEF_SCAN_RE = /\b(?:var|let|const)\s+(?:Q|THEMES|TEXT_PARAGRAPHS)\s*=\s*\[|__GEO_PRUEFUNG/;
+var PRUEF_SCAN_RE = /\b(?:var|let|const)\s+(?:Q|THEMES|TEXT_PARAGRAPHS)\s*=\s*\[|__GEO_PRUEFUNG|\bvar\s+VOC\s*=\s*\{/;
 var PRUEF_SCAN_PREFIX = 'libPruefScan_';
 var PRUEF_SCAN_TTL = 90*24*3600*1000;   // nach 90 Tagen ungenutzt: weg
 var PRUEF_SCAN_REFRESH = 7*24*3600*1000;
@@ -20337,6 +20864,19 @@ var pruefScanGeputzt = false;
 function pruefScanAufraeumen(){
   if(pruefScanGeputzt) return;
   pruefScanGeputzt = true;
+  // 25.09.2026: Voci-Trainer (var VOC) sind neu prüfbar — früher als «nicht
+  // prüfbar» gemerkte Übungen einmal neu testen lassen.
+  if(lsGet(LIB_PREFIX + 'pruefScanV') !== '2'){
+    try{
+      var nein = [];
+      for(var j=0;j<localStorage.length;j++){
+        var kj = localStorage.key(j);
+        if(kj && kj.indexOf(PRUEF_SCAN_PREFIX) === 0 && (localStorage.getItem(kj) || '').charAt(0) === '0') nein.push(kj);
+      }
+      nein.forEach(function(k){ localStorage.removeItem(k); });
+    }catch(e){}
+    lsSet(LIB_PREFIX + 'pruefScanV', '2');
+  }
   try{
     var jetzt = Date.now(), weg = [];
     for(var i=0;i<localStorage.length;i++){
@@ -20406,6 +20946,7 @@ function pruefProbe(contentId){
       .replace(/\b(?:var|let|const)\s+TOPICS\s*=\s*\{/, 'var TOPICS = window.__libTOPICS = {')
       .replace(/\b(?:var|let|const)\s+THEMES\s*=\s*\[/, 'var THEMES = window.__libTHEMES = [')
       .replace(/\b(?:var|let|const)\s+CARDS\s*=\s*\[/, 'var CARDS = window.__libCARDS = [')
+      .replace(/\bvar\s+VOC\s*=\s*\{/, 'var VOC = window.__libVOC = {')
       .replace(/\b(?:var|let|const)\s+TEXT_PARAGRAPHS\s*=\s*\[/, 'var TEXT_PARAGRAPHS = window.__libDiktatText = [')
       .replace(/\b(?:var|let|const)\s+ACCEPTED_ALTERNATES\s*=\s*/, 'var ACCEPTED_ALTERNATES = window.__libDiktatAlt = ');
     var inject = '<script>window.__LIB_PRUEFUNG_PROBE = true;' +
@@ -20517,6 +21058,7 @@ function pruefBankPool(info, kats, mitUmwandeln){
   var pool = [], gruppen = {};
   info.fragen.forEach(function(f, i){
     if(kats.indexOf(f.kat) < 0) return;
+    if(info.ri && f.ri && f.ri !== info.ri) return;   // Voci-Trainer: nur eine Richtung
     // Fragen mit derselben f.gruppe (z.B. dieselbe Karteikarte als Kurzantwort
     // und als Auswahl, in beiden Richtungen) kommen höchstens einmal dran.
     var g = f.gruppe ? (gruppen[f.gruppe] = gruppen[f.gruppe] || {}) : {};
@@ -21138,7 +21680,7 @@ async function pruefEditor(p, vorwahl){
     if(!uebungen.length){
       // Im Dialog bleiben, damit man oben noch eine andere Art (⚡, ✍️ …) wählen kann.
       openModal('<h3>'+(neu ? '➕ Neue Prüfung' : '✏️ Prüfung bearbeiten')+'</h3>'+kopf+
-        '<p class="pr-hinweis pr-warn">Keine passende Übung gefunden. Prüfungen «aus einer Übung» gehen mit Prüfungsvorbereitungen (Quiz), Mathe-Übungen, Diktaten, Pöstlergeografie und 🗂️ Karteikarten-Sets (ab 4 Karten) — oder wähle oben eine andere Art.</p>'+
+        '<p class="pr-hinweis pr-warn">Keine passende Übung gefunden. Prüfungen «aus einer Übung» gehen mit Prüfungsvorbereitungen (Quiz), Mathe-Übungen, Diktaten, Pöstlergeografie, 🗣️ Voci-Trainern und 🗂️ Karteikarten-Sets (ab 4 Karten) — oder wähle oben eine andere Art.</p>'+
         '<div class="modal-actions"><button class="btn btn-ghost btn-sm" id="modalCancel" type="button">Schliessen</button></div>', 'pr-modal');
       if(neu) pruefKopfVerdrahten('uebung');
       document.getElementById('modalCancel').addEventListener('click', closeModal);
@@ -21194,6 +21736,7 @@ async function pruefEditor(p, vorwahl){
   function zugEinstellungen(){
     var box = document.getElementById('prInfo');
     if(!box || !info || info.art !== 'bank') return null;
+    if(info.richtungen){ var riEl = document.getElementById('prRichtung'); info.ri = riEl ? riEl.value : ''; }
     var kats = Array.prototype.map.call(box.querySelectorAll('.pr-kats input:checked'), function(i){ return i.value; });
     var bl = Array.prototype.map.call(box.querySelectorAll('[data-bloom]'), function(i){ return Math.max(0, +i.value || 0); });
     var fm = Array.prototype.map.call(box.querySelectorAll('[data-form]'), function(i){ return Math.max(0, +i.value || 0); });
@@ -21298,6 +21841,8 @@ async function pruefEditor(p, vorwahl){
       return '<label><input type="checkbox" value="'+esc(k.id)+'" data-n="'+(k.anzahl || 0)+'"'+(kats.indexOf(k.id) >= 0 ? ' checked' : '')+'> '+esc(k.name)+(k.anzahl ? ' <small>('+k.anzahl+')</small>' : '')+'</label>';
     }).join('') + '</div>';
     var opts = info.optionen || [];
+    if(info.richtungen) b += '<div class="pr-grid2"><div><label class="modal-label" for="prRichtung">Richtung</label><select id="prRichtung" class="modal-input"><option value="">Beide Richtungen gemischt</option>' +
+      info.richtungen.map(function(r){ return '<option value="'+esc(r[0])+'"'+(gleich && c.richtung === r[0] ? ' selected' : '')+'>'+esc(r[1])+'</option>'; }).join('') + '</select></div><div></div></div>';
     b += '<div class="pr-grid2">';
     opts.forEach(function(o){
       var cur = gleich && c.optionen && c.optionen[o.id] != null ? String(c.optionen[o.id]) : (gleich && c[o.id] != null ? String(c[o.id]) : String(o.standard));
@@ -21435,13 +21980,19 @@ async function pruefEditor(p, vorwahl){
         data.diktat = !!info.diktat;
         if(info.diktat && info.fragen[0]) data.woerterInfo = info.fragen[0].woerter || null;
         data.resourceId = resource.id; data.subject = resource.subject || ''; data.resourceTitel = resource.title || resource.fileName || ''; data.contentId = resourceContentId(resource);
-        data.akzente = resource.kkSet && resource.kkAkzente.length ? resource.kkAkzente : null;
+        data.akzente = resource.kkSet ? (resource.kkAkzente.length ? resource.kkAkzente : null) : (info.akzente || null);
         data.cfg = {kats:kats, katNamen:katEls.map(function(i){ return i.parentNode.textContent.replace(/\s*\(\d+\)\s*$/, '').trim(); }),
           optionen:optionen, optNamen:optNamen, anzahl:anzahl, mischen:mischenEl.checked};
         var nivEl = document.getElementById('prNiveau');
         if(nivEl && e && e.bloom){ data.cfg.niveau = nivEl.value; data.cfg.bloom = e.bloom; }
         if(e && e.formen) data.cfg.formen = e.formen;
+        if(info.richtungen) data.cfg.richtung = info.ri || '';
         data.seed = seed;
+        // 🧩 Im Baukasten festgelegte Aufgaben (eigener Prüfungsmodus) bleiben, solange oben nichts geändert wird.
+        if(info.art !== 'bank' && !neuZiehen && p && c && Array.isArray(c.keys) && c.keys.length && p.resourceId === resource.id){
+          data.cfg.keys = c.keys; data.cfg.anzahl = c.keys.length; data.cfg.baukasten = true;
+          data.cfg.kats = c.kats || data.cfg.kats; data.cfg.katNamen = c.katNamen || data.cfg.katNamen; data.contentId = p.contentId;
+        }
         if(info.art === 'bank'){
           var zug = pruefBankZiehen(info, kats, anzahl, seed, e && e.bloom, e && e.formen);
           data.fragen = zug.fragen; data.bilder = zug.bilder; data.cfg.anzahl = zug.fragen.length;
@@ -21924,6 +22475,180 @@ async function pruefBaukasten(p){
   });
 }
 
+/* ---------- Lehrperson: 🧩 Baukasten einer Prüfung mit eigenem Prüfungsmodus ----------
+   Bildtrainer (Körper, Plattentektonik, …) und Pöstlergeografie ziehen ihre
+   Fragen selbst (Seed) — die Library kennt die einzelnen Aufgaben nicht. Für den
+   Baukasten wird die Übung darum unsichtbar im «Katalog»-Modus geladen
+   (window.__GEO_PRUEFUNG mit katalog:true, abgeschottet wie pruefProbe): sie
+   meldet {action:'katalog', fragen, pool, katNamen} — die Aufgaben der Prüfung
+   mit Lösung und pro Bereich alle möglichen Aufgaben (Schlüssel + Name). Neue
+   Aufgaben erzeugt sie auf Anfrage ({action:'frage', keys} → {action:'fragen'}).
+   Gespeichert wird die feste Liste cfg.keys: die Übung erzeugt dann genau diese
+   Aufgaben, jede mit eigenem Seed (Tauschen verändert die anderen nicht).
+   Braucht eine Fassung der Übung, die cfg.keys/katalog kennt (ab 25.09.2026) —
+   ältere per «Datei ersetzen» aktualisieren; die neuste Fassung der Übung wird
+   automatisch gefunden und beim Speichern für die Prüfung übernommen. */
+function nativKatalogOeffnen(html, cfg){
+  var inject = '<script>window.__GEO_PRUEFUNG=' + JSON.stringify(cfg).replace(/</g, '\\u003c') + ';<\/script>';
+  var headRe = /<head(\s[^>]*)?>/i;
+  html = headRe.test(html) ? html.replace(headRe, function(m){ return m + inject; }) : inject + html;
+  return new Promise(function(resolve){
+    var fr = document.createElement('iframe');
+    fr.setAttribute('sandbox', 'allow-scripts');
+    fr.setAttribute('aria-hidden', 'true');
+    fr.style.cssText = 'position:absolute;left:-9999px;top:0;width:800px;height:600px;border:0;visibility:hidden;';
+    var fertig = false, warten = {};
+    function ende(r){
+      if(fertig) return; fertig = true; clearTimeout(timer);
+      if(!r){ window.removeEventListener('message', onMsg); try{ fr.remove(); }catch(e){} resolve(null); return; }
+      // Verbindung offen lassen: neue Aufgaben erzeugt die Übung auf Anfrage.
+      var nr = 0;
+      resolve({fragen:r.fragen || [], pool:r.pool || {}, katNamen:r.katNamen || {},
+        frage:function(keys){
+          return new Promise(function(res){
+            var id = 'f' + (++nr); warten[id] = res;
+            try{ fr.contentWindow.postMessage({type:'geoPruefung', action:'frage', keys:keys, id:id}, '*'); }catch(e){ delete warten[id]; res([]); }
+            setTimeout(function(){ if(warten[id]){ delete warten[id]; res([]); } }, 8000);
+          });
+        },
+        schliessen:function(){ window.removeEventListener('message', onMsg); try{ fr.remove(); }catch(e){} }});
+    }
+    function onMsg(e){
+      var d = e.data;
+      if(e.source !== fr.contentWindow || !d || d.type !== 'geoPruefung') return;
+      if(d.action === 'katalog') ende(d);
+      else if(d.action === 'fragen' && warten[d.id]){ var f = warten[d.id]; delete warten[d.id]; f(d.fragen || []); }
+    }
+    window.addEventListener('message', onMsg);
+    var timer = setTimeout(function(){ ende(null); }, 20000);
+    document.body.appendChild(fr);
+    fr.srcdoc = html;
+  });
+}
+
+async function nativBaukasten(p){
+  openModal('<h3>🧩 Baukasten</h3><p class="pr-hinweis">Übung wird geladen und ausgelesen …</p>', 'pr-modal pr-modal-breit');
+  var gestartet = 0;
+  try{ gestartet = await pruefGestartetZahl(p); }catch(err){ console.error(err); }
+  var nurAnsehen = gestartet > 0;
+  var c = p.cfg || {};
+  var basis = Object.assign({}, c, c.optionen || {}, {titel:p.titel, seed:p.seed, katalog:true});
+  // Erst die Fassung, mit der die Prüfung erstellt wurde, sonst die aktuelle der Übung (nach «Datei ersetzen»).
+  var cids = [p.contentId];
+  if(p.resourceId){
+    try{ var rs = await getDoc(kdoc('resources', p.resourceId)); if(rs.exists()){ var cur = resourceContentId(Object.assign({id:rs.id}, rs.data())); if(cids.indexOf(cur) < 0) cids.push(cur); } }catch(err){ console.error(err); }
+  }
+  var kat = null, cid = null;
+  for(var ci = cids.length - 1; ci >= 0 && !kat; ci--){
+    // Neueste zuerst: kennt die Prüfungsfassung den Katalog nicht, hilft die aktuelle.
+    try{ kat = await nativKatalogOeffnen(await loadResourceHtml(cids[ci]), basis); if(kat) cid = cids[ci]; }catch(err){ console.error(err); }
+  }
+  if(!kat){
+    uiInfo('🧩 Baukasten', 'Diese Übung kennt den Baukasten noch nicht. Lade die neue Fassung der Übung (Bildtrainer / Pöstlergeografie ab 25.09.2026) bei der Übung mit «Datei ersetzen» hoch – danach geht der Baukasten auch für diese Prüfung.');
+    return;
+  }
+  var bs = kat.fragen.slice(), katNamen = kat.katNamen, filterKat = '', suche = '', ersetzen = null;
+  var altKeys = Array.isArray(c.keys) && c.keys.length;
+  function schliessen(){ kat.schliessen(); closeModal(); }
+  function benutzt(){ var u = {}; bs.forEach(function(q){ u[q.key] = 1; }); return u; }
+  function zeile(q, k){
+    var akt = nurAnsehen ? '' : '<div class="pr-bk-akt"><span>'+
+      '<button class="btn btn-ghost btn-sm" data-hoch="'+k+'" type="button" title="nach oben"'+(k ? '' : ' disabled')+'>↑</button>'+
+      '<button class="btn btn-ghost btn-sm" data-runter="'+k+'" type="button" title="nach unten"'+(k < bs.length - 1 ? '' : ' disabled')+'>↓</button>'+
+      '<button class="btn btn-ghost btn-sm" data-weg="'+k+'" type="button" title="entfernen">✕</button></span><span>'+
+      '<button class="btn btn-ghost btn-sm" data-tausch="'+k+'" type="button" title="zufällig austauschen: andere Aufgabe aus demselben Bereich">🎲</button>'+
+      '<button class="btn btn-ghost btn-sm'+(ersetzen === k ? ' btn-primary' : '')+'" data-ersetzen="'+k+'" type="button" title="durch eine Aufgabe ersetzen, die du unten auswählst">🔁</button></span></div>';
+    return '<div class="pr-bk-row'+(ersetzen === k ? ' pr-bk-ziel' : '')+'"><span class="pr-ap-nr">'+(k+1)+'.</span>'+
+      '<div class="pr-bk-f"><div class="pr-ap-meta"><span class="pr-badge">'+esc(q.art || '')+'</span><small>'+esc(katNamen[q.kat] || q.kat || '')+'</small></div>'+
+      '<div>'+esc(q.frage || '')+'</div><div class="pr-bk-opts">✓ <b>'+esc(q.loesung || '')+'</b>'+(q.bild ? ' · 🖼️ mit Bild/Karte' : '')+'</div></div>'+akt+'</div>';
+  }
+  function poolHtml(){
+    var u = benutzt(), t = suche.trim().toLowerCase(), liste = [];
+    Object.keys(kat.pool).forEach(function(kk){
+      if(filterKat && kk !== filterKat) return;
+      kat.pool[kk].forEach(function(x){ if(!u[x.key] && (!t || String(x.name).toLowerCase().indexOf(t) >= 0)) liste.push({key:x.key, name:x.name, kat:kk}); });
+    });
+    if(!liste.length) return '<div class="empty-state">Keine weiteren Aufgaben'+(filterKat || t ? ' für diese Auswahl' : '')+'.</div>';
+    return liste.slice(0, 80).map(function(x){
+      return '<div class="pr-bk-pool"><button class="btn btn-ghost btn-sm" data-dazu="'+esc(x.key)+'" type="button" title="'+(ersetzen != null ? 'ersetzt Aufgabe '+(ersetzen+1) : 'zur Prüfung')+'">'+(ersetzen != null ? '🔁' : '＋')+'</button>'+
+        '<div><small>'+esc(katNamen[x.kat] || x.kat)+'</small><div>'+esc(x.name)+'</div></div></div>';
+    }).join('') + (liste.length > 80 ? '<p class="pr-hinweis">… und '+(liste.length - 80)+' weitere – mit Bereich oder Suche eingrenzen.</p>' : '');
+  }
+  function zeichnen(){
+    var el = document.getElementById('prBkListe'); if(!el) return;
+    el.innerHTML = bs.length ? bs.map(zeile).join('') : '<div class="empty-state">Noch keine Aufgaben – unten hinzufügen.</div>';
+    document.getElementById('prBkKopf').innerHTML = bs.length + ' Aufgaben · <b>' + bs.length + '</b> Punkte (1 Punkt pro Aufgabe)';
+    if(nurAnsehen) return;
+    document.getElementById('prBkPool').innerHTML = poolHtml();
+    var ez = document.getElementById('prBkErsetzt');
+    ez.hidden = ersetzen == null;
+    if(ersetzen != null) ez.innerHTML = '🔁 Wähle unten die Aufgabe, die <b>Nr. '+(ersetzen+1)+'</b> ersetzt. <button class="btn btn-ghost btn-sm" data-ersetzenweg="1" type="button">Abbrechen</button>';
+  }
+  async function einsetzen(key, ziel){
+    var neu = (await kat.frage([key]))[0];
+    if(!neu){ toast('Diese Aufgabe konnte nicht erzeugt werden.'); return; }
+    if(ziel != null) bs[ziel] = neu; else bs.push(neu);
+    zeichnen();
+  }
+  var h = '<h3>🧩 Baukasten: '+esc(p.titel)+'</h3>';
+  if(nurAnsehen){
+    h += pruefBkGesperrtHtml(gestartet) + '<p class="pr-hinweis" id="prBkKopf"></p><div class="pr-ap" id="prBkListe"></div>';
+    h += '<div class="modal-actions"><button class="btn btn-primary btn-sm" id="modalCancel" type="button">Schliessen</button></div>';
+    openModal(h, 'pr-modal pr-modal-breit'); zeichnen();
+    document.getElementById('modalCancel').addEventListener('click', schliessen);
+    return;
+  }
+  h += '<p class="pr-hinweis">Die Aufgaben dieser Prüfung mit Lösung. ✕ löscht eine Aufgabe, 🎲 tauscht sie gegen eine zufällige aus demselben Bereich, 🔁 ersetzt sie durch eine, die du unten auswählst, ↑↓ ordnet. Die Frageform (z. B. «Was ist markiert?» oder «Tippe … an») ergibt sich aus der Antwortart der Prüfung. Geht, bis jemand die Prüfung startet.'+
+    (altKeys ? '' : ' <b>Beim Speichern wird die Prüfung auf genau diese Aufgaben festgelegt.</b>')+'</p>';
+  h += '<p class="pr-hinweis" id="prBkKopf"></p><div class="pr-ap" id="prBkListe"></div>';
+  h += '<h4 class="pr-h4">➕ Aufgaben hinzufügen</h4><p class="pr-hinweis pr-bk-ersetzt" id="prBkErsetzt" hidden></p>';
+  h += '<div class="pr-grid2"><select id="prBkKat" class="modal-input"><option value="">Alle Bereiche</option>' + Object.keys(kat.pool).map(function(k){
+    return '<option value="'+esc(k)+'">'+esc(katNamen[k] || k)+' ('+kat.pool[k].length+')</option>'; }).join('') + '</select>'+
+    '<input type="search" id="prBkSuche" class="modal-input" placeholder="🔍 Begriff suchen" autocomplete="off"></div>';
+  h += '<div class="pr-ap pr-bk-poolliste" id="prBkPool"></div>';
+  h += '<div class="modal-actions"><button class="btn btn-ghost btn-sm" id="modalCancel" type="button">Abbrechen</button><button class="btn btn-primary btn-sm" id="modalOk" type="button">Speichern</button></div>';
+  openModal(h, 'pr-modal pr-modal-breit');
+  zeichnen();
+  var host = modalEl.querySelector('.pr-modal');
+  document.getElementById('prBkKat').addEventListener('change', function(){ filterKat = this.value; document.getElementById('prBkPool').innerHTML = poolHtml(); });
+  document.getElementById('prBkSuche').addEventListener('input', function(){ suche = this.value; document.getElementById('prBkPool').innerHTML = poolHtml(); });
+  host.addEventListener('click', function(e){
+    var b = e.target.closest('button'); if(!b) return;
+    var k;
+    if((k = b.getAttribute('data-hoch')) != null){ k = +k; var x = bs[k]; bs[k] = bs[k-1]; bs[k-1] = x; zeichnen(); }
+    else if((k = b.getAttribute('data-runter')) != null){ k = +k; var y = bs[k]; bs[k] = bs[k+1]; bs[k+1] = y; zeichnen(); }
+    else if((k = b.getAttribute('data-weg')) != null){ bs.splice(+k, 1); ersetzen = null; zeichnen(); }
+    else if((k = b.getAttribute('data-tausch')) != null){
+      k = +k; var u = benutzt(), kand = (kat.pool[bs[k].kat] || []).filter(function(x){ return !u[x.key]; });
+      if(!kand.length){ toast('Keine weitere Aufgabe in diesem Bereich – mit 🔁 eine aus einem anderen Bereich wählen.'); return; }
+      einsetzen(kand[Math.floor(Math.random() * kand.length)].key, k);
+    }
+    else if((k = b.getAttribute('data-ersetzen')) != null){
+      k = +k; ersetzen = ersetzen === k ? null : k;
+      if(ersetzen != null){ filterKat = bs[k].kat || ''; document.getElementById('prBkKat').value = filterKat; }
+      zeichnen();
+      if(ersetzen != null) document.getElementById('prBkErsetzt').scrollIntoView({block:'start', behavior:'smooth'});
+    }
+    else if(b.hasAttribute('data-ersetzenweg')){ ersetzen = null; zeichnen(); }
+    else if((k = b.getAttribute('data-dazu')) != null){ var ziel = ersetzen; ersetzen = null; einsetzen(k, ziel); }
+  });
+  document.getElementById('modalCancel').addEventListener('click', schliessen);
+  document.getElementById('modalOk').addEventListener('click', async function(){
+    if(!bs.length){ toast('Mindestens eine Aufgabe.'); return; }
+    var keys = bs.map(function(q){ return q.key; }), kats = (c.kats || []).slice();
+    bs.forEach(function(q){ if(q.kat && kats.indexOf(q.kat) < 0) kats.push(q.kat); });
+    var upd = {'cfg.keys':keys, 'cfg.anzahl':keys.length, 'cfg.baukasten':true, 'cfg.kats':kats,
+      'cfg.katNamen':kats.map(function(k){ return katNamen[k] || k; }), contentId:cid};
+    this.disabled = true;
+    try{
+      if(!(await pruefBkNochFrei(p))){ this.disabled = false; return; }
+      await updateDoc(pruefRef(p.id), upd);
+      schliessen();
+      toast('Prüfung gespeichert: ' + keys.length + ' Aufgaben.');
+    }catch(err){ this.disabled = false; pruefFehler(err); }
+  });
+}
+
 /* ---------- Lehrperson: 🖨️ Prüfung drucken (PDF / Word) ----------
    Im Prüfungs-Design der Sekundarschule Altnau (wie das Skill «pruefung-design»
    bzw. dessen build_pruefung.js): A4, Ränder 2 cm, Calibri 11 pt, Zeilenabstand
@@ -22269,7 +22994,7 @@ function pruefMonitorZeichnen(){
   if(pruefArt(p) === 'sikore') h += '<button class="btn btn-ghost btn-sm" data-a="sikoreDruck" type="button">🖨️ Blätter drucken</button>';
   h += '<button class="btn btn-ghost btn-sm" data-a="bearbeiten" type="button">✏️ Bearbeiten</button>';
   if(pruefArt(p) === 'bank' && !p.diktat) h += '<button class="btn btn-ghost btn-sm" data-a="punkte" type="button">🧮 Aufgaben & Punkte</button>';
-  if((pruefArt(p) === 'bank' && !p.diktat) || pruefArt(p) === 'mt') h += '<button class="btn btn-ghost btn-sm" data-a="baukasten" type="button" title="Aufgaben ansehen, einzeln löschen oder austauschen — bis jemand die Prüfung startet">🧩 Baukasten</button>';
+  if((pruefArt(p) === 'bank' && !p.diktat) || pruefArt(p) === 'mt' || pruefArt(p) === 'nativ') h += '<button class="btn btn-ghost btn-sm" data-a="baukasten" type="button" title="Aufgaben ansehen, einzeln löschen oder austauschen — bis jemand die Prüfung startet">🧩 Baukasten</button>';
   if(pruefArt(p) === 'bank') h += '<button class="btn btn-ghost btn-sm" data-a="drucken" type="button">🖨️ Drucken (PDF/Word)</button>';
   if(p.status !== 'offen') h += '<button class="btn btn-ghost btn-sm" data-a="loeschen" type="button">🗑 Löschen</button>';
   h += '</div>';
@@ -22390,7 +23115,7 @@ function pruefMonitorVerdrahten(p){
     else if(a === 'bearbeiten'){ if(pruefArt(p) === 'sikore') sikoreEditor(p); else if(pruefArt(p) === 'tippen') tippPrEditor(p); else if(pruefArt(p) === 'mt') mtPrEditor(p); else if(p.rsw) rswPrEditor(p); else pruefEditor(p); }
     else if(a === 'sikoreDruck') sikoreDruckDialog(p);
     else if(a === 'punkte') pruefAufgabenPunkte(p);
-    else if(a === 'baukasten'){ if(pruefArt(p) === 'mt') mtPrBaukasten(p); else if(p.rsw) rswBaukasten(p); else pruefBaukasten(p); }
+    else if(a === 'baukasten'){ if(pruefArt(p) === 'mt') mtPrBaukasten(p); else if(pruefArt(p) === 'nativ') nativBaukasten(p); else if(p.rsw) rswBaukasten(p); else pruefBaukasten(p); }
     else if(a === 'drucken') pruefDruckDialog(p);
     else if(a === 'alleEntsperren'){
       var batch = writeBatch();
@@ -29921,6 +30646,7 @@ function render(){
   if(state.route.name === 'diktatauswertung'){ renderDiktatAuswertung(); return; }
   if(state.route.name === 'lernstand'){ renderLernstandUebersicht(); return; }
   if(state.route.name === 'werkstatt'){ renderWerkstattUebersicht(); return; }
+  if(state.route.name === 'lesereise'){ renderLesereiseUebersicht(); return; }
   if(state.route.name === 'kalender'){ renderKalender(); return; }
   if(state.route.name === 'earlybird'){ renderEarlybird(); return; }
   if(state.route.name === 'stundenplan'){ renderStundenplan(); return; }
