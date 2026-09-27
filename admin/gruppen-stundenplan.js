@@ -42,14 +42,7 @@ if (!ORDNER || !(SEMESTER === 1 || SEMESTER === 2)) {
 }
 
 // ---------- Schul-Stammdaten (Schuljahr 2026/27) ----------
-// Untis-Kürzel -> Benutzername in der App.
-const LP = {
-  Al: 'alder', Bo: 'bommeli', 'Bä': 'baechi', Fe: 'frey', Fi: 'fischer', Fr: 'froehlich', Gi: 'gierszewski',
-  Gr: 'giger', Ha: 'hauser', He: 'herforth', Hr: 'helfenberger', Hu: 'hugentobler', 'Hä': 'haeberli',
-  Le: 'ledergerber', Lo: 'lopez', Ri: 'rhiner', Ro: 'rolfsmeyer', Rs: 'rechsteiner', Ru: 'rutishauser',
-  Sb: 'straub', Sc: 'schlaepfer', Se: 'steinbruechel', Sh: 'schoch', Sr: 'strebel', St: 'stoller',
-  Sz: 'stolz', 'Sä': 'staedler', Wr: 'weber', Zw: 'zweifel'
-};
+const { LP } = require('./_untis');   // Untis-Kürzel -> Benutzername
 // Klassenlehrpersonen: deren eigene Fächer brauchen keine Ganzklassen-Gruppe.
 const KLP = {
   G1a: ['Fi'], G1b: ['Al', 'Bo'], G2a: ['Fe'], G2b: ['Sb'], G3a: ['Sc'], G3b: ['Hr'],
@@ -243,7 +236,11 @@ function leseGanzklassen() {
   plan.forEach(function (p) {
     const lp = lehrer[LP[p.lk]];
     if (!lp) { fehlendeLp[p.lk + ' (' + (LP[p.lk] || '?') + ')'] = true; return; }
-    const id = idVon[p.key] || ('stp_' + slug(p.key.replace(/\|[^|]*$/, '')) + '_' + slug(lp.klasse));
+    let id = idVon[p.key] || ('stp_' + slug(p.key.replace(/\|[^|]*$/, '')) + '_' + slug(lp.klasse));
+    // Zwei Lehrpersonen auf derselben Seite (Alder/Bommeli): gleiche Gruppe nur einmal,
+    // verschiedene Gruppen mit gleichem Code (WnT Mo Vm) je mit Kürzel.
+    const gleich = function (a) { return a.mitglieder.map(function (m) { return m.uid; }).sort().join() === p.mitglieder.map(function (m) { return m.uid; }).sort().join(); };
+    if (soll[id] && !gleich(soll[id])) id += '_' + slug(p.lk);
     if (soll[id]) return;
     soll[id] = { id: id, key: p.key, fach: p.fach, name: p.name, lp: lp, mitglieder: p.mitglieder };
   });

@@ -461,9 +461,10 @@ service cloud.firestore {
     // (einstellungen/layout) und der eigene Stundenplan (einstellungen/stundenplan).
     // Nur die Person selbst schreibt; keine Datenvalidierung, darum kombiniert.
     // Den Stundenplan dürfen Lehrpersonen/Schulleitung auch lesen («Andere
-    // Lehrperson …» im Stundenplan, seit 19.09.2026).
+    // Lehrperson …» im Stundenplan, seit 19.09.2026), ebenso den Untis-Plan
+    // (stundenplanSchule, schreibt nur das Admin-Skript stundenplan-untis.js).
     match /progress/{uid}/einstellungen/{docId} {
-      allow read: if isOwner(uid) || (docId == 'stundenplan' && canReadAll());
+      allow read: if isOwner(uid) || ((docId == 'stundenplan' || docId == 'stundenplanSchule') && canReadAll());
       allow write: if isOwner(uid);
     }
 

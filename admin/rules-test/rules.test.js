@@ -180,6 +180,14 @@ test('Übungsstand: nur der eigene ist schreibbar', async () => {
   await assertFails(setDoc(doc(db.sus(), 'progress/susA/resources/r1'), { stats: {} }));
   await assertFails(setDoc(doc(db.jan(), 'progress/sus/resources/r1'), { stats: {} }));
 });
+test('Stundenplan aus Untis: Person selbst und Lehrpersonen lesen, andere SuS nicht', async () => {
+  await seed('progress/sus/einstellungen/stundenplanSchule', { zellen: {} });
+  await seed('progress/sus/einstellungen/layout', { aus: [] });
+  await assertSucceeds(getDoc(doc(db.sus(), 'progress/sus/einstellungen/stundenplanSchule')));
+  await assertSucceeds(getDoc(doc(db.lp(), 'progress/sus/einstellungen/stundenplanSchule')));
+  await assertFails(getDoc(doc(db.susA(), 'progress/sus/einstellungen/stundenplanSchule')));
+  await assertFails(getDoc(doc(db.lp(), 'progress/sus/einstellungen/layout')));
+});
 test('Alte, klassenlose Collections bleiben gesperrt', async () => {
   await assertFails(getDoc(doc(db.jan(), 'resources/x')));
   await assertFails(setDoc(doc(db.jan(), 'calendarEntries/x'), { a: 1 }));
