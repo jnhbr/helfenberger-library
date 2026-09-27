@@ -184,3 +184,21 @@ test('Alte, klassenlose Collections bleiben gesperrt', async () => {
   await assertFails(getDoc(doc(db.jan(), 'resources/x')));
   await assertFails(setDoc(doc(db.jan(), 'calendarEntries/x'), { a: 1 }));
 });
+
+// ---------- 👥 Gruppen-Prüfung über Klassen hinweg ----------
+test('Gruppen-Prüfung: Mitglied aus anderer Klasse liest und schreibt die eigene Teilnahme', async () => {
+  await seed('klassen/G3b/appMeta/gruppenMitglieder', { uids: ['susA'] });
+  await seed('klassen/G3b/pruefungen/p1', { titel: 'X', status: 'offen', mitglieder: ['susA'] });
+  await assertSucceeds(getDoc(doc(db.susA(), 'klassen/G3b/pruefungen/p1')));
+  await assertSucceeds(setDoc(doc(db.susA(), 'klassen/G3b/pruefungen/p1/teilnahmen/susA'), { status: 'laeuft' }));
+  await assertSucceeds(updateDoc(doc(db.susA(), 'klassen/G3b/pruefungen/p1/teilnahmen/susA'), { status: 'abgegeben' }));
+  await assertSucceeds(setDoc(doc(db.susA(), 'klassen/G3b/quizSessions/warte_p1/antworten/susA'), { ts: 1 }));
+  await assertFails(setDoc(doc(db.susA(), 'klassen/G3b/quizSessions/aktiv/antworten/susA'), { a: 1 }));
+  await assertFails(setDoc(doc(db.susA(), 'klassen/G3b/pruefungen/p1/teilnahmen/sus'), { status: 'laeuft' }));
+});
+test('Gruppen-Prüfung: wer in keiner Gruppe der Seite ist, liest nichts', async () => {
+  await seed('klassen/G3b/appMeta/gruppenMitglieder', { uids: ['andere'] });
+  await seed('klassen/G3b/pruefungen/p1', { titel: 'X', status: 'offen' });
+  await assertFails(getDoc(doc(db.susA(), 'klassen/G3b/pruefungen/p1')));
+  await assertFails(setDoc(doc(db.susA(), 'klassen/G3b/pruefungen/p1/teilnahmen/susA'), { status: 'laeuft' }));
+});

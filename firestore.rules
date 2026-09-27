@@ -234,9 +234,11 @@ service cloud.firestore {
         allow create, update: if isTeacher();
         allow delete: if isTeacher();
 
+        // Warteraum einer Gruppen-Prüfung (warte_<pid>): auch Gruppenmitglieder
+        // aus anderen Klassen melden sich hier an.
         match /antworten/{uid} {
-          allow read: if (isOwner(uid) && inKlasse(klasse)) || canReadAll();
-          allow create, update: if isOwner(uid) && inKlasse(klasse);
+          allow read: if (isOwner(uid) && (inKlasse(klasse) || (sessionId.matches('warte_.*') && inGruppeVon(klasse)))) || canReadAll();
+          allow create, update: if isOwner(uid) && (inKlasse(klasse) || (sessionId.matches('warte_.*') && inGruppeVon(klasse)));
           allow delete: if isTeacher();
         }
 
@@ -250,8 +252,10 @@ service cloud.firestore {
 
       // Prüfungsmodus: die Klasse liest die Prüfung (Einstellungen, Status),
       // nur die Lehrperson legt an / ändert / löscht.
+      // Auch 👥 Gruppenmitglieder aus anderen Klassen lesen die Prüfungen dieser
+      // Seite (die App zeigt ihnen nur die mit ihrer uid in mitglieder).
       match /pruefungen/{pruefungId} {
-        allow read: if inKlasseLesen(klasse);
+        allow read: if inKlasseLesen(klasse) || inGruppeVon(klasse);
         allow create, update: if isTeacher();
         allow delete: if isTeacher();
 
@@ -259,11 +263,11 @@ service cloud.firestore {
         // 'laeuft'; ändern nur, solange sie noch 'laeuft' (also nicht selbst
         // entsperren und nach der Abgabe nichts mehr ändern).
         match /teilnahmen/{uid} {
-          allow read: if (isOwner(uid) && inKlasse(klasse)) || canReadAll();
-          allow create: if isOwner(uid) && inKlasse(klasse)
+          allow read: if (isOwner(uid) && (inKlasse(klasse) || inGruppeVon(klasse))) || canReadAll();
+          allow create: if isOwner(uid) && (inKlasse(klasse) || inGruppeVon(klasse))
             && request.resource.data.status == 'laeuft'
             && get(/databases/$(database)/documents/klassen/$(klasse)/pruefungen/$(pruefungId)).data.status == 'offen';
-          allow update: if isTeacher() || (isOwner(uid) && inKlasse(klasse)
+          allow update: if isTeacher() || (isOwner(uid) && (inKlasse(klasse) || inGruppeVon(klasse))
             && resource.data.status == 'laeuft'
             && request.resource.data.status in ['laeuft', 'gesperrt', 'abgegeben']);
           // Separat, siehe oben: bei einem delete ist request.resource null.
