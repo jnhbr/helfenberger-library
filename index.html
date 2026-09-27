@@ -2178,6 +2178,9 @@
   .stp-dot{width:12px;height:12px;border-radius:50%;background:var(--c);flex-shrink:0;margin:0 4px;}
   .stp-txt{display:flex;flex-direction:column;min-width:0;}
   .stp-name{font-weight:800;font-size:13.5px;color:color-mix(in srgb, var(--c) 70%, var(--text));white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .stp-platz{margin-top:10px;font-size:13px;color:var(--text-muted);}
+  .stp-platz-knoepfe{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;}
+  .stp-platz-knoepfe .btn.active{background:var(--brand);color:var(--brand-contrast, #fff);border-color:var(--brand);}
   .stp-sub{font-size:11px;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   .stp-plus{margin:auto;font-size:18px;color:var(--text-muted);}
   .stp-cell.jetzt{box-shadow:0 0 0 3px var(--c), 0 10px 24px -8px var(--c);animation:stpPuls 2.2s ease-in-out infinite;}
@@ -16013,6 +16016,7 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-09-27-stundenplan-kl-nt-rzg', datum:'2026-09-27', fuer:'lehrer', text:'🗓️ «Klassenstunde», «NT» und «RZG» aus Untis: Tippe die Lektion in deinem Stundenplan an und wähle das Fach (NT → Bio/Chemie/Physik, RZG → Geografie/Geschichte, Klassenstunde → beliebig). Mit «🏫 Für die ganze Klasse festlegen» landet es im Klassenplan, und alle Schüler:innen sehen das richtige Fach. Steht im Klassenplan schon ein Fach, gilt das.'},
   {id:'2026-09-27-stundenplan-untis', datum:'2026-09-27', fuer:'alle', text:'🗓️ Dein Stundenplan ist da: Unter 🗓️ Stundenplan siehst du jetzt deinen eigenen Plan mit allen Fächern, Gruppen und Wahlfächern – mit Zimmer und Lehrperson. Stimmt etwas nicht, kannst du die Lektion antippen und für dich ändern.'},
   {id:'2026-09-27-stundenplan-lp', datum:'2026-09-27', fuer:'lehrer', text:'🗓️ Dein persönlicher Stundenplan ist aus Untis (1. Semester) gefüllt – mit Klasse bzw. Gruppe und Zimmer. Deine eigenen Einträge bleiben und gehen vor; eine Lektion aus Untis löschst du mit «🌴 Hier habe ich frei». Gruppen aus dem Stundenplan sind unter 👥 Meine Gruppen mit «📅 Stundenplan» markiert.'},
   {id:'2026-09-27-gruppen-im-fach', datum:'2026-09-27', fuer:'alle', text:'👥 Hast du ein Fach bei einer anderen Lehrperson (z. B. Englisch oder Sport), findest du ihre Übungen jetzt direkt im Fach unter «👥 Bei …». Auf der Startseite steht «🆕», wenn sie etwas Neues hochgeladen hat.'},
@@ -31976,14 +31980,33 @@ function stpKochSlots(zeiten, k){
 // Klassen fürs Feld «Klasse» im persönlichen Plan der Lehrperson (kl).
 var STP_KLASSEN = ['E1a','E1b','E1c','G1a','G1b','E2a','E2b','E2c','G2a','G2b','E3a','E3b','G3a','G3b'];
 var STP_FREI_FARBEN = ['#0EA5E9','#F43F5E','#14B8A6','#F59E0B','#6366F1','#84CC16','#EC4899','#64748B'];
-var stp = { klasse:null, eigen:null, schule:null, geladen:false, klasseName:null, ansicht:null, bearbeiten:false, tag:null,
+var stp = { klasse:null, eigen:null, schule:null, klPlaene:{}, geladen:false, klasseName:null, ansicht:null, bearbeiten:false, tag:null,
             lpListe:null, lpUid:null, lp:null };
 function stpHat(o, k){ return !!o && Object.prototype.hasOwnProperty.call(o, k); }
 function stpSchuleDa(){ return !!(stp.schule && Object.keys(stp.schule.zellen).length); }
+// Untis-Lektionen, hinter denen verschiedene Fächer stecken können. Welches es ist, legt die
+// Lehrperson im Klassenplan fest (Auswahl im Zellen-Dialog); der Klassenplan geht dann vor.
+var STP_PLATZHALTER = { 'Klassenstunde':null, 'NT':['biologie','chemie','physik'], 'RZG':['geografie','geschichte'] };
+function stpPlatzhalter(c){ return !!c && !c.f && !!c.t && Object.prototype.hasOwnProperty.call(STP_PLATZHALTER, c.t); }
+function stpKlasseVon(c){ return c && /^[GE][123][a-c]$/.test(c.kl || '') ? c.kl : (state.profile.role === 'teacher' ? '' : state.klasse); }
 // Grundlage unter den eigenen Änderungen: Schulplan (Untis), bei SuS ohne Schulplan der Klassenplan.
 function stpBasisZelle(k){
-  if(stpSchuleDa()) return stp.schule.zellen[k];
-  return state.profile.role === 'teacher' ? undefined : stp.klasse.zellen[k];
+  if(!stpSchuleDa()) return state.profile.role === 'teacher' ? undefined : stp.klasse.zellen[k];
+  var s = stp.schule.zellen[k];
+  if(!stpPlatzhalter(s)) return s;
+  var kl = stpKlasseVon(s);
+  var kp = state.profile.role === 'teacher' ? stp.klPlaene[kl] : stp.klasse;
+  var kc = kp && kp.zellen[k];
+  if(stpLeer(kc) || kc.frei) return s;
+  var r = kc.f ? {f:kc.f} : {t:kc.t};
+  r.zi = kc.zi || s.zi; r.lp = kc.lp || s.lp; r.kl = s.kl; r.untis = s.t;
+  Object.keys(r).forEach(function(x){ if(!r[x]) delete r[x]; });
+  return r;
+}
+// Eigene Zelle mit demselben Fach wie die Grundlage: Zimmer/Lehrperson aus der Grundlage ergänzen.
+function stpMitBasis(e, b){
+  if(!e || e.frei || !b || stpLeer(b) || (e.f || e.t) !== (b.f || b.t)) return e;
+  return Object.assign({}, b, e);
 }
 
 // Persönliche Pläne der anderen Lehrpersonen: nur ansehen (Ansicht 'lp').
@@ -32024,8 +32047,20 @@ function stpLaden(){
     stp.klasse = { zeiten:stpZeitenAktuell(r[0] && r[0].zeiten), zellen:(r[0] && r[0].zellen) || {} };
     stp.eigen = { zeiten:stpZeitenAktuell(r[1] && r[1].zeiten), zellen:(r[1] && r[1].zellen) || {} };
     stp.schule = { zeiten:(r[2] && r[2].zeiten) || null, zellen:(r[2] && r[2].zellen) || {}, semester:r[2] && r[2].semester };
+    stp.klPlaene = {};
     stp.klasseName = state.klasse;
     stp.geladen = true;
+    if(state.profile.role !== 'teacher') return;
+    var kls = [];
+    Object.keys(stp.schule.zellen).forEach(function(k){
+      var c = stp.schule.zellen[k], kl = stpPlatzhalter(c) && stpKlasseVon(c);
+      if(kl && kls.indexOf(kl) < 0) kls.push(kl);
+    });
+    return Promise.all(kls.map(function(kl){
+      return getDoc(kdocFor(kl, 'klasseninfo', 'stundenplan')).then(function(s){
+        stp.klPlaene[kl] = { zeiten:s.exists() ? s.data().zeiten || null : null, zellen:(s.exists() && s.data().zellen) || {} };
+      }).catch(function(err){ console.error('Klassenplan '+kl, err); });
+    }));
   });
 }
 function stpVorladen(){ stpLaden().then(renderStpJetzt); }
@@ -32049,12 +32084,12 @@ function stpPlan(ansicht){
   var schuleZeiten = stpSchuleDa() ? stp.schule.zeiten : null;
   if(lehrer) return {
     zeiten: stp.eigen.zeiten || schuleZeiten || stp.klasse.zeiten || STP_ZEITEN_STANDARD,
-    zelle:function(k){ return stpHat(stp.eigen.zellen, k) ? stp.eigen.zellen[k] : stpBasisZelle(k); },
+    zelle:function(k){ return stpHat(stp.eigen.zellen, k) ? stpMitBasis(stp.eigen.zellen[k], stpBasisZelle(k)) : stpBasisZelle(k); },
     eigen:function(k){ return stpSchuleDa() && stpHat(stp.eigen.zellen, k); }
   };
   return {
     zeiten: schuleZeiten || stp.klasse.zeiten || STP_ZEITEN_STANDARD,
-    zelle:function(k){ return stpHat(stp.eigen.zellen, k) ? stp.eigen.zellen[k] : stpBasisZelle(k); },
+    zelle:function(k){ return stpHat(stp.eigen.zellen, k) ? stpMitBasis(stp.eigen.zellen[k], stpBasisZelle(k)) : stpBasisZelle(k); },
     eigen:function(k){ return stpHat(stp.eigen.zellen, k); }
   };
 }
@@ -32289,6 +32324,9 @@ function stpZelleBearbeiten(key){
   if(!lehrer) schuelerEigen = plan.eigen && plan.eigen(key);
   var klassenZelle = mein ? stpBasisZelle(key) : undefined;
   var basisName = stpSchuleDa() ? 'Stundenplan' : 'Klassenplan';
+  // Untis-Platzhalter (Klassenstunde, NT, RZG): welches Fach ist es wirklich?
+  var roh = mein && stpSchuleDa() ? stp.schule.zellen[key] : null;
+  var platz = stpPlatzhalter(roh) ? roh : null, platzKl = platz ? stpKlasseVon(platz) : '';
   var fSel = c.f ? c.f : (c.t ? '__andere' : '');
   var q = function(v){ return esc(v || '').replace(/"/g, '&quot;'); };
   var h = '<h3>'+STP_TAGE_LANG[tag]+' · '+(extra ? 'Zusatzlektion' : (i+1)+'. Lektion')+'</h3>';
@@ -32298,6 +32336,14 @@ function stpZelleBearbeiten(key){
   h += '<div id="stpFelder"'+(c.frei?' hidden':'')+'>';
   h += '<label class="modal-label">Fach</label><select id="stpFach">'+stpFachOptionen(fSel)+'</select>';
   h += '<input type="text" id="stpText" maxlength="30" placeholder="Name, z. B. Chor oder Band" value="'+q(c.t)+'"'+(fSel==='__andere'?'':' hidden')+' style="margin-top:8px;">';
+  if(platz){
+    var wahl = STP_PLATZHALTER[platz.t];
+    h += '<div class="stp-platz">In Untis steht «'+esc(platz.t)+'» – '+(wahl ? 'welches Fach ist es?' : 'wähle oben, welches Fach es ist.')+
+      (wahl ? '<div class="stp-platz-knoepfe">'+wahl.map(function(id){
+        return '<button type="button" class="btn btn-ghost btn-sm'+(c.f===id?' active':'')+'" data-stp-wahl="'+id+'">'+esc(subjectName(id))+'</button>';
+      }).join('')+'</div>' : '')+'</div>';
+    if(lehrer && platzKl) h += '<label class="stp-frei-check"><input type="checkbox" id="stpKlUeb" checked> 🏫 Für die ganze Klasse '+esc(platzKl)+' festlegen (Klassenplan – alle Schüler:innen sehen es)</label>';
+  }
   // Im persönlichen Plan der Lehrperson: Klasse statt Lehrperson (die ist sie ja selbst).
   var mitKlasse = lehrer && ansicht !== 'klasse';
   h += '<div class="stp-felder2"><div><label class="modal-label">Zimmer</label><input type="text" id="stpZi" maxlength="20" placeholder="z. B. 12" value="'+q(c.zi)+'"></div>'+
@@ -32332,6 +32378,13 @@ function stpZelleBearbeiten(key){
   if(doppelEl) doppelEl.addEventListener('change', function(){ if(!doppelEl.checked && kochenEl) kochenEl.checked = false; });
   var frei = document.getElementById('stpFrei');
   if(frei) frei.addEventListener('change', function(){ document.getElementById('stpFelder').hidden = frei.checked; });
+  modalEl.querySelectorAll('[data-stp-wahl]').forEach(function(b){
+    b.addEventListener('click', function(){
+      fach.value = b.getAttribute('data-stp-wahl');
+      fach.dispatchEvent(new Event('change'));
+      modalEl.querySelectorAll('[data-stp-wahl]').forEach(function(x){ x.classList.toggle('active', x === b); });
+    });
+  });
   document.getElementById('modalCancel').addEventListener('click', closeModal);
   var rb = document.getElementById('stpReset');
   if(rb) rb.addEventListener('click', function(){ delete stp.eigen.zellen[key]; closeModal(); stpSpeichern('mein'); });
@@ -32354,6 +32407,11 @@ function stpZelleBearbeiten(key){
     var keys = [key];
     if(doppelEl && doppelEl.checked) keys.push(stpKey(tag, i+1));
     if(kochenEl && kochenEl.checked) kochSlots.forEach(function(x){ keys.push(stpKey(tag, x.s)); });
+    // Platzhalter für die ganze Klasse festlegen: in den Klassenplan (dort sehen es alle SuS).
+    var klUeb = document.getElementById('stpKlUeb');
+    if(klUeb && klUeb.checked && platzKl && !neu.frei && !stpLeer(neu)){
+      stpKlassenplanSetzen(platzKl, keys, neu);
+    }
     keys.forEach(function(k){
       var n = JSON.parse(JSON.stringify(neu));
       if(ansicht === 'klasse'){
@@ -32365,12 +32423,32 @@ function stpZelleBearbeiten(key){
         // eine gelöschte Lektion des Schulplans bleibt als «frei» gemerkt.
         var kz = stpBasisZelle(k);
         if(stpLeer(n) && !stpLeer(kz)) n = {frei:true};
+        if(lehrer && kz && !n.frei && !n.lp && kz.lp) n.lp = kz.lp;   // LP-Plan hat kein Feld «Lehrperson»
         if(stpGleich(n, kz) || (stpLeer(n) && stpLeer(kz))) delete stp.eigen.zellen[k];
         else stp.eigen.zellen[k] = n;
       }
     });
     stpSpeichern(ansicht === 'klasse' ? 'klasse' : 'mein');
   });
+}
+
+// Zellen im Klassenplan einer (auch fremden) Klasse setzen – ganzes Dokument, wie überall beim Stundenplan.
+function stpKlassenplanSetzen(kl, keys, neu){
+  var ref = kdocFor(kl, 'klasseninfo', 'stundenplan');
+  var kp = stp.klPlaene[kl] || (stp.klPlaene[kl] = { zeiten:null, zellen:{} });
+  var zelle = {};
+  if(neu.f) zelle.f = neu.f; else zelle.t = neu.t;
+  if(neu.zi) zelle.zi = neu.zi;
+  zelle.lp = (state.profile && (state.profile.nachname || state.profile.displayName)) || '';
+  keys.forEach(function(k){ kp.zellen[k] = JSON.parse(JSON.stringify(zelle)); });
+  return getDoc(ref).then(function(s){
+    var d = s.exists() ? s.data() : {};
+    var zellen = d.zellen || {};
+    keys.forEach(function(k){ zellen[k] = JSON.parse(JSON.stringify(zelle)); });
+    if(kl === state.klasse && stp.klasse) keys.forEach(function(k){ stp.klasse.zellen[k] = JSON.parse(JSON.stringify(zelle)); });
+    return setDoc(ref, { zeiten: d.zeiten || (stp.schule && stp.schule.zeiten) || STP_ZEITEN_STANDARD, zellen: zellen, updatedAt: serverTimestamp() });
+  }).then(function(){ toast('Im Klassenplan '+kl+' festgelegt.'); stpZeichnen(); })
+    .catch(function(err){ console.error(err); if(!err || err.code !== 'klasse/abgebrochen') toast('Klassenplan '+kl+' konnte nicht gespeichert werden.'); });
 }
 
 function stpZeitenBearbeiten(){
