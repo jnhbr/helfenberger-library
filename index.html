@@ -15698,7 +15698,7 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
-  {id:'2026-09-26-baukasten-pruefungsdatei', datum:'2026-09-26', fuer:'lehrer', text:'📥 Baukasten: «Aus Prüfungsdatei übernehmen» – die config.json einer Papierprüfung (Prüfungs-Design) laden, und alle Aufgaben kommen mit denselben Punkten in die Online-Prüfung: Lückentexte und Tabellen als einzelne Fragen pro Lücke/Zeile, freie Antworten als offene Fragen mit Stichwort-Vorkorrektur. So gibt es dieselbe Prüfung auf Papier und online.'},
+  {id:'2026-09-26-pruefung-importieren', datum:'2026-09-26', fuer:'lehrer', text:'📥 «➕ Neue Prüfung» › «📥 Prüfung importieren»: die config.json einer Papierprüfung (Prüfungs-Design) hochladen und die Übung wählen, mit der die Klasse lernt – schon ist dieselbe Prüfung online da, mit denselben Aufgaben und Punkten (Lückentexte und Tabellen als einzelne Fragen, freie Antworten mit Stichwort-Vorkorrektur). Geht auch im 🧩 Baukasten («Aus Prüfungsdatei übernehmen»). Die ✍️ Rechtschreib-Werkstatt findest du neu in der Übungsliste von «📄 Aus einer Übung».'},
   {id:'2026-09-25-lehrer-html', datum:'2026-09-25', fuer:'lehrer', text:'🔒 Neu: Lehrer-HTMLs. HTML-Datei in das neue Feld «🔒 Lehrer-HTML hinzufügen» ziehen (oder beim normalen Hochladen «Nur für Lehrpersonen» ankreuzen, oder später bei einer Übung auf «🔒 Nur Lehrpersonen» tippen) – die Datei liegt dann direkt neben den Übungen, z. B. die Unterrichtsplanung im Lektüre-Ordner, Schüler:innen sehen sie aber nirgends (auch nicht in Lernstand, Suche oder Prüfungen).'},
   {id:'2026-09-25-baukasten-nativ', datum:'2026-09-25', fuer:'lehrer', text:'🧩 Baukasten jetzt auch für Prüfungen aus Bildtrainer-Übungen (Körper, Plattentektonik, Wald, …) und der Pöstlergeografie: Aufgaben mit Lösung ansehen, löschen, ordnen, mit 🎲 tauschen oder mit 🔁 gezielt ersetzen – auch aus anderen Bereichen. Dafür die neue Fassung der Übung per «Datei ersetzen» hochladen (Lernstände bleiben).'},
   {id:'2026-09-25-lesereise-uebersicht', datum:'2026-09-25', fuer:'lehrer', text:'📖 Neu in der 📈 Lernstand-Übersicht (Fach Deutsch): «Lesereise-Übersicht» für Lektüre-Lesereisen – wer bei welchem Kapitel steht, Kapitel-Checks beim ersten Versuch, und per Klick auf einen Namen das ganze Lesetagebuch (Zusammenfassungen, Steckbriefe, Beziehungsnetz, Texte).'},
@@ -21558,7 +21558,7 @@ function renderPruefungen(){
   var html = '';
   html += '<div class="back-row"><button class="btn btn-ghost btn-sm" id="backBtn" type="button">&larr; Klassenzimmer</button></div>';
   html += '<h2 class="page-welcome" style="margin-bottom:6px;">📝 Prüfungen</h2>';
-  html += '<p class="kz-intro">Online-Prüfung aus einer Übung, aus einem ⚡ Übungstrainer, aus 🧮 SIKORE, als ⌨️ Abschreibprüfung oder aus der ✍️ Rechtschreib-Werkstatt — die Art wählst du in «➕ Neue Prüfung». Dort stellst du auch ein, für welche Klasse und für wen (ganze Klasse oder eine 👥 Gruppe) die Prüfung ist. Wer die Prüfung verlässt, wird gesperrt, bis du entsperrst.</p>';
+  html += '<p class="kz-intro">Online-Prüfung aus einer Übung (auch aus der ✍️ Rechtschreib-Werkstatt), aus einem ⚡ Übungstrainer, aus 🧮 SIKORE, als ⌨️ Abschreibprüfung oder 📥 importiert aus der Prüfungsdatei einer Papierprüfung — die Art wählst du in «➕ Neue Prüfung». Dort stellst du auch ein, für welche Klasse und für wen (ganze Klasse oder eine 👥 Gruppe) die Prüfung ist. Wer die Prüfung verlässt, wird gesperrt, bis du entsperrst.</p>';
   html += '<div class="back-row"><button class="btn btn-primary btn-sm" id="prNeu" type="button">➕ Neue Prüfung</button></div>';
   html += '<div id="prListe"><div class="empty-state">Wird geladen …</div></div>';
   renderChrome(html);
@@ -21628,8 +21628,10 @@ function pruefArtWahlHtml(aktiv){
   // sie stehen in der Trainer-Liste bei ihrem Fach. In deren Editor bleibt
   // darum «⚡ Übungstrainer» aktiv, damit man von dort zurückkommt.
   if(aktiv === 'sikore' || aktiv === 'tippen') aktiv = 'mt';
+  // ✍️ Rechtschreib-Werkstatt steht in der Übungsliste von «Aus einer Übung».
+  if(aktiv === 'rsw') aktiv = 'uebung';
   return '<label class="modal-label">Art der Prüfung</label><div class="pr-art-wahl">' +
-    [['uebung','📄 Aus einer Übung'],['mt','⚡ Übungstrainer'],['rsw','✍️ Rechtschreib-Werkstatt']].map(function(a){
+    [['uebung','📄 Aus einer Übung'],['mt','⚡ Übungstrainer'],['import','📥 Prüfung importieren']].map(function(a){
       return '<button type="button" class="btn btn-sm '+(a[0] === aktiv ? 'btn-primary' : 'btn-ghost')+'" data-prart="'+a[0]+'">'+a[1]+'</button>';
     }).join('') + '</div>';
 }
@@ -21663,6 +21665,7 @@ function pruefNeuNachWechsel(art){
     else if(art === 'tippen') tippPrEditor(null);
     else if(art === 'mt') mtPrEditor(null);
     else if(art === 'rsw') rswPrEditor(null);
+    else if(art === 'import') pruefImportEditor();
     else pruefEditor(null);
   })();
 }
@@ -21678,6 +21681,7 @@ function pruefKopfVerdrahten(art){
       else if(a === 'tippen') tippPrEditor(null);
       else if(a === 'mt') mtPrEditor(null);
       else if(a === 'rsw') rswPrEditor(null);
+      else if(a === 'import') pruefImportEditor();
       else pruefEditor(null);
     });
   });
@@ -21781,7 +21785,9 @@ async function pruefEditor(p, vorwahl){
       if(fn !== fach){ h += (fach !== null ? '</optgroup>' : '') + '<optgroup label="'+esc(fn)+'">'; fach = fn; }
       h += '<option value="'+esc(r.id)+'"'+(p && p.resourceId === r.id ? ' selected' : '')+'>'+esc(r.title || r.fileName || r.id)+'</option>';
     });
-    h += (fach !== null ? '</optgroup>' : '') + '</select>';
+    h += (fach !== null ? '</optgroup>' : '');
+    if(neu) h += '<optgroup label="Deutsch"><option value="__rsw">✍️ Rechtschreib-Werkstatt (Posten wählen)</option></optgroup>';
+    h += '</select>';
     h += '<div id="prInfo"><p class="pr-hinweis">Wähle eine Übung — die Bereiche werden aus ihr ausgelesen.</p></div>';
   }
   h += pruefFuerHtml(p, fragenFix);
@@ -22028,7 +22034,7 @@ async function pruefEditor(p, vorwahl){
     });
   }
   if(sel && vorwahl && !p && !sel.value && uebungen.some(function(u){ return u.id === vorwahl; })) sel.value = vorwahl;
-  if(sel){ sel.addEventListener('change', function(){ uebungGewaehlt(false); }); if(sel.value) uebungGewaehlt(true); }
+  if(sel){ sel.addEventListener('change', function(){ if(sel.value === '__rsw'){ rswPrEditor(null); return; } uebungGewaehlt(false); }); if(sel.value) uebungGewaehlt(true); }
 
   okBtn.addEventListener('click', async function(){
     var titel = document.getElementById('prTitel').value.trim();
@@ -22152,6 +22158,113 @@ async function pruefAufgabenPunkte(p){
       closeModal();
       toast('Punkte gespeichert.');
       if(p.resultateFrei) pruefNotenEintragen(Object.assign({}, p, upd)).catch(pruefFehler);
+    }catch(err){ this.disabled = false; pruefFehler(err); }
+  });
+}
+
+/* ---------- Lehrperson: 📥 Prüfung importieren ----------
+   Eine Prüfungsdatei (config.json des Prüfungs-Designs, dieselbe wie für die
+   Papierprüfung) direkt als Online-Prüfung anlegen: gleiche Aufgaben, gleiche
+   Punkte (Umwandlung pruefAusConfig). Dazu wählt man die Übung, mit der die
+   Klasse lernt — so ist es eine normale Prüfung «aus einer Übung» (Entwurf,
+   cfg.baukasten): ✏️ Bearbeiten, 🧩 Baukasten, 🧮 Punkte und 🖨️ Druck gehen wie immer. */
+async function pruefImportEditor(){
+  var token = ++prEditorToken, kopf = pruefKopfHtml('import', true);
+  openModal('<h3>➕ Neue Prüfung</h3>'+kopf+'<p>Übungen werden geladen …</p>', 'pr-modal');
+  pruefKopfVerdrahten('import');
+  var uebungen = [];
+  try{
+    (await getDocs(kcol('resources'))).forEach(function(d){
+      var r = Object.assign({id:d.id}, d.data()), s = subjectById(r.subject);
+      if(r.linkUrl || r.externalUrl || r.pdf || istLehrerHtml(r) || (s && (s.teacherOnly || s.id === 'berufswahl'))) return;
+      uebungen.push(r);
+    });
+  }catch(err){ console.error(err); }
+  if(token !== prEditorToken) return;
+  var fachName = function(r){ var s = subjectById(r.subject); return s ? s.name : (r.subject || 'Ohne Fach'); };
+  uebungen.sort(function(a, b){ return fachName(a).localeCompare(fachName(b), 'de') || (a.title || '').localeCompare(b.title || '', 'de', {numeric:true}); });
+  var h = '<h3>➕ Neue Prüfung</h3>' + kopf;
+  h += '<p class="pr-hinweis">Lade die Prüfungsdatei (<b>.json</b>, z. B. <i>_Pruefung_online_config.json</i> aus dem Prüfungs-Design) – dieselbe Prüfung wie auf Papier: gleiche Aufgaben, gleiche Punkte. Lückentexte und Tabellen werden zu einzelnen Fragen pro Lücke/Zeile, freie Antworten zu offenen Fragen mit Stichwort-Vorkorrektur.</p>';
+  h += '<label class="modal-label">Prüfungsdatei</label><input type="file" id="prImpDatei" class="modal-input" accept=".json,application/json">';
+  h += '<div id="prImpInfo"></div>';
+  h += '<label class="modal-label">Titel</label><input type="text" id="prTitel" class="modal-input" maxlength="80" placeholder="wird aus der Datei übernommen">';
+  h += '<label class="modal-label">Übung, mit der die Klasse lernt</label><select id="prUebung" class="modal-input"><option value="">– Übung wählen –</option>';
+  var fach = null;
+  uebungen.forEach(function(r){
+    var fn = fachName(r);
+    if(fn !== fach){ h += (fach !== null ? '</optgroup>' : '') + '<optgroup label="'+esc(fn)+'">'; fach = fn; }
+    h += '<option value="'+esc(r.id)+'">'+esc(r.title || r.fileName || r.id)+'</option>';
+  });
+  h += (fach !== null ? '</optgroup>' : '') + '</select>';
+  h += '<p class="pr-hinweis">Damit kannst du nachher im 🧩 Baukasten Fragen aus dieser Übung dazunehmen oder austauschen.</p>';
+  h += pruefFuerHtml(null, false);
+  var faecherListe = notenFaecher();
+  h += '<div class="pr-grid2"><div><label class="modal-label">Fach im Notenrechner</label><select id="prFach" class="modal-input">' + faecherListe.map(function(f){
+    return '<option value="'+esc(f.id)+'">'+esc(f.name)+'</option>'; }).join('') + '</select></div>';
+  h += '<div><label class="modal-label">Gewichtung</label><input type="number" id="prGewicht" class="modal-input" min="0.5" max="10" step="0.5" value="1"></div></div>';
+  h += '<div class="pr-grid2"><div><label class="modal-label">Zeitlimit in Minuten (leer = keins)</label><input type="number" id="prZeit" class="modal-input" min="1" max="300" step="1"></div><div></div></div>';
+  h += '<p class="pr-hinweis">Die Prüfung wird als Entwurf angelegt (Notenmassstab DBK linear). Massstab, Punkte und Aufgaben passt du danach wie gewohnt an (✏️, 🧮, 🧩).</p>';
+  h += '<div class="modal-actions"><button class="btn btn-ghost btn-sm" id="modalCancel" type="button">Abbrechen</button><button class="btn btn-primary btn-sm" id="modalOk" type="button" disabled>Prüfung anlegen</button></div>';
+  openModal(h, 'pr-modal');
+  pruefKopfVerdrahten('import');
+  pruefFuerLaden();
+  document.getElementById('modalCancel').addEventListener('click', closeModal);
+  var okBtn = document.getElementById('modalOk'), cfg = null, dateiName = '', seed = Math.floor(Math.random() * 2147483646) + 1;
+  function bereit(){ okBtn.disabled = !(cfg && document.getElementById('prUebung').value); }
+  document.getElementById('prUebung').addEventListener('change', function(){
+    var r = uebungen.find(function(u){ return u.id === this.value; }, this), fEl = document.getElementById('prFach');
+    if(r && faecherListe.some(function(f){ return f.id === r.subject; })) fEl.value = r.subject;
+    bereit();
+  });
+  document.getElementById('prImpDatei').addEventListener('change', function(){
+    var datei = this.files && this.files[0], info = document.getElementById('prImpInfo');
+    cfg = null; bereit();
+    if(!datei) return;
+    datei.text().then(function(txt){
+      var c = JSON.parse(txt), liste = pruefAusConfig(c);
+      cfg = c; dateiName = datei.name;
+      var summe = Math.round(liste.reduce(function(s, f){ return s + f.punkte; }, 0) * 100) / 100;
+      var tEl = document.getElementById('prTitel');
+      if(!tEl.value.trim()) tEl.value = String(c.titel ? 'Prüfung ' + c.titel : datei.name.replace(/\.json$/i, '')).slice(0, 80);
+      if(c.zeitMinuten && !document.getElementById('prZeit').value) document.getElementById('prZeit').value = Math.round(c.zeitMinuten);
+      info.innerHTML = '<p class="pr-hinweis">✅ <b>'+esc(c.titel || datei.name)+'</b>: '+c.aufgaben.length+' Aufgaben → '+liste.length+' Fragen, <b>'+pruefZahlText(summe)+' Punkte</b>'+
+        (c.totalPunkte && Math.abs(c.totalPunkte - summe) > 0.01 ? ' <span class="pr-warn">(Papier: '+esc(String(c.totalPunkte))+' Punkte)</span>' : '')+'</p>';
+      bereit();
+    }).catch(function(err){ console.error(err); info.innerHTML = '<p class="pr-hinweis pr-warn">Die Datei liess sich nicht lesen: '+esc(err.message || String(err))+'</p>'; });
+  });
+  okBtn.addEventListener('click', async function(){
+    var titel = document.getElementById('prTitel').value.trim();
+    if(!titel){ document.getElementById('prTitel').focus(); return; }
+    var resource = uebungen.find(function(u){ return u.id === document.getElementById('prUebung').value; });
+    if(!cfg || !resource) return;
+    var gewicht = parseFloat(String(document.getElementById('prGewicht').value).replace(',', '.'));
+    if(!(gewicht > 0 && gewicht <= 10)){ toast('Gewichtung muss zwischen 0.5 und 10 liegen.'); return; }
+    var liste = pruefAusConfig(cfg), rnd = pruefRng(seed), bild = pruefBildSammler(), fragen = [], loesungen = {};
+    liste.forEach(function(f, i){
+      var r = pruefFrageBauen(f, null, 'q' + i, {}, bild, rnd);
+      if(f.locker) r.L.locker = true;
+      if(f.typ === 'offen' && Array.isArray(f.stichworte) && f.stichworte.length) r.L.stichworte = f.stichworte.map(pruefNorm);
+      r.L.punkte = f.punkte; r.q.punkte = f.punkte;
+      fragen.push(r.q); loesungen[r.q.id] = r.L;
+    });
+    var maxP = Math.round(fragen.reduce(function(s, q){ return s + q.punkte; }, 0) * 100) / 100;
+    var data = {titel:titel, skala:{typ:'dbk'}, punkteFuer6:null, fehlerAbzug:null, rundung:0.1,
+      fach:document.getElementById('prFach').value, gewicht:gewicht,
+      zeitMin:Math.min(300, Math.max(0, Math.round(+document.getElementById('prZeit').value || 0))) || null,
+      art:'bank', diktat:false, resourceId:resource.id, subject:resource.subject || '', resourceTitel:resource.title || resource.fileName || '',
+      contentId:resourceContentId(resource), akzente:null, seed:seed, fragen:fragen, bilder:bild.liste, maxPunkte:maxP,
+      cfg:{optionen:{}, optNamen:{}, anzahl:fragen.length, mischen:false, baukasten:true, importiert:{datei:dateiName, titel:String(cfg.titel || '')}},
+      status:'entwurf', resultateFrei:false, createdAt:serverTimestamp(), createdBy:state.user.uid};
+    Object.assign(data, pruefFuerDaten(null));
+    if(JSON.stringify(data).length > 900000){ toast('Die Prüfung ist zu gross.'); return; }
+    this.disabled = true;
+    try{
+      var id = 'p' + Date.now().toString(36);
+      await writeBatch().set(pruefRef(id), data).set(loesRef(id), {loesungen:loesungen}).commit();
+      pruef.loes[id] = loesungen;
+      closeModal();
+      toast('📥 Prüfung angelegt: ' + fragen.length + ' Fragen, ' + pruefZahlText(maxP) + ' Punkte.');
+      state.route = {name:'pruefung', id:id}; render();
     }catch(err){ this.disabled = false; pruefFehler(err); }
   });
 }
