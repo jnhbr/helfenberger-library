@@ -158,6 +158,16 @@ zu erreichen.
 3. Logge dich in einem privaten/anderen Browserfenster als z. B. `jan` ein (Passwort `jan2024`) —
    die Übung sollte sofort im entsprechenden Fach erscheinen.
 
+## Safe Exam Browser (Prüfungen)
+
+Pro Prüfung lässt sich «🛡️ Safe Exam Browser» einschalten. Dann startet die Prüfung nur im
+[Safe Exam Browser](https://safeexambrowser.org) (SEB, gratis für Windows, macOS und iPad). Die
+Konfiguration liegt in `seb/library.seb` (Live) bzw. `seb/library-test.seb` (Testseite) und öffnet
+direkt die Library; erzeugt werden beide mit `node admin/seb-config.js` (Einstellungen dort
+kommentiert). Schüler:innen im normalen Browser bekommen den Knopf «Im Safe Exam Browser öffnen»
+(`sebs://…`-Link). Nach der Abgabe beendet die App SEB über `seb/beenden.html` (quitURL).
+Erkannt wird SEB am User-Agent bzw. an `window.SafeExamBrowser` — kein Server-Check.
+
 ## Kosten
 
 Mit diesem Aufbau (Firestore statt Storage) läuft alles auf dem kostenlosen Firebase-Spark-Tarif:
