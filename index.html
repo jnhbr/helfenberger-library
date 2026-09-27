@@ -1934,6 +1934,8 @@
   .pr-bk-akt .btn{padding:2px 8px;}
   .pr-bk-als{width:auto;max-width:230px;padding:4px 8px;font-size:13px;}
   .pr-bk-opts{font-size:12.5px;color:var(--text-muted);margin-top:3px;}
+  .pr-bk-warn{font-size:12.5px;color:var(--bad, #c0392b);font-weight:700;margin-top:4px;}
+  .pr-bk-warn-kopf{color:var(--bad, #c0392b);font-weight:700;}
   .pr-bk-opts .btn{padding:0 6px;}
   .pr-bk-poolliste{max-height:32vh;margin-top:8px;}
   .pr-bk-pool{display:grid;grid-template-columns:36px 1fr;gap:8px;align-items:start;padding:6px 8px;border:1px dashed var(--border);border-radius:10px;font-size:14px;}
@@ -9188,7 +9190,7 @@ function renderFolderContents(){
     html += '<div class="section-label">Ordner</div>';
     html += folders.map(function(f){ return folderCardHtml(f, realFolders.indexOf(f), realFolders.length, isTeacher && !f.virtual); }).join('');
   }
-  // Klassenzimmer-Material (Karteikarten, Quiz, Wortwolken, Blitzumfragen) steht
+  // Klassenzimmer-Material (Prüfungen, Karteikarten, Quiz, Wortwolken, Blitzumfragen) steht
   // unter den eigentlichen Übungen; ab zwei Stück derselben Art als Sammelordner.
   var zusatz = resources.filter(zusatzArt);
   var material = resources.filter(function(r){ return !zusatzArt(r); });
@@ -9267,9 +9269,11 @@ function renderFolderContents(){
    Karteikarten-Sets, Klassen-Quizze, Wortwolken und Blitzumfragen, die in einem
    Ordner liegen, kommen unter die Übungen. Gibt es von einer Art mehr als eines,
    werden sie zu einem aufklappbaren Sammelordner zusammengefasst (nur Anzeige,
-   nichts in Firestore). Prüfungen bleiben oben bei den Übungen. Die Karten sind
+   nichts in Firestore). Prüfungen gehören auch dazu (bei den Schüler:innen nur
+   die offenen / mit Resultat). Die Karten sind
    immer im DOM (nur versteckt), damit die Knöpfe normal verdrahtet werden. */
 var ZUSATZ_ARTEN = {
+  pruefung:{icon:'📝', name:'Prüfungen'},
   kk:      {icon:'🗂️', name:'Karteikarten'},
   quiz:    {icon:'🎮', name:'Klassen-Quizze'},
   umfrage: {icon:'⚡', name:'Blitzumfragen'},
@@ -9279,6 +9283,7 @@ var zusatzOffen = {};   // «Fach|Ordner|Art» → aufgeklappt (nur für diese S
 function zusatzArt(r){
   if(r.kk && r.ausOrdner) return 'kk';
   if(r.kzm && ZUSATZ_ARTEN[r.kzm.typ]) return r.kzm.typ;
+  if(r.kzmPruef) return 'pruefung';
   return '';
 }
 function zusatzHtml(liste, subjectId, here){
@@ -15815,6 +15820,9 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-09-27-pruefung-verraet-nichts', datum:'2026-09-27', fuer:'lehrer', text:'🕵️ Prüfungen: Keine Aufgabe verrät mehr die Antwort einer anderen (z. B. «Welcher Kanton ist markiert?» und «Hauptort von Aargau?» mit demselben Kanton). Beim Zusammenstellen wird so eine Aufgabe weggelassen; im 🧩 Baukasten steht eine ⚠️-Warnung. Pöstlergeografie und Bildtrainer brauchen dafür die neue Fassung der Übung.'},
+  {id:'2026-09-27-pruefung-zusatzmaterial', datum:'2026-09-27', fuer:'alle', text:'📝 Prüfungen im Fach-Ordner stehen jetzt unten beim Zusatzmaterial – ab zwei Stück in einem eigenen Ordner «📝 Prüfungen».'},
+  {id:'2026-09-27-pruefung-ganze-klasse', datum:'2026-09-27', fuer:'lehrer', text:'📝 Prüfung für «Ganze Klasse»: In der Übersicht erscheinen nur noch die Schüler:innen dieser Klasse – keine Gruppen-Mitglieder aus anderen Klassen mehr (die sind nur dabei, wenn du unter «Für» die 👥 Gruppe wählst).'},
   {id:'2026-09-27-gruppe-alle-faecher', datum:'2026-09-27', fuer:'lehrer', text:'👥 Gruppen: Beim Fach gibt es neu «🏫 Alle Fächer» – so kannst du eine ganze Klasse (oder jede andere Gruppe) einmal anlegen und in jedem Fach im Kalender unter «Für» auswählen.'},
   {id:'2026-09-27-umfrage-serie', datum:'2026-09-27', fuer:'lehrer', text:'⚡ Blitzumfrage mit mehreren Fragen: «+ Weitere Frage in dieser Umfrage», speichern, und am Beamer mit «▶︎ Nächste Frage» durchgehen. Am Schluss zeigt «📊 Übersicht aller Fragen» alle Ergebnisse untereinander.'},
   {id:'2026-09-27-pruefung-ordner', datum:'2026-09-27', fuer:'lehrer', text:'📝 Prüfungen im Ordner: in der Prüfung «📁 Ablegen» oder im Fach «🏫 Aus dem Klassenzimmer» › Prüfung. Bis zum Freigeben sieht nur ihr Lehrpersonen sie im Ordner, danach auch die Klasse (mit «Prüfung starten», später «Resultat»). «▶️ Freigeben» fragt jetzt, ob mit 🛡️ Safe Exam Browser oder im normalen Browser geschrieben wird.'},
@@ -22023,6 +22031,62 @@ function pruefBildSauber(s){
   return String(s || '').replace(/<script[\s\S]*?<\/script>/gi, '').replace(/\son[a-z]+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '');
 }
 
+/* ---------- Keine Frage darf eine andere beantworten ----------
+   Gilt für jede Prüfung: Steht die Antwort einer Aufgabe im Text einer anderen
+   (Frage, Kontext, Zuordnen-/Reihenfolge-Begriffe) oder betreffen zwei Aufgaben
+   denselben Begriff (Baukasten von Pöstlergeografie/Bildtrainer: gleicher
+   Schlüssel nach «:», z. B. T:AG und O:AG = Kanton Aargau), «verraten» sie sich.
+   Beim Ziehen (pruefBankZiehen) kommt so eine Aufgabe nicht in die Prüfung —
+   lieber eine Frage weniger; im Baukasten steht eine Warnung und Speichern
+   braucht einen zweiten Klick. Pöstlergeografie und Bildtrainer ziehen selbst
+   und machen dort dasselbe (exVerraten). */
+function pruefVNorm(s){
+  return ' ' + String(s == null ? '' : s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/ß/g, 'ss')
+    .replace(/[^a-z0-9]+/g, ' ').trim().replace(/^(der|die|das|den|dem|des|ein|eine|einen|einem|einer) /, '') + ' ';
+}
+// Als Antwort taugt nur, was sich wiedererkennen lässt: ab 3 Buchstaben, keine reine Zahl.
+function pruefVAnt(s){ var n = pruefVNorm(s); return n.trim().length >= 3 && !/^ [\d ]+ $/.test(n) ? n : ''; }
+function pruefVItem(zeigt, ant, ent){
+  return {zeigt:(zeigt || []).map(pruefVNorm).join(''), ant:(ant || []).map(pruefVAnt).filter(Boolean), ent:ent || ''};
+}
+// Aus einer Frage der Übung (Bank-Format)
+function pruefVAusF(f){
+  var zeigt = [f.frage, f.kontext].concat(f.links || [], f.rechts || [], f.items || []), ant = [];
+  if(f.typ === 'mc' && f.optionen) ant = [f.optionen[f.loesung]];
+  else if(f.typ === 'text') ant = [].concat(f.loesung || []);
+  else if(f.typ === 'offen' && f.begriff) ant = [].concat(f.begriff);
+  return pruefVItem(zeigt, ant);
+}
+function pruefVerraet(a, b){
+  if(a.ent && a.ent === b.ent) return true;
+  return a.ant.some(function(x){ return b.zeigt.indexOf(x) >= 0; }) || b.ant.some(function(x){ return a.zeigt.indexOf(x) >= 0; });
+}
+// Pro Aufgabe die Nummern der Aufgaben, mit denen sie sich verrät ({} = alles gut).
+function pruefVKonflikte(items){
+  var k = {};
+  for(var i = 0; i < items.length; i++) for(var j = i + 1; j < items.length; j++){
+    if(!items[i] || !items[j] || !pruefVerraet(items[i], items[j])) continue;
+    (k[i] = k[i] || []).push(j + 1); (k[j] = k[j] || []).push(i + 1);
+  }
+  return k;
+}
+function pruefVWarnHtml(konf, k){
+  return konf[k] ? '<div class="pr-bk-warn">⚠️ Verrät sich mit Nr. '+konf[k].join(', ')+' – eine davon austauschen (🎲/🔁).</div>' : '';
+}
+function pruefVKopfHtml(konf){
+  var n = Object.keys(konf).length;
+  return n ? ' · <span class="pr-bk-warn-kopf">⚠️ '+n+' Aufgaben verraten sich gegenseitig</span>' : '';
+}
+// Speichern trotz Warnung: erster Klick warnt, zweiter speichert.
+function pruefVSpeichernOk(btn, konf, zustand){
+  if(!Object.keys(konf).length || zustand.ok) return true;
+  zustand.ok = true;
+  btn.textContent = '⚠️ Trotzdem speichern';
+  toast('Achtung: Einige Aufgaben verraten sich gegenseitig (⚠️). Besser austauschen – oder nochmals klicken.');
+  var w = modalEl.querySelector('.pr-bk-warn'); if(w) w.scrollIntoView({block:'center', behavior:'smooth'});
+  return false;
+}
+
 // Zieht aus der Bank die Prüfungsfragen. Zuerst pro Aufgabenformat (Anteile
 // formPct), darin pro Bloom-Stufe (bloomPct), jeweils reihum aus Töpfen
 // «Bereich × Aufgabentyp» — so mischen sich Bereiche und Typen gleichmässig.
@@ -22095,7 +22159,7 @@ function pruefBankZiehen(info, kats, anzahl, seed, bloomPct, formPct){
   var bp = bloomPct && bloomPct.length === 3 ? bloomPct.map(Number) : [34, 33, 33];
   function toepfe(passt){
     var t = {};
-    pool.forEach(function(x){ if(x.g.weg || !passt(x)) return; var k = x.f.kat + '|' + x.f.typ; (t[k] = t[k] || []).push(x); });
+    pool.forEach(function(x){ if(x.g.weg || x.verraet || !passt(x)) return; var k = x.f.kat + '|' + x.f.typ; (t[k] = t[k] || []).push(x); });
     return pruefMischen(Object.keys(t).sort(), rnd).map(function(k){ return pruefMischen(t[k], rnd); });
   }
   var gezogen = [];
@@ -22104,7 +22168,12 @@ function pruefBankZiehen(info, kats, anzahl, seed, bloomPct, formPct){
     while(n > 0 && tp.some(function(t){ return t.length; })){
       var t = tp[z++ % tp.length];
       while(t.length && t[0].g.weg) t.shift();   // andere Fassung derselben Frage schon gezogen
-      if(t.length){ var x = t.shift(); x.g.weg = true; gezogen.push(x); n--; }
+      if(!t.length) continue;
+      var x = t.shift();
+      // Verrät sie eine schon gezogene Aufgabe (oder umgekehrt)? Dann nie.
+      x.v = x.v || pruefVAusF(x.f);
+      if(gezogen.some(function(y){ return pruefVerraet(x.v, y.v); })){ x.verraet = true; continue; }
+      x.g.weg = true; gezogen.push(x); n--;
     }
     return n;
   }
@@ -23477,6 +23546,17 @@ async function pruefBaukasten(p){
   function anzahlFragen(b){ return b.f && b.als === 'text' && b.f.typ === 'zuordnen' ? pruefUmwandeln(b.f).length : 1; }
   function summe(){ return Math.round(bs.reduce(function(s, b){ return s + b.punkte * anzahlFragen(b); }, 0) * 100) / 100; }
   function benutzt(){ var u = {}; bs.forEach(function(b){ if(b.f) u[b.cid + '|' + b.i] = 1; }); return u; }
+  function vItem(b){
+    if(b.eigen) return pruefVItem([b.eigen.frage], b.eigen.typ === 'text' ? [b.eigen.loesung] : []);
+    if(b.fix){
+      var q = b.fix.q, L = b.fix.L || {};
+      return pruefVItem([q.frage, q.kontext].concat(q.links || [], q.rechts || [], q.items || []), q.typ === 'mc' || q.typ === 'text' ? [L.anzeige] : []);
+    }
+    var vs = [b.f].concat(bausteinVarianten(b)).map(pruefVAusF);
+    return {zeigt:vs.map(function(v){ return v.zeigt; }).join(''), ant:[].concat.apply([], vs.map(function(v){ return v.ant; })), ent:''};
+  }
+  function konflikte(){ return pruefVKonflikte(bs.map(vItem)); }
+  var warnZustand = {};
 
   function loesungHtml(b){
     if(b.eigen) return 'Musterlösung: <b>'+esc(b.eigen.loesung)+'</b>';
@@ -23487,6 +23567,7 @@ async function pruefBaukasten(p){
   }
   function listeHtml(){
     if(!bs.length) return '<div class="empty-state">Noch keine Aufgaben – unten hinzufügen.</div>';
+    var konf = konflikte();
     return bs.map(function(b, k){
       var typ;
       if(nurAnsehen){
@@ -23511,15 +23592,18 @@ async function pruefBaukasten(p){
         '<button class="btn btn-ghost btn-sm'+(ersetzen === k ? ' btn-primary' : '')+'" data-ersetzen="'+k+'" type="button" title="durch eine Aufgabe ersetzen, die du unten auswählst">🔁</button></span></div>';
       return '<div class="pr-bk-row'+(ersetzen === k ? ' pr-bk-ziel' : '')+'"><span class="pr-ap-nr">'+(k+1)+'.</span>'+
         '<div class="pr-bk-f"><div class="pr-ap-meta">'+typ+'<small>'+esc(b.f ? (katVon(b)[b.f.kat] || b.f.kat || '') + (b.cid !== p.contentId ? ' · 📚 ' + (titel[b.cid] || 'andere Übung') : '') : b.eigen ? '✏️ eigene Aufgabe' : (b.fix.q.kat || ''))+(n > 1 ? ' · ergibt '+n+' Fragen' : '')+'</small></div>'+
-        '<div>'+esc(bausteinText(b))+'</div>'+opts+'</div>'+akt+'</div>';
+        '<div>'+esc(bausteinText(b))+'</div>'+opts+pruefVWarnHtml(konf, k)+'</div>'+akt+'</div>';
     }).join('');
   }
-  // 🎲 Gleicher Bereich, gleicher Typ, noch nicht in der Prüfung.
+  // 🎲 Gleicher Bereich, gleicher Typ, noch nicht in der Prüfung – und verrät möglichst keine andere Aufgabe.
   function tauschen(k){
     var b = bs[k], qi = infoVon(b), u = benutzt();
     var kand = qi.fragen.map(function(f, i){ return {f:f, i:i}; }).filter(function(x){
       return !u[b.cid + '|' + x.i] && x.f.typ === b.f.typ && x.f.kat === b.f.kat && x.f.typ !== 'diktat';
     });
+    var andere = bs.filter(function(y, j){ return j !== k; }).map(vItem);
+    var sauber = kand.filter(function(x){ var v = pruefVAusF(x.f); return !andere.some(function(a){ return pruefVerraet(v, a); }); });
+    if(sauber.length) kand = sauber;
     if(!kand.length){ toast('Keine weitere Aufgabe mit demselben Bereich und Typ – mit 🔁 selbst eine auswählen.'); return; }
     var x = kand[Math.floor(Math.random() * kand.length)];
     var als = b.als === 'orig' || pruefAlsTyp(x.f, b.als, qi, pruefRng(1)).length ? b.als : 'orig';
@@ -23545,7 +23629,7 @@ async function pruefBaukasten(p){
     var el = document.getElementById('prBkListe');
     if(!el) return;
     el.innerHTML = listeHtml();
-    document.getElementById('prBkKopf').innerHTML = bs.length + ' Aufgaben · <b>' + pruefZahlText(summe()) + '</b> Punkte';
+    document.getElementById('prBkKopf').innerHTML = bs.length + ' Aufgaben · <b>' + pruefZahlText(summe()) + '</b> Punkte' + pruefVKopfHtml(konflikte());
     if(nurAnsehen) return;
     document.getElementById('prBkPool').innerHTML = poolHtml();
     var ez = document.getElementById('prBkErsetzt');
@@ -23682,11 +23766,12 @@ async function pruefBaukasten(p){
     var k = e.target.getAttribute('data-pk');
     if(k == null) return;
     var v = Math.round(parseFloat(String(e.target.value).replace(',', '.')) * 2) / 2;
-    if(v > 0){ bs[+k].punkte = v; document.getElementById('prBkKopf').innerHTML = bs.length + ' Aufgaben · <b>' + pruefZahlText(summe()) + '</b> Punkte'; }
+    if(v > 0){ bs[+k].punkte = v; document.getElementById('prBkKopf').innerHTML = bs.length + ' Aufgaben · <b>' + pruefZahlText(summe()) + '</b> Punkte' + pruefVKopfHtml(konflikte()); }
   });
   document.getElementById('modalCancel').addEventListener('click', closeModal);
   document.getElementById('modalOk').addEventListener('click', async function(){
     if(!bs.length){ toast('Mindestens eine Aufgabe.'); return; }
+    if(!pruefVSpeichernOk(this, konflikte(), warnZustand)) return;
     var rnd = pruefRng(p.seed || 1), bild = pruefBildSammler(), fragen = [], loesungen = {};
     function neu(q, L, punkte){
       q.id = 'q' + fragen.length; L.punkte = punkte; q.punkte = punkte;
@@ -23803,6 +23888,14 @@ async function nativBaukasten(p){
   var altKeys = Array.isArray(c.keys) && c.keys.length;
   function schliessen(){ kat.schliessen(); closeModal(); }
   function benutzt(){ var u = {}; bs.forEach(function(q){ u[q.key] = 1; }); return u; }
+  // Name pro Schlüssel (aus dem Katalog) – damit «Reformation in Zürich» und
+  // «Reformation» sich auch dann stossen, wenn die Frage nur «Was ist markiert?» sagt.
+  var keyName = {};
+  Object.keys(kat.pool).forEach(function(kk){ kat.pool[kk].forEach(function(x){ keyName[x.key] = x.name; }); });
+  function keyEnt(key){ key = String(key || ''); return key.slice(key.indexOf(':') + 1); }
+  function vItem(q){ var nm = keyName[q.key] || ''; return pruefVItem([q.frage, nm], [q.loesung, nm], keyEnt(q.key)); }
+  function konflikte(){ return pruefVKonflikte(bs.map(vItem)); }
+  var warnZustand = {}, konf = {};
   function zeile(q, k){
     var akt = nurAnsehen ? '' : '<div class="pr-bk-akt"><span>'+
       '<button class="btn btn-ghost btn-sm" data-hoch="'+k+'" type="button" title="nach oben"'+(k ? '' : ' disabled')+'>↑</button>'+
@@ -23812,7 +23905,7 @@ async function nativBaukasten(p){
       '<button class="btn btn-ghost btn-sm'+(ersetzen === k ? ' btn-primary' : '')+'" data-ersetzen="'+k+'" type="button" title="durch eine Aufgabe ersetzen, die du unten auswählst">🔁</button></span></div>';
     return '<div class="pr-bk-row'+(ersetzen === k ? ' pr-bk-ziel' : '')+'"><span class="pr-ap-nr">'+(k+1)+'.</span>'+
       '<div class="pr-bk-f"><div class="pr-ap-meta"><span class="pr-badge">'+esc(q.art || '')+'</span><small>'+esc(katNamen[q.kat] || q.kat || '')+'</small></div>'+
-      '<div>'+esc(q.frage || '')+'</div><div class="pr-bk-opts">✓ <b>'+esc(q.loesung || '')+'</b>'+(q.bild ? ' · 🖼️ mit Bild/Karte' : '')+'</div></div>'+akt+'</div>';
+      '<div>'+esc(q.frage || '')+'</div><div class="pr-bk-opts">✓ <b>'+esc(q.loesung || '')+'</b>'+(q.bild ? ' · 🖼️ mit Bild/Karte' : '')+'</div>'+pruefVWarnHtml(konf, k)+'</div>'+akt+'</div>';
   }
   function poolHtml(){
     var u = benutzt(), t = suche.trim().toLowerCase(), liste = [];
@@ -23828,8 +23921,9 @@ async function nativBaukasten(p){
   }
   function zeichnen(){
     var el = document.getElementById('prBkListe'); if(!el) return;
+    konf = konflikte();
     el.innerHTML = bs.length ? bs.map(zeile).join('') : '<div class="empty-state">Noch keine Aufgaben – unten hinzufügen.</div>';
-    document.getElementById('prBkKopf').innerHTML = bs.length + ' Aufgaben · <b>' + bs.length + '</b> Punkte (1 Punkt pro Aufgabe)';
+    document.getElementById('prBkKopf').innerHTML = bs.length + ' Aufgaben · <b>' + bs.length + '</b> Punkte (1 Punkt pro Aufgabe)' + pruefVKopfHtml(konf);
     if(nurAnsehen) return;
     document.getElementById('prBkPool').innerHTML = poolHtml();
     var ez = document.getElementById('prBkErsetzt');
@@ -23873,6 +23967,10 @@ async function nativBaukasten(p){
     else if((k = b.getAttribute('data-tausch')) != null){
       k = +k; var u = benutzt(), kand = (kat.pool[bs[k].kat] || []).filter(function(x){ return !u[x.key]; });
       if(!kand.length){ toast('Keine weitere Aufgabe in diesem Bereich – mit 🔁 eine aus einem anderen Bereich wählen.'); return; }
+      // möglichst eine, die sich mit keiner anderen Aufgabe verrät
+      var andere = bs.filter(function(y, j){ return j !== k; }).map(vItem);
+      var sauber = kand.filter(function(x){ var v = pruefVItem([x.name], [x.name], keyEnt(x.key)); return !andere.some(function(a){ return pruefVerraet(v, a); }); });
+      if(sauber.length) kand = sauber;
       einsetzen(kand[Math.floor(Math.random() * kand.length)].key, k);
     }
     else if((k = b.getAttribute('data-ersetzen')) != null){
@@ -23887,6 +23985,7 @@ async function nativBaukasten(p){
   document.getElementById('modalCancel').addEventListener('click', schliessen);
   document.getElementById('modalOk').addEventListener('click', async function(){
     if(!bs.length){ toast('Mindestens eine Aufgabe.'); return; }
+    if(!pruefVSpeichernOk(this, konflikte(), warnZustand)) return;
     var keys = bs.map(function(q){ return q.key; }), kats = (c.kats || []).slice();
     bs.forEach(function(q){ if(q.kat && kats.indexOf(q.kat) < 0) kats.push(q.kat); });
     var upd = {'cfg.keys':keys, 'cfg.anzahl':keys.length, 'cfg.baukasten':true, 'cfg.kats':kats,
@@ -24326,7 +24425,9 @@ var pruefGruppenNamen = {};
 function pruefRosterFuer(p){
   var list = pruefRosterCache.list;
   if(!list) return null;
-  if(!Array.isArray(p.mitglieder)) return rosterFuerFach(list, pruefFach(p));
+  // Ganze Klasse: nur die Klasse selbst (inkl. Fach-Gäste wie Mathe) — keine
+  // Gruppen-Gäste aus anderen Klassen, die schreiben nur mit einer 👥 Gruppe.
+  if(!Array.isArray(p.mitglieder)) return rosterFuerFach(list.filter(function(s){ return !s.gruppenGast; }), pruefFach(p));
   var da = {};
   var out = list.filter(function(s){ if(p.mitglieder.indexOf(s.uid) < 0 || da[s.uid]) return false; da[s.uid] = 1; return true; });
   if(p.gruppeId && pruefGruppenNamen[p.gruppeId] === undefined){
@@ -29594,6 +29695,26 @@ function rswFrageBauen(x, id){
   q.punkte = L.punkte;
   return {q:q, L:L};
 }
+// Was eine Aufgabe zeigt und was sie abfragt (für pruefVerraet): Ein Lückenwort
+// darf in keiner anderen Aufgabe ausgeschrieben stehen (auch nicht in der Wortliste),
+// ein Wort aus einem Wörter-Hördiktat auch nicht. Nur Wörter ab 5 Buchstaben –
+// «der», «dass» usw. stehen sonst überall.
+function rswVItem(a){
+  var zeigt = [], ant = [];
+  if(a.hoeren){ if(a.hoeren.wort) ant = a.hoeren.texte.map(rswAltText); }
+  else {
+    (a.units || []).forEach(function(u){
+      var t = '';
+      u.forEach(function(sg){ t += rswIstLuecke(sg) ? '\u0001' + String(sg.a).split(' / ')[0] + (sg.opts ? '\u0003' : '') + '\u0002' : sg; });
+      t.split(/\s+/).forEach(function(w){
+        if(w.indexOf('\u0001') < 0) zeigt.push(w);
+        else if(w.indexOf('\u0003') < 0) ant.push(w.replace(/[\u0001\u0002]/g, ''));
+      });
+    });
+    if(a.bank) zeigt.push(a.bank);
+  }
+  return pruefVItem(zeigt, ant.filter(function(w){ return pruefVNorm(w).trim().length >= 5; }));
+}
 // Zieht die Prüfung: reihum über die Posten und die Aufgabentypen, zufällig mit Seed.
 function rswZiehen(quellen, cfg, seed){
   var rnd = pruefRng(seed), pool = {}, alle = [];
@@ -29611,7 +29732,15 @@ function rswZiehen(quellen, cfg, seed){
   var cats = pruefMischen(typen.filter(function(c){ return posten.some(function(pid){ return pool[pid][c] && pool[pid][c].length; }); }), rnd);
   var weg = {}, gezogen = [];
   function nimm(liste){
-    while(liste && liste.length){ var a = liste.shift(); if(!weg[a.src]){ weg[a.src] = 1; return a; } }
+    while(liste && liste.length){
+      var a = liste.shift();
+      if(weg[a.src]) continue;
+      weg[a.src] = 1;
+      a.v = rswVItem(a);
+      // verrät sie eine schon gezogene Aufgabe (oder umgekehrt)? Dann nicht.
+      if(gezogen.some(function(y){ return pruefVerraet(a.v, y.v); })) continue;
+      return a;
+    }
     return null;
   }
   var anzahl = Math.max(1, +cfg.anzahl || 10);
