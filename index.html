@@ -364,6 +364,11 @@
   .folder-count{font-size:12px;color:var(--text-muted);margin-top:2px;}
   .folder-actions{display:flex;align-items:center;gap:8px;flex-shrink:0;flex-wrap:wrap;}
   .section-label{font-size:12px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--text-muted);margin:4px 2px -2px;}
+  .zusatz-ordner .folder-glyph{font-size:20px;}
+  .zusatz-pfeil{margin-left:auto;font-size:22px;color:var(--text-muted);transition:transform .15s ease;}
+  .zusatz-ordner.offen .zusatz-pfeil{transform:rotate(90deg);}
+  .zusatz-inhalt{display:flex;flex-direction:column;gap:inherit;padding-left:22px;border-left:3px solid var(--border);margin-left:20px;}
+  .zusatz-inhalt[hidden]{display:none;}
 
   /* ---------- Eigener Dialog (nie window.confirm/prompt — siehe Vollbild-Hinweis) ---------- */
   .modal-overlay{position:fixed;inset:0;background:rgba(15,16,32,.55);display:none;align-items:center;justify-content:center;padding:20px;z-index:2000;}
@@ -9173,11 +9178,20 @@ function renderFolderContents(){
     html += '<div class="section-label">Ordner</div>';
     html += folders.map(function(f){ return folderCardHtml(f, realFolders.indexOf(f), realFolders.length, isTeacher && !f.virtual); }).join('');
   }
-  if(resources.length){
+  // Klassenzimmer-Material (Karteikarten, Quiz, Wortwolken, Blitzumfragen) steht
+  // unter den eigentlichen Übungen; ab zwei Stück derselben Art als Sammelordner.
+  var zusatz = resources.filter(zusatzArt);
+  var material = resources.filter(function(r){ return !zusatzArt(r); });
+  if(material.length){
     if(folders.length) html += '<div class="section-label">Übungen</div>';
-    html += resources.map(function(r){ return resourceCardHtml(r, realResources.indexOf(r), realResources.length, isTeacher && !r.virtual); }).join('');
+    html += material.map(function(r){ return resourceCardHtml(r, realResources.indexOf(r), realResources.length, isTeacher && !r.virtual); }).join('');
+  }
+  if(zusatz.length){
+    if(folders.length || material.length) html += '<div class="section-label">Zusatzmaterial</div>';
+    html += zusatzHtml(zusatz, subjectId, here);
   }
   listEl.innerHTML = html;
+  zusatzVerdrahten(listEl);
 
   folders.forEach(function(f){
     document.getElementById('fopen-'+f.id).addEventListener('click', function(){ goSubject(subjectId, f.id); });
@@ -9237,6 +9251,57 @@ function renderFolderContents(){
     });
   });
   if(isTeacher) paintHeimButtons(realResources);
+}
+
+/* ---------- Zusatzmaterial im Ordner: automatische Sammelordner ----------
+   Karteikarten-Sets, Klassen-Quizze, Wortwolken und Blitzumfragen, die in einem
+   Ordner liegen, kommen unter die Übungen. Gibt es von einer Art mehr als eines,
+   werden sie zu einem aufklappbaren Sammelordner zusammengefasst (nur Anzeige,
+   nichts in Firestore). Prüfungen bleiben oben bei den Übungen. Die Karten sind
+   immer im DOM (nur versteckt), damit die Knöpfe normal verdrahtet werden. */
+var ZUSATZ_ARTEN = {
+  kk:      {icon:'🗂️', name:'Karteikarten'},
+  quiz:    {icon:'🎮', name:'Klassen-Quizze'},
+  umfrage: {icon:'⚡', name:'Blitzumfragen'},
+  wolke:   {icon:'☁️', name:'Wortwolken'}
+};
+var zusatzOffen = {};   // «Fach|Ordner|Art» → aufgeklappt (nur für diese Sitzung)
+function zusatzArt(r){
+  if(r.kk && r.ausOrdner) return 'kk';
+  if(r.kzm && ZUSATZ_ARTEN[r.kzm.typ]) return r.kzm.typ;
+  return '';
+}
+function zusatzHtml(liste, subjectId, here){
+  var html = '';
+  Object.keys(ZUSATZ_ARTEN).forEach(function(art){
+    var teil = liste.filter(function(r){ return zusatzArt(r) === art; });
+    if(!teil.length) return;
+    var titel = function(r){ return String(r.title || '').replace(/^\S+\s/, ''); };
+    teil.sort(function(a, b){ return titel(a).localeCompare(titel(b), 'de', {numeric:true}); });
+    var karten = teil.map(function(r){ return resourceCardHtml(r, -1, 0, false); }).join('');
+    if(teil.length < 2){ html += karten; return; }
+    var key = subjectId + '|' + (here || '') + '|' + art, offen = !!zusatzOffen[key], A = ZUSATZ_ARTEN[art];
+    html += '<div class="folder-card zusatz-ordner'+(offen ? ' offen' : '')+'">'+
+      '<button class="folder-open" type="button" data-zusatz="'+esc(key)+'" aria-expanded="'+offen+'">'+
+      '<span class="folder-glyph">'+A.icon+'</span>'+
+      '<span><span class="folder-name">'+esc(A.name)+'</span><span class="folder-count">'+teil.length+' '+esc(A.name)+'</span></span>'+
+      '<span class="zusatz-pfeil" aria-hidden="true">›</span></button></div>'+
+      '<div class="zusatz-inhalt" data-zusatz-inhalt="'+esc(key)+'"'+(offen ? '' : ' hidden')+'>'+karten+'</div>';
+  });
+  return html;
+}
+function zusatzVerdrahten(listEl){
+  Array.prototype.forEach.call(listEl.querySelectorAll('[data-zusatz]'), function(b){
+    b.addEventListener('click', function(){
+      var key = b.getAttribute('data-zusatz'), offen = !zusatzOffen[key];
+      zusatzOffen[key] = offen;
+      b.setAttribute('aria-expanded', String(offen));
+      b.parentNode.classList.toggle('offen', offen);
+      Array.prototype.forEach.call(listEl.querySelectorAll('[data-zusatz-inhalt]'), function(d){
+        if(d.getAttribute('data-zusatz-inhalt') === key) d.hidden = !offen;
+      });
+    });
+  });
 }
 
 function folderCardHtml(f, index, total, isTeacher){
@@ -15745,6 +15810,8 @@ const NEUIGKEITEN = [
   {id:'2026-09-27-gruppen-pruefung', datum:'2026-09-27', fuer:'lehrer', text:'👥 Prüfung für eine Gruppe: Die Übersicht zeigt jetzt alle Mitglieder – auch die aus anderen Klassen – und diese sehen die Prüfung bei sich oben unter «📝 Prüfung». (Braucht die neuen Datenbank-Regeln.)'},
   {id:'2026-09-27-material-paket', datum:'2026-09-27', fuer:'lehrer', text:'📥 Unterrichtsmaterial › «Paket importieren»: Quizze, Blitzumfragen, Wortwolken und Karteikarten aus einer vorbereiteten .json-Datei auf einmal in einen Ordner legen (z. B. zur Lesereise).'},
   {id:'2026-09-27-unterrichtsmaterial', datum:'2026-09-27', fuer:'lehrer', text:'🗃️ Klassenzimmer › Unterrichtsmaterial: Klassen-Quiz, Karteikarten, Wortwolken und Blitzumfragen nach Fach und Ordner ablegen – es sind dieselben Ordner wie bei den Übungen. Wortwolken und Blitzumfragen lassen sich jetzt mit «💾 Speichern» vorbereiten. Was in einem Ordner liegt, steht auch direkt im Fach (z. B. Geschichte › Imperialismus) mit ▶︎ Starten – im Fach holst du mit «🏫 Aus dem Klassenzimmer» Neues oder Vorhandenes in den offenen Ordner.'},
+  {id:'2026-09-27-zusatz-ordner', datum:'2026-09-27', fuer:'lehrer', text:'📁 Ordnung im Fach-Ordner: Karteikarten, Klassen-Quizze, Wortwolken und Blitzumfragen stehen jetzt unter den Übungen («Zusatzmaterial»). Sind es von einer Art zwei oder mehr, fasst die Library sie automatisch in einem aufklappbaren Ordner zusammen (z. B. «⚡ Blitzumfragen · 6»).'},
+  {id:'2026-09-27-seb-fokus', datum:'2026-09-27', fuer:'lehrer', text:'🛡️ Safe Exam Browser: Schüler:innen wurden dort nach wenigen Sekunden gesperrt («Anderes Fenster oder Programm geöffnet»), obwohl sie die Prüfung nicht verlassen hatten. Behoben – im SEB prüft die Library den Fensterfokus nicht mehr (SEB sperrt andere Programme selbst). Tab-Wechsel und Neuladen werden weiter erkannt.'},
   {id:'2026-09-27-seb', datum:'2026-09-27', fuer:'lehrer', text:'🛡️ Prüfungen mit Safe Exam Browser: in der Prüfung auf «🛡️ Safe Exam Browser: aus» tippen, dann lässt sie sich nur noch im SEB schreiben. Die Schüler:innen bekommen den Knopf «Im Safe Exam Browser öffnen», SEB startet direkt in der Library (dort anmelden). In der Übersicht zeigt 🛡️, wer im SEB schreibt. Der SEB muss auf den Geräten installiert sein.'},
   {id:'2026-09-27-karteikarten-ordner', datum:'2026-09-27', fuer:'alle', text:'🗂️ Karteikarten stehen jetzt auch direkt im passenden Ordner eines Fachs – nicht nur zuoberst unter «Karteikarten».'},
   {id:'2026-09-27-handy-symbole', datum:'2026-09-27', fuer:'alle', text:'📱 Auf dem Handy stehen die Symbole oben jetzt alle in einer Zeile.'},
@@ -21379,6 +21446,10 @@ function pruefWaechterAn(){
   window.addEventListener('pagehide', pruefOnHide);
   s.poll = setInterval(function(){
     if(pruef.sess !== s) return;
+    // Im Safe Exam Browser meldet hasFocus() dauernd false (Fiona wurde am
+    // 27.09.2026 nach 4 s gesperrt, ohne rauszugehen) — SEB sperrt andere
+    // Fenster und Programme ohnehin, darum dort nicht auf den Fokus prüfen.
+    if(sebAktiv()){ s.missed = 0; return; }
     // hasFocus() ist auch true, solange der Fokus im Prüfungs-iframe liegt.
     if(document.hasFocus()){ s.missed = 0; return; }
     if(++s.missed >= 2) pruefVerstoss('Anderes Fenster oder Programm geöffnet');
