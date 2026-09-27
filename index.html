@@ -3111,7 +3111,7 @@ function uiCalendarEntryForm(existing, onSaved){
   function fuerKey(){ return LIB_PREFIX+'fuer_'+seiteId+'_'+(subjectEl.value || '-'); }
   function fuerFuellen(){
     if(!fuerEl) return;
-    var passend = meineGruppen.filter(function(g){ return g.fach === subjectEl.value && (g.ownerKlasse || state.profile.klasse) === seiteId; });
+    var passend = meineGruppen.filter(function(g){ return gruppeHatFach(g, subjectEl.value) && (g.ownerKlasse || state.profile.klasse) === seiteId; });
     var h = ganzeKlasseMoeglich ? '<option value="">Ganze Klasse '+esc(seiteId)+'</option>' : '';
     h += passend.map(function(g){ return '<option value="'+esc(g.id)+'">👥 '+esc(g.name)+' ('+(g.mitglieder||[]).length+')</option>'; }).join('');
     if(existing && existing.gruppeId && !passend.some(function(g){ return g.id === existing.gruppeId; })){
@@ -3122,7 +3122,7 @@ function uiCalendarEntryForm(existing, onSaved){
     var wunsch = existing ? (existing.gruppeId || '') : lsGet(fuerKey());
     if(wunsch !== null && fuerEl.querySelector('option[value="'+(window.CSS && CSS.escape ? CSS.escape(wunsch) : wunsch)+'"]')) fuerEl.value = wunsch;
     if(fuerHint){
-      fuerHint.textContent = !subjectEl.value ? 'Gruppen gibt es pro Fach – zuerst ein Fach wählen.'
+      fuerHint.textContent = !subjectEl.value && !passend.length ? 'Gruppen gibt es pro Fach – zuerst ein Fach wählen.'
         : (!passend.length ? 'Noch keine Gruppe für dieses Fach – im Kalender unter «👥 Gruppen» anlegen.' : '');
     }
   }
@@ -3229,8 +3229,12 @@ function gastFach(stu){ return (stu && stu.nurFach) || ''; }
 function ohneGaeste(list){ return (list||[]).filter(function(s){ return !gastFach(s); }); }
 function hatGaeste(list){ return (list||[]).some(function(s){ return !!gastFach(s); }); }
 // Wer gehört zu einem Kalender-Eintrag bzw. einer Übung dieses Fachs?
+function gastImFach(s, subject){
+  var f = gastFach(s), alle = s.gastFaecher || [];
+  return !f || f === subject || f === GRUPPE_ALLE_FAECHER || alle.indexOf(subject) >= 0 || alle.indexOf(GRUPPE_ALLE_FAECHER) >= 0;
+}
 function rosterFuerFach(list, subject){
-  return (list||[]).filter(function(s){ var f = gastFach(s); return !f || f === subject || (s.gastFaecher||[]).indexOf(subject) >= 0; });
+  return (list||[]).filter(function(s){ return gastImFach(s, subject); });
 }
 function gaesteDabei(){ return lsGet(LIB_PREFIX+'gaeste_an') === '1'; }
 function gaesteOptional(list){ return gaesteDabei() ? (list||[]) : ohneGaeste(list); }
@@ -3268,11 +3272,16 @@ function wireGaesteToggle(btn, onChange){
    Wer in einer Gruppe ist, sieht zusätzlich im Fach die Übungen der Seite der
    Lehrperson (Route 'gruppenfach'). */
 function gruppenCol(){ return collection(db, 'gruppen'); }
+// fach '*' = ganze Klasse bzw. Gruppe für alle Fächer (z. B. wenn man mehrere Fächer mit ihr hat).
+var GRUPPE_ALLE_FAECHER = '*';
+function gruppeHatFach(g, fach){ return g.fach === fach || g.fach === GRUPPE_ALLE_FAECHER; }
+function gruppeFachName(f){ return f === GRUPPE_ALLE_FAECHER ? 'Alle Fächer' : subjectName(f); }
 var gruppenCache = { member:null, memberUid:null };
 
 function gruppenSort(list){
   list.sort(function(a,b){
-    return subjectName(a.fach).localeCompare(subjectName(b.fach), 'de') || (a.name||'').localeCompare(b.name||'', 'de');
+    return (a.fach === GRUPPE_ALLE_FAECHER ? -1 : 0) - (b.fach === GRUPPE_ALLE_FAECHER ? -1 : 0) ||
+      gruppeFachName(a.fach).localeCompare(gruppeFachName(b.fach), 'de') || (a.name||'').localeCompare(b.name||'', 'de');
   });
   return list;
 }
@@ -3355,14 +3364,14 @@ async function gruppenGaeste(klasse, schonDa){
 }
 
 function gruppeKurz(g){
-  return subjectName(g.fach)+' · '+(g.mitglieder||[]).length+' Schüler:innen';
+  return gruppeFachName(g.fach)+' · '+(g.mitglieder||[]).length+' Schüler:innen';
 }
 
 function openGruppenVerwaltung(onChanged){
   onChanged = onChanged || function(){};
   openModal(
     '<h3>👥 Meine Gruppen</h3>'+
-    '<p class="gr-hint">Pro Fach eigene Gruppen – auch aus mehreren Klassen. Postest du eine Hausaufgabe für eine Gruppe, sehen sie alle Schüler:innen dieser Gruppe (und im Fach deine Übungen).</p>'+
+    '<p class="gr-hint">Pro Fach eigene Gruppen – auch aus mehreren Klassen, oder mit «🏫 Alle Fächer» für jedes Fach. Postest du eine Hausaufgabe für eine Gruppe, sehen sie alle Schüler:innen dieser Gruppe (und im Fach deine Übungen).</p>'+
     '<div id="grListe" class="gr-liste"><div class="empty-state">Wird geladen …</div></div>'+
     '<div class="modal-actions"><button class="btn btn-ghost btn-sm" id="modalCancel" type="button">Schliessen</button>'+
     '<button class="btn btn-primary btn-sm" id="grNeuBtn" type="button">+ Neue Gruppe</button></div>',
@@ -3427,7 +3436,8 @@ function openGruppeEditor(g, onChanged){
   // Neben den festen Fächern auch eigene Fächer aus dem 🗓️ Stundenplan (z. B. «Jassen»)
   // oder frei eingegeben. Gespeichert wird dann der Name selbst als fach.
   var fachFest = SUBJECTS.filter(function(s){ return !s.teacherOnly; });
-  var fachOpts = '<option value="">— Fach wählen —</option>' + fachFest.map(function(s){
+  var fachOpts = '<option value="">— Fach wählen —</option>'+
+    '<option value="'+GRUPPE_ALLE_FAECHER+'"'+(fach === GRUPPE_ALLE_FAECHER ? ' selected' : '')+'>🏫 Alle Fächer (z. B. ganze Klasse)</option>' + fachFest.map(function(s){
     return '<option value="'+s.id+'"'+(fach === s.id ? ' selected' : '')+'>'+esc(s.name)+'</option>';
   }).join('') + '<option value="__andere">✍️ Anderes Fach …</option>';
   var klassen = KLASSEN.filter(function(k){ return k.art === 'klasse'; });
@@ -3461,7 +3471,7 @@ function openGruppeEditor(g, onChanged){
     if(stp.geladen) [stp.eigen, stp.klasse].forEach(function(pl){
       Object.keys((pl && pl.zellen) || {}).forEach(function(k){ var c = pl.zellen[k]; if(c && !c.frei && !c.f) dazu(c.t); });
     });
-    if(fach && !subjectById(fach)) dazu(fach);
+    if(fach && fach !== GRUPPE_ALLE_FAECHER && !subjectById(fach)) dazu(fach);
     namen.sort(function(a,b){ return a.localeCompare(b, 'de'); });
     if(!fachEl.isConnected) return;
     var wert = fachEl.value;
@@ -3474,7 +3484,7 @@ function openGruppeEditor(g, onChanged){
       fachEl.insertBefore(og, fachEl.querySelector('option[value="__andere"]'));
     }
     if(wert) fachEl.value = wert;
-    else if(fach && !subjectById(fach)) fachEl.value = fach;
+    else if(fach) fachEl.value = fach;
   }
   eigeneFaecherFuellen();
   if(!stp.geladen) stpLaden().then(eigeneFaecherFuellen).catch(function(err){ console.error(err); });
@@ -3664,7 +3674,7 @@ function gruppenFachHtmlLaden(subjectId){
   var box = document.getElementById('gruppenFach');
   if(!box || state.profile.role === 'teacher') return;
   loadMitgliedGruppen().then(function(list){
-    var hier = list.filter(function(g){ return g.fach === subjectId && g.ownerKlasse && g.ownerKlasse !== state.klasse; });
+    var hier = list.filter(function(g){ return gruppeHatFach(g, subjectId) && g.ownerKlasse && g.ownerKlasse !== state.klasse; });
     if(!hier.length || !document.getElementById('gruppenFach')) return;
     box.innerHTML = '<div class="section-label">👥 Deine Gruppen</div>' + hier.map(function(g){
       return '<div class="resource-card"><div class="resource-info"><h4>'+esc(g.name)+'</h4>'+
@@ -3696,8 +3706,8 @@ function renderGruppenFach(){
     var t = document.getElementById('grFachTitel');
     if(t) t.textContent = '👥 '+g.name+' · '+(g.ownerName || klasseInfo(g.ownerKlasse).lp);
     var res = await Promise.all([
-      getDocs(query(kcolFor(g.ownerKlasse, 'folders'), where('subject','==',g.fach))),
-      getDocs(query(kcolFor(g.ownerKlasse, 'resources'), where('subject','==',g.fach)))
+      getDocs(query(kcolFor(g.ownerKlasse, 'folders'), where('subject','==',r.subject))),
+      getDocs(query(kcolFor(g.ownerKlasse, 'resources'), where('subject','==',r.subject)))
     ]);
     if(state.route.name !== 'gruppenfach' || state.route.gruppeId !== g.id) return;
     var folders = {}, resources = [];
@@ -4550,7 +4560,7 @@ async function loadLernstandUebersicht(){
   var reads = [];
   students.forEach(function(stu){
     resources.forEach(function(res){
-      if(gastFach(stu) && res.subject !== gastFach(stu)) return;   // Fach-Gast
+      if(!gastImFach(stu, res.subject)) return;   // Fach-Gast
       reads.push(
         getDoc(doc(db,'progress', stu.uid, 'resources', res.id)).then(function(snap){
           return {uid:stu.uid, resId:res.id, data: snap.exists() ? snap.data() : null};
@@ -15805,6 +15815,7 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-09-27-gruppe-alle-faecher', datum:'2026-09-27', fuer:'lehrer', text:'👥 Gruppen: Beim Fach gibt es neu «🏫 Alle Fächer» – so kannst du eine ganze Klasse (oder jede andere Gruppe) einmal anlegen und in jedem Fach im Kalender unter «Für» auswählen.'},
   {id:'2026-09-27-umfrage-serie', datum:'2026-09-27', fuer:'lehrer', text:'⚡ Blitzumfrage mit mehreren Fragen: «+ Weitere Frage in dieser Umfrage», speichern, und am Beamer mit «▶︎ Nächste Frage» durchgehen. Am Schluss zeigt «📊 Übersicht aller Fragen» alle Ergebnisse untereinander.'},
   {id:'2026-09-27-pruefung-ordner', datum:'2026-09-27', fuer:'lehrer', text:'📝 Prüfungen im Ordner: in der Prüfung «📁 Ablegen» oder im Fach «🏫 Aus dem Klassenzimmer» › Prüfung. Bis zum Freigeben sieht nur ihr Lehrpersonen sie im Ordner, danach auch die Klasse (mit «Prüfung starten», später «Resultat»). «▶️ Freigeben» fragt jetzt, ob mit 🛡️ Safe Exam Browser oder im normalen Browser geschrieben wird.'},
   {id:'2026-09-27-gruppen-pruefung', datum:'2026-09-27', fuer:'lehrer', text:'👥 Prüfung für eine Gruppe: Die Übersicht zeigt jetzt alle Mitglieder – auch die aus anderen Klassen – und diese sehen die Prüfung bei sich oben unter «📝 Prüfung». (Braucht die neuen Datenbank-Regeln.)'},
@@ -20486,14 +20497,14 @@ function lphPaint(){
   }
   if(faecher.length){
     h += '<select class="lph-sort" id="lphSort"><option value="">Sortieren: A–Z</option>';
-    faecher.forEach(function(f){ h += '<option value="'+esc(f)+'"'+(f === sort ? ' selected' : '')+'>👥 Gruppen '+esc(subjectName(f))+'</option>'; });
+    faecher.forEach(function(f){ h += '<option value="'+esc(f)+'"'+(f === sort ? ' selected' : '')+'>👥 Gruppen '+esc(gruppeFachName(f))+'</option>'; });
     h += '</select>';
   }
   h += '<div class="lph-list">';
   if(!sichtbar.length) h += '<div class="lph-leer">Alle ausgeblendet.</div>';
   if(sort){
     var gesehen = {};
-    (lph.gruppen || []).filter(function(g){ return g.fach === sort; }).forEach(function(g){
+    (lph.gruppen || []).filter(function(g){ return gruppeHatFach(g, sort); }).forEach(function(g){
       var drin = sichtbar.filter(function(u){ return (g.mitglieder || []).indexOf(u) >= 0; });
       if(!drin.length) return;
       h += '<div class="lph-gruppe">'+esc(g.name)+'</div>';
