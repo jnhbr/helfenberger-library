@@ -310,6 +310,9 @@
 
   /* Fehleranalyse Diktate (Lehrperson) */
   .da-toolbar{display:flex;justify-content:flex-end;margin-bottom:10px;}
+  .ueb-klassen{display:flex;align-items:center;gap:8px;margin:0 0 10px;flex-wrap:wrap;}
+  .ueb-klassen .modal-label{margin:0;}
+  .da-toolbar .ueb-klassen{margin:0;}
   .da-table{width:100%;border-collapse:collapse;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;font-size:13.5px;}
   .da-table th,.da-table td{text-align:left;padding:8px 12px;border-bottom:1px solid var(--border);white-space:nowrap;}
   .da-table th{background:var(--surface-2);font-weight:600;font-size:12.5px;color:var(--text-muted);}
@@ -1955,6 +1958,27 @@
   .pr-mix-g{font-size:12px;font-weight:700;letter-spacing:.02em;color:var(--text-muted);margin:8px 0 3px;}
   .pr-grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:0 12px;}
   .pr-grid2 .modal-input,#prTitel,#prUebung,#prKlasse,#prFuer{margin-bottom:12px;}
+  .uom-knopf{display:flex;align-items:center;gap:8px;width:100%;text-align:left;padding:9px 13px;border:1px solid var(--border);border-radius:10px;font:inherit;background:var(--surface-2);color:var(--text);cursor:pointer;margin-bottom:12px;min-height:44px;}
+  .uom-knopf:hover,.uom-knopf.offen{border-color:var(--brand);}
+  .uom-knopf:focus-visible{outline:2px solid var(--brand);outline-offset:1px;}
+  .uom-knopf .uom-pfeil{margin-left:auto;color:var(--text-muted);}
+  .uom-leer{color:var(--text-muted);}
+  .uom-wahl{display:flex;flex-direction:column;min-width:0;line-height:1.3;}
+  .uom-wahl b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .uom-pfad{font-size:12px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .uom-sep{opacity:.6;}
+  .uom-panel{position:fixed;z-index:2100;display:flex;overflow-x:auto;background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:0 18px 44px rgba(0,0,0,.25);}
+  .uom-spalte{flex:0 0 250px;width:250px;max-height:var(--uom-h,420px);overflow-y:auto;padding:6px;border-left:1px solid var(--border);}
+  .uom-spalte:first-child{border-left:0;flex-basis:200px;width:200px;}
+  .uom-eintrag{display:flex;align-items:center;gap:8px;width:100%;text-align:left;padding:7px 10px;border:0;border-radius:8px;background:none;color:var(--text);font:inherit;font-size:14px;cursor:pointer;}
+  .uom-eintrag:hover,.uom-eintrag:focus-visible{background:var(--surface-2);outline:none;}
+  .uom-eintrag.aktiv{background:var(--brand);color:#fff;}
+  .uom-eintrag.aktiv .uom-zahl,.uom-eintrag.aktiv .uom-pfeil{color:#fff;}
+  .uom-eintrag.gewaehlt{font-weight:700;box-shadow:inset 3px 0 0 var(--brand);}
+  .uom-name{flex:1;min-width:0;overflow-wrap:anywhere;}
+  .uom-zahl{font-size:12px;color:var(--text-muted);}
+  .uom-eintrag .uom-pfeil{color:var(--text-muted);}
+  .uom-trenn{height:1px;background:var(--border);margin:5px 6px;}
   .pr-art-wahl{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 12px;}
   .pr-check{display:flex;gap:8px;align-items:flex-start;font-size:14px;margin:0 0 12px;}
   .pr-badge{display:inline-block;vertical-align:middle;font-size:12px;font-weight:700;padding:3px 10px;border-radius:999px;background:var(--surface-2);color:var(--text-muted);}
@@ -3238,23 +3262,65 @@ function gastImFach(s, subject){
 function rosterFuerFach(list, subject){
   return (list||[]).filter(function(s){ return gastImFach(s, subject); });
 }
-function gaesteDabei(){ return lsGet(LIB_PREFIX+'gaeste_an') === '1'; }
-function gaesteOptional(list){ return gaesteDabei() ? (list||[]) : ohneGaeste(list); }
-function gaesteToggleHtml(id){
-  var an = gaesteDabei();
-  return '<button class="kz-tab'+(an?' kz-tab-on':'')+'" id="'+id+'" type="button" hidden title="Fach-Gäste (z.B. Mathe) in Namen-Spielen mitnehmen">👭 Gäste '+(an?'dabei':'aus')+'</button>';
+// 📊 Klassenübersichten/Lernstand: standardmässig nur die eigene Klasse (inkl.
+// Fach-Gäste wie Mathe, ohne 👥 Gruppen-Mitglieder anderer Klassen). Über die
+// Auswahl «Klasse» (gerätelokal gemerkt) eine andere Klasse ansehen oder
+// «Alle Klassen»: eigene Klasse + alle aus anderen Klassen, die das schon
+// geübt haben. Geht, weil gespiegelte Übungen/Sets überall dieselbe ID haben
+// und progress/{uid} nach Person statt nach Klasse abgelegt ist.
+var UEB_KLASSEN_KEY = LIB_PREFIX+'ueb_klassen';
+function uebKlassenWahl(ohneAlle){
+  var w = lsGet(UEB_KLASSEN_KEY) || '';
+  if(w === '*') return ohneAlle ? '' : w;
+  return w !== state.klasse && abstAlleKlassen().indexOf(w) >= 0 ? w : '';
 }
-// Knopf erst zeigen, wenn die Klasse überhaupt Gäste hat.
-function wireGaesteToggle(btn, onChange){
-  if(!btn) return;
-  klasseRosterLoad().then(function(list){ btn.hidden = !hatGaeste(list); }).catch(function(){});
-  btn.addEventListener('click', function(){
-    var an = !gaesteDabei();
-    lsSet(LIB_PREFIX+'gaeste_an', an ? '1' : '0');
-    btn.classList.toggle('kz-tab-on', an);
-    btn.textContent = '👭 Gäste '+(an ? 'dabei' : 'aus');
-    onChange();
-  });
+var uebKlasseCache = {};
+function uebKlasseLaden(k){
+  var c = uebKlasseCache[k];
+  if(c && Date.now() - c.at < 5*60*1000) return c.p;
+  var p = getDocs(query(collection(db,'students'), where('klasse','==',k))).then(function(snap){
+    var out = [];
+    snap.forEach(function(d){
+      var data = d.data();
+      if(data.role !== 'student' || (data.username||'').toLowerCase() === 'schueler') return;
+      out.push(Object.assign({uid:d.id}, data, {displayName:(data.displayName || data.username || '?')+' ('+k+')', fremd:true}));
+    });
+    return out;
+  }).catch(function(err){ console.error('Klasse '+k+' nicht lesbar', err); delete uebKlasseCache[k]; return []; });
+  uebKlasseCache[k] = {at:Date.now(), p:p};
+  return p;
+}
+async function uebRoster(fach, ohneAlle){
+  var w = uebKlassenWahl(ohneAlle);
+  var eig = (await loadStudentRoster()).filter(function(s){ return !s.gruppenGast; });
+  if(fach) eig = rosterFuerFach(eig, fach);
+  if(!w) return eig;
+  var klassen = w === '*' ? abstAlleKlassen().filter(function(k){ return k !== state.klasse; }) : [w];
+  var listen = await Promise.all(klassen.map(uebKlasseLaden)), da = {};
+  eig.forEach(function(s){ da[s.uid] = 1; });
+  var fremd = [].concat.apply([], listen).filter(function(s){
+    if(da[s.uid] || (fach && !gastImFach(s, fach))) return false;
+    da[s.uid] = 1; return true;
+  }).map(function(s){ return Object.assign({}, s); });
+  return w === '*' ? eig.concat(fremd) : fremd;
+}
+// «Alle Klassen»: aus anderen Klassen nur, wer schon geübt hat.
+function uebNurMitStand(rows, hat){
+  return rows.filter(function(r){ return !r.s.fremd || hat(r); });
+}
+function uebKlassenFeld(ohneAlle){
+  var w = uebKlassenWahl(ohneAlle);
+  var opt = '<option value="">🏠 Meine Klasse ('+esc(state.klasse)+')</option>'+
+    (ohneAlle ? '' : '<option value="*"'+(w === '*' ? ' selected' : '')+'>🌍 Alle Klassen (wer schon geübt hat)</option>')+
+    abstAlleKlassen().filter(function(k){ return k !== state.klasse; }).map(function(k){
+      return '<option value="'+esc(k)+'"'+(w === k ? ' selected' : '')+'>'+esc(k)+'</option>';
+    }).join('');
+  return '<div class="ueb-klassen"><label class="modal-label" for="uebKlassen">Klasse</label>'+
+    '<select class="modal-input" id="uebKlassen" style="width:auto;max-width:100%;">'+opt+'</select></div>';
+}
+function uebKlassenVerdrahten(neuLaden){
+  var el = document.getElementById('uebKlassen'); if(!el) return;
+  el.addEventListener('change', function(){ lsSet(UEB_KLASSEN_KEY, this.value); neuLaden(); });
 }
 
 /* ===================== 👥 GRUPPEN =====================
@@ -3276,8 +3342,16 @@ function wireGaesteToggle(btn, onChange){
 function gruppenCol(){ return collection(db, 'gruppen'); }
 // fach '*' = ganze Klasse bzw. Gruppe für alle Fächer (z. B. wenn man mehrere Fächer mit ihr hat).
 var GRUPPE_ALLE_FAECHER = '*';
-function gruppeHatFach(g, fach){ return g.fach === fach || g.fach === GRUPPE_ALLE_FAECHER; }
-function gruppeFachName(f){ return f === GRUPPE_ALLE_FAECHER ? 'Alle Fächer' : subjectName(f); }
+// Sammelfächer aus dem Stundenplan: NT und RZG umfassen mehrere Fächer der App.
+var GRUPPE_FACH_SETS = {
+  nt:  {name:'NT (Bio, Chemie, Physik)', faecher:['biologie','chemie','physik']},
+  rzg: {name:'RZG (Geografie, Geschichte)', faecher:['geografie','geschichte']}
+};
+function gruppeFaecher(f){ return GRUPPE_FACH_SETS[f] ? GRUPPE_FACH_SETS[f].faecher.slice() : [f]; }
+function gruppeHatFach(g, fach){
+  return g.fach === fach || g.fach === GRUPPE_ALLE_FAECHER || (!!GRUPPE_FACH_SETS[g.fach] && GRUPPE_FACH_SETS[g.fach].faecher.indexOf(fach) >= 0);
+}
+function gruppeFachName(f){ return f === GRUPPE_ALLE_FAECHER ? 'Alle Fächer' : GRUPPE_FACH_SETS[f] ? GRUPPE_FACH_SETS[f].name : subjectName(f); }
 var gruppenCache = { member:null, memberUid:null };
 
 function gruppenSort(list){
@@ -3351,7 +3425,7 @@ async function gruppenGaeste(klasse, schonDa){
         gs = gaeste[uid] = { uid:uid, vorname:n.n || '?', nachname:n.nn || '', username:n.u || '', klasse:n.k || '',
                              role:'student', nurFach:g.fach, gastFaecher:[], gruppenGast:true };
       }
-      if(gs.gastFaecher.indexOf(g.fach) < 0) gs.gastFaecher.push(g.fach);
+      gruppeFaecher(g.fach).forEach(function(f){ if(gs.gastFaecher.indexOf(f) < 0) gs.gastFaecher.push(f); });
     });
   });
   var list = Object.keys(gaeste).map(function(uid){ return gaeste[uid]; });
@@ -3439,7 +3513,10 @@ function openGruppeEditor(g, onChanged){
   // oder frei eingegeben. Gespeichert wird dann der Name selbst als fach.
   var fachFest = SUBJECTS.filter(function(s){ return !s.teacherOnly; });
   var fachOpts = '<option value="">— Fach wählen —</option>'+
-    '<option value="'+GRUPPE_ALLE_FAECHER+'"'+(fach === GRUPPE_ALLE_FAECHER ? ' selected' : '')+'>🏫 Alle Fächer (z. B. ganze Klasse)</option>' + fachFest.map(function(s){
+    '<option value="'+GRUPPE_ALLE_FAECHER+'"'+(fach === GRUPPE_ALLE_FAECHER ? ' selected' : '')+'>🏫 Alle Fächer (z. B. ganze Klasse)</option>' +
+    Object.keys(GRUPPE_FACH_SETS).map(function(id){
+      return '<option value="'+id+'"'+(fach === id ? ' selected' : '')+'>'+esc(GRUPPE_FACH_SETS[id].name)+'</option>';
+    }).join('') + fachFest.map(function(s){
     return '<option value="'+s.id+'"'+(fach === s.id ? ' selected' : '')+'>'+esc(s.name)+'</option>';
   }).join('') + '<option value="__andere">✍️ Anderes Fach …</option>';
   var klassen = KLASSEN.filter(function(k){ return k.art === 'klasse'; });
@@ -3473,7 +3550,7 @@ function openGruppeEditor(g, onChanged){
     if(stp.geladen) [stp.eigen, stp.klasse].forEach(function(pl){
       Object.keys((pl && pl.zellen) || {}).forEach(function(k){ var c = pl.zellen[k]; if(c && !c.frei && !c.f) dazu(c.t); });
     });
-    if(fach && fach !== GRUPPE_ALLE_FAECHER && !subjectById(fach)) dazu(fach);
+    if(fach && fach !== GRUPPE_ALLE_FAECHER && !GRUPPE_FACH_SETS[fach] && !subjectById(fach)) dazu(fach);
     namen.sort(function(a,b){ return a.localeCompare(b, 'de'); });
     if(!fachEl.isConnected) return;
     var wert = fachEl.value;
@@ -3671,23 +3748,96 @@ async function gruppeEintraegeNachfuehren(id, ownerKlasse, data){
   }
 }
 
-// Schüler:innen-Sicht im Fach: Übungen der Lehrpersonen meiner Gruppen.
+/* Schüler:innen-Sicht im Fach (seit 27.09.2026): Woher kommen die Übungen?
+   👥 Gruppen dieses Fachs bei anderen Lehrpersonen bringen deren Übungen direkt
+   in die Liste («👥 Bei Strebel»). Ist man im Fach in so einer Gruppe, aber in
+   keiner Gruppe der eigenen Klassenseite (z. B. Englisch bei Strebel statt bei
+   der Klassenlehrperson), wird die eigene Klassenseite im Fach ausgeblendet.
+   «🏫 Alle Fächer»-Gruppen bringen nur Übungen dazu, blenden aber nie aus. */
+function fachQuellen(subjectId){
+  if(state.profile.role === 'teacher' || isLeitung()) return Promise.resolve({fremd:[], ohneEigene:false});
+  return loadMitgliedGruppen().then(function(list){
+    var hier = list.filter(function(g){ return g.ownerKlasse && gruppeHatFach(g, subjectId); });
+    var fremd = [], proSeite = {};
+    hier.forEach(function(g){
+      if(g.ownerKlasse === state.klasse) return;
+      var p = proSeite[g.ownerKlasse];
+      if(!p){ p = proSeite[g.ownerKlasse] = {klasse:g.ownerKlasse, lp:g.ownerName || klasseInfo(g.ownerKlasse).lp, gruppen:[]}; fremd.push(p); }
+      p.gruppen.push(g);
+    });
+    var echt = hier.filter(function(g){ return g.fach !== GRUPPE_ALLE_FAECHER; });
+    var ohneEigene = echt.some(function(g){ return g.ownerKlasse !== state.klasse; }) &&
+      !echt.some(function(g){ return g.ownerKlasse === state.klasse; });
+    return {fremd:fremd, ohneEigene:ohneEigene};
+  }).catch(function(err){ console.error(err); return {fremd:[], ohneEigene:false}; });
+}
+
+// Übungen + Ordner einer anderen Seite in einem Fach (5 Min. zwischengespeichert).
+var fremdeUebCache = {};
+function fremdeUebungen(klasse, subjectId){
+  var key = klasse+'|'+subjectId, c = fremdeUebCache[key];
+  if(c && Date.now() - c.t < 5*60*1000) return c.p;
+  var p = Promise.all([
+    getDocs(query(kcolFor(klasse, 'folders'), where('subject','==',subjectId))),
+    getDocs(query(kcolFor(klasse, 'resources'), where('subject','==',subjectId)))
+  ]).then(function(res){
+    var folders = {}, resources = [];
+    res[0].forEach(function(d){ folders[d.id] = Object.assign({id:d.id}, d.data()); });
+    res[1].forEach(function(d){ var r = Object.assign({id:d.id}, d.data()); if(fuerRolleSichtbar(r) && !r.imHub) resources.push(r); });
+    return {folders:folders, resources:resources};
+  });
+  p.catch(function(){ delete fremdeUebCache[key]; });
+  fremdeUebCache[key] = {t:Date.now(), p:p};
+  return p;
+}
+function uebungIstNeu(r){
+  var t = r.replacedAt || r.uploadedAt;
+  return !!(t && t.toDate) && t.toDate().getTime() > Date.now() - 3*24*3600*1000;
+}
+
+// Zeichnet die Übungen der Gruppen-Lehrpersonen unter die eigene Liste
+// (nur auf der Fach-Hauptebene; state.fachQuellen setzt renderSubject).
 function gruppenFachHtmlLaden(subjectId){
   var box = document.getElementById('gruppenFach');
+  var fq = state.fachQuellen;
   if(!box || state.profile.role === 'teacher') return;
-  loadMitgliedGruppen().then(function(list){
-    var hier = list.filter(function(g){ return gruppeHatFach(g, subjectId) && g.ownerKlasse && g.ownerKlasse !== state.klasse; });
-    if(!hier.length || !document.getElementById('gruppenFach')) return;
-    box.innerHTML = '<div class="section-label">👥 Deine Gruppen</div>' + hier.map(function(g){
-      return '<div class="resource-card"><div class="resource-info"><h4>'+esc(g.name)+'</h4>'+
-        '<div class="resource-meta">Übungen von '+esc(g.ownerName || klasseInfo(g.ownerKlasse).lp)+'</div></div>'+
-        '<div class="resource-actions"><button class="btn btn-primary btn-sm" type="button" data-grfach="'+esc(g.id)+'">Öffnen</button></div></div>';
-    }).join('');
-    box.querySelectorAll('[data-grfach]').forEach(function(b){
-      b.addEventListener('click', function(){
-        state.route = {name:'gruppenfach', gruppeId:b.getAttribute('data-grfach'), subject:subjectId};
-        render();
+  if(!fq || !fq.fremd.length){ box.innerHTML = ''; return; }
+  var gezeigt = {};
+  if(!fq.ohneEigene) (state.resources || []).forEach(function(r){ gezeigt[r.id] = true; });
+  Promise.all(fq.fremd.map(function(p){
+    return fremdeUebungen(p.klasse, subjectId).catch(function(err){ console.error('Gruppen-Übungen ('+p.klasse+')', err); return null; });
+  })).then(function(listen){
+    box = document.getElementById('gruppenFach');
+    if(!box || state.route.name !== 'subject' || state.route.subject !== subjectId) return;
+    var html = '', alle = [];
+    listen.forEach(function(d, i){
+      if(!d) return;
+      var liste = d.resources.filter(function(r){ if(gezeigt[r.id]) return false; gezeigt[r.id] = true; return true; });
+      if(!liste.length) return;
+      var pfad = function(fid){
+        var teile = [], guard = 0, f = d.folders[fid];
+        while(f && guard++ < 20){ teile.unshift(f.name); f = d.folders[f.parentId]; }
+        return teile.join(' / ');
+      };
+      var gruppiert = {};
+      liste.forEach(function(x){ var pf = x.folderId ? pfad(x.folderId) : ''; (gruppiert[pf] = gruppiert[pf] || []).push(x); });
+      var p = fq.fremd[i];
+      html += '<div class="section-label">👥 Bei '+esc(p.lp)+' <span class="muted" style="font-weight:400;">· '+esc(p.gruppen.map(function(g){ return g.name; }).join(', '))+'</span></div>';
+      Object.keys(gruppiert).sort(function(a,b){ return a.localeCompare(b, 'de'); }).forEach(function(pf){
+        var l = gruppiert[pf];
+        sortResources(l);
+        if(pf) html += '<div class="section-label" style="font-weight:500;">📁 '+esc(pf)+'</div>';
+        html += l.map(function(x){ return resourceCardHtml(x, 0, 1, false); }).join('');
+        alle = alle.concat(l);
       });
+    });
+    var listEl = document.getElementById('resourceList');
+    if(!html && listEl && !listEl.innerHTML) html = '<div class="empty-state">Für dieses Fach gibt es noch keine Übung. Schau später wieder vorbei!</div>';
+    box.innerHTML = html;
+    alle.forEach(function(x){
+      if(!x.pdf && !x.externalUrl) watchProgress(x.id, function(pr){ updateResourceBar(x.id, pr); });
+      var b = document.getElementById('open-'+x.id);
+      if(b) b.addEventListener('click', function(){ goResource(x); });
     });
   });
 }
@@ -4557,7 +4707,7 @@ async function loadLernstandUebersicht(){
     return (a.title||a.fileName||'').localeCompare(b.title||b.fileName||'', 'de');
   });
 
-  var students = await loadStudentRoster();
+  var students = await uebRoster(null, true);
 
   var reads = [];
   students.forEach(function(stu){
@@ -4681,12 +4831,13 @@ async function vociUebersicht(fach){
       try{ voc = vociDaten(await loadResourceHtml(resourceContentId(res[i]))); }catch(err){ console.error(err); }
     }
     voc = voc || {woerter:{}, units:[]};
-    var roster = rosterFuerFach(await loadStudentRoster(), fach);
+    var roster = await uebRoster(fach);
     var rows = await Promise.all(roster.map(function(s){
       return Promise.all(res.map(function(r){
         return getDoc(doc(db, 'progress', s.uid, 'resources', r.id)).then(function(d){ return d.exists() ? d.data() : null; }).catch(function(){ return null; });
       })).then(function(docs){ return Object.assign({s:s}, vociAusDocs(docs, pre)); });
     }));
+    rows = uebNurMitStand(rows, function(r){ return Object.keys(r.woerter).length; });
     rows.sort(function(a, b){ return (a.s.displayName || a.s.username || '').localeCompare(b.s.displayName || b.s.username || '', 'de'); });
     // Units zur Auswahl: die, in denen jemand geübt hat (in der Reihenfolge der Datei)
     var geuebtIn = {};
@@ -4697,7 +4848,7 @@ async function vociUebersicht(fach){
     if(filter && !geuebtIn[filter]) filter = '';
 
     function zeichnen(){
-      var woche = {}, h = '<h3>'+esc(titel)+'</h3>';
+      var woche = {}, h = '<h3>'+esc(titel)+'</h3>' + uebKlassenFeld();
       for(var t=0;t<7;t++){ var d = new Date(); d.setDate(d.getDate() - t); woche[localDateStr(d)] = 1; }
       var zeilen = rows.map(function(r){
         var ids = Object.keys(r.woerter).filter(function(id){ return !filter || r.woerter[id].unit === filter; });
@@ -4749,6 +4900,7 @@ async function vociUebersicht(fach){
       h += '<div class="modal-actions"><button class="btn btn-primary btn-sm" id="modalOk" type="button">Schliessen</button></div>';
       openModal(h, 'pr-modal pr-modal-breit');
       document.getElementById('modalOk').addEventListener('click', closeModal);
+      uebKlassenVerdrahten(function(){ vociUebersicht(fach); });
       document.getElementById('vociUnit').addEventListener('change', function(){
         filter = this.value;
         lsSet(LIB_PREFIX + 'voci_unit_' + fach, filter);
@@ -5414,7 +5566,7 @@ function renderLernstandUebersicht(){
 
     var h = '<div class="da-toolbar" style="gap:8px;"><button class="btn btn-ghost btn-sm" id="lsPrintBtn" type="button">🖨️ Drucken</button>'+
       '<button class="btn btn-ghost btn-sm" id="lsCsvBtn" type="button">⬇️ CSV</button>'+
-      '<button class="btn btn-ghost btn-sm" id="lsReloadBtn" type="button">↻ Neu laden</button></div>';
+      '<button class="btn btn-ghost btn-sm" id="lsReloadBtn" type="button">↻ Neu laden</button>'+uebKlassenFeld(true)+'</div>';
     subjectIds.forEach(function(subjId){
       var sub = result.bySubject[subjId] || {resources:[], cell:{}};
       var s = subjectById(subjId);
@@ -5476,6 +5628,7 @@ function renderLernstandUebersicht(){
       d.addEventListener('toggle', function(){ lsFachSetzen(d.getAttribute('data-subj'), d.open); });
     });
     document.getElementById('lsReloadBtn').addEventListener('click', renderLernstandUebersicht);
+    uebKlassenVerdrahten(renderLernstandUebersicht);
     document.getElementById('lsPrintBtn').addEventListener('click', function(){
       // Zugeklappte Fächer stehen nicht im Ausdruck — vorher alle öffnen.
       Array.prototype.forEach.call(body.querySelectorAll('.ls-fach'), function(d){ d.open = true; });
@@ -7121,9 +7274,33 @@ function watchSubjectOverview(subjectId){
     var metaEl = document.getElementById('meta-'+subjectId);
     var barEl = document.getElementById('bar-'+subjectId);
     if(!metaEl || !barEl) return; // navigated away
-    var count = snap.docs.filter(function(d){ return fuerRolleSichtbar(d.data()); }).length;
-    metaEl.textContent = count===0 ? 'Noch keine Übung' : (count+' Übung'+(count===1?'':'en'));
+    var eigene = snap.docs.filter(function(d){ return fuerRolleSichtbar(d.data()) && !d.data().imHub; });
+    function zeigen(count, neuBei){
+      metaEl.textContent = (count===0 ? 'Noch keine Übung' : (count+' Übung'+(count===1?'':'en'))) +
+        (neuBei.length ? ' · 🆕 neu bei '+neuBei.join(', ') : '');
+    }
+    zeigen(eigene.length, []);
     barEl.style.width = '0%';
+    // 👥 Schüler:innen: Übungen der Gruppen-Lehrpersonen mitzählen (wie auf der Fachseite).
+    fachQuellen(subjectId).then(function(fq){
+      if(!fq.fremd.length) return;
+      return Promise.all(fq.fremd.map(function(p){
+        return fremdeUebungen(p.klasse, subjectId).catch(function(){ return null; });
+      })).then(function(listen){
+        if(!document.getElementById('meta-'+subjectId)) return;
+        var ids = {}, neuBei = [];
+        if(!fq.ohneEigene) eigene.forEach(function(d){ ids[d.id] = true; });
+        listen.forEach(function(l, i){
+          if(!l) return;
+          l.resources.forEach(function(r){
+            if(ids[r.id]) return;
+            ids[r.id] = true;
+            if(uebungIstNeu(r) && neuBei.indexOf(fq.fremd[i].lp) < 0) neuBei.push(fq.fremd[i].lp);
+          });
+        });
+        zeigen(Object.keys(ids).length, neuBei);
+      });
+    }).catch(function(err){ console.error(err); });
   }, function(err){ console.error(err); });
 }
 function clearOverviewWatchers(){
@@ -9049,7 +9226,6 @@ function renderSubject(subjectId, folderId){
 
   renderChrome(html);
   document.getElementById('backBtn').addEventListener('click', goHome);
-  if(!isTeacher && !isLeitung()) gruppenFachHtmlLaden(subjectId);
   var diktatAnalyseBtn = document.getElementById('diktatAnalyseBtn');
   if(diktatAnalyseBtn){
     diktatAnalyseBtn.addEventListener('click', function(){
@@ -9073,11 +9249,19 @@ function renderSubject(subjectId, folderId){
   }
 
   var isLmvz = subjectId === LMVZ_SUBJECT;
-  var loaded = {res:false, fold:false, lmvz:!isLmvz, kk:false, kzm:!isTeacher || isLeitung()};
+  var loaded = {res:false, fold:false, lmvz:!isLmvz, kk:false, kzm:!isTeacher || isLeitung(), gr:isTeacher || isLeitung()};
   function maybeRender(){
-    if(!(loaded.res && loaded.fold && loaded.lmvz && loaded.kk && loaded.kzm)) return;
+    if(!(loaded.res && loaded.fold && loaded.lmvz && loaded.kk && loaded.kzm && loaded.gr)) return;
     if(isLmvz) lmvzMovePythagoras();
     renderFolderContents();
+    if(!isTeacher && !isLeitung()) gruppenFachHtmlLaden(subjectId);
+  }
+  // 👥 Schüler:innen: Übungen der Gruppen-Lehrpersonen dazu, evtl. eigene Klasse ausblenden.
+  state.fachQuellen = null;
+  if(!loaded.gr){
+    fachQuellen(subjectId).then(function(fq){
+      if(state.route.name === 'subject' && state.route.subject === subjectId) state.fachQuellen = fq;
+    }).then(function(){ loaded.gr = true; maybeRender(); });
   }
   // Karteikarten-Sets der Klasse (nach dem ersten Mal aus dem Zwischenspeicher).
   kkLoad().then(function(){
@@ -9172,12 +9356,19 @@ function renderFolderContents(){
   var folders = foldersIn(here);
   // imHub: SIKORE und Tipptrainer stehen im ⚡ Übungstrainer, nicht noch einmal im Fach.
   var resources = resourcesIn(here).filter(function(r){ return !r.imHub; });
+  // 👥 Unterrichtet eine andere Lehrperson das Fach (Gruppe), bleibt die eigene Klassenseite weg.
+  var fq = !isTeacher && state.fachQuellen;
+  if(fq && fq.ohneEigene){
+    folders = folders.filter(function(f){ return f.virtual; });
+    resources = resources.filter(function(r){ return r.virtual; });
+  }
   // Virtuelle LMVZ-Einträge lassen sich weder sortieren noch bearbeiten —
   // Pfeile/Nummern gelten nur unter den echten Einträgen.
   var realFolders = folders.filter(function(f){ return !f.virtual; });
   var realResources = resources.filter(function(r){ return !r.virtual; });
 
   if(!folders.length && !resources.length){
+    if(fq && fq.fremd.length && !here){ listEl.innerHTML = ''; return; }   // Gruppen-Übungen folgen darunter
     listEl.innerHTML = '<div class="empty-state">'+
       (here ? 'Dieser Ordner ist noch leer.' : 'Für dieses Fach gibt es noch keine Übung.')+
       (isTeacher ? ' Lade oben eine Datei hoch oder lege einen Ordner an.' : ' Schau später wieder vorbei!')+
@@ -15820,6 +16011,10 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-09-27-gruppen-im-fach', datum:'2026-09-27', fuer:'alle', text:'👥 Hast du ein Fach bei einer anderen Lehrperson (z. B. Englisch oder Sport), findest du ihre Übungen jetzt direkt im Fach unter «👥 Bei …». Auf der Startseite steht «🆕», wenn sie etwas Neues hochgeladen hat.'},
+  {id:'2026-09-27-gruppen-stundenplan', datum:'2026-09-27', fuer:'lehrer', text:'👥 Alle Gruppen der Schule sind jetzt aus der Gruppen-Excel und dem Stundenplan (1. Semester) eingerichtet – Niveaugruppen, Halbklassen, Wahlfächer und Fächer, die eine ganze Klasse bei dir hat. Deine Schüler:innen sehen im Fach deine Übungen; die Übungen der Klassenseite blenden sich in diesem Fach aus. Neu gibt es die Gruppenfächer NT und RZG (mehrere Fächer zusammen). Unter 👥 Meine Gruppen kannst du alles anpassen.'},
+  {id:'2026-09-27-uebersicht-klassenwahl', datum:'2026-09-27', fuer:'lehrer', text:'📊 Klassenübersichten (Karteikarten, Trainer, SIKORE, Tipptrainer, Voci) und 📈 Lernstand zeigen zuerst nur deine Klasse. Oben bei «Klasse» kannst du eine andere Klasse wählen oder «🌍 Alle Klassen» – dann kommen alle aus anderen Klassen dazu, die das schon geübt haben (im Lernstand eine Klasse aufs Mal).'},
+  {id:'2026-09-27-uebung-ordnermenu', datum:'2026-09-27', fuer:'lehrer', text:'📁 «➕ Neue Prüfung»: Die Übung wählst du jetzt in einem Ordner-Menü statt in einer langen Liste – Fach › Ordner › Übung, die Ordner gehen beim Darüberfahren auf (Tippen geht auch).'},
   {id:'2026-09-27-pruefung-verraet-nichts', datum:'2026-09-27', fuer:'lehrer', text:'🕵️ Prüfungen: Keine Aufgabe verrät mehr die Antwort einer anderen (z. B. «Welcher Kanton ist markiert?» und «Hauptort von Aargau?» mit demselben Kanton). Beim Zusammenstellen wird so eine Aufgabe weggelassen; im 🧩 Baukasten steht eine ⚠️-Warnung. Pöstlergeografie und Bildtrainer brauchen dafür die neue Fassung der Übung.'},
   {id:'2026-09-27-pruefung-zusatzmaterial', datum:'2026-09-27', fuer:'alle', text:'📝 Prüfungen im Fach-Ordner stehen jetzt unten beim Zusatzmaterial – ab zwei Stück in einem eigenen Ordner «📝 Prüfungen».'},
   {id:'2026-09-27-pruefung-ganze-klasse', datum:'2026-09-27', fuer:'lehrer', text:'📝 Prüfung für «Ganze Klasse»: In der Übersicht erscheinen nur noch die Schüler:innen dieser Klasse – keine Gruppen-Mitglieder aus anderen Klassen mehr (die sind nur dabei, wenn du unter «Für» die 👥 Gruppe wählst).'},
@@ -22743,6 +22938,166 @@ function pruefFuerDaten(p){
   return {};
 }
 
+/* ---------- 📁 Übungswahl als Ordner-Menü ----------
+   Statt einer langen <select>-Liste: Knopf → Spalten wie im Finder
+   (Fach › Ordner › Unterordner › Übung), die beim Darüberfahren aufgehen
+   (Tippen geht auch). Das <select> bleibt versteckt im Dialog und ist die
+   einzige Quelle für den gewählten Wert — der bestehende Code liest weiter
+   sel.value und hört auf 'change'. ordner = alle folders der Klasse. */
+function uebungOrdnerMenu(sel, uebungen, ordner, extras){
+  if(!sel) return;
+  var fMap = {};
+  (ordner || []).forEach(function(f){ fMap[f.id] = f; });
+  var fachName = function(r){ var s = subjectById(r.subject); return s ? s.name : (r.subject || 'Ohne Fach'); };
+  var knoten = function(name, icon){ return {name:name, icon:icon, kinder:{}, ordnerListe:[], items:[], order:0}; };
+  var wurzel = knoten('', '');
+  function fachKnoten(fn){ return wurzel.kinder[fn] || (wurzel.kinder[fn] = knoten(fn, '📚')); }
+  function ordnerKnoten(fk, fid){
+    // Pfad aus parentId-Kette; fehlende Ordner (gelöscht, anderes Fach) → Fach-Hauptebene
+    var kette = [], f = fMap[fid], guard = 0;
+    while(f && guard++ < 20){ kette.unshift(f); f = f.parentId ? fMap[f.parentId] : null; }
+    var k = fk;
+    kette.forEach(function(o){
+      var key = 'f:' + o.id;
+      if(!k.kinder[key]){ k.kinder[key] = knoten(o.name || 'Ordner', '📁'); k.kinder[key].order = o.order || 0; }
+      k = k.kinder[key];
+    });
+    return k;
+  }
+  var alle = uebungen.slice();
+  (extras || []).forEach(function(x){ alle.push(x); });
+  alle.forEach(function(r){
+    var fk = fachKnoten(r.fachName || fachName(r)), k = fk;
+    if(r.kkSet){ k = fk.kinder['kk'] || (fk.kinder['kk'] = knoten('Karteikarten-Sets', '🗂️')); k.order = 1e9; }
+    else if(r.folderId) k = ordnerKnoten(fk, r.folderId);
+    k.items.push(r);
+  });
+  function sortieren(k){
+    var keys = Object.keys(k.kinder);
+    keys.forEach(function(key){ sortieren(k.kinder[key]); });
+    k.ordnerListe = keys.map(function(key){ return k.kinder[key]; }).sort(function(a, b){
+      return k === wurzel ? a.name.localeCompare(b.name, 'de') : (a.order - b.order) || a.name.localeCompare(b.name, 'de', {numeric:true});
+    });
+  }
+  sortieren(wurzel);
+  function titel(r){ return r.title || r.fileName || r.id; }
+  function pfadZu(id){
+    var weg = [];
+    (function such(k){
+      if(k.items.some(function(r){ return r.id === id; })) return true;
+      for(var i = 0; i < k.ordnerListe.length; i++){ weg.push(k.ordnerListe[i]); if(such(k.ordnerListe[i])) return true; weg.pop(); }
+      return false;
+    })(wurzel);
+    return weg;
+  }
+  function anzahl(k){ return k.items.length + k.ordnerListe.reduce(function(s, c){ return s + anzahl(c); }, 0); }
+
+  var knopf = document.createElement('button');
+  knopf.type = 'button'; knopf.className = 'uom-knopf modal-input'; knopf.setAttribute('aria-haspopup', 'true');
+  sel.hidden = true;
+  sel.parentNode.insertBefore(knopf, sel);
+  function beschriften(){
+    var r = alle.find(function(x){ return x.id === sel.value; });
+    if(!r){ knopf.innerHTML = '<span class="uom-leer">– Übung wählen –</span><span class="uom-pfeil">▾</span>'; return; }
+    var weg = pfadZu(r.id).map(function(k){ return esc(k.name); }).join(' <span class="uom-sep">›</span> ');
+    knopf.innerHTML = '<span class="uom-wahl"><span class="uom-pfad">'+weg+'</span><b>'+esc(titel(r))+'</b></span><span class="uom-pfeil">▾</span>';
+  }
+  beschriften();
+  sel.addEventListener('change', beschriften);
+
+  var panel = null, offen = [], timer = 0;
+  function schliessen(){
+    clearTimeout(timer);
+    if(panel && panel.parentNode) panel.parentNode.removeChild(panel);
+    panel = null; offen = [];
+    knopf.classList.remove('offen');
+    document.removeEventListener('mousedown', aussen, true);
+    window.removeEventListener('resize', platzieren);
+    var m = knopf.closest('.modal'); if(m) m.removeEventListener('scroll', platzieren);
+  }
+  function aussen(e){
+    if(!document.body.contains(knopf)){ schliessen(); return; }
+    if(panel && !panel.contains(e.target) && !knopf.contains(e.target)) schliessen();
+  }
+  function platzieren(){
+    if(!panel) return;
+    if(!document.body.contains(knopf)){ schliessen(); return; }
+    var b = knopf.getBoundingClientRect(), vh = window.innerHeight, vw = window.innerWidth;
+    var unten = vh - b.bottom - 12, oben = b.top - 12, nachOben = unten < 260 && oben > unten;
+    var h = Math.max(160, Math.min(440, nachOben ? oben : unten));
+    panel.style.setProperty('--uom-h', h + 'px');
+    panel.style.maxWidth = (vw - 16) + 'px';
+    var w = panel.offsetWidth, x = Math.min(b.left, vw - 8 - w);
+    panel.style.left = Math.max(8, x) + 'px';
+    panel.style.top = nachOben ? '' : (b.bottom + 4) + 'px';
+    panel.style.bottom = nachOben ? (vh - b.top + 4) + 'px' : '';
+  }
+  function spalteHtml(k, tiefe){
+    var h = '<div class="uom-spalte" data-tiefe="'+tiefe+'">';
+    k.ordnerListe.forEach(function(c, i){
+      var aktiv = offen[tiefe] === c;
+      h += '<button type="button" class="uom-eintrag uom-ordner'+(aktiv ? ' aktiv' : '')+'" data-o="'+i+'"><span>'+c.icon+'</span><span class="uom-name">'+esc(c.name)+'</span><span class="uom-zahl">'+anzahl(c)+'</span><span class="uom-pfeil">›</span></button>';
+    });
+    if(k.ordnerListe.length && k.items.length) h += '<div class="uom-trenn"></div>';
+    k.items.forEach(function(r){
+      h += '<button type="button" class="uom-eintrag uom-uebung'+(r.id === sel.value ? ' gewaehlt' : '')+'" data-id="'+esc(r.id)+'"><span class="uom-name">'+esc(titel(r))+'</span></button>';
+    });
+    return h + '</div>';
+  }
+  function zeichnen(){
+    if(!panel) return;
+    var h = spalteHtml(wurzel, 0);
+    offen.forEach(function(k, i){ h += spalteHtml(k, i + 1); });
+    var alt = Array.prototype.map.call(panel.querySelectorAll('.uom-spalte'), function(s){ return s.scrollTop; });
+    panel.innerHTML = h;
+    Array.prototype.forEach.call(panel.querySelectorAll('.uom-spalte'), function(s, i){ if(alt[i]) s.scrollTop = alt[i]; });
+    platzieren();
+    panel.scrollLeft = panel.scrollWidth;   // schmaler Bildschirm: neueste Spalte zeigen
+  }
+  function oeffneOrdner(tiefe, i){
+    var eltern = tiefe === 0 ? wurzel : offen[tiefe - 1], k = eltern && eltern.ordnerListe[i];
+    if(!k || offen[tiefe] === k && offen.length === tiefe + 1) return;
+    offen = offen.slice(0, tiefe); offen[tiefe] = k;
+    zeichnen();
+  }
+  function oeffnen(){
+    schliessen();
+    panel = document.createElement('div');
+    panel.className = 'uom-panel'; panel.setAttribute('role', 'menu');
+    (knopf.closest('.modal-overlay') || document.body).appendChild(panel);
+    offen = sel.value ? pfadZu(sel.value) : [];
+    knopf.classList.add('offen');
+    zeichnen();
+    var g = panel.querySelector('.gewaehlt'); if(g) g.scrollIntoView({block:'nearest'});
+    panel.addEventListener('mouseover', function(e){
+      var o = e.target.closest('.uom-ordner'), sp = e.target.closest('.uom-spalte');
+      clearTimeout(timer);
+      if(!sp) return;
+      var tiefe = +sp.getAttribute('data-tiefe');
+      if(o){ var i = +o.getAttribute('data-o'); timer = setTimeout(function(){ oeffneOrdner(tiefe, i); }, 140); }
+      else if(e.target.closest('.uom-uebung') && offen.length > tiefe){
+        // auf eine Übung in einer linken Spalte gezeigt → rechte Spalten zu
+        timer = setTimeout(function(){ offen = offen.slice(0, tiefe); zeichnen(); }, 220);
+      }
+    });
+    panel.addEventListener('click', function(e){
+      var o = e.target.closest('.uom-ordner'), u = e.target.closest('.uom-uebung');
+      if(o){ clearTimeout(timer); oeffneOrdner(+o.closest('.uom-spalte').getAttribute('data-tiefe'), +o.getAttribute('data-o')); return; }
+      if(u){
+        sel.value = u.getAttribute('data-id');
+        schliessen();
+        sel.dispatchEvent(new Event('change'));
+        knopf.focus();
+      }
+    });
+    panel.addEventListener('keydown', function(e){ if(e.key === 'Escape'){ e.stopPropagation(); schliessen(); knopf.focus(); } });
+    document.addEventListener('mousedown', aussen, true);
+    window.addEventListener('resize', platzieren);
+    var m = knopf.closest('.modal'); if(m) m.addEventListener('scroll', platzieren);
+  }
+  knopf.addEventListener('click', function(){ if(panel) schliessen(); else oeffnen(); });
+}
+
 /* ---------- Lehrperson: Prüfung anlegen / bearbeiten ---------- */
 
 async function pruefEditor(p, vorwahl){
@@ -22751,8 +23106,9 @@ async function pruefEditor(p, vorwahl){
   var token = ++prEditorToken, kopf = pruefKopfHtml('uebung', neu);
   openModal('<h3>'+(neu ? '➕ Neue Prüfung' : '✏️ Prüfung bearbeiten')+'</h3>'+kopf+'<p>Übungen werden geladen …</p>', 'pr-modal');
   if(neu) pruefKopfVerdrahten('uebung');
-  var uebungen = [];
+  var uebungen = [], ordner = [];
   if(!fragenFix){
+    try{ (await getDocs(kcol('folders'))).forEach(function(d){ ordner.push(Object.assign({id:d.id}, d.data())); }); }catch(err){ console.error(err); }
     try{
       var snap = await getDocs(kcol('resources'));
       snap.forEach(function(d){
@@ -23042,6 +23398,7 @@ async function pruefEditor(p, vorwahl){
     });
   }
   if(sel && vorwahl && !p && !sel.value && uebungen.some(function(u){ return u.id === vorwahl; })) sel.value = vorwahl;
+  if(sel) uebungOrdnerMenu(sel, uebungen, ordner, neu ? [{id:'__rsw', title:'✍️ Rechtschreib-Werkstatt (Posten wählen)', fachName:'Deutsch'}] : []);
   if(sel){ sel.addEventListener('change', function(){ if(sel.value === '__rsw'){ rswPrEditor(null); return; } uebungGewaehlt(false); }); if(sel.value) uebungGewaehlt(true); }
 
   okBtn.addEventListener('click', async function(){
@@ -23180,7 +23537,8 @@ async function pruefImportEditor(){
   var token = ++prEditorToken, kopf = pruefKopfHtml('import', true);
   openModal('<h3>➕ Neue Prüfung</h3>'+kopf+'<p>Übungen werden geladen …</p>', 'pr-modal');
   pruefKopfVerdrahten('import');
-  var uebungen = [];
+  var uebungen = [], ordner = [];
+  try{ (await getDocs(kcol('folders'))).forEach(function(d){ ordner.push(Object.assign({id:d.id}, d.data())); }); }catch(err){ console.error(err); }
   try{
     (await getDocs(kcol('resources'))).forEach(function(d){
       var r = Object.assign({id:d.id}, d.data()), s = subjectById(r.subject);
@@ -23218,6 +23576,7 @@ async function pruefImportEditor(){
   pruefFuerLaden();
   document.getElementById('modalCancel').addEventListener('click', closeModal);
   var okBtn = document.getElementById('modalOk'), cfg = null, dateiName = '', seed = Math.floor(Math.random() * 2147483646) + 1;
+  uebungOrdnerMenu(document.getElementById('prUebung'), uebungen, ordner);
   function bereit(){ okBtn.disabled = !(cfg && document.getElementById('prUebung').value); }
   document.getElementById('prUebung').addEventListener('change', function(){
     var r = uebungen.find(function(u){ return u.id === this.value; }, this), fEl = document.getElementById('prFach');
@@ -25589,17 +25948,18 @@ function sikoreAufstiegFeiern(pid, alt, neu){
 async function sikoreUebersicht(){
   openModal('<h3>📊 SIKORE – Klassenübersicht</h3><p>Wird geladen …</p>', 'pr-modal pr-modal-breit');
   try{
-    var roster = rosterFuerFach(await loadStudentRoster(), 'mathe');
+    var roster = await uebRoster('mathe');
     var vorschlag = await sikoreVorschlaege(null), zug = {};
     pruef.list.filter(function(p){ return p.art === 'sikore'; }).sort(function(a, b){ return pruefMs(a.createdAt) - pruefMs(b.createdAt); })
       .forEach(function(p){ Object.keys(p.levels || {}).forEach(function(u){ zug[u] = +p.levels[u]; }); });
     var stats = await Promise.all(roster.map(function(s){
       return getDoc(sikoreStatsRef(s.uid)).then(function(d){ return d.exists() && d.data().sikore ? sikoreStatsNorm(d.data().sikore) : null; }).catch(function(){ return null; });
     }));
-    var rows = roster.map(function(s, i){ return {s:s, st:stats[i], v:vorschlag[s.uid], lv:vorschlag[s.uid] ? vorschlag[s.uid].neu : zug[s.uid] || null}; });
+    var rows = uebNurMitStand(roster.map(function(s, i){ return {s:s, st:stats[i], v:vorschlag[s.uid], lv:vorschlag[s.uid] ? vorschlag[s.uid].neu : zug[s.uid] || null}; }), function(r){ return r.st; });
     rows.sort(function(a, b){ return (a.s.displayName || a.s.username || '').localeCompare(b.s.displayName || b.s.username || '', 'de'); });
     var aktiv = rows.filter(function(r){ return r.st && r.st.wReihen; }).length, ziel = rows.filter(function(r){ return r.st && r.st.wFehlerfrei >= r.st.ziel; }).length;
     var h = '<h3>📊 SIKORE – Klassenübersicht</h3>';
+    h += uebKlassenFeld();
     h += '<div class="pr-zahlen"><div><b>'+aktiv+' / '+rows.length+'</b><span>haben diese Woche geübt</span></div><div><b>'+ziel+'</b><span>Wochenziel erreicht</span></div></div>';
     h += '<p class="pr-hinweis">«Level» = aktuelles Level aus den SIKORE-Prüfungen (mit Auf-/Abstieg). «Übt auf» = zuletzt im Trainer geübt. Bestzeit = Tempo-Modus, eine fehlerfreie Reihe auf dem Übungslevel.</p>';
     h += '<div class="sk-ueb"><div class="sk-ueb-row sk-ueb-kopf"><span>Name</span><span>Level</span><span>Übt auf</span><span>Diese Woche</span><span>Total</span><span>Bestzeit</span><span>Zuletzt</span></div>';
@@ -25615,6 +25975,7 @@ async function sikoreUebersicht(){
     h += '</div><div class="modal-actions"><button class="btn btn-primary btn-sm" id="modalOk" type="button">Schliessen</button></div>';
     openModal(h, 'pr-modal pr-modal-breit');
     document.getElementById('modalOk').addEventListener('click', closeModal);
+    uebKlassenVerdrahten(function(){ sikoreUebersicht(); });
   }catch(err){ console.error(err); closeModal(); toast('Übersicht konnte nicht geladen werden.'); }
 }
 
@@ -26669,7 +27030,7 @@ function kkSchwereKarten(set, rows){
 async function kkUebersicht(set){
   openModal('<h3>📊 '+esc(set.titel)+' – Klassenübersicht</h3><p>Wird geladen …</p>', 'pr-modal pr-modal-breit');
   try{
-    var roster = rosterFuerFach(await loadStudentRoster(), set.fach);
+    var roster = await uebRoster(set.fach);
     var daten = await Promise.all(roster.map(function(s){
       return Promise.all([
         getDoc(kkStandRef(s.uid, set.id)).then(function(d){
@@ -26680,11 +27041,12 @@ async function kkUebersicht(set){
         }).catch(function(){ return {}; })
       ]);
     }));
-    var rows = roster.map(function(s, i){ return {s:s, st:daten[i][0], serie:kkSerieAktuell(daten[i][1])}; });
+    var rows = uebNurMitStand(roster.map(function(s, i){ return {s:s, st:daten[i][0], serie:kkSerieAktuell(daten[i][1])}; }), function(r){ return r.st; });
     rows.sort(function(a, b){ return (a.s.displayName || a.s.username || '').localeCompare(b.s.displayName || b.s.username || '', 'de'); });
     var geuebt = rows.filter(function(r){ return r.st && r.st.wRichtig; }).length;
     var brennt = rows.filter(function(r){ return r.serie > 0; }).length;
     var h = '<h3>📊 '+esc(set.titel)+' – Klassenübersicht</h3>';
+    h += uebKlassenFeld();
     h += '<div class="pr-zahlen"><div><b>'+geuebt+' / '+rows.length+'</b><span>haben diese Woche geübt</span></div>'+
       '<div><b>🔥 '+brennt+'</b><span>mit laufender Voci-Serie</span></div>'+
       '<div><b>'+set.karten.length+'</b><span>Karten im Set</span></div></div>';
@@ -26717,6 +27079,7 @@ async function kkUebersicht(set){
     openModal(h, 'pr-modal pr-modal-breit');
     document.getElementById('modalOk').addEventListener('click', closeModal);
     document.getElementById('kkUebTest').addEventListener('click', function(){ kkVociTest(set); });
+    uebKlassenVerdrahten(function(){ kkUebersicht(set); });
   }catch(err){ console.error(err); closeModal(); toast('Übersicht konnte nicht geladen werden.'); }
 }
 
@@ -29086,15 +29449,16 @@ function mtTempoZeichnen(){
 async function mtUebersicht(def){
   openModal('<h3>📊 '+esc(def.icon+' '+def.name)+' – Klassenübersicht</h3><p>Wird geladen …</p>', 'pr-modal pr-modal-breit');
   try{
-    var roster = rosterFuerFach(await loadStudentRoster(), def.fach);
+    var roster = await uebRoster(def.fach);
     var stats = await Promise.all(roster.map(function(s){
       return getDoc(mtStatsRef(s.uid, def.id)).then(function(d){ return d.exists() && d.data().mt ? mtStatsNorm(d.data().mt) : null; }).catch(function(){ return null; });
     }));
-    var rows = roster.map(function(s, i){ return {s:s, st:stats[i]}; });
+    var rows = uebNurMitStand(roster.map(function(s, i){ return {s:s, st:stats[i]}; }), function(r){ return r.st; });
     rows.sort(function(a, b){ return (a.s.displayName || a.s.username || '').localeCompare(b.s.displayName || b.s.username || '', 'de'); });
     var aktiv = rows.filter(function(r){ return r.st && r.st.wAufgaben; }).length;
     var ziel = rows.filter(function(r){ return r.st && r.st.wRichtig >= r.st.ziel; }).length;
     var h = '<h3>📊 '+esc(def.icon+' '+def.name)+' – Klassenübersicht</h3>';
+    h += uebKlassenFeld();
     h += '<div class="pr-zahlen"><div><b>'+aktiv+' / '+rows.length+'</b><span>haben diese Woche geübt</span></div><div><b>'+ziel+'</b><span>Wochenziel erreicht</span></div></div>';
     h += '<p class="pr-hinweis">«Übt auf» = Level der letzten Runde. «Quote» = richtige Antworten insgesamt. Bestzeit = Tempo-Modus, eine fehlerfreie Runde auf dem Übungslevel.</p>';
     h += '<div class="sk-ueb"><div class="sk-ueb-row mt-ueb-row sk-ueb-kopf"><span>Name</span><span>Übt auf</span><span>Diese Woche</span><span>Quote</span><span>Bestzeit</span><span>Zuletzt</span></div>';
@@ -29110,6 +29474,7 @@ async function mtUebersicht(def){
     h += '</div><div class="modal-actions"><button class="btn btn-primary btn-sm" id="modalOk" type="button">Schliessen</button></div>';
     openModal(h, 'pr-modal pr-modal-breit');
     document.getElementById('modalOk').addEventListener('click', closeModal);
+    uebKlassenVerdrahten(function(){ mtUebersicht(def); });
   }catch(err){ console.error(err); closeModal(); toast('Übersicht konnte nicht geladen werden.'); }
 }
 
@@ -30977,14 +31342,15 @@ function tippStatsLaden(){
 async function tippUebersicht(){
   openModal('<h3>📊 Tipptrainer – Klassenübersicht</h3><p>Wird geladen …</p>', 'pr-modal pr-modal-breit');
   try{
-    var roster = rosterFuerFach(await loadStudentRoster(), TIPP_SUBJECT);
+    var roster = await uebRoster(TIPP_SUBJECT);
     var stats = await Promise.all(roster.map(function(s){
       return getDoc(tippStatsRef(s.uid)).then(function(d){ return d.exists() && d.data().tippen ? tippStatsNorm(d.data().tippen) : null; }).catch(function(){ return null; });
     }));
-    var rows = roster.map(function(s, i){ return {s:s, st:stats[i]}; });
+    var rows = uebNurMitStand(roster.map(function(s, i){ return {s:s, st:stats[i]}; }), function(r){ return r.st; });
     rows.sort(function(a, b){ return (a.s.displayName || a.s.username || '').localeCompare(b.s.displayName || b.s.username || '', 'de'); });
     var aktiv = rows.filter(function(r){ return r.st && r.st.wDurchg; }).length, ziel = rows.filter(function(r){ return r.st && r.st.wMs >= r.st.ziel * 60000; }).length;
     var h = '<h3>📊 Tipptrainer – Klassenübersicht</h3>';
+    h += uebKlassenFeld();
     h += '<div class="pr-zahlen"><div><b>'+aktiv+' / '+rows.length+'</b><span>haben diese Woche geübt</span></div><div><b>'+ziel+'</b><span>Wochenziel erreicht</span></div></div>';
     h += '<p class="pr-hinweis">«Lektion» = höchste bestandene von '+TIPP_LEKTIONEN.length+'. Tempo und Genauigkeit = Durchschnitt der letzten drei Texte (Anschläge pro Minute).</p>';
     h += '<div class="sk-ueb"><div class="sk-ueb-row tt-ueb-row sk-ueb-kopf"><span>Name</span><span>Lektion</span><span>Tempo</span><span>Genauigkeit</span><span>Diese Woche</span><span>Total</span><span>Zuletzt</span></div>';
@@ -31003,6 +31369,7 @@ async function tippUebersicht(){
     h += '</div><div class="modal-actions"><button class="btn btn-primary btn-sm" id="modalOk" type="button">Schliessen</button></div>';
     openModal(h, 'pr-modal pr-modal-breit');
     document.getElementById('modalOk').addEventListener('click', closeModal);
+    uebKlassenVerdrahten(function(){ tippUebersicht(); });
   }catch(err){ console.error(err); closeModal(); toast('Übersicht konnte nicht geladen werden.'); }
 }
 
