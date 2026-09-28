@@ -2906,8 +2906,12 @@ function weekdayLabel(dateStr){
   return d.toLocaleDateString('de-CH', {weekday:'long'});
 }
 
-async function loadCalendarEntries(){
-  var snap = await getDocs(kcol('calendarEntries'));
+// Mit `ab` ('YYYY-MM-DD') nur die Einträge ab diesem Datum: die Collection wächst
+// das ganze Schuljahr, und jeder Eintrag kostet bei jedem Laden einen
+// Lesezugriff. Ein einzelnes where() auf dueDate braucht keinen Composite Index.
+// Ohne `ab` kommt alles (Vergessen-Zähler, «Ältere Einträge laden»).
+async function loadCalendarEntries(ab){
+  var snap = await getDocs(ab ? query(kcol('calendarEntries'), where('dueDate','>=',ab)) : kcol('calendarEntries'));
   var out = [];
   snap.forEach(function(d){ out.push(Object.assign({id:d.id}, d.data())); });
   out.sort(function(a,b){
@@ -2932,11 +2936,11 @@ function calendarEntryRef(entry){
 }
 
 // Klassen-Einträge + (für Schüler:innen) die eigenen, gemeinsam sortiert.
-async function loadMyCalendarEntries(){
-  var jobs = [loadCalendarEntries()];
+async function loadMyCalendarEntries(ab){
+  var jobs = [loadCalendarEntries(ab)];
   var schueler = state.profile.role !== 'teacher';
   if(schueler){
-    jobs.push(getDocs(eigeneEintraegeCol()).then(function(snap){
+    jobs.push(getDocs(ab ? query(eigeneEintraegeCol(), where('dueDate','>=',ab)) : eigeneEintraegeCol()).then(function(snap){
       var out = [];
       snap.forEach(function(d){ out.push(Object.assign({id:d.id}, d.data(), {private:true})); });
       return out;
@@ -2951,6 +2955,9 @@ async function loadMyCalendarEntries(){
   var nurFach = schueler && state.profile.nurFach;
   if(nurFach) res[0] = res[0].filter(function(e){ return e.subject === nurFach; });
   var all = res[0].concat(res[1] || [], res[2] || []);
+  // Gruppen-Einträge anderer Seiten kommen über array-contains — ein zweites
+  // where() auf dueDate bräuchte einen Index, darum hier gefiltert.
+  if(ab) all = all.filter(function(e){ return (e.dueDate || '') >= ab; });
   all.sort(function(a,b){
     if(a.dueDate !== b.dueDate) return (a.dueDate||'').localeCompare(b.dueDate||'');
     return (a.createdAt && a.createdAt.toMillis ? a.createdAt.toMillis() : 0) - (b.createdAt && b.createdAt.toMillis ? b.createdAt.toMillis() : 0);
@@ -4212,6 +4219,10 @@ function wireCalendarEntryActions(container, entries, isTeacher, onChanged, rost
   });
 }
 
+// Der Kalender lädt nur die letzten KAL_VERGANGEN_TAGE Tage und alles Kommende;
+// ältere Einträge erst auf Knopfdruck (kal.alle, gilt bis man den Kalender verlässt).
+var KAL_VERGANGEN_TAGE = 28;
+var kal = { alle:false, vergangenOffen:false };
 function renderKalender(){
   clearSubjectWatchers(); clearOverviewWatchers(); unwatchAllProgress();
   var isTeacher = state.profile.role === 'teacher';
@@ -4228,7 +4239,8 @@ function renderKalender(){
   var grBtn = document.getElementById('calGruppenBtn');
   if(grBtn){ grBtn.addEventListener('click', function(){ openGruppenVerwaltung(renderKalender); }); }
 
-  Promise.all([loadMyCalendarEntries(), isTeacher ? loadStudentRoster() : Promise.resolve(null), erledigtLoad(), earlybirdKalenderLaden()]).then(function(res){
+  var alle = kal.alle;
+  Promise.all([loadMyCalendarEntries(alle ? null : addDaysStr(-KAL_VERGANGEN_TAGE)), isTeacher ? loadStudentRoster() : Promise.resolve(null), erledigtLoad(), earlybirdKalenderLaden()]).then(function(res){
     var entries = res[0], roster = res[1], earlybird = res[3];
     var body = document.getElementById('kalenderBody');
     if(!body) return;
@@ -4239,19 +4251,24 @@ function renderKalender(){
     var ferienPast = [];
     var h = '';
     if(!upcoming.length && !past.length && !ferienUpcoming.length && !ferienPast.length && !earlybird.length){
-      h += '<div class="empty-state">Noch keine Einträge. Leg oben den ersten an.</div>';
+      h += '<div class="empty-state">'+(alle ? 'Noch keine Einträge. Leg oben den ersten an.' : 'Keine aktuellen Einträge.')+'</div>';
     }
     if(upcoming.length || ferienUpcoming.length || earlybird.length){
       h += '<div class="cal-list">'+calendarWithFerienHtml(upcoming, ferienUpcoming, isTeacher, roster, false, earlybird)+'</div>';
     } else if(past.length || ferienPast.length){
       h += '<div class="empty-state">Keine anstehenden Einträge mehr.</div>';
     }
-    if(past.length || ferienPast.length){
-      h += '<details class="cal-past-details" style="margin-top:26px;"><summary>Vergangen ('+past.length+')</summary>';
+    if(past.length || ferienPast.length || !alle){
+      h += '<details class="cal-past-details" id="calPast" style="margin-top:26px;"'+(kal.vergangenOffen ? ' open' : '')+'><summary>Vergangen ('+(alle ? past.length : past.length+', letzte '+Math.round(KAL_VERGANGEN_TAGE/7)+' Wochen')+')</summary>';
       h += '<div class="cal-list cal-list-past">'+calendarWithFerienHtml(past, ferienPast, isTeacher, roster, true)+'</div>';
+      if(!alle) h += '<button class="btn btn-ghost btn-sm" id="calAeltereBtn" type="button" style="margin-top:10px;">Ältere Einträge laden</button>';
       h += '</details>';
     }
     body.innerHTML = h;
+    var pastEl = document.getElementById('calPast');
+    if(pastEl) pastEl.addEventListener('toggle', function(){ kal.vergangenOffen = pastEl.open; });
+    var aeltereBtn = document.getElementById('calAeltereBtn');
+    if(aeltereBtn) aeltereBtn.addEventListener('click', function(){ kal.alle = true; kal.vergangenOffen = true; renderKalender(); });
     var icsBtn = document.getElementById('calIcsBtn');
     if(icsBtn) icsBtn.addEventListener('click', function(){ openKalenderExport(entries); });
     wireCalendarEntryActions(body, entries, isTeacher, renderKalender, roster);
@@ -6850,6 +6867,7 @@ function doLogout(){
   Object.values(state.progressUnsubs).forEach(function(fn){ try{fn();}catch(e){} });
   state.progressUnsubs = {};
   clearSubjectWatchers();
+  stopOverviewListener();
   stopTeacherTodoWatcher();
   stopPflanzenWatcher();
   stopQuizWatcher();
@@ -6882,6 +6900,7 @@ async function authGeaendert(user){
     state.klasse = null;
     state.route = {name:'login'};
     closePencilBubble();
+    stopOverviewListener();
     stopDebtWatch();
     stopQuizWatcher();
     stopUmfrageWatcher();
@@ -7389,12 +7408,6 @@ function renderChrome(innerHtml){
     pop.hidden = !willShow;
     if(willShow) renderPushPopover();
   });
-  document.addEventListener('click', function(e){
-    var pop = document.getElementById('pushPopover');
-    if(!pop || pop.hidden) return;
-    if(pop.contains(e.target) || e.target.id === 'pushBellBtn') return;
-    pop.hidden = true;
-  });
   document.getElementById('stundenplanBtn').addEventListener('click', function(){ state.route = {name:'stundenplan'}; render(); });
   var linksBtn = document.getElementById('linksBtn');
   if(linksBtn){
@@ -7591,6 +7604,14 @@ function renderLinksPopover(){
     });
   }
 }
+// Einmal hier statt in renderChrome: dort kam bei jedem Seitenwechsel ein
+// weiterer Listener dazu (bei Lehrpersonen mit der App den ganzen Tag offen Hunderte).
+document.addEventListener('click', function(e){
+  var pop = document.getElementById('pushPopover');
+  if(!pop || pop.hidden) return;
+  if(pop.contains(e.target) || e.target.id === 'pushBellBtn') return;
+  pop.hidden = true;
+});
 document.addEventListener('click', function(e){
   var pop = document.getElementById('linksPopover');
   if(!pop || pop.hidden) return;
@@ -7652,7 +7673,7 @@ function renderHome(){
   renderAemtliBanner();
 
   // subscribe to all visible subjects' resource counts (light overview)
-  visibleSubjects.forEach(function(s){ watchSubjectOverview(s.id); });
+  watchSubjectsOverview(visibleSubjects.map(function(s){ return s.id; }));
 }
 
 // Kleines "Die nächsten 7 Tage"-Widget auf der Startseite - zeigt alle
@@ -7662,7 +7683,7 @@ function renderHomeworkWidget(){
   var host = document.getElementById('homeworkWidget');
   if(!host) return;
   var isTeacher = state.profile.role === 'teacher';
-  Promise.all([loadMyCalendarEntries(), isTeacher ? loadStudentRoster() : Promise.resolve(null), erledigtLoad(), earlybirdKalenderLaden()]).then(function(res){
+  Promise.all([loadMyCalendarEntries(todayStr()), isTeacher ? loadStudentRoster() : Promise.resolve(null), erledigtLoad(), earlybirdKalenderLaden()]).then(function(res){
     var entries = res[0], roster = res[1];
     if(!document.getElementById('homeworkWidget')) return; // Seite inzwischen gewechselt
     var today = todayStr(), horizon = addDaysStr(7);
@@ -7680,47 +7701,70 @@ function renderHomeworkWidget(){
   }).catch(function(err){ console.error(err); });
 }
 
-var overviewUnsubs = {};
-function watchSubjectOverview(subjectId){
-  if(overviewUnsubs[subjectId]) return;
-  var q = query(kcol('resources'), where('subject','==',subjectId));
-  overviewUnsubs[subjectId] = onSnapshot(q, function(snap){
-    var metaEl = document.getElementById('meta-'+subjectId);
-    var barEl = document.getElementById('bar-'+subjectId);
-    if(!metaEl || !barEl) return; // navigated away
-    var eigene = snap.docs.filter(function(d){ return fuerRolleSichtbar(d.data()) && !d.data().imHub; });
-    function zeigen(count, neuBei){
-      metaEl.textContent = (count===0 ? 'Noch keine Übung' : (count+' Übung'+(count===1?'':'en'))) +
-        (neuBei.length ? ' · 🆕 neu bei '+neuBei.join(', ') : '');
-    }
-    zeigen(eigene.length, []);
-    barEl.style.width = '0%';
-    // 👥 Schüler:innen: Übungen der Gruppen-Lehrpersonen mitzählen (wie auf der Fachseite).
-    fachQuellen(subjectId).then(function(fq){
-      if(!fq.fremd.length) return;
-      return Promise.all(fq.fremd.map(function(p){
-        return fremdeUebungen(p.klasse, subjectId).catch(function(){ return null; });
-      })).then(function(listen){
-        if(!document.getElementById('meta-'+subjectId)) return;
-        var ids = {}, neuBei = [];
-        if(!fq.ohneEigene) eigene.forEach(function(d){ ids[d.id] = true; });
-        listen.forEach(function(l, i){
-          if(!l) return;
-          l.resources.forEach(function(r){
-            if(ids[r.id]) return;
-            ids[r.id] = true;
-            if(uebungIstNeu(r) && neuBei.indexOf(fq.fremd[i].lp) < 0) neuBei.push(fq.fremd[i].lp);
-          });
+/* Übersicht auf der Startseite (Anzahl Übungen pro Fach): EIN Listener auf
+   alle Übungen der offenen Klasse statt einer pro Fach. Er bleibt über
+   Seitenwechsel hinweg bestehen (render() baut ihn nicht mehr ab) — zurück auf
+   «Start» kostet so keine neuen Lesezugriffe, nur Änderungen kommen nach.
+   Neu aufgebaut wird er nur bei anderer Person/Klasse; beim Abmelden gestoppt. */
+var overview = { key:null, unsub:null, snap:null, subjects:[] };
+function watchSubjectsOverview(subjectIds){
+  overview.subjects = subjectIds;
+  var key = state.user.uid + '|' + state.klasse;
+  if(overview.key === key){ if(overview.snap) paintSubjectsOverview(); return; }
+  stopOverviewListener();
+  overview.key = key;
+  overview.unsub = onSnapshot(kcol('resources'), function(snap){
+    overview.snap = snap;
+    paintSubjectsOverview();
+  }, function(err){ console.error(err); stopOverviewListener(); });
+}
+function stopOverviewListener(){
+  if(overview.unsub){ try{ overview.unsub(); }catch(e){} }
+  overview = { key:null, unsub:null, snap:null, subjects:overview.subjects };
+}
+function paintSubjectsOverview(){
+  var proFach = {};
+  overview.snap.docs.forEach(function(d){
+    var x = d.data();
+    if(!fuerRolleSichtbar(x) || x.imHub) return;
+    (proFach[x.subject] = proFach[x.subject] || []).push(d);
+  });
+  overview.subjects.forEach(function(subjectId){ paintSubjectOverview(subjectId, proFach[subjectId] || []); });
+}
+function paintSubjectOverview(subjectId, eigene){
+  var metaEl = document.getElementById('meta-'+subjectId);
+  var barEl = document.getElementById('bar-'+subjectId);
+  if(!metaEl || !barEl) return; // navigated away
+  function zeigen(count, neuBei){
+    metaEl.textContent = (count===0 ? 'Noch keine Übung' : (count+' Übung'+(count===1?'':'en'))) +
+      (neuBei.length ? ' · 🆕 neu bei '+neuBei.join(', ') : '');
+  }
+  zeigen(eigene.length, []);
+  barEl.style.width = '0%';
+  // 👥 Schüler:innen: Übungen der Gruppen-Lehrpersonen mitzählen (wie auf der Fachseite).
+  fachQuellen(subjectId).then(function(fq){
+    if(!fq.fremd.length) return;
+    return Promise.all(fq.fremd.map(function(p){
+      return fremdeUebungen(p.klasse, subjectId).catch(function(){ return null; });
+    })).then(function(listen){
+      if(!document.getElementById('meta-'+subjectId)) return;
+      var ids = {}, neuBei = [];
+      if(!fq.ohneEigene) eigene.forEach(function(d){ ids[d.id] = true; });
+      listen.forEach(function(l, i){
+        if(!l) return;
+        l.resources.forEach(function(r){
+          if(ids[r.id]) return;
+          ids[r.id] = true;
+          if(uebungIstNeu(r) && neuBei.indexOf(fq.fremd[i].lp) < 0) neuBei.push(fq.fremd[i].lp);
         });
-        zeigen(Object.keys(ids).length, neuBei);
       });
-    }).catch(function(err){ console.error(err); });
-  }, function(err){ console.error(err); });
+      zeigen(Object.keys(ids).length, neuBei);
+    });
+  }).catch(function(err){ console.error(err); });
 }
-function clearOverviewWatchers(){
-  Object.values(overviewUnsubs).forEach(function(fn){ try{fn();}catch(e){} });
-  overviewUnsubs = {};
-}
+// Früher je ein Listener pro Fach, bei jedem Seitenwechsel abgebaut. Die
+// Übersicht bleibt jetzt stehen (siehe oben); die vielen Aufrufe schaden nicht.
+function clearOverviewWatchers(){}
 
 /* ===================== RENDER: SUBJECT ===================== */
 
@@ -8200,6 +8244,8 @@ async function uebungZuMir(r, quelle, heim){
     };
     if(r.externalUrl) copy.externalUrl = r.externalUrl;
     if(r.pdf) copy.pdf = true;
+    // Ein Lehrer-HTML bleibt auch als Kopie eines (sonst sähe die Klasse es).
+    if(istLehrerHtml(r)) copy.nurLehrer = true;
     await setDoc(ref, copy);
     indexDazu(r.id, home);
     toast('«'+copy.title+'» ist jetzt bei dir in '+subjectName(r.subject)+' ('+klasseLabel(home)+').');
@@ -8212,6 +8258,7 @@ async function uebungZuMir(r, quelle, heim){
     if(heim.prevContentId && heim.prevContentId !== alt && heim.prevContentId !== patch.contentId) deleteContentIfUnused(heim.prevContentId, r.id);
     toast('«'+(heim.title || heim.fileName)+'» ist in '+klasseLabel(home)+' jetzt auf dem neuen Stand.');
   }
+  inhaltSchutzNachfuehren(r);
   settingsCache.at = 0;
 }
 
@@ -9856,6 +9903,7 @@ function renderFolderContents(){
       var patch = { nurLehrer: !istLehrerHtml(r) };
       if(patch.nurLehrer && r.current) patch.current = false;
       updateDoc(kdoc('resources', r.id), patch)
+        .then(function(){ inhaltSchutzNachfuehren(r); })
         .then(function(){ toast(patch.nurLehrer ? '«'+(r.title || r.fileName)+'» sehen jetzt nur noch Lehrpersonen.' : '«'+(r.title || r.fileName)+'» ist wieder für alle sichtbar.'); })
         .catch(function(err){ console.error(err); lpBtn.disabled = false; toast('Hat nicht geklappt.'); });
     });
@@ -10278,9 +10326,13 @@ async function publishResourceContent(r, htmlText, fileName){
   // Nie einen Inhalt überschreiben (er kann geteilt sein), sondern neu ablegen
   // und die Übung(en) umhängen.
   var newContentId = r.id + '_' + Date.now().toString(36);
+  var schutz = inhaltGeschuetzt(sync.entries);   // 🔒 siehe inhaltSchutzSetzen
   var batch = writeBatch(db);
-  batch.set(doc(db,'resourceContent', newContentId), { chunkCount: chunks.length, bytes: bytes, ownerUid: state.user.uid });
+  var kopf = { chunkCount: chunks.length, bytes: bytes, ownerUid: state.user.uid };
+  if(schutz) kopf.nurLehrer = true;
+  batch.set(doc(db,'resourceContent', newContentId), kopf);
   chunks.forEach(function(chunk, i){
+    if(schutz) chunk.nurLehrer = true;
     batch.set(doc(db,'resourceContent', newContentId, 'chunks', String(i)), chunk);
   });
   var dropped = repointEntries(batch, sync, newContentId, sync.contentId, fileName);
@@ -10300,6 +10352,7 @@ async function restorePreviousContent(r){
   var dropped = repointEntries(batch, sync, prev, sync.contentId, null);
   await batch.commit();
   dropped.forEach(function(cid){ deleteContentIfUnused(cid, r.id); });
+  await inhaltSchutzNachfuehren(r);
 }
 
 // PDFs liegen als rohe Bytes (Firestore-Typ Bytes, Feld `bin`) in denselben
@@ -10922,6 +10975,36 @@ async function contentStillUsed(contentId, rid){
   }
 }
 
+/* 🔒 Lehrer-HTMLs auch in den Regeln schützen (seit 28.09.2026). Die Übungsliste
+   einer Klasse ist für die Schüler:innen lesbar (Regeln filtern keine Abfragen),
+   darum trägt der INHALT (Kopf + alle Chunks) nurLehrer:true — firestore.rules
+   lässt ihn dann nur Lehrpersonen/Schulleitung lesen. Gesetzt nur, solange ALLE
+   Übungen mit diesem Inhalt (Kopien in anderen Klassen haben dieselbe ID)
+   Lehrer-HTMLs sind; sonst würden Schüler:innen einer Klasse, in der die Übung
+   normal sichtbar ist, den Inhalt nicht mehr öffnen können. Bestehende Inhalte:
+   einmalig admin/lehrer-inhalte-schuetzen.js. */
+function inhaltGeschuetzt(entries){
+  return entries.length > 0 && entries.every(function(e){ return istLehrerHtml(e.data); });
+}
+async function inhaltSchutzSetzen(contentId, an){
+  if(!contentId) return;
+  var ref = doc(db,'resourceContent', contentId);
+  var snap = await getDoc(ref);
+  if(!snap.exists() || !!snap.data().nurLehrer === an) return;
+  var batch = writeBatch();
+  batch.update(ref, { nurLehrer:an });
+  for(var i = 0; i < (snap.data().chunkCount || 0); i++){
+    batch.update(doc(db,'resourceContent', contentId, 'chunks', String(i)), { nurLehrer:an });
+  }
+  await batch.commit();
+}
+// Nach jeder Änderung an nurLehrer bzw. am Inhalt einer Übung nachführen.
+function inhaltSchutzNachfuehren(r){
+  return syncedResourceEntries(r).then(function(sync){
+    return inhaltSchutzSetzen(sync.contentId, inhaltGeschuetzt(sync.entries));
+  }).catch(function(err){ console.error('Inhaltsschutz', err); });
+}
+
 async function deleteContentIfUnused(contentId, rid){
   try{
     if(await contentStillUsed(contentId, rid)) return;
@@ -11099,8 +11182,11 @@ async function doUpload(subjectId, folderId, file, title, nurLehrer){
     if(pdf) meta.pdf = true;
     if(nurLehrer && !pdf) meta.nurLehrer = true;
     batch.set(kdoc('resources', resId), meta);
-    batch.set(doc(db,'resourceContent', resId), { chunkCount: chunks.length, bytes: bytes, ownerUid: state.user.uid });
+    var kopf = { chunkCount: chunks.length, bytes: bytes, ownerUid: state.user.uid };
+    if(meta.nurLehrer) kopf.nurLehrer = true;   // 🔒 siehe inhaltSchutzSetzen
+    batch.set(doc(db,'resourceContent', resId), kopf);
     chunks.forEach(function(chunk, i){
+      if(meta.nurLehrer) chunk.nurLehrer = true;
       batch.set(doc(db,'resourceContent', resId, 'chunks', String(i)), chunk);
     });
     await batch.commit();
@@ -16425,6 +16511,8 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-09-28-kalender-aeltere', datum:'2026-09-28', fuer:'alle', text:'📅 Der Kalender lädt schneller: Unter «Vergangen» stehen die letzten 4 Wochen – ältere Einträge holst du dort mit «Ältere Einträge laden».'},
+  {id:'2026-09-28-lehrer-html-schutz', datum:'2026-09-28', fuer:'lehrer', text:'🔒 Lehrer-HTMLs (z. B. Unterrichtsplanungen) sind jetzt auch in der Datenbank geschützt: Schüler:innen können ihren Inhalt nicht mehr öffnen, auch nicht über Umwege. Holst du ein Lehrer-HTML mit «📥 Duplizieren» zu dir, bleibt es ein Lehrer-HTML.'},
   {id:'2026-09-28-raeume', datum:'2026-09-28', fuer:'lehrer', text:'🚪 Neu: Räume (🏫 Klassenzimmer › «🚪 Räume» oder im 🗓️ Stundenplan). «🔎 Was ist frei?» zeigt für jede Lektion die freien Spezialräume, Schulzimmer und Turnhallen – mit «frei bis». Antippen reserviert, auch mehrere Lektionen am Stück oder 🔁 jede Woche bis zu einem Datum (Ferien werden übersprungen). Im 📅 Raumplan siehst du die Woche eines Raums: grau = Untis, orange = reserviert. Eigene Reservationen löschst du mit einem Klick darauf oder unter «🔖 Meine Reservationen».'},
   {id:'2026-09-27-stundenplan-kl-nt-rzg', datum:'2026-09-27', fuer:'lehrer', text:'🗓️ «Klassenstunde», «NT» und «RZG» aus Untis: Tippe die Lektion in deinem Stundenplan an und wähle das Fach (NT → Bio/Chemie/Physik, RZG → Geografie/Geschichte, Klassenstunde → beliebig). Mit «🏫 Für die ganze Klasse festlegen» landet es im Klassenplan, und alle Schüler:innen sehen das richtige Fach. Steht im Klassenplan schon ein Fach, gilt das.'},
   {id:'2026-09-27-stundenplan-untis', datum:'2026-09-27', fuer:'alle', text:'🗓️ Dein Stundenplan ist da: Unter 🗓️ Stundenplan siehst du jetzt deinen eigenen Plan mit allen Fächern, Gruppen und Wahlfächern – mit Zimmer und Lehrperson. Stimmt etwas nicht, kannst du die Lektion antippen und für dich ändern.'},
@@ -32973,6 +33061,7 @@ window.addEventListener('resize', function(){
 
 function render(){
   clearOverviewWatchers();
+  if(state.route.name !== 'kalender') kal = { alle:false, vergangenOffen:false };
   // Lernphase mit «nur diese Übung»: jeder Seitenwechsel kann drin/raus ändern.
   if(lph.aktiv && lph.aktiv.nurUebung){ setTimeout(function(){ lphMelden(false); updateLernphaseBanner(); }, 0); }
   if(wackelnAktiv() && state.route.name !== 'home' && state.route.name !== 'klassenzimmer') wackelnEnde();

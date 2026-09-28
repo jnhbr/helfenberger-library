@@ -50,10 +50,13 @@ function ohneLokal(d) { const x = Object.assign({}, d); LOKAL.forEach(function (
   console.log((PROBE ? '[PROBE] ' : '') + 'Quelle ' + QUELLE + ': ' + res.length + ' Übungen, ' + fol.length + ' Ordner, ' + kkSets.length + ' Karteikarten-Sets → ' + seiten.length + ' Seiten');
 
   let total = { neu: 0, akt: 0, ordner: 0, kk: 0 };
+  // Stand nach der Spiegelung für den 🔒-Abgleich (lehrer-inhalte-schuetzen.js), ohne neu zu lesen.
+  const nachher = resSnap.docs.map(function (d) { return { id: d.id, data: d.data() }; });
   for (const k of seiten) {
     const kref = db.collection('klassen').doc(k);
     const [zr, zf, zk] = await Promise.all([kref.collection('resources').get(), kref.collection('folders').get(), kref.collection('klasseninfo').doc('karteikarten').get()]);
     const hatR = {}; zr.forEach(function (d) { hatR[d.id] = d.data(); });
+    const nachherK = {}; zr.forEach(function (d) { nachherK[d.id] = d.data(); });
     const hatF = {}; zf.forEach(function (d) { hatF[d.id] = d.data(); });
     const w = PROBE ? null : db.bulkWriter();
     let n = { neu: 0, akt: 0, ordner: 0, kk: 0 };
@@ -72,6 +75,7 @@ function ohneLokal(d) { const x = Object.assign({}, d); LOKAL.forEach(function (
       q.originKlasse = QUELLE;
       q.originVersion = typeof d.data().version === 'number' ? d.data().version : 0;
       if (!z) {
+        nachherK[d.id] = q;
         n.neu++;
         if (w) {
           w.set(kref.collection('resources').doc(d.id), q);
@@ -84,6 +88,7 @@ function ohneLokal(d) { const x = Object.assign({}, d); LOKAL.forEach(function (
       // Inhalt ersetzt: bisherigen wie in der App als prevContentId behalten.
       if (upd.contentId && z.contentId) upd.prevContentId = z.contentId;
       if (Object.keys(upd).length) {
+        nachherK[d.id] = Object.assign({}, z, upd);
         n.akt++;
         if (w) w.update(kref.collection('resources').doc(d.id), upd);
         else console.log('   ' + k + ' · ' + (q.title || d.id) + ': ' + Object.keys(upd).join(', '));
@@ -100,6 +105,7 @@ function ohneLokal(d) { const x = Object.assign({}, d); LOKAL.forEach(function (
       if (n.kk && w) w.set(kref.collection('klasseninfo').doc('karteikarten'), { sets: neu }, { merge: true });
     }
 
+    Object.keys(nachherK).forEach(function (id) { nachher.push({ id: id, data: nachherK[id] }); });
     const weg = Object.keys(hatR).filter(function (id) { return hatR[id].originKlasse === QUELLE && !quellIds[id] && NICHT_SPIEGELN.indexOf(hatR[id].subject) < 0; });
     if (w) await w.close();
     if (n.neu || n.akt || n.ordner || n.kk || weg.length) {
@@ -109,5 +115,9 @@ function ohneLokal(d) { const x = Object.assign({}, d); LOKAL.forEach(function (
     Object.keys(total).forEach(function (f) { total[f] += n[f]; });
   }
   console.log('Fertig: ' + total.neu + ' neu, ' + total.akt + ' aktualisiert, ' + total.ordner + ' Ordner, ' + total.kk + ' Karteikarten-Sets.');
+  // 🔒 Kopien haben ein nurLehrer eben erst übernommen: Schutz der Inhalte nachführen.
+  // Ein Fehler hier soll die Spiegelung nicht als gescheitert melden.
+  try { await require('./lehrer-inhalte-schuetzen').inhalteSchuetzen(db, !PROBE, nachher); }
+  catch (err) { console.error('🔒 Lehrer-Inhalte:', err && err.message || err); }
   process.exit(0);
 })().catch(function (err) { console.error(err); process.exit(1); });

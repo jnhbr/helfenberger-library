@@ -148,6 +148,21 @@ function inKlasseLesen(klasse) {
   return inKlasse(klasse) || isLeitung();
 }
 
+// Praktikums- und Zivi-Konten (Seite praktikum-*, admin/schule-konten.js) sind
+// Lehrer-Konten, sollen aber keine Prüfungskorrekturen/Scans der Schule sehen.
+function isPraktikum() {
+  return isSignedIn() && request.auth.token.get('klasse', '') is string
+    && request.auth.token.get('klasse', '').matches('praktikum-.*');
+}
+
+// 🔒 Inhalt eines Lehrer-HTMLs (nurLehrer:true auf resourceContent und Chunks,
+// siehe inhaltSchutzSetzen in index.html): nur Lehrpersonen/Schulleitung.
+// resource == null: nicht vorhandenes Dokument, soll «nicht gefunden» liefern.
+function inhaltLesbar() {
+  return canReadAll()
+    || (isSignedIn() && (resource == null || resource.data.get('nurLehrer', false) != true));
+}
+
 service cloud.firestore {
   match /databases/{database}/documents {
 
@@ -411,7 +426,7 @@ service cloud.firestore {
     // Split into chunk sub-documents so a page can exceed Firestore's ~1MiB
     // per-document limit (e.g. once exercises start including images).
     match /resourceContent/{resourceId} {
-      allow read: if isSignedIn();
+      allow read: if inhaltLesbar();
       allow create, update: if isTeacher()
         && request.resource.data.chunkCount is int
         && request.resource.data.chunkCount > 0
@@ -421,7 +436,7 @@ service cloud.firestore {
       allow delete: if isTeacher();
 
       match /chunks/{chunkId} {
-        allow read: if isSignedIn();
+        allow read: if inhaltLesbar();
         // HTML-Übungen: {html: string}; PDFs: {bin: bytes} (rohe Bytes, kein Base64)
         allow create, update: if isTeacher()
           && ((request.resource.data.html is string
@@ -475,9 +490,10 @@ service cloud.firestore {
     }
 
     // Noten aus Online-Prüfungen: nur die Lehrperson trägt ein/entfernt, die
-    // Person selbst liest sie (Notenrechner).
+    // Person selbst liest sie (Notenrechner). Lehrpersonen lesen sie nie (die App
+    // schreibt/löscht nur) — darum seit 28.09.2026 nicht mehr schulweit lesbar.
     match /progress/{uid}/pruefungsnoten/{notenId} {
-      allow read: if isOwner(uid) || canReadAll();
+      allow read: if isOwner(uid);
       allow create, update: if isTeacher()
         && request.resource.data.note is number
         && request.resource.data.note >= 1 && request.resource.data.note <= 6
@@ -495,11 +511,11 @@ service cloud.firestore {
     // Rotstift: exam correction tool. Teacher-only end to end — this holds
     // exam scores, so unlike resources/folders it is never student-readable.
     match /pruefungKorrektur/{pruefungId} {
-      allow read: if canReadAll();
-      allow write: if isTeacher();
+      allow read: if canReadAll() && !isPraktikum();
+      allow write: if isTeacher() && !isPraktikum();
       match /schueler/{schuelerId} {
-        allow read: if canReadAll();
-        allow write: if isTeacher();
+        allow read: if canReadAll() && !isPraktikum();
+        allow write: if isTeacher() && !isPraktikum();
       }
     }
 
@@ -527,11 +543,11 @@ service cloud.firestore {
     }
 
     match /pruefungKorrekturScans/{schuelerId} {
-      allow read: if canReadAll();
-      allow write: if isTeacher();
+      allow read: if canReadAll() && !isPraktikum();
+      allow write: if isTeacher() && !isPraktikum();
       match /pages/{pageIndex} {
-        allow read: if canReadAll();
-        allow write: if isTeacher();
+        allow read: if canReadAll() && !isPraktikum();
+        allow write: if isTeacher() && !isPraktikum();
       }
     }
 

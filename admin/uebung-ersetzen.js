@@ -99,8 +99,10 @@ function chunks(str, maxBytes){
 
   const batch = db.batch();
   const cref = db.collection('resourceContent').doc(neu);
-  batch.set(cref, Object.assign({ chunkCount:teile.length, bytes:bytes }, ownerUid ? { ownerUid } : {}));
-  teile.forEach((t, i) => batch.set(cref.collection('chunks').doc(String(i)), { html:t }));
+  // 🔒 Lehrer-HTML (alle Kopien nurLehrer): Inhalt nur für Lehrpersonen lesbar, siehe index.html inhaltSchutzSetzen
+  const schutz = sync.length > 0 && sync.every(e => e.data.nurLehrer === true) ? { nurLehrer:true } : {};
+  batch.set(cref, Object.assign({ chunkCount:teile.length, bytes:bytes }, ownerUid ? { ownerUid } : {}, schutz));
+  teile.forEach((t, i) => batch.set(cref.collection('chunks').doc(String(i)), Object.assign({ html:t }, schutz)));
   sync.forEach(e => {
     const patch = { contentId:neu, prevContentId:cid, replacedAt:admin.firestore.FieldValue.serverTimestamp(), fileName:path.basename(datei) };
     if(!e.data.originKlasse) patch.version = version; else if(originIn) patch.originVersion = version;

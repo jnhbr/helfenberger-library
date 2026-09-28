@@ -26,6 +26,7 @@ const db = {
   sus: () => env.authenticatedContext('sus', { klasse: 'G3b', email: 'sus@helfenberger-library.app' }).firestore(),
   susA: () => env.authenticatedContext('susA', { klasse: 'G3a', email: 'susa@helfenberger-library.app' }).firestore(),
   leitung: () => env.authenticatedContext('leitung', { leitung: true, klasse: 'G3b', email: 'schulleitung@helfenberger-library.app' }).firestore(),
+  praktikum: () => env.authenticatedContext('prak', { teacher: true, klasse: 'praktikum-zivi', email: 'zivi@helfenberger-library.app' }).firestore(),
   gast: () => env.unauthenticatedContext().firestore()
 };
 
@@ -144,6 +145,54 @@ test('Räume: lesen nur Lehrpersonen/Schulleitung, löschen nur wer reserviert h
   await assertFails(deleteDoc(doc(db.sus(), 'raumReservationen/2026-09-30_A12_3')));
   await assertSucceeds(deleteDoc(doc(db.lp(), 'raumReservationen/2026-09-30_A12_3')));
   await assertSucceeds(deleteDoc(doc(db.jan(), 'raumReservationen/2026-09-30_A12_4')));
+});
+
+// ---------- 🔒 Lehrer-HTMLs, Prüfungsnoten, Rotstift (28.09.2026) ----------
+test('Inhalt mit nurLehrer: nur Lehrpersonen/Schulleitung lesen, normale Inhalte alle', async () => {
+  await seed('resourceContent/lp1', { chunkCount: 1, nurLehrer: true });
+  await seed('resourceContent/lp1/chunks/0', { html: '<p>Planung</p>', nurLehrer: true });
+  await seed('resourceContent/ueb1', { chunkCount: 1 });
+  await seed('resourceContent/ueb1/chunks/0', { html: '<p>Übung</p>' });
+  await seed('resourceContent/aus1', { chunkCount: 1, nurLehrer: false });
+  await assertFails(getDoc(doc(db.sus(), 'resourceContent/lp1')));
+  await assertFails(getDoc(doc(db.sus(), 'resourceContent/lp1/chunks/0')));
+  await assertSucceeds(getDoc(doc(db.lp(), 'resourceContent/lp1/chunks/0')));
+  await assertSucceeds(getDoc(doc(db.leitung(), 'resourceContent/lp1/chunks/0')));
+  await assertSucceeds(getDoc(doc(db.sus(), 'resourceContent/ueb1')));
+  await assertSucceeds(getDoc(doc(db.sus(), 'resourceContent/ueb1/chunks/0')));
+  await assertSucceeds(getDoc(doc(db.sus(), 'resourceContent/aus1')));
+  await assertSucceeds(getDoc(doc(db.sus(), 'resourceContent/fehlt')));
+  await assertFails(getDoc(doc(db.gast(), 'resourceContent/ueb1')));
+});
+test('Inhalt: Lehrperson setzt/entfernt den Schutz auf Kopf und Chunks', async () => {
+  await seed('resourceContent/ueb1', { chunkCount: 1 });
+  await seed('resourceContent/ueb1/chunks/0', { html: '<p>x</p>' });
+  await assertSucceeds(updateDoc(doc(db.lp(), 'resourceContent/ueb1'), { nurLehrer: true }));
+  await assertSucceeds(updateDoc(doc(db.lp(), 'resourceContent/ueb1/chunks/0'), { nurLehrer: true }));
+  await assertSucceeds(updateDoc(doc(db.lp(), 'resourceContent/ueb1/chunks/0'), { nurLehrer: false }));
+  await assertFails(updateDoc(doc(db.sus(), 'resourceContent/ueb1'), { nurLehrer: false }));
+});
+test('Prüfungsnoten: nur die Person selbst liest, Lehrperson schreibt und löscht', async () => {
+  await seed('progress/sus/pruefungsnoten/G3b_p1', { note: 5, gewicht: 1 });
+  await assertSucceeds(getDocs(collection(db.sus(), 'progress/sus/pruefungsnoten')));
+  await assertFails(getDoc(doc(db.lp(), 'progress/sus/pruefungsnoten/G3b_p1')));
+  await assertFails(getDoc(doc(db.leitung(), 'progress/sus/pruefungsnoten/G3b_p1')));
+  await assertFails(getDoc(doc(db.susA(), 'progress/sus/pruefungsnoten/G3b_p1')));
+  await assertSucceeds(setDoc(doc(db.lp(), 'progress/sus/pruefungsnoten/G3a_p2'), { note: 4.5, gewicht: 1 }));
+  await assertSucceeds(deleteDoc(doc(db.lp(), 'progress/sus/pruefungsnoten/G3a_p2')));
+});
+test('Rotstift: Lehrpersonen ja, Praktikum/Zivi und Schüler:innen nicht', async () => {
+  await seed('pruefungKorrektur/k1', { titel: 'T', klasse: 'G3b' });
+  await seed('pruefungKorrektur/k1/schueler/s1', { name: 'N' });
+  await seed('pruefungKorrekturScans/s1/pages/0', { b64: 'x' });
+  await assertSucceeds(getDoc(doc(db.lp(), 'pruefungKorrektur/k1/schueler/s1')));
+  await assertSucceeds(getDoc(doc(db.lp(), 'pruefungKorrekturScans/s1/pages/0')));
+  await assertFails(getDoc(doc(db.praktikum(), 'pruefungKorrektur/k1')));
+  await assertFails(getDoc(doc(db.praktikum(), 'pruefungKorrektur/k1/schueler/s1')));
+  await assertFails(getDoc(doc(db.praktikum(), 'pruefungKorrekturScans/s1/pages/0')));
+  await assertFails(setDoc(doc(db.praktikum(), 'pruefungKorrektur/k2'), { titel: 'T' }));
+  await assertFails(getDoc(doc(db.sus(), 'pruefungKorrektur/k1')));
+  await assertSucceeds(getDoc(doc(db.praktikum(), 'klassen/G3b/resources/fehlt')));
 });
 
 // ---------- Löschen muss für Lehrpersonen gehen (der wiederkehrende Fehler) ----------
