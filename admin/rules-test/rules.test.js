@@ -119,6 +119,33 @@ test('Earlybird: Schüler:in liest nur den eigenen Eintrag, schreibt nichts', as
   await assertSucceeds(getDocs(query(collection(db.leitung(), 'earlybird'), where('datum', '==', '2026-09-23'))));
 });
 
+// ---------- 🚪 Räume ----------
+const rres = (von, extra) => Object.assign({ datum: '2026-09-30', woche: '2026-09-28', raum: 'A12', slot: '3', vonUid: von, vonName: 'X', zweck: 'G3b Gruppenarbeit', serie: '' }, extra || {});
+
+test('Räume: Lehrperson reserviert eine freie Lektion, niemand bucht doppelt', async () => {
+  await assertSucceeds(setDoc(doc(db.lp(), 'raumReservationen/2026-09-30_A12_3'), rres('lp')));
+  await assertFails(setDoc(doc(db.jan(), 'raumReservationen/2026-09-30_A12_3'), rres('jan')));
+  await assertFails(setDoc(doc(db.lp(), 'raumReservationen/2026-09-30_A12_3'), rres('lp', { zweck: 'anders' })));
+  await assertFails(setDoc(doc(db.lp(), 'raumReservationen/falsch'), rres('lp')));
+  await assertFails(setDoc(doc(db.lp(), 'raumReservationen/2026-09-30_A12_4'), rres('jan', { slot: '4' })));
+  await assertFails(setDoc(doc(db.sus(), 'raumReservationen/2026-09-30_A12_5'), rres('sus', { slot: '5' })));
+  await assertFails(setDoc(doc(db.leitung(), 'raumReservationen/2026-09-30_A12_6'), rres('leitung', { slot: '6' })));
+});
+test('Räume: lesen nur Lehrpersonen/Schulleitung, löschen nur wer reserviert hat (und Jan)', async () => {
+  await seed('raumReservationen/2026-09-30_A12_3', rres('lp'));
+  await seed('raumReservationen/2026-09-30_A12_4', rres('lp', { slot: '4' }));
+  await seed('raumBelegung/plan', { zellen: {} });
+  await assertSucceeds(getDocs(query(collection(db.jan(), 'raumReservationen'), where('woche', '==', '2026-09-28'))));
+  await assertSucceeds(getDocs(query(collection(db.leitung(), 'raumReservationen'), where('woche', '==', '2026-09-28'))));
+  await assertFails(getDocs(query(collection(db.sus(), 'raumReservationen'), where('woche', '==', '2026-09-28'))));
+  await assertSucceeds(getDoc(doc(db.lp(), 'raumBelegung/plan')));
+  await assertFails(getDoc(doc(db.sus(), 'raumBelegung/plan')));
+  await assertFails(setDoc(doc(db.jan(), 'raumBelegung/plan'), { zellen: {} }));
+  await assertFails(deleteDoc(doc(db.sus(), 'raumReservationen/2026-09-30_A12_3')));
+  await assertSucceeds(deleteDoc(doc(db.lp(), 'raumReservationen/2026-09-30_A12_3')));
+  await assertSucceeds(deleteDoc(doc(db.jan(), 'raumReservationen/2026-09-30_A12_4')));
+});
+
 // ---------- Löschen muss für Lehrpersonen gehen (der wiederkehrende Fehler) ----------
 const LOESCHBAR = [
   ['klassen/G3b/resources/r1', { subject: 'mathe', title: 'T' }],

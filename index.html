@@ -520,6 +520,48 @@
   .eb-zeile{display:flex;flex-direction:column;gap:2px;min-width:0;padding-bottom:4px;}
   .eb-auftrag{width:100%;font-size:13.5px;padding:5px 8px;}
   .eb-tab .eb-auftrag{min-width:180px;}
+  /* 🚪 Räume */
+  .rbu-gruppe{margin:16px 0 6px;font-weight:800;font-size:14.5px;}
+  .rbu-frei-liste{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;}
+  .rbu-frei{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;padding:10px 12px;border:1px solid color-mix(in srgb, var(--good) 45%, var(--border));border-radius:14px;background:color-mix(in srgb, var(--good) 9%, var(--surface));font:inherit;color:var(--text);cursor:pointer;min-width:0;}
+  .rbu-frei:hover:not(:disabled){border-color:var(--good);}
+  .rbu-frei:disabled{cursor:default;opacity:.75;}
+  .rbu-frei b{font-size:14.5px;overflow-wrap:anywhere;}
+  .rbu-frei small{color:var(--text-muted);font-size:12.5px;}
+  .rbu-leer{color:var(--text-muted);font-size:13.5px;margin:2px 0 4px;}
+  .rbu-belegt{margin-top:18px;}
+  .rbu-belegt summary{cursor:pointer;font-weight:700;font-size:14px;color:var(--text-muted);}
+  .rbu-belegt-zeile{display:flex;gap:8px;padding:6px 2px;border-bottom:1px solid var(--border);font-size:13.5px;flex-wrap:wrap;}
+  .rbu-belegt-zeile b{min-width:0;}
+  .rbu-belegt-zeile span{color:var(--text-muted);}
+  .rbu-hinweis{background:color-mix(in srgb, var(--brand) 10%, var(--surface));border-radius:12px;padding:9px 12px;font-size:13.5px;margin-bottom:12px;}
+  .rbu-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:4px;}
+  .rbu-grid{display:grid;grid-template-columns:66px repeat(5,minmax(104px,1fr));gap:5px;min-width:600px;}
+  .rbu-kopf{text-align:center;font-weight:800;font-size:13px;padding:6px 2px;border-radius:10px;background:var(--surface-2);}
+  .rbu-kopf small{display:block;font-weight:600;font-size:11px;color:var(--text-muted);}
+  .rbu-kopf.heute{background:color-mix(in srgb, var(--brand) 18%, var(--surface));}
+  .rbu-zeit{font-size:11.5px;color:var(--text-muted);text-align:right;padding:4px 4px 0 0;line-height:1.25;}
+  .rbu-zeit b{display:block;color:var(--text);font-size:12.5px;}
+  .rbu-z{min-height:46px;border-radius:10px;padding:5px 7px;font-size:12px;line-height:1.3;display:flex;flex-direction:column;justify-content:center;min-width:0;overflow-wrap:anywhere;position:relative;}
+  .rbu-z b{font-size:12.5px;}
+  .rbu-z small{color:var(--text-muted);font-size:11.5px;}
+  .rbu-z-untis{background:var(--surface-2);}
+  .rbu-z-res{background:color-mix(in srgb, #D97706 16%, var(--surface));border:1px solid color-mix(in srgb, #D97706 40%, transparent);}
+  .rbu-z-res.mein{cursor:pointer;}
+  .rbu-z-res .rbu-x{position:absolute;top:2px;right:5px;font-size:12px;opacity:.7;}
+  .rbu-z-frei{border:1px dashed var(--border);background:transparent;color:var(--text-muted);font:inherit;font-size:18px;cursor:pointer;align-items:center;}
+  .rbu-z-frei:hover{border-color:var(--good);color:var(--good);background:color-mix(in srgb, var(--good) 8%, transparent);}
+  .rbu-z-leer{border:1px dashed color-mix(in srgb, var(--border) 60%, transparent);}
+  .rbu-z-ferien{background:repeating-linear-gradient(135deg, var(--surface-2) 0 6px, transparent 6px 12px);}
+  .rbu-meine{display:flex;flex-direction:column;gap:6px;}
+  .rbu-meine-zeile{display:flex;align-items:center;gap:10px;padding:9px 12px;border:1px solid var(--border);border-radius:12px;background:var(--surface);flex-wrap:wrap;}
+  .rbu-meine-zeile div{flex:1;min-width:180px;}
+  .rbu-meine-zeile small{display:block;color:var(--text-muted);}
+  .rbu-dialog-info{background:var(--surface-2);border-radius:12px;padding:8px 12px;margin:0 0 10px;font-size:14px;}
+  .rbu-wdh{display:flex;align-items:center;gap:8px 12px;flex-wrap:wrap;margin-top:14px;font-size:14px;}
+  .rbu-wdh label{display:flex;align-items:center;gap:6px;font-weight:700;cursor:pointer;}
+  .rbu-wdh input[type=checkbox]{width:18px;height:18px;}
+  .rbu-wdh input[type=date]{width:auto;flex:1;min-width:150px;}
   .cal-ferien-item .cal-ferien-tag{color:var(--bad);font-weight:700;}
   .push-card{border-left:5px solid #8B5CF6;}
   .push-hint{font-size:13px;color:var(--text-muted);margin:4px 0 10px;}
@@ -4507,6 +4549,373 @@ function earlybirdDrucken(datum, alle){
   var url = URL.createObjectURL(new Blob([h], {type:'text/html;charset=utf-8'}));
   window.open(url, '_blank');
   setTimeout(function(){ URL.revokeObjectURL(url); }, 120000);
+}
+
+/* ===================== 🚪 RÄUME (freie Räume finden und reservieren, Lehrpersonen) =====================
+   raumBelegung/plan -> {semester, zeiten:[{s, von, bis}], raeume:[{id, name, art}],
+                         zellen:{<Raum>:{'tag-zeile':{lp, kl, f}}}}
+     feste Belegung aus Untis (admin/raum-belegung.js, beim Semesterwechsel), nur lesen.
+   raumReservationen/{datum}_{raum}_{slot} -> {datum, woche (Montag), raum, slot, vonUid,
+     vonName, zweck, serie, am}. Die ID pro Raum und Lektion verhindert Doppelbuchungen:
+     ein zweites Anlegen wäre ein update, und das verbieten die Regeln. Abfragen mit nur
+     einem where (woche, vonUid bzw. serie), sortiert wird hier. */
+var RBU_ARTEN = [{id:'spezial', name:'🧪 Spezialräume'}, {id:'zimmer', name:'🏫 Schulzimmer'}, {id:'sport', name:'🤸 Turnhallen'}];
+var rbu = { plan:null, laden:null, tab:'frei', datum:null, slot:null, raum:null, woche:null, res:{}, von:'klassenzimmer' };
+
+function rbuCol(){ return collection(db, 'raumReservationen'); }
+function rbuResId(datum, raum, slot){ return datum+'_'+raum+'_'+slot; }
+function rbuDarf(){ return state.profile.role === 'teacher' && !isLeitung(); }
+function rbuIch(){ return state.profile.nachname || state.profile.displayName || state.profile.username || ''; }
+function rbuPlanLaden(){
+  if(rbu.plan) return Promise.resolve(rbu.plan);
+  if(!rbu.laden){
+    rbu.laden = getDoc(doc(db, 'raumBelegung', 'plan')).then(function(s){
+      rbu.laden = null;
+      var d = s.exists() ? s.data() : {};
+      rbu.plan = { semester:d.semester || null, zeiten:d.zeiten || [], raeume:d.raeume || [], zellen:d.zellen || {} };
+      return rbu.plan;
+    }, function(err){ rbu.laden = null; throw err; });
+  }
+  return rbu.laden;
+}
+
+// ---------- Datum & Lektionen ----------
+function rbuDate(s){ var p = s.split('-').map(Number); return new Date(p[0], p[1]-1, p[2]); }
+function rbuPlusTage(s, n){ var d = rbuDate(s); d.setDate(d.getDate()+n); return localDateStr(d); }
+function rbuTag(s){ return (rbuDate(s).getDay()+6) % 7; }   // 0 = Montag … 6 = Sonntag
+function rbuMontag(s){ return rbuPlusTage(s, -rbuTag(s)); }
+function rbuFerien(s){ return FERIEN_TG.find(function(f){ return s >= f.start && s <= f.end; }) || null; }
+function rbuSchultag(s){ return rbuTag(s) < 5 && !rbuFerien(s); }
+function rbuNaechsterSchultag(s){ var i = 0; while(!rbuSchultag(s) && i++ < 60) s = rbuPlusTage(s, 1); return s; }
+function rbuDatumKurz(s){ return STP_TAGE[rbuTag(s)] + ' ' + s.slice(8, 10) + '.' + s.slice(5, 7) + '.'; }
+function rbuZeiten(){ return (rbu.plan && rbu.plan.zeiten) || []; }
+function rbuZeitIdx(slot){ return rbuZeiten().findIndex(function(z){ return String(z.s) === String(slot); }); }
+function rbuAbend(slot){ return /^a/.test(String(slot)); }
+function rbuSlotName(z){ return typeof z.s === 'number' ? (z.s+1)+'. Lektion' : (/^m/.test(z.s) ? 'Mittag' : 'Abend'); }
+function rbuSlotLang(slot){ var z = rbuZeiten()[rbuZeitIdx(slot)]; return z ? rbuSlotName(z)+' · '+z.von+'–'+z.bis : String(slot); }
+function rbuRaum(id){ return ((rbu.plan && rbu.plan.raeume) || []).find(function(r){ return r.id === id; }) || {id:id, name:id, art:'spezial'}; }
+// Laufende bzw. nächste Lektion (ohne Abendlektionen); nach Schulschluss der nächste Schultag.
+function rbuJetzt(){
+  var heute = todayStr(), min = stpJetztMin();
+  var tags = rbuZeiten().filter(function(z){ return !rbuAbend(z.s); });
+  if(rbuSchultag(heute)){
+    var z = tags.find(function(x){ return stpMin(x.bis) > min; });
+    if(z) return {datum:heute, slot:String(z.s)};
+  }
+  return {datum:rbuNaechsterSchultag(rbuPlusTage(heute, 1)), slot:tags.length ? String(tags[0].s) : '0'};
+}
+// Liegt die Lektion noch nicht (ganz) in der Vergangenheit?
+function rbuKommt(datum, slot){
+  var heute = todayStr();
+  if(datum !== heute) return datum > heute;
+  var z = rbuZeiten()[rbuZeitIdx(slot)];
+  return !!z && stpMin(z.bis) > stpJetztMin();
+}
+
+// ---------- Belegung ----------
+function rbuUntis(raum, datum, slot){ var z = rbu.plan.zellen[raum]; return z ? z[rbuTag(datum)+'-'+slot] || null : null; }
+function rbuRes(raum, datum, slot){ var w = rbu.res[rbuMontag(datum)]; return w ? w[rbuResId(datum, raum, slot)] || null : null; }
+function rbuFrei(raum, datum, slot){ return !rbuUntis(raum, datum, slot) && !rbuRes(raum, datum, slot); }
+// Freie Lektionen am Stück ab `slot` (Abendlektionen nur, wenn man dort beginnt).
+function rbuFreiAb(raum, datum, slot){
+  var zs = rbuZeiten(), i = rbuZeitIdx(slot), out = [];
+  for(; i >= 0 && i < zs.length; i++){
+    if(rbuAbend(zs[i].s) && !rbuAbend(slot)) break;
+    if(!rbuFrei(raum, datum, String(zs[i].s))) break;
+    out.push(zs[i]);
+  }
+  return out;
+}
+function rbuResLaden(woche){
+  return getDocs(query(rbuCol(), where('woche', '==', woche))).then(function(q){
+    var o = {};
+    q.forEach(function(d){ o[d.id] = Object.assign({id:d.id}, d.data()); });
+    rbu.res[woche] = o;
+    return o;
+  });
+}
+function rbuBelegtText(u, r){
+  if(r) return '🔖 '+(r.vonName || '?')+(r.zweck ? ' · '+r.zweck : '');
+  return [u.lp, u.kl, u.f].filter(Boolean).join(' · ');
+}
+
+// ---------- Seite ----------
+function renderRaeume(){
+  clearSubjectWatchers(); clearOverviewWatchers(); unwatchAllProgress();
+  if(state.profile.role !== 'teacher'){ goHome(); return; }
+  var html = '<div class="back-row"><button class="btn btn-ghost btn-sm" id="backBtn" type="button">&larr; '+(rbu.von === 'stundenplan' ? 'Stundenplan' : 'Klassenzimmer')+'</button></div>';
+  html += '<h2 class="page-welcome" style="margin-bottom:6px;">🚪 Räume</h2>';
+  html += '<p class="eb-sub">Freie Räume finden und reservieren – die feste Belegung kommt aus dem Untis-Stundenplan.</p>';
+  html += '<div class="eb-leiste"><div class="stp-tabs">'+
+    '<button type="button" class="stp-tab'+(rbu.tab === 'frei' ? ' on' : '')+'" data-rbu-tab="frei">🔎 Was ist frei?</button>'+
+    '<button type="button" class="stp-tab'+(rbu.tab === 'plan' ? ' on' : '')+'" data-rbu-tab="plan">📅 Raumplan</button>'+
+    (rbuDarf() ? '<button type="button" class="stp-tab'+(rbu.tab === 'meine' ? ' on' : '')+'" data-rbu-tab="meine">🔖 Meine Reservationen</button>' : '')+
+    '</div></div>';
+  html += '<div id="rbuBody" class="stp-board"><div class="empty-state">Wird geladen …</div></div>';
+  renderChrome(html);
+  document.getElementById('backBtn').addEventListener('click', function(){ state.route = {name:rbu.von}; render(); });
+  document.querySelectorAll('[data-rbu-tab]').forEach(function(b){
+    b.addEventListener('click', function(){
+      rbu.tab = b.getAttribute('data-rbu-tab');
+      document.querySelectorAll('[data-rbu-tab]').forEach(function(x){ x.classList.toggle('on', x === b); });
+      rbuZeichnen();
+    });
+  });
+  rbuPlanLaden().then(function(){
+    if(!rbu.datum){ var j = rbuJetzt(); rbu.datum = j.datum; rbu.slot = j.slot; }
+    rbuZeichnen();
+  }).catch(function(err){
+    console.error('Räume laden', err);
+    var b = document.getElementById('rbuBody');
+    if(b) b.innerHTML = '<div class="empty-state">Räume konnten nicht geladen werden.</div>';
+  });
+}
+function rbuZeichnen(){
+  var body = document.getElementById('rbuBody');
+  if(!body || !rbu.plan) return;
+  if(!rbu.plan.raeume.length){ body.innerHTML = '<div class="empty-state">Noch keine Raumbelegung da – Jan liest sie aus Untis ein.</div>'; return; }
+  if(rbu.tab === 'plan') rbuPlanZeichnen(body);
+  else if(rbu.tab === 'meine' && rbuDarf()) rbuMeineZeichnen(body);
+  else rbuFreiZeichnen(body);
+}
+
+// 🔎 Was ist frei? — alle Räume für eine Lektion
+function rbuFreiZeichnen(body){
+  var h = '<div class="eb-leiste">';
+  h += '<label class="eb-feld"><span>Tag</span><input type="date" id="rbuDatum" value="'+esc(rbu.datum)+'"></label>';
+  h += '<label class="eb-feld"><span>Lektion</span><select id="rbuSlot">'+rbuZeiten().map(function(z){
+    return '<option value="'+esc(String(z.s))+'"'+(String(z.s) === String(rbu.slot) ? ' selected' : '')+'>'+esc(rbuSlotName(z)+' · '+z.von+'–'+z.bis)+'</option>';
+  }).join('')+'</select></label>';
+  h += '<button class="btn btn-ghost btn-sm" id="rbuJetztBtn" type="button">⏱ Jetzt</button></div>';
+  h += '<div id="rbuListe"><div class="empty-state">Wird geladen …</div></div>';
+  body.innerHTML = h;
+  document.getElementById('rbuDatum').addEventListener('change', function(){ if(this.value){ rbu.datum = this.value; rbuZeichnen(); } });
+  document.getElementById('rbuSlot').addEventListener('change', function(){ rbu.slot = this.value; rbuZeichnen(); });
+  document.getElementById('rbuJetztBtn').addEventListener('click', function(){ var j = rbuJetzt(); rbu.datum = j.datum; rbu.slot = j.slot; rbuZeichnen(); });
+  var datum = rbu.datum, slot = rbu.slot;
+  if(!rbuSchultag(datum)){
+    var f = rbuFerien(datum);
+    document.getElementById('rbuListe').innerHTML = '<div class="empty-state">'+(f ? esc(f.icon+' '+f.label) : '🛋️ Wochenende')+' – da ist die Schule zu.</div>';
+    return;
+  }
+  rbuResLaden(rbuMontag(datum)).then(function(){
+    var el = document.getElementById('rbuListe');
+    if(!el || rbu.tab !== 'frei' || rbu.datum !== datum || String(rbu.slot) !== String(slot)) return;
+    var kommt = rbuKommt(datum, slot) && rbuDarf();
+    var h2 = '', belegt = [];
+    RBU_ARTEN.forEach(function(a){
+      var raeume = rbu.plan.raeume.filter(function(r){ return r.art === a.id; });
+      if(!raeume.length) return;
+      var frei = raeume.filter(function(r){
+        if(rbuFrei(r.id, datum, slot)) return true;
+        belegt.push(r); return false;
+      });
+      h2 += '<div class="rbu-gruppe">'+a.name+' <span class="eb-von">'+frei.length+' von '+raeume.length+' frei</span></div>';
+      if(!frei.length){ h2 += '<div class="rbu-leer">Alle belegt.</div>'; return; }
+      h2 += '<div class="rbu-frei-liste">'+frei.map(function(r){
+        var am = rbuFreiAb(r.id, datum, slot), bis = am.length ? am[am.length-1].bis : '';
+        return '<button type="button" class="rbu-frei" data-rbu-frei="'+esc(r.id)+'"'+(kommt ? '' : ' disabled')+' title="'+(kommt ? 'Reservieren' : '')+'">'+
+          '<b>'+esc(r.name)+'</b><small>'+esc(r.id)+' · frei bis '+esc(bis)+(am.length > 1 ? ' ('+am.length+' Lekt.)' : '')+'</small></button>';
+      }).join('')+'</div>';
+    });
+    if(belegt.length){
+      h2 += '<details class="rbu-belegt"><summary>Belegt ('+belegt.length+')</summary>'+belegt.map(function(r){
+        return '<div class="rbu-belegt-zeile"><b>'+esc(r.name)+'</b><span>'+esc(r.id)+'</span><span>'+esc(rbuBelegtText(rbuUntis(r.id, datum, slot), rbuRes(r.id, datum, slot)))+'</span></div>';
+      }).join('')+'</details>';
+    }
+    if(!rbuKommt(datum, slot)) h2 = '<div class="rbu-hinweis">Diese Lektion ist schon vorbei – reservieren geht nur für kommende Lektionen.</div>' + h2;
+    else if(rbuDarf()) h2 = '<div class="rbu-hinweis">Tippe auf einen freien Raum, um ihn zu reservieren.</div>' + h2;
+    el.innerHTML = h2;
+    el.querySelectorAll('[data-rbu-frei]').forEach(function(b){
+      b.addEventListener('click', function(){ rbuReservieren(b.getAttribute('data-rbu-frei'), datum, String(slot)); });
+    });
+  }).catch(function(err){
+    console.error('Reservationen laden', err);
+    var el = document.getElementById('rbuListe');
+    if(el) el.innerHTML = '<div class="empty-state">Reservationen konnten nicht geladen werden.</div>';
+  });
+}
+
+// 📅 Raumplan — eine Woche eines Raums
+function rbuPlanZeichnen(body){
+  var raeume = rbu.plan.raeume;
+  if(!rbu.raum || !raeume.some(function(r){ return r.id === rbu.raum; })) rbu.raum = (raeume.find(function(r){ return r.art === 'spezial'; }) || raeume[0]).id;
+  if(!rbu.woche) rbu.woche = rbuMontag(rbuNaechsterSchultag(todayStr()));
+  var h = '<div class="eb-leiste">';
+  h += '<label class="eb-feld"><span>Raum</span><select id="rbuRaum">'+RBU_ARTEN.map(function(a){
+    var rs = raeume.filter(function(r){ return r.art === a.id; });
+    return rs.length ? '<optgroup label="'+esc(a.name)+'">'+rs.map(function(r){
+      return '<option value="'+esc(r.id)+'"'+(r.id === rbu.raum ? ' selected' : '')+'>'+esc(r.name+' ('+r.id+')')+'</option>';
+    }).join('')+'</optgroup>' : '';
+  }).join('')+'</select></label>';
+  h += '<span class="eb-feld"><button class="btn btn-ghost btn-sm" id="rbuWochePrev" type="button" title="Woche vorher">‹</button>'+
+    '<span>Woche vom '+esc(fmtDueDate(rbu.woche).slice(0, 6))+'</span>'+
+    '<button class="btn btn-ghost btn-sm" id="rbuWocheNext" type="button" title="Woche danach">›</button>'+
+    '<button class="btn btn-ghost btn-sm" id="rbuWocheHeute" type="button">Diese Woche</button></span></div>';
+  h += '<div id="rbuWoche"><div class="empty-state">Wird geladen …</div></div>';
+  body.innerHTML = h;
+  document.getElementById('rbuRaum').addEventListener('change', function(){ rbu.raum = this.value; rbuZeichnen(); });
+  document.getElementById('rbuWochePrev').addEventListener('click', function(){ rbu.woche = rbuPlusTage(rbu.woche, -7); rbuZeichnen(); });
+  document.getElementById('rbuWocheNext').addEventListener('click', function(){ rbu.woche = rbuPlusTage(rbu.woche, 7); rbuZeichnen(); });
+  document.getElementById('rbuWocheHeute').addEventListener('click', function(){ rbu.woche = rbuMontag(rbuNaechsterSchultag(todayStr())); rbuZeichnen(); });
+  var raum = rbu.raum, woche = rbu.woche;
+  rbuResLaden(woche).then(function(){
+    var el = document.getElementById('rbuWoche');
+    if(!el || rbu.tab !== 'plan' || rbu.raum !== raum || rbu.woche !== woche) return;
+    var tage = [0, 1, 2, 3, 4].map(function(t){ return rbuPlusTage(woche, t); });
+    var heute = todayStr();
+    // Mittag/Abend nur, wenn in dieser Woche etwas drinsteht
+    var zeilen = rbuZeiten().filter(function(z){
+      return typeof z.s === 'number' || tage.some(function(d){ return !rbuFrei(raum, d, String(z.s)); });
+    });
+    var g = '<div class="rbu-scroll"><div class="rbu-grid"><div></div>';
+    tage.forEach(function(d){
+      var f = rbuFerien(d);
+      g += '<div class="rbu-kopf'+(d === heute ? ' heute' : '')+'">'+STP_TAGE[rbuTag(d)]+' '+esc(d.slice(8, 10)+'.'+d.slice(5, 7)+'.')+(f ? '<small>'+esc(f.icon+' '+f.label)+'</small>' : '')+'</div>';
+    });
+    zeilen.forEach(function(z){
+      var s = String(z.s);
+      g += '<div class="rbu-zeit"><b>'+(typeof z.s === 'number' ? (z.s+1)+'.' : (/^m/.test(s) ? 'Mittag' : 'Abend'))+'</b>'+esc(z.von)+'</div>';
+      tage.forEach(function(d){
+        if(rbuFerien(d)){ g += '<div class="rbu-z rbu-z-ferien"></div>'; return; }
+        var r = rbuRes(raum, d, s), u = rbuUntis(raum, d, s);
+        if(r){
+          var mein = r.vonUid === state.user.uid;
+          g += '<div class="rbu-z rbu-z-res'+(mein ? ' mein' : '')+'"'+(mein ? ' data-rbu-res="'+esc(r.id)+'" title="Reservation löschen"' : '')+'>'+
+            (mein ? '<span class="rbu-x">✕</span>' : '')+'<b>🔖 '+esc(r.vonName || '?')+'</b>'+(r.zweck ? '<small>'+esc(r.zweck)+'</small>' : '')+'</div>';
+        } else if(u){
+          g += '<div class="rbu-z rbu-z-untis"><b>'+esc(u.lp || '')+'</b><small>'+esc([u.kl, u.f].filter(Boolean).join(' · '))+'</small></div>';
+        } else if(rbuDarf() && rbuKommt(d, s)){
+          g += '<button type="button" class="rbu-z rbu-z-frei" data-rbu-neu="'+esc(d+'|'+s)+'" title="'+esc(rbuDatumKurz(d)+', '+rbuSlotLang(s)+' reservieren')+'">＋</button>';
+        } else {
+          g += '<div class="rbu-z rbu-z-leer"></div>';
+        }
+      });
+    });
+    g += '</div></div>';
+    el.innerHTML = g;
+    el.querySelectorAll('[data-rbu-neu]').forEach(function(b){
+      b.addEventListener('click', function(){ var t = b.getAttribute('data-rbu-neu').split('|'); rbuReservieren(raum, t[0], t[1]); });
+    });
+    el.querySelectorAll('[data-rbu-res]').forEach(function(b){
+      b.addEventListener('click', function(){ var r = rbu.res[woche][b.getAttribute('data-rbu-res')]; if(r) rbuLoeschen(r); });
+    });
+  }).catch(function(err){
+    console.error('Reservationen laden', err);
+    var el = document.getElementById('rbuWoche');
+    if(el) el.innerHTML = '<div class="empty-state">Reservationen konnten nicht geladen werden.</div>';
+  });
+}
+
+// 🔖 Meine Reservationen (kommende)
+function rbuMeineZeichnen(body){
+  body.innerHTML = '<div class="empty-state">Wird geladen …</div>';
+  getDocs(query(rbuCol(), where('vonUid', '==', state.user.uid))).then(function(q){
+    if(rbu.tab !== 'meine' || !document.getElementById('rbuBody')) return;
+    var heute = todayStr(), liste = [];
+    q.forEach(function(d){ var x = Object.assign({id:d.id}, d.data()); if(x.datum >= heute) liste.push(x); });
+    liste.sort(function(a, b){ return a.datum < b.datum ? -1 : a.datum > b.datum ? 1 : rbuZeitIdx(a.slot) - rbuZeitIdx(b.slot); });
+    if(!liste.length){ body.innerHTML = '<div class="empty-state">Keine kommenden Reservationen. Unter «🔎 Was ist frei?» oder im 📅 Raumplan reservieren.</div>'; return; }
+    body.innerHTML = '<div class="rbu-meine">'+liste.map(function(r){
+      return '<div class="rbu-meine-zeile"><div><b>'+esc(rbuRaum(r.raum).name)+'</b> <span class="eb-von">'+esc(r.raum)+'</span>'+
+        '<small>'+esc(rbuDatumKurz(r.datum)+' · '+rbuSlotLang(r.slot))+(r.serie ? ' · 🔁' : '')+(r.zweck ? ' · '+esc(r.zweck) : '')+'</small></div>'+
+        '<button class="btn btn-ghost btn-sm" type="button" data-rbu-weg="'+esc(r.id)+'">🗑️ Löschen</button></div>';
+    }).join('')+'</div>';
+    body.querySelectorAll('[data-rbu-weg]').forEach(function(b){
+      b.addEventListener('click', function(){
+        var r = liste.find(function(x){ return x.id === b.getAttribute('data-rbu-weg'); });
+        if(r) rbuLoeschen(r);
+      });
+    });
+  }).catch(function(err){
+    console.error('Meine Reservationen', err);
+    body.innerHTML = '<div class="empty-state">Reservationen konnten nicht geladen werden.</div>';
+  });
+}
+
+// ---------- Reservieren ----------
+function rbuReservieren(raum, datum, slot){
+  if(!rbuDarf() || !rbuKommt(datum, slot) || !rbuFrei(raum, datum, slot)) return;
+  var r = rbuRaum(raum), am = rbuFreiAb(raum, datum, slot).slice(0, 6);
+  // Vorschlag fürs Wiederholen: letzter Schultag vor den nächsten Ferien (frühestens in einer Woche)
+  var ferien = FERIEN_TG.find(function(f){ return f.start > rbuPlusTage(datum, 7); });
+  var bisVorschlag = ferien ? rbuPlusTage(ferien.start, -1) : rbuPlusTage(datum, 28);
+  var h = '<h3>🔖 '+esc(r.name)+' reservieren</h3>';
+  h += '<div class="rbu-dialog-info">'+esc(r.id)+' · '+esc(weekdayLabel(datum)+', '+fmtDueDate(datum))+'<br>'+esc(rbuSlotLang(slot))+'</div>';
+  h += '<label class="modal-label">Dauer</label><select id="rbuDauer">'+am.map(function(z, i){
+    return '<option value="'+(i+1)+'">'+(i+1)+' Lektion'+(i ? 'en' : '')+' (bis '+esc(z.bis)+')</option>';
+  }).join('')+'</select>';
+  h += '<label class="modal-label">Wofür? (sehen alle Lehrpersonen)</label><input type="text" id="rbuZweck" maxlength="80" placeholder="z. B. G3b Gruppenarbeit">';
+  h += '<div class="rbu-wdh"><label><input type="checkbox" id="rbuWdh"> 🔁 Jede Woche bis</label>'+
+    '<input type="date" id="rbuWdhBis" value="'+esc(bisVorschlag)+'" min="'+esc(rbuPlusTage(datum, 7))+'"></div>';
+  h += '<div class="login-err" id="rbuFehler"></div>';
+  h += '<div class="modal-actions"><button class="btn btn-ghost btn-sm" id="modalCancel" type="button">Abbrechen</button>'+
+    '<button class="btn btn-primary btn-sm" id="rbuOk" type="button">Reservieren</button></div>';
+  openModal(h);
+  document.getElementById('modalCancel').addEventListener('click', closeModal);
+  document.getElementById('rbuZweck').focus();
+  document.getElementById('rbuWdhBis').addEventListener('change', function(){ document.getElementById('rbuWdh').checked = true; });
+  document.getElementById('rbuOk').addEventListener('click', function(){
+    var ok = this, fehler = document.getElementById('rbuFehler');
+    var dauer = parseInt(document.getElementById('rbuDauer').value, 10) || 1;
+    var zweck = document.getElementById('rbuZweck').value.trim().slice(0, 80);
+    var termine = [datum];
+    if(document.getElementById('rbuWdh').checked){
+      var bis = document.getElementById('rbuWdhBis').value;
+      if(!bis || bis <= datum){ fehler.textContent = 'Bitte ein Enddatum nach dem ersten Termin wählen.'; fehler.classList.add('show'); return; }
+      for(var d = rbuPlusTage(datum, 7); d <= bis && termine.length < 40; d = rbuPlusTage(d, 7)) if(!rbuFerien(d)) termine.push(d);
+    }
+    var slots = am.slice(0, dauer).map(function(z){ return String(z.s); });
+    var serie = termine.length * slots.length > 1 ? state.user.uid.slice(0, 12)+'_'+Date.now() : '';
+    ok.disabled = true; ok.textContent = 'Wird gespeichert …';
+    // Einzeln statt als Batch: ist eine Lektion in einer späteren Woche schon reserviert,
+    // scheitert nur diese (Regel: kein update), der Rest klappt.
+    var jobs = [];
+    termine.forEach(function(d){
+      slots.forEach(function(s){
+        jobs.push(setDoc(doc(db, 'raumReservationen', rbuResId(d, raum, s)), {
+          datum:d, woche:rbuMontag(d), raum:raum, slot:s, vonUid:state.user.uid, vonName:rbuIch().slice(0, 80),
+          zweck:zweck, serie:serie, am:serverTimestamp()
+        }).then(function(){ return null; }, function(err){ console.warn('Reservation '+d+' '+s, err && err.code); return d; }));
+      });
+    });
+    Promise.all(jobs).then(function(res){
+      var fehlt = res.filter(Boolean);
+      rbu.res = {};
+      closeModal();
+      if(!fehlt.length) toast(res.length > 1 ? res.length+' Lektionen reserviert.' : 'Reserviert.');
+      else if(fehlt.length === res.length) uiInfo('Nicht reserviert', 'Jemand war schneller – diese Lektion ist schon reserviert.');
+      else {
+        var tage = fehlt.filter(function(x, i){ return fehlt.indexOf(x) === i; }).map(rbuDatumKurz).join(', ');
+        uiInfo('Teilweise reserviert', (res.length - fehlt.length)+' von '+res.length+' Lektionen reserviert. Schon besetzt: '+tage+'.');
+      }
+      rbuZeichnen();
+    });
+  });
+}
+
+function rbuLoeschen(r){
+  var was = rbuRaum(r.raum).name+', '+rbuDatumKurz(r.datum)+', '+rbuSlotLang(r.slot);
+  function fertig(n){ rbu.res = {}; toast(n > 1 ? n+' Reservationen gelöscht.' : 'Reservation gelöscht.'); rbuZeichnen(); }
+  function eine(){
+    deleteDoc(doc(db, 'raumReservationen', r.id)).then(function(){ fertig(1); })
+      .catch(function(err){ console.error('Reservation löschen', err); toast('Konnte nicht gelöscht werden.'); });
+  }
+  if(!r.serie){ uiConfirm('Reservation löschen?', was, 'Löschen', eine, true); return; }
+  openModal('<h3>Reservation löschen?</h3><p>'+esc(was)+'</p><p>Sie gehört zu einer Serie (mehrere Lektionen oder Wochen).</p>'+
+    '<div class="modal-actions"><button class="btn btn-ghost btn-sm" id="modalCancel" type="button">Abbrechen</button>'+
+    '<button class="btn btn-ghost btn-sm" id="rbuNurDiese" type="button">Nur diese</button>'+
+    '<button class="btn btn-danger btn-sm" id="rbuSerie" type="button">Diese und alle späteren</button></div>');
+  document.getElementById('modalCancel').addEventListener('click', closeModal);
+  document.getElementById('rbuNurDiese').addEventListener('click', function(){ closeModal(); eine(); });
+  document.getElementById('rbuSerie').addEventListener('click', function(){
+    closeModal();
+    getDocs(query(rbuCol(), where('serie', '==', r.serie))).then(function(q){
+      var b = writeBatch(), n = 0;
+      q.forEach(function(d){ var x = d.data(); if(x.vonUid === state.user.uid && x.datum >= r.datum && n < 450){ b.delete(d.ref); n++; } });
+      return b.commit().then(function(){ fertig(n); });
+    }).catch(function(err){ console.error('Serie löschen', err); toast('Konnte nicht gelöscht werden.'); });
+  });
 }
 
 /* ===================== DIKTAT-FEHLERANALYSE (Lehrperson) =====================
@@ -16016,6 +16425,7 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-09-28-raeume', datum:'2026-09-28', fuer:'lehrer', text:'🚪 Neu: Räume (🏫 Klassenzimmer › «🚪 Räume» oder im 🗓️ Stundenplan). «🔎 Was ist frei?» zeigt für jede Lektion die freien Spezialräume, Schulzimmer und Turnhallen – mit «frei bis». Antippen reserviert, auch mehrere Lektionen am Stück oder 🔁 jede Woche bis zu einem Datum (Ferien werden übersprungen). Im 📅 Raumplan siehst du die Woche eines Raums: grau = Untis, orange = reserviert. Eigene Reservationen löschst du mit einem Klick darauf oder unter «🔖 Meine Reservationen».'},
   {id:'2026-09-27-stundenplan-kl-nt-rzg', datum:'2026-09-27', fuer:'lehrer', text:'🗓️ «Klassenstunde», «NT» und «RZG» aus Untis: Tippe die Lektion in deinem Stundenplan an und wähle das Fach (NT → Bio/Chemie/Physik, RZG → Geografie/Geschichte, Klassenstunde → beliebig). Mit «🏫 Für die ganze Klasse festlegen» landet es im Klassenplan, und alle Schüler:innen sehen das richtige Fach. Steht im Klassenplan schon ein Fach, gilt das.'},
   {id:'2026-09-27-stundenplan-untis', datum:'2026-09-27', fuer:'alle', text:'🗓️ Dein Stundenplan ist da: Unter 🗓️ Stundenplan siehst du jetzt deinen eigenen Plan mit allen Fächern, Gruppen und Wahlfächern – mit Zimmer und Lehrperson. Stimmt etwas nicht, kannst du die Lektion antippen und für dich ändern.'},
   {id:'2026-09-27-stundenplan-lp', datum:'2026-09-27', fuer:'lehrer', text:'🗓️ Dein persönlicher Stundenplan ist aus Untis (1. Semester) gefüllt – mit Klasse bzw. Gruppe und Zimmer. Deine eigenen Einträge bleiben und gehen vor; eine Lektion aus Untis löschst du mit «🌴 Hier habe ich frei». Gruppen aus dem Stundenplan sind unter 👥 Meine Gruppen mit «📅 Stundenplan» markiert.'},
@@ -18066,6 +18476,7 @@ var KZ_TILES = [
   { id:'wuerfel', icon:'🎲', name:'Würfel',              desc:'1–6 Würfel am Beamer — mit Augen oder als W10, W12, W20, W100.' },
   { id:'rad',     icon:'🎡', name:'Glücksrad',           desc:'Klasse oder eigene Liste aufs Rad — Gezogene auf Wunsch raus.' },
   { id:'slf',     icon:'🌍', name:'Stadt Land Fluss',    desc:'Buchstaben-Drehscheibe, Kategorien und Sanduhr (1–3 Min.) mit STOPP-Knopf.' },
+  { id:'raeume',  icon:'🚪', name:'Räume',               desc:'Was ist gerade frei? Bio-Zimmer, Turnhalle, Singsaal … für eine Lektion oder jede Woche reservieren.' },
   { id:'sitzplan',icon:'🪑', name:'Sitzplan',            desc:'Möbel stellen, Plätze verteilen, Regeln, Zufall und gespeicherte Varianten.' },
   { id:'quiz',    icon:'🎮', name:'Klassen-Quiz',        desc:'Live-Quiz auf den Geräten der Klasse, Rangliste am Beamer.' },
   { id:'lernphase',icon:'📚', name:'Lernphase',          desc:'Links siehst du live, wer in der Library ist — wer rausgeht, leuchtet rot. Ohne Sperre.' },
@@ -18120,6 +18531,7 @@ function renderKlassenzimmer(){
       else if(id === 'wuerfel') openBeamerTools('wuerfel');
       else if(id === 'rad') openBeamerTools('rad');
       else if(id === 'slf') openBeamerTools('slf');
+      else if(id === 'raeume'){ rbu.von = 'klassenzimmer'; state.route = {name:'raeume'}; render(); }
       else if(id === 'sitzplan'){ state.route = {name:'sitzplan'}; render(); }
       else if(id === 'quiz'){ state.route = {name:'quiz'}; render(); }
       else if(id === 'lernphase') openLernphase();
@@ -32152,6 +32564,7 @@ function stpZeichnen(){
   if(darf && stp.bearbeiten && lehrer) h += '<button class="btn btn-ghost btn-sm" type="button" id="stpZeitenBtn">⏰ Lektionszeiten</button>';
   if(darf && lehrer && stp.bearbeiten && stp.ansicht === 'mein') h += '<button class="btn btn-ghost btn-sm" type="button" id="stpKopieBtn" title="Klassenplan als Vorlage übernehmen">📋 Aus Klassenplan</button>';
   if(darf && lehrer && stp.bearbeiten && stp.ansicht === 'klasse') h += '<button class="btn btn-ghost btn-sm" type="button" id="stpVonMirBtn" title="Deine Lektionen mit dieser Klasse in den Klassenplan übernehmen">📋 Aus meinem Plan</button>';
+  if(lehrer && !stp.bearbeiten) h += '<button class="btn btn-ghost btn-sm" type="button" id="stpRaeumeBtn" title="Freie Räume finden und reservieren">🚪 Räume</button>';
   if(darf) h += '<button class="btn '+(stp.bearbeiten?'btn-primary':'btn-ghost')+' btn-sm" type="button" id="stpEditBtn">'+(stp.bearbeiten?'✅ Fertig':'✏️ Bearbeiten')+'</button>';
   h += '</div></div>';
 
@@ -32226,6 +32639,8 @@ function stpZeichnen(){
   Array.prototype.forEach.call(body.querySelectorAll('[data-ansicht]'), function(b){
     b.addEventListener('click', function(){ stp.ansicht = b.getAttribute('data-ansicht'); stpZeichnen(); });
   });
+  var rb = document.getElementById('stpRaeumeBtn');
+  if(rb) rb.addEventListener('click', function(){ rbu.von = 'stundenplan'; state.route = {name:'raeume'}; render(); });
   var lw = document.getElementById('stpLpWahl');
   if(lw) lw.addEventListener('change', function(){
     if(lw.value) stpLpZeigen(lw.value);
@@ -32585,6 +33000,7 @@ function render(){
   if(state.route.name === 'lesereise'){ renderLesereiseUebersicht(); return; }
   if(state.route.name === 'kalender'){ renderKalender(); return; }
   if(state.route.name === 'earlybird'){ renderEarlybird(); return; }
+  if(state.route.name === 'raeume'){ renderRaeume(); return; }
   if(state.route.name === 'stundenplan'){ renderStundenplan(); return; }
   if(state.route.name === 'klassenzimmer'){ renderKlassenzimmer(); return; }
   if(state.route.name === 'tools'){ renderTools(); return; }

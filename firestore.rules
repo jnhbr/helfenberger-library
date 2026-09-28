@@ -590,6 +590,32 @@ service cloud.firestore {
       allow delete: if isTeacher();
     }
 
+    // 🚪 Räume (seit 28.09.2026). raumBelegung/plan = feste Belegung aus Untis
+    // (admin/raum-belegung.js), nur lesen. raumReservationen/{datum}_{raum}_{slot}:
+    // Lehrpersonen reservieren freie Lektionen. Die ID pro Raum und Lektion
+    // verhindert Doppelbuchungen (ein zweites Anlegen wäre ein update = verboten).
+    // Löschen darf, wer reserviert hat, und Jan. delete separat (request.resource ist dort null).
+    match /raumBelegung/{docId} {
+      allow read: if canReadAll();
+      allow write: if false;
+    }
+    match /raumReservationen/{rid} {
+      allow read: if canReadAll();
+      allow create: if isTeacher()
+        && request.resource.data.vonUid == request.auth.uid
+        && request.resource.data.datum is string && request.resource.data.datum.size() == 10
+        && request.resource.data.woche is string && request.resource.data.woche.size() == 10
+        && request.resource.data.raum is string && request.resource.data.raum.size() <= 8
+        && request.resource.data.slot is string && request.resource.data.slot.size() <= 3
+        && rid == request.resource.data.datum + '_' + request.resource.data.raum + '_' + request.resource.data.slot
+        && request.resource.data.zweck is string && request.resource.data.zweck.size() <= 80
+        && request.resource.data.vonName is string && request.resource.data.vonName.size() <= 80
+        && request.resource.data.serie is string && request.resource.data.serie.size() <= 80
+        && request.resource.data.keys().size() <= 10;
+      allow update: if false;
+      allow delete: if isJan() || (isTeacher() && resource.data.vonUid == request.auth.uid);
+    }
+
     // ===================== ALT =====================
     // Klassenlose Collections von vor der Umstellung (Herbst 2026). Die Daten
     // liegen als Sicherung noch da, sind aber für die App gesperrt; nur das
