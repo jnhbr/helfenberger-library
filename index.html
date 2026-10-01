@@ -16511,6 +16511,7 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-10-01-broschuere', datum:'2026-10-01', fuer:'alle', text:'📖 Neu unter 🧰 Tools: «Broschüre drucken». PDF wählen, A3 oder A4 – die Seiten werden fürs Heft richtig angeordnet. Dann doppelseitig (kurze Kante) drucken und in der Mitte falzen oder heften lassen.'},
   {id:'2026-09-28-kalender-aeltere', datum:'2026-09-28', fuer:'alle', text:'📅 Der Kalender lädt schneller: Unter «Vergangen» stehen die letzten 4 Wochen – ältere Einträge holst du dort mit «Ältere Einträge laden».'},
   {id:'2026-09-28-lehrer-html-schutz', datum:'2026-09-28', fuer:'lehrer', text:'🔒 Lehrer-HTMLs (z. B. Unterrichtsplanungen) sind jetzt auch in der Datenbank geschützt: Schüler:innen können ihren Inhalt nicht mehr öffnen, auch nicht über Umwege. Holst du ein Lehrer-HTML mit «📥 Duplizieren» zu dir, bleibt es ein Lehrer-HTML.'},
   {id:'2026-09-28-raeume', datum:'2026-09-28', fuer:'lehrer', text:'🚪 Neu: Räume (🏫 Klassenzimmer › «🚪 Räume» oder im 🗓️ Stundenplan). «🔎 Was ist frei?» zeigt für jede Lektion die freien Spezialräume, Schulzimmer und Turnhallen – mit «frei bis». Antippen reserviert, auch mehrere Lektionen am Stück oder 🔁 jede Woche bis zu einem Datum (Ferien werden übersprungen). Im 📅 Raumplan siehst du die Woche eines Raums: grau = Untis, orange = reserviert. Eigene Reservationen löschst du mit einem Klick darauf oder unter «🔖 Meine Reservationen».'},
@@ -19267,6 +19268,7 @@ var TOOLS_TILES = [
   { id:'qr',           icon:'🔳', name:'QR-Code erstellen',       desc:'Link eintippen — QR-Code gross am Beamer zeigen oder als Bild speichern.' },
   { id:'stempel',      icon:'🔢', name:'Seitenzahlen & Wasserzeichen', desc:'Seitenzahlen, eine Kopfzeile (z. B. Name) oder «LÖSUNG» quer über jede Seite.' },
   { id:'nup',          icon:'🗞️', name:'Mehrere Seiten pro Blatt', desc:'2, 4, 6 oder 8 Seiten verkleinert auf ein A4-Blatt — spart Papier.' },
+  { id:'broschuere',   icon:'📖', name:'Broschüre drucken',     desc:'PDF als gefaltetes Heft: A4-Seiten auf A3 (oder A5-Heft auf A4), in der richtigen Reihenfolge.' },
   { id:'ton',          icon:'🎙️', name:'Ton aufnehmen',           desc:'Sprachaufnahme machen, anhören und herunterladen — z. B. für einen Vortrag.' }
 ];
 
@@ -19295,6 +19297,7 @@ function renderTools(){
       else if(id === 'qr') tlQr();
       else if(id === 'stempel') tlStempel();
       else if(id === 'nup') tlNup();
+      else if(id === 'broschuere') tlBroschuere();
       else if(id === 'ton') tlTon();
     });
   });
@@ -19904,6 +19907,85 @@ function tlNup(){
       });
       tlDownload(new Blob([await out.save()], {type:'application/pdf'}), tlBasis(datei.name) + '_' + anz + '-auf-1.pdf');
       toast('🗞️ ' + eingebettet.length + ' Seiten auf ' + out.getPageCount() + ' Blätter.');
+    }catch(err){ console.error(err); toast(tlFehlerText(err)); }
+    go.disabled = false;
+  });
+}
+
+/* ---------- 📖 Broschüre ----------
+   Ausschiessen fürs Heft: je zwei Seiten nebeneinander auf ein quer liegendes
+   Blatt, in Heftreihenfolge (letzte+erste, zweite+vorletzte …), aufgefüllt mit
+   Leerseiten auf ein Vielfaches von 4. Gedruckt wird doppelseitig über die kurze
+   Kante, dann in der Mitte falzen/heften. Wichtig für mehrere Exemplare: Acrobat
+   schickt alle Exemplare als EIN Dokument (copies=1) — der Drucker sieht dann
+   einen dicken Stapel und lässt Falzen/Heften weg. Darum der Hinweis im Dialog. */
+var TL_A3 = [841.89, 1190.55];
+function tlBroschuere(){
+  var datei = null, format = lsGet(LIB_PREFIX+'tl_brosch') === 'a4' ? 'a4' : 'a3';
+  openModal('<h3>📖 Broschüre drucken</h3>'+
+    '<div id="tlBrWahl">'+tlDateiFeld('tlBrIn', 'application/pdf', false, 'Ein PDF wählen')+'</div>'+
+    '<label class="modal-label" style="margin-top:14px;">Papier im Drucker</label>'+
+    '<div class="uf-setup-modi" id="tlBrFmt">'+
+      '<button class="kz-tab'+(format === 'a3' ? ' kz-tab-on' : '')+'" data-bf="a3" type="button">A3 → Heft in A4</button>'+
+      '<button class="kz-tab'+(format === 'a4' ? ' kz-tab-on' : '')+'" data-bf="a4" type="button">A4 → Heft in A5</button></div>'+
+    '<p class="pr-hinweis">Die Seiten werden so angeordnet, dass nach dem Falzen alles in der richtigen Reihenfolge ist. Fehlen Seiten bis zu einem Vielfachen von 4, kommen leere Seiten ans Ende.</p>'+
+    '<div class="pr-hinweis" style="margin-top:10px;"><b>So druckst du:</b><ul style="margin:4px 0 0 18px;padding:0;">'+
+      '<li>Papierformat <b id="tlBrPapier">'+(format === 'a3' ? 'A3' : 'A4')+'</b>, Grösse 100 % bzw. «Anpassen»</li>'+
+      '<li>Doppelseitig: <b>kurze Kante</b> (sonst steht jede zweite Seite auf dem Kopf)</li>'+
+      '<li>Heften: <b>Mittelheftung</b> (Saddle Stitch) bzw. Falzen: <b>Halbfalz</b></li>'+
+      '<li>Mehrere Exemplare: das PDF mit <b>Vorschau</b> drucken, Exemplare <b>sortiert</b>. Acrobat schickt alle Exemplare als ein einziges Dokument — dann falzt der Drucker nicht.</li>'+
+    '</ul></div>'+
+    '<div class="modal-actions"><button class="btn btn-ghost btn-sm" id="modalCancel" type="button">Schliessen</button>'+
+    '<button class="btn btn-primary btn-sm" id="tlBrGo" type="button" disabled>⬇︎ Broschüre speichern</button></div>', 'modal-wide');
+  document.getElementById('modalCancel').addEventListener('click', closeModal);
+  var go = document.getElementById('tlBrGo');
+  Array.prototype.forEach.call(modalEl.querySelectorAll('[data-bf]'), function(b){
+    b.addEventListener('click', function(){
+      format = b.getAttribute('data-bf');
+      lsSet(LIB_PREFIX+'tl_brosch', format);
+      Array.prototype.forEach.call(modalEl.querySelectorAll('[data-bf]'), function(x){ x.classList.toggle('kz-tab-on', x === b); });
+      document.getElementById('tlBrPapier').textContent = format === 'a3' ? 'A3' : 'A4';
+    });
+  });
+  tlDateiFeldVerdrahten('tlBrIn', function(files){
+    var f = files.filter(tlIstPdf)[0];
+    if(!f){ toast('Bitte ein PDF wählen.'); return; }
+    datei = f; go.disabled = false;
+    document.getElementById('tlBrWahl').querySelector('.tl-drop span').textContent = '📄 ' + f.name;
+  });
+  go.addEventListener('click', async function(){
+    go.disabled = true;
+    try{
+      var PDFLib = await ladePdfLib();
+      var src = await PDFLib.PDFDocument.load(await datei.arrayBuffer(), {ignoreEncryption:true});
+      var out = await PDFLib.PDFDocument.create();
+      var eingebettet = await out.embedPages(src.getPages());
+      var drehung = src.getPages().map(function(p){ return (p.getRotation().angle || 0) % 360; });
+      var seiten = eingebettet.slice();
+      while(seiten.length % 4) seiten.push(null);
+      var n = seiten.length, gross = format === 'a3' ? TL_A3 : TL_A4;
+      var pw = gross[1], ph = gross[0], hw = pw / 2;   // Blatt quer, zwei Hälften
+      function setzen(blatt, idx, x0){
+        var e = seiten[idx];
+        if(!e) return;
+        var rot = drehung[idx], gedreht = rot === 90 || rot === 270;
+        var ew = gedreht ? e.height : e.width, eh = gedreht ? e.width : e.height;
+        var f = Math.min(hw / ew, ph / eh), w = ew*f, h = eh*f;
+        var x = x0 + (hw - w)/2, y = (ph - h)/2;
+        // drawPage dreht um die linke untere Ecke -> Ankerpunkt verschieben (wie bei tlNup).
+        var ax = x, ay = y;
+        if(rot === 90){ ax = x; ay = y + h; }
+        else if(rot === 180){ ax = x + w; ay = y + h; }
+        else if(rot === 270){ ax = x + w; ay = y; }
+        blatt.drawPage(e, {x:ax, y:ay, xScale:f, yScale:f, rotate:PDFLib.degrees(-rot)});
+      }
+      for(var i = 0; i < n/2; i++){
+        var links = i % 2 === 0 ? n-1-i : i, rechts = i % 2 === 0 ? i : n-1-i;
+        var blatt = out.addPage([pw, ph]);
+        setzen(blatt, links, 0); setzen(blatt, rechts, hw);
+      }
+      tlDownload(new Blob([await out.save()], {type:'application/pdf'}), tlBasis(datei.name) + '_Broschuere_' + (format === 'a3' ? 'A3' : 'A4') + '.pdf');
+      toast('📖 ' + eingebettet.length + ' Seiten → ' + (n/4) + (n/4 === 1 ? ' Bogen' : ' Bögen') + ' ' + (format === 'a3' ? 'A3' : 'A4') + ' (doppelseitig, kurze Kante).');
     }catch(err){ console.error(err); toast(tlFehlerText(err)); }
     go.disabled = false;
   });
