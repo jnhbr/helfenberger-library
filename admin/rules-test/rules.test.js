@@ -195,6 +195,28 @@ test('Rotstift: Lehrpersonen ja, Praktikum/Zivi und Schüler:innen nicht', async
   await assertSucceeds(getDoc(doc(db.praktikum(), 'klassen/G3b/resources/fehlt')));
 });
 
+// ---------- ⚡ Energizer: eigene Spiele ----------
+const en = (von, extra) => Object.assign({ titel: 'Spiel', kat: 'bewegung', kurz: 'k', schritte: 'a\nb', tipp: '', vonUid: von, vonName: 'X' }, extra || {});
+test('Energizer: Lehrperson legt eigenes Spiel an, alle Lehrpersonen lesen, Schüler:innen nicht', async () => {
+  await assertSucceeds(setDoc(doc(db.lp(), 'energizer/e1'), en('lp')));
+  await assertFails(setDoc(doc(db.lp(), 'energizer/e2'), en('jan')));
+  await assertFails(setDoc(doc(db.lp(), 'energizer/e3'), en('lp', { kat: 'falsch' })));
+  await assertFails(setDoc(doc(db.lp(), 'energizer/e4'), en('lp', { titel: '' })));
+  await assertFails(setDoc(doc(db.sus(), 'energizer/e5'), en('sus')));
+  await assertSucceeds(getDoc(doc(db.jan(), 'energizer/e1')));
+  await assertFails(getDoc(doc(db.sus(), 'energizer/e1')));
+});
+test('Energizer: nur wer es angelegt hat (und Jan) ändert und löscht', async () => {
+  await seed('energizer/e1', en('lp'));
+  await assertSucceeds(updateDoc(doc(db.lp(), 'energizer/e1'), { titel: 'Neu' }));
+  await assertFails(updateDoc(doc(db.lp(), 'energizer/e1'), { vonUid: 'jan' }));
+  await assertSucceeds(updateDoc(doc(db.jan(), 'energizer/e1'), { titel: 'Von Jan' }));
+  await seed('energizer/e2', en('jan'));
+  await assertFails(deleteDoc(doc(db.lp(), 'energizer/e2')));
+  await assertSucceeds(deleteDoc(doc(db.lp(), 'energizer/e1')));
+  await assertSucceeds(deleteDoc(doc(db.jan(), 'energizer/e2')));
+});
+
 // ---------- Löschen muss für Lehrpersonen gehen (der wiederkehrende Fehler) ----------
 const LOESCHBAR = [
   ['klassen/G3b/resources/r1', { subject: 'mathe', title: 'T' }],

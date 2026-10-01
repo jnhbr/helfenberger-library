@@ -163,6 +163,15 @@ function inhaltLesbar() {
     || (isSignedIn() && (resource == null || resource.data.get('nurLehrer', false) != true));
 }
 
+function energizerOk() {
+  return request.resource.data.titel is string
+    && request.resource.data.titel.size() > 0 && request.resource.data.titel.size() <= 80
+    && request.resource.data.kat in ['bewegung', 'kopf', 'ruhe', 'inhalt']
+    && request.resource.data.get('kurz', '') is string && request.resource.data.get('kurz', '').size() <= 300
+    && request.resource.data.get('schritte', '') is string && request.resource.data.get('schritte', '').size() <= 4000
+    && request.resource.data.get('tipp', '') is string && request.resource.data.get('tipp', '').size() <= 500;
+}
+
 service cloud.firestore {
   match /databases/{database}/documents {
 
@@ -533,6 +542,18 @@ service cloud.firestore {
     // fragt dort nur where fuer == 'alle' ab). _meta (fuer 'meta') merkt sich,
     // dass die Standard-Links angelegt wurden. Jede Lehrperson darf teilen,
     // ändern und entfernen. delete separat (request.resource ist dort null).
+    // ⚡ Energizer: eigene Spiele der Lehrpersonen, alle Lehrpersonen lesen.
+    // Ändern/löschen nur wer es angelegt hat (und Jan).
+    match /energizer/{eid} {
+      allow read: if canReadAll();
+      allow create: if isTeacher() && energizerOk() && request.resource.data.vonUid == request.auth.uid;
+      allow update: if isTeacher() && energizerOk()
+        && (resource.data.vonUid == request.auth.uid || isJan())
+        && request.resource.data.vonUid == resource.data.vonUid;
+      // Separat von create/update: bei einem delete ist request.resource null.
+      allow delete: if isTeacher() && (resource.data.vonUid == request.auth.uid || isJan());
+    }
+
     match /schulLinks/{linkId} {
       allow read: if canReadAll() || (isSignedIn() && resource.data.fuer == 'alle');
       allow create, update: if isTeacher()
