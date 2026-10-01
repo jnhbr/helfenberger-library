@@ -16511,6 +16511,7 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-10-01-material-lmvz-ordner', datum:'2026-10-01', fuer:'lehrer', text:'🗃️ Unterrichtsmaterial in Mathe lässt sich jetzt direkt in die Kapitel der Lehrmittel ablegen (z. B. Mathematik 2 › 3. Kapitel) – beim Erstellen, «📁 Ablegen» und «📥 Paket importieren».'},
   {id:'2026-10-01-broschuere', datum:'2026-10-01', fuer:'alle', text:'📖 Neu unter 🧰 Tools: «Broschüre drucken». PDF wählen, A3 oder A4 – die Seiten werden fürs Heft richtig angeordnet. Dann doppelseitig (kurze Kante) drucken und in der Mitte falzen oder heften lassen.'},
   {id:'2026-09-28-kalender-aeltere', datum:'2026-09-28', fuer:'alle', text:'📅 Der Kalender lädt schneller: Unter «Vergangen» stehen die letzten 4 Wochen – ältere Einträge holst du dort mit «Ältere Einträge laden».'},
   {id:'2026-09-28-lehrer-html-schutz', datum:'2026-09-28', fuer:'lehrer', text:'🔒 Lehrer-HTMLs (z. B. Unterrichtsplanungen) sind jetzt auch in der Datenbank geschützt: Schüler:innen können ihren Inhalt nicht mehr öffnen, auch nicht über Umwege. Holst du ein Lehrer-HTML mit «📥 Duplizieren» zu dir, bleibt es ein Lehrer-HTML.'},
@@ -18659,7 +18660,12 @@ var KZM_TYPEN = {
   pruefung:{icon:'📝', name:'Prüfung'}
 };
 var KZM_MAX_VORLAGEN = 200;
-var kzm = { quizzes:null, vorlagen:null, folders:null, pruefungen:null, inflight:null, neuPruef:null };
+var kzm = { quizzes:null, vorlagen:null, folders:null, vfolders:null, pruefungen:null, inflight:null, neuPruef:null };
+// LMVZ-Kapitelordner in Mathe (virtuell, nicht in Firestore) dürfen Ablageort für Unterrichtsmaterial sein –
+// nur die Struktur (Lehrmittel › Kapitel › Unterkapitel), nicht «Onlineübungen», I/II/III oder Extras.
+function kzmLmvzAblage(f){ return !f.lmvzLeaf && !/_on$|_x$/.test(f.id); }
+function kzmFolder(id){ return id ? ((kzm.folders && kzm.folders[id]) || (kzm.vfolders && kzm.vfolders[id]) || null) : null; }
+function kzmAlleOrdner(){ return Object.assign({}, kzm.vfolders || {}, kzm.folders || {}); }
 
 function kzmVorlagenRef(){ return kdoc('klassenzimmer', 'vorlagen'); }
 function kzmLoad(force){
@@ -18670,8 +18676,11 @@ function kzmLoad(force){
     getDoc(kzmVorlagenRef()).catch(function(){ return null; }),
     getDocs(kcol('folders')),
     kkLoad(force),
-    getDocs(pruefCol()).catch(function(){ return null; })
+    getDocs(pruefCol()).catch(function(){ return null; }),
+    lmvzLoadCatalog().catch(function(){ return null; })
   ]).then(function(res){
+    kzm.vfolders = {};
+    if(res[5]) lmvzBuild(res[5], true).folders.filter(kzmLmvzAblage).forEach(function(f){ kzm.vfolders[f.id] = f; });
     kzm.pruefungen = [];
     if(res[4]) res[4].forEach(function(d){ kzm.pruefungen.push(Object.assign({id:d.id}, d.data())); });
     kzm.quizzes = [];
@@ -18694,12 +18703,12 @@ function kzmVorlagenSpeichern(){
 }
 // Ordner nur gelten lassen, wenn er (noch) existiert und zum Fach gehört.
 function kzmOrdnerOk(fach, ordner){
-  var f = ordner && kzm.folders && kzm.folders[ordner];
+  var f = kzmFolder(ordner);
   return f && f.subject === fach ? ordner : null;
 }
 function kzmOrdnerPfad(ordner){
-  var teile = [], f = ordner && kzm.folders && kzm.folders[ordner], guard = 0;
-  while(f && guard++ < 10){ teile.unshift(f.name); f = f.parentId ? kzm.folders[f.parentId] : null; }
+  var teile = [], f = kzmFolder(ordner), guard = 0;
+  while(f && guard++ < 10){ teile.unshift(f.name); f = kzmFolder(f.parentId); }
   return teile;
 }
 function kzmOrtText(fach, ordner){
@@ -18708,7 +18717,8 @@ function kzmOrtText(fach, ordner){
 }
 // Ordner eines Fachs als Baum (Tiefensuche, sortiert wie im Fach).
 function kzmOrdnerBaum(fach){
-  var alle = Object.keys(kzm.folders || {}).map(function(k){ return kzm.folders[k]; }).filter(function(f){ return f.subject === fach; });
+  var ord = kzmAlleOrdner();
+  var alle = Object.keys(ord).map(function(k){ return ord[k]; }).filter(function(f){ return f.subject === fach; });
   var out = [];
   function ebene(parent, tiefe){
     alle.filter(function(f){ return (f.parentId || null) === parent; })
@@ -18739,7 +18749,7 @@ function kzmItems(){
   });
   (kzm.pruefungen || []).forEach(function(p){
     // Der Ordner bestimmt, wo die Prüfung liegt (das Notenfach der Prüfung bleibt, wie es ist).
-    var f = p.folderId && kzm.folders && kzm.folders[p.folderId];
+    var f = kzmFolder(p.folderId);
     var st = p.status === 'offen' ? 'läuft' : p.status === 'beendet' ? 'beendet'+(p.resultateFrei ? ' · Resultate frei' : '') : 'Entwurf';
     out.push({typ:'pruefung', id:p.id, titel:p.titel || 'Prüfung', fach:f ? f.subject : pruefFach(p), ordner:f ? f.id : null,
       info:st+' · '+pruefBeschreibung(p, false), raw:p});
@@ -18931,8 +18941,8 @@ function kzmMaterialZeichnen(){
     '</select>'+(fach ? '<button class="btn btn-ghost btn-sm" id="kzmZumFach" type="button">📂 Im Fach öffnen</button>' : '')+
     '<button class="btn btn-ghost btn-sm" id="kzmPaket" type="button" title="Quizze, Umfragen, Wortwolken und Karteikarten aus einer .json-Datei (z. B. aus einer Unterrichtsplanung) auf einmal anlegen">📥 Paket importieren</button></div>';
   if(fach){
-    var pfad = [], f = ordner && kzm.folders[ordner], g = 0;
-    while(f && g++ < 10){ pfad.unshift(f); f = f.parentId ? kzm.folders[f.parentId] : null; }
+    var pfad = [], f = kzmFolder(ordner), g = 0;
+    while(f && g++ < 10){ pfad.unshift(f); f = kzmFolder(f.parentId); }
     if(pfad.length){
       h += '<div class="crumbs" style="display:flex"><button type="button" data-kzmcrumb="">'+esc(subjectName(fach))+'</button>';
       pfad.forEach(function(x, i){
@@ -18954,7 +18964,8 @@ function kzmMaterialZeichnen(){
       h += '<div class="section-label">Ordner</div>';
       unter.forEach(function(x){
         var ids = [x.f.id], neu = true;
-        while(neu){ neu = false; Object.keys(kzm.folders).forEach(function(k){ var ff = kzm.folders[k]; if(ff.parentId && ids.indexOf(ff.parentId) >= 0 && ids.indexOf(ff.id) < 0){ ids.push(ff.id); neu = true; } }); }
+        var alleO = kzmAlleOrdner();
+        while(neu){ neu = false; Object.keys(alleO).forEach(function(k){ var ff = alleO[k]; if(ff.parentId && ids.indexOf(ff.parentId) >= 0 && ids.indexOf(ff.id) < 0){ ids.push(ff.id); neu = true; } }); }
         var n = items.filter(function(it){ return it.fach === fach && ids.indexOf(it.ordner) >= 0; }).length;
         h += '<button class="abst-zeile" data-kzmordner="'+esc(x.f.id)+'" type="button"><span>📁</span><span class="abst-zeile-txt"><b>'+esc(x.f.name)+'</b><small>'+(n ? n+' vorbereitet' : 'noch nichts vorbereitet')+'</small></span><span class="abst-pfeil">›</span></button>';
       });
@@ -19170,7 +19181,7 @@ function kzmVirtuell(subject){
 // Ordner gültig für Schüler:innen (kzm.folders gibt es nur bei Lehrpersonen).
 function kzmOrdnerSichtbar(subject, ordner){
   if(kzm.folders) return !!kzmOrdnerOk(subject, ordner);
-  return (state.folders || []).some(function(f){ return !f.virtual && f.id === ordner && f.subject === subject; });
+  return (state.folders || []).some(function(f){ return (!f.virtual || /^lmvz_/.test(f.id)) && f.id === ordner && f.subject === subject; });
 }
 function kzmPruefCardHtml(r){
   var p = pruefById(r.kzmPruef), t = p && pruef.mine[p.id];
@@ -19933,12 +19944,14 @@ function tlBroschuere(){
       '<li>Papierformat <b id="tlBrPapier">'+(format === 'a3' ? 'A3' : 'A4')+'</b>, Grösse 100 % bzw. «Anpassen»</li>'+
       '<li>Doppelseitig: <b>kurze Kante</b> (sonst steht jede zweite Seite auf dem Kopf)</li>'+
       '<li>Heften: <b>Mittelheftung</b> (Saddle Stitch) bzw. Falzen: <b>Halbfalz</b></li>'+
+      '<li>«🖨️ Drucken» öffnet die Broschüre in einem neuen Tab – dort drucken (⌘P). Heften und Falzen wählst du im Druckdialog (Chrome: «Mit Systemdialog drucken»).</li>'+
       '<li>Mehrere Exemplare: das PDF mit <b>Vorschau</b> drucken, Exemplare <b>sortiert</b>. Acrobat schickt alle Exemplare als ein einziges Dokument — dann falzt der Drucker nicht.</li>'+
     '</ul></div>'+
     '<div class="modal-actions"><button class="btn btn-ghost btn-sm" id="modalCancel" type="button">Schliessen</button>'+
+    '<button class="btn btn-ghost btn-sm" id="tlBrDruck" type="button" disabled title="Öffnet die Broschüre in einem neuen Tab – dort drucken (⌘P)">🖨️ Drucken</button>'+
     '<button class="btn btn-primary btn-sm" id="tlBrGo" type="button" disabled>⬇︎ Broschüre speichern</button></div>', 'modal-wide');
   document.getElementById('modalCancel').addEventListener('click', closeModal);
-  var go = document.getElementById('tlBrGo');
+  var go = document.getElementById('tlBrGo'), druck = document.getElementById('tlBrDruck');
   Array.prototype.forEach.call(modalEl.querySelectorAll('[data-bf]'), function(b){
     b.addEventListener('click', function(){
       format = b.getAttribute('data-bf');
@@ -19950,12 +19963,10 @@ function tlBroschuere(){
   tlDateiFeldVerdrahten('tlBrIn', function(files){
     var f = files.filter(tlIstPdf)[0];
     if(!f){ toast('Bitte ein PDF wählen.'); return; }
-    datei = f; go.disabled = false;
+    datei = f; go.disabled = druck.disabled = false;
     document.getElementById('tlBrWahl').querySelector('.tl-drop span').textContent = '📄 ' + f.name;
   });
-  go.addEventListener('click', async function(){
-    go.disabled = true;
-    try{
+  async function erzeugen(){
       var PDFLib = await ladePdfLib();
       var src = await PDFLib.PDFDocument.load(await datei.arrayBuffer(), {ignoreEncryption:true});
       var out = await PDFLib.PDFDocument.create();
@@ -19984,10 +19995,30 @@ function tlBroschuere(){
         var blatt = out.addPage([pw, ph]);
         setzen(blatt, links, 0); setzen(blatt, rechts, hw);
       }
-      tlDownload(new Blob([await out.save()], {type:'application/pdf'}), tlBasis(datei.name) + '_Broschuere_' + (format === 'a3' ? 'A3' : 'A4') + '.pdf');
       toast('📖 ' + eingebettet.length + ' Seiten → ' + (n/4) + (n/4 === 1 ? ' Bogen' : ' Bögen') + ' ' + (format === 'a3' ? 'A3' : 'A4') + ' (doppelseitig, kurze Kante).');
-    }catch(err){ console.error(err); toast(tlFehlerText(err)); }
-    go.disabled = false;
+      return new Blob([await out.save()], {type:'application/pdf'});
+  }
+  function dateiname(){ return tlBasis(datei.name) + '_Broschuere_' + (format === 'a3' ? 'A3' : 'A4') + '.pdf'; }
+  go.addEventListener('click', async function(){
+    go.disabled = druck.disabled = true;
+    try{ tlDownload(await erzeugen(), dateiname()); }
+    catch(err){ console.error(err); toast(tlFehlerText(err)); }
+    go.disabled = druck.disabled = false;
+  });
+  // Drucken: Tab sofort im Klick öffnen (sonst Popup-Blocker), PDF danach hineinladen.
+  // Heften/Falzen kann eine Webseite dem Drucker nicht mitgeben -> im Druckdialog wählen.
+  druck.addEventListener('click', async function(){
+    var tab = window.open('', '_blank');
+    go.disabled = druck.disabled = true;
+    try{
+      var blob = await erzeugen();
+      if(tab){
+        var url = URL.createObjectURL(blob);
+        tab.location.href = url;
+        setTimeout(function(){ URL.revokeObjectURL(url); }, 120000);
+      } else tlDownload(blob, dateiname());
+    }catch(err){ console.error(err); if(tab) tab.close(); toast(tlFehlerText(err)); }
+    go.disabled = druck.disabled = false;
   });
 }
 
