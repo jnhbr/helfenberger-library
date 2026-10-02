@@ -3485,6 +3485,26 @@ function gastImFach(s, subject){
 function rosterFuerFach(list, subject){
   return (list||[]).filter(function(s){ return gastImFach(s, subject); });
 }
+// Fach-Gäste in Namen-Spielen (Ruhephase, Wer ist dran?, Glücksrad, Gruppen):
+// standardmässig ohne, per Knopf «👭 Gäste» (gerätelokal gemerkt) mit.
+function gaesteDabei(){ return lsGet(LIB_PREFIX+'gaeste_an') === '1'; }
+function gaesteOptional(list){ return gaesteDabei() ? (list||[]) : ohneGaeste(list); }
+function gaesteToggleHtml(id){
+  var an = gaesteDabei();
+  return '<button class="kz-tab'+(an?' kz-tab-on':'')+'" id="'+id+'" type="button" hidden title="Fach-Gäste (z.B. Mathe) in Namen-Spielen mitnehmen">👭 Gäste '+(an?'dabei':'aus')+'</button>';
+}
+// Knopf erst zeigen, wenn die Klasse überhaupt Gäste hat.
+function wireGaesteToggle(btn, onChange){
+  if(!btn) return;
+  klasseRosterLoad().then(function(list){ btn.hidden = !hatGaeste(list); }).catch(function(){});
+  btn.addEventListener('click', function(){
+    var an = !gaesteDabei();
+    lsSet(LIB_PREFIX+'gaeste_an', an ? '1' : '0');
+    btn.classList.toggle('kz-tab-on', an);
+    btn.textContent = '👭 Gäste '+(an ? 'dabei' : 'aus');
+    onChange();
+  });
+}
 // 📊 Klassenübersichten/Lernstand: standardmässig nur die eigene Klasse (inkl.
 // Fach-Gäste wie Mathe, ohne 👥 Gruppen-Mitglieder anderer Klassen). Über die
 // Auswahl «Klasse» (gerätelokal gemerkt) eine andere Klasse ansehen oder
@@ -16681,6 +16701,7 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-10-01-beamer-fix', datum:'2026-10-01', fuer:'lehrer', text:'🔧 Im 🏫 Klassenzimmer öffnen sich Ruhephase, 🎲 Zufall, Stadt Land Fluss und 👥 Gruppen & Partner wieder.'},
   {id:'2026-10-01-kz-bereiche', datum:'2026-10-01', fuer:'lehrer', text:'🏫 Mehr Ordnung im Klassenzimmer: Die Werkzeuge stehen jetzt in vier Bereichen – 📡 Live mit der Klasse, 🎲 Am Beamer, 🗃️ Material & Prüfungen, 🧑‍🏫 Organisation. «Wer ist dran?», Würfel und Glücksrad sind zu einer Kachel 🎲 Zufall zusammengelegt (oben im Fenster umschalten). Die Blitzumfrage hat neu das Symbol 📊, Gruppen & Partner 👥. Anordnen geht weiterhin, jeweils innerhalb eines Bereichs.'},
   {id:'2026-10-01-energizer', datum:'2026-10-01', fuer:'lehrer', text:'⚡ Neu im 🏫 Klassenzimmer: Energizer – über 60 Aktivierungsspiele in vier Gruppen (🏃 Bewegung, 🧠 Kopf & Konzentration, 🌿 Ruhe & Atmung, 📚 mit Unterrichtsinhalt). Antippen zeigt das Spiel gross am Beamer mit Anleitung, Foto, Timer und oft einem eingebauten Spielhelfer: Farben-Chaos, Kim-Spiel, Rechenschlange, Atem-Kreis, Freeze, Simon sagt (auch vorgelesen) u. v. m. Bei «Steh auf, wenn’s stimmt», Tabu, Pantomime und Vier-Ecken-Quiz gibst du eigene Aussagen/Begriffe/Fragen pro Klasse ein. Dazu ⭐ Favoriten, 🕓 «zuletzt gespielt» pro Klasse, 🎲 Zufalls-Energizer (bevorzugt, was länger nicht dran war) und ➕ eigene Spiele, die alle Lehrpersonen sehen.'},
   {id:'2026-10-01-material-lmvz-ordner', datum:'2026-10-01', fuer:'lehrer', text:'🗃️ Unterrichtsmaterial in Mathe lässt sich jetzt direkt in die Kapitel der Lehrmittel ablegen (z. B. Mathematik 2 › 3. Kapitel) – beim Erstellen, «📁 Ablegen» und «📥 Paket importieren».'},
