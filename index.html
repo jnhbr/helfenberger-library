@@ -2328,6 +2328,8 @@
   body.wackeln .kz-tile:nth-child(2n){animation-duration:.3s;animation-direction:alternate-reverse;}
   body.wackeln .kz-tile:hover{transform:none;}
   body.wackeln #anordnenBtn, body.wackeln #kzAnordnenBtn{background:var(--brand);border-color:var(--brand);color:#fff;}
+  .anordnen-widgets{display:none !important;}
+  body.wackeln .anordnen-widgets{display:inline-flex !important;}
   @keyframes wackelnK{from{transform:rotate(-.8deg);}to{transform:rotate(.8deg);}}
   @keyframes wackelnI{from{transform:rotate(-3deg);}to{transform:rotate(3deg);}}
   @media (prefers-reduced-motion: reduce){
@@ -8641,6 +8643,7 @@ function renderHome(){
   }
   html += '<button class="btn btn-ghost btn-sm" id="toolsBtn" type="button" title="PDFs und Bilder komprimieren, zusammenführen, Seiten bearbeiten">🧰 Tools</button>';
   html += '<button class="btn btn-ghost btn-sm" id="anordnenBtn" type="button" title="Kacheln und Symbole verschieben (oder lange auf eine Kachel drücken) – nochmals klicken beendet das Anordnen">✏️ Anordnen</button>';
+  html += '<button class="btn btn-ghost btn-sm anordnen-widgets" id="anordnenWidgetsBtn" type="button" title="Ausgeblendetes zurückholen">🧩 Widgets</button>';
   html += '</div>';
   html += '<div id="aemtliBanner"></div>';
   html += '<div id="stpJetzt"></div>';
@@ -8674,6 +8677,7 @@ function renderHome(){
   document.getElementById('kalenderBtn').addEventListener('click', function(){ state.route = {name:'kalender'}; render(); });
   document.getElementById('toolsBtn').addEventListener('click', function(){ state.route = {name:'tools'}; render(); });
   document.getElementById('anordnenBtn').addEventListener('click', function(){ wackelnUmschalten(); });
+  document.getElementById('anordnenWidgetsBtn').addEventListener('click', openWidgetDrawer);
   initKachelSort();
   renderStpJetzt();
   renderHomeworkWidget();
@@ -17511,6 +17515,7 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-10-04-widgets-neben-anordnen', datum:'2026-10-04', fuer:'alle', text:'🧩 Beim Anordnen steht der Knopf «Widgets» jetzt direkt rechts neben «✏️ Anordnen» statt unten. Hörst du mit dem Anordnen auf, verschwindet er wieder.'},
   {id:'2026-10-04-sprache-original', datum:'2026-10-04', fuer:'alle', text:'🇩🇪 Im Sprach-Modus (🌐): Tippe auf einen übersetzten Text, und du siehst ihn auf Deutsch – bei Knöpfen lange drücken. Im Sprach-Fenster kannst du neu «🔊 Vorlesen» einschalten: Dann liest dir die Library den deutschen Text vor. Deine Sprache gehört jetzt zu deinem Konto und kommt auf jedes Gerät mit.'},
   {id:'2026-10-04-sprache-lp', datum:'2026-10-04', fuer:'lehrer', text:'🌐 Im Sprach-Fenster zeigt «👥 Sprachen in …», wer in der Klasse eine andere Sprache oder das Vorlesen nutzt. In Prüfungen steht bei diesen Schüler:innen 🌐 mit dem Sprachkürzel neben dem Namen (Aufgaben waren maschinell übersetzt). «🔊 Vorlesen» lässt sich auch ohne Fremdsprache einschalten – z. B. für schwache Leser:innen.'},
   {id:'2026-10-04-sprache-alles', datum:'2026-10-04', fuer:'alle', text:'🌐 Der Sprach-Knopf übersetzt jetzt die ganze Library – auch Hausaufgaben, Neuigkeiten und die Aufgaben in Mathematik, Natur und Technik, Geografie, Geschichte usw. In Deutsch, Englisch und Französisch bleiben die Aufgaben im Original. Antworten schreibst du weiterhin auf Deutsch.'},
@@ -21394,7 +21399,8 @@ function renderKlassenzimmer(){
   html += '<div class="back-row"><button class="btn btn-ghost btn-sm" id="backBtn" type="button">&larr; Startseite</button></div>';
   html += '<h2 class="page-welcome" style="margin-bottom:6px;">🏫 Klassenzimmer</h2>';
   html += '<p class="kz-intro">Werkzeuge für den Unterricht — nur für dich sichtbar. '+
-    '<button class="btn btn-ghost btn-sm" id="kzAnordnenBtn" type="button" title="Werkzeuge verschieben oder ausblenden (oder lange auf eine Kachel drücken) – nochmals klicken beendet das Anordnen">✏️ Anordnen</button></p>';
+    '<button class="btn btn-ghost btn-sm" id="kzAnordnenBtn" type="button" title="Werkzeuge verschieben oder ausblenden (oder lange auf eine Kachel drücken) – nochmals klicken beendet das Anordnen">✏️ Anordnen</button> '+
+    '<button class="btn btn-ghost btn-sm anordnen-widgets" id="kzAnordnenWidgetsBtn" type="button" title="Ausgeblendetes zurückholen">🧩 Widgets</button></p>';
   var sichtbar = kzSichtbar();
   KZ_BEREICHE.forEach(function(b){
     var tiles = sichtbar.filter(function(t){ return t.bereich === b.id; });
@@ -21414,6 +21420,7 @@ function renderKlassenzimmer(){
 
   document.getElementById('backBtn').addEventListener('click', goHome);
   document.getElementById('kzAnordnenBtn').addEventListener('click', function(){ wackelnUmschalten(); });
+  document.getElementById('kzAnordnenWidgetsBtn').addEventListener('click', openWidgetDrawer);
   wackelMarken();
   Array.prototype.forEach.call(document.querySelectorAll('[data-tool]'), function(b){
     b.addEventListener('click', function(){
@@ -35177,10 +35184,8 @@ function wackelnStart(){
   bar.className = 'wackel-bar';
   bar.id = 'wackelBar';
   bar.innerHTML = '<span>✏️ Ziehen zum Verschieben · <b>−</b> zum Ausblenden</span>'+
-    '<button class="btn btn-ghost btn-sm" type="button" data-w="widgets">🧩 Widgets</button>'+
     '<button class="btn btn-primary btn-sm" type="button" data-w="fertig">Fertig</button>';
   document.body.appendChild(bar);
-  bar.querySelector('[data-w="widgets"]').addEventListener('click', openWidgetDrawer);
   bar.querySelector('[data-w="fertig"]').addEventListener('click', wackelnEnde);
   document.addEventListener('keydown', wackelnEsc);
   wackelMarken();
