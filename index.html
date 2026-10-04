@@ -3051,23 +3051,35 @@ function isLeitung(){ return !!(state.profile && state.profile.leitung); }
 // Filter in der App — überall, wo Schüler:innen Übungen sehen, sowie in Lernstand/Prüfungen.
 function istLehrerHtml(r){ return !!(r && r.nurLehrer); }
 function fuerRolleSichtbar(r){ return !istLehrerHtml(r) || !!(state.profile && state.profile.role === 'teacher'); }
-/* ===================== 🎒 ANSICHT ALS SCHÜLER:IN (nur Jan) =====================
-   Jan kann unter ⚙️ Einstellungen direkt in die Ansicht einer Schülerin / eines
-   Schülers wechseln (welche:r, merkt sich das Gerät — steht bewusst nicht im Code).
-   Angemeldet bleibt Jan: state.profile ist das Profil der Schüler:in (alsAnsicht:true),
+/* ===================== 🎒 ANSICHT ALS SCHÜLER:IN (Lehrpersonen) =====================
+   Lehrpersonen (nicht Schulleitung, nicht Praktikum/Zivi) können unter ⚙️ Einstellungen
+   direkt in die Ansicht einer Schülerin / eines Schülers wechseln (welche:r, merkt sich
+   das Gerät — steht bewusst nicht im Code).
+   Angemeldet bleibt die Lehrperson: state.profile ist das Profil der Schüler:in (alsAnsicht:true),
    state.user nur ein Platzhalter mit deren uid, damit die ganze App deren Pfade liest.
    Gespeichert wird in dieser Ansicht NICHTS (alle Schreib-Wrapper unten verwerfen),
-   und was laut firestore.rules nur die Schüler:in selbst lesen darf (eigene Noten,
-   private Einträge), bleibt leer. */
+   und was laut firestore.rules nur die Schüler:in selbst lesen darf (private
+   Kalendereinträge, Anordnung), bleibt leer. Den 🎶 Notenrechner darf nur Jan lesen
+   (firestore.rules: isJan() bei noten und pruefungsnoten; state.profile.alsJan). */
 const ALS_SCHUELER_KEY = 'hl_alsSchueler';         // sessionStorage: uid der Schüler:in
 const ALS_SCHUELER_FAV_KEY = 'hl_alsSchuelerFav';  // localStorage: {uid, name} für den Schnellknopf
 function alsSchueler(){ return !!(state.profile && state.profile.alsAnsicht); }
 function alsSchuelerName(){ var p = state.profile || {}; return ((p.displayName || p.username || 'Schüler:in') + (p.nachname ? ' ' + p.nachname : '')).trim(); }
+function istPraktikumKlasse(k){ return String(k || '').indexOf('praktikum') === 0; }
+function darfSchuelerAnsicht(){
+  return !!(state.profile && state.profile.role === 'teacher' && !isLeitung() && !alsSchueler() && !istPraktikumKlasse(state.profile.klasse));
+}
+// Schnellknopf pro Lehrperson (mehrere Konten auf demselben Gerät); der Schlüssel
+// ohne uid ist die erste Fassung vom 04.10.2026, als es das nur für Jan gab.
+function alsSchuelerFavKey(){ return ALS_SCHUELER_FAV_KEY + '_' + state.user.uid; }
 function alsSchuelerFav(){
-  try{ var f = JSON.parse(localStorage.getItem(ALS_SCHUELER_FAV_KEY) || 'null'); return f && f.uid ? f : null; }catch(e){ return null; }
+  try{
+    var f = JSON.parse(localStorage.getItem(alsSchuelerFavKey()) || (istJan() ? localStorage.getItem(ALS_SCHUELER_FAV_KEY) : null) || 'null');
+    return f && f.uid ? f : null;
+  }catch(e){ return null; }
 }
 function wechsleAlsSchueler(uid){
-  if(!alsSchueler() && !istJan()) return;
+  if(!alsSchueler() && !darfSchuelerAnsicht()) return;
   try{
     if(uid) sessionStorage.setItem(ALS_SCHUELER_KEY, uid);
     else sessionStorage.removeItem(ALS_SCHUELER_KEY);
@@ -3079,7 +3091,7 @@ function wechsleAlsSchueler(uid){
   location.reload();
 }
 function alsSchuelerWaehlen(){
-  if(!istJan()) return;
+  if(!darfSchuelerAnsicht()) return;
   openModal('<h3>🎒 Schüleransicht</h3>'+
     '<p style="margin:0 0 8px;color:var(--text-muted);font-size:13px;">Wen aus <b>'+esc(klasseLabel())+'</b> möchtest du ansehen? Die Wahl bleibt als Schnellknopf in den Einstellungen. Für eine andere Klasse zuerst oben die Klasse wechseln.</p>'+
     '<div class="settings-list" id="alsListe"><div class="empty-state">Wird geladen …</div></div>'+
@@ -3096,7 +3108,7 @@ function alsSchuelerWaehlen(){
     box.querySelectorAll('[data-als]').forEach(function(b){
       b.addEventListener('click', function(){
         var x = liste[+b.getAttribute('data-als')];
-        try{ localStorage.setItem(ALS_SCHUELER_FAV_KEY, JSON.stringify({ uid:x.uid, name:(x.n + (x.nn ? ' ' + x.nn : '')) })); }catch(e){}
+        try{ localStorage.setItem(alsSchuelerFavKey(), JSON.stringify({ uid:x.uid, name:(x.n + (x.nn ? ' ' + x.nn : '')) })); }catch(e){}
         wechsleAlsSchueler(x.uid);
       });
     });
@@ -7439,19 +7451,19 @@ async function authGeaendert(user){
         return;
       }
     }
-    // 🎒 Jan in der Ansicht einer Schülerin / eines Schülers (siehe alsSchueler()).
+    // 🎒 Lehrperson in der Ansicht einer Schülerin / eines Schülers (siehe alsSchueler()).
     var alsUid = null;
     try{ alsUid = sessionStorage.getItem(ALS_SCHUELER_KEY); }catch(e){}
     if(alsUid){
-      var alsProfil = null;
-      if(profil.role === 'teacher' && profil.username === 'helfenberger'){
+      var alsProfil = null, alsJan = profil.username === 'helfenberger';
+      if(profil.role === 'teacher' && !istPraktikumKlasse(profil.klasse)){
         try{
           var alsSnap = await getDoc(doc(db, 'students', alsUid));
           if(alsSnap.exists() && alsSnap.data().role === 'student' && alsSnap.data().klasse) alsProfil = alsSnap.data();
         }catch(errAls){ console.error('Schüleransicht', errAls); }
       }
       if(alsProfil){
-        profil = Object.assign({}, alsProfil, { alsAnsicht:true });
+        profil = Object.assign({}, alsProfil, { alsAnsicht:true, alsJan:alsJan });
         state.user = { uid:alsUid, email:'' };
       } else {
         try{ sessionStorage.removeItem(ALS_SCHUELER_KEY); }catch(e){}
@@ -9421,7 +9433,7 @@ function openSettings(){
   if(alsSchueler()){
     h += '<div class="settings-section"><h4>🎒 Schüleransicht</h4><p style="margin:0 0 8px;color:var(--text-muted);font-size:12.5px;">Du siehst die Library als <b>'+esc(alsSchuelerName())+'</b>. Es wird nichts gespeichert.</p>'+
          '<div class="settings-actions"><button class="btn btn-primary btn-sm" id="setAlsZurueckBtn" type="button">🧑‍🏫 Zurück zu meinem Konto</button></div></div>';
-  } else if(istJan()){
+  } else if(darfSchuelerAnsicht()){
     var alsFav = alsSchuelerFav();
     h += '<div class="settings-section"><h4>🎒 Schüleransicht</h4><p style="margin:0 0 8px;color:var(--text-muted);font-size:12.5px;">Die Library so sehen wie eine Schülerin oder ein Schüler. Es wird dabei nichts gespeichert.</p><div class="settings-actions">'+
          (alsFav ? '<button class="btn btn-primary btn-sm" id="setAlsFavBtn" type="button">🎒 '+esc(alsFav.name || 'Schüler:in')+'</button>' : '')+
@@ -10077,7 +10089,8 @@ async function runGoLive(){
 /* ===================== NOTENRECHNER (Schüler:innen) =====================
    Privater Rechner hinter dem 🎶-Knopf oben. Alles in EINEM Dokument
    progress/{uid}/noten/liste -> {faecher:{fachId:[{id,name,note,gewicht}]}}.
-   Nur die Person selbst liest/schreibt es (siehe firestore.rules).
+   Nur die Person selbst liest/schreibt es (siehe firestore.rules); lesen darf
+   es ausserdem Jan in der 🎒 Schüleransicht.
    Gespeichert wird immer das ganze Dokument per setDoc OHNE merge - mit
    merge:true würde ein gelöschtes Fach/eine gelöschte Note stehen bleiben.
    Dazu kommen die Noten aus Online-Prüfungen (progress/{uid}/pruefungsnoten/*,
@@ -10149,6 +10162,11 @@ function notenSchnitt(liste){
 function fmtNote(n){ return String(Math.round(n * 100) / 100); }
 
 function openNotenrechner(){
+  // 🎒 Schüleransicht: der Notenrechner ist privat, ausser Jan liest ihn keine Lehrperson.
+  if(alsSchueler() && !state.profile.alsJan){
+    uiInfo('🎶 Notenrechner', 'Der Notenrechner ist privat – nur '+alsSchuelerName()+' selbst sieht die eigenen Noten.');
+    return;
+  }
   openModal('<h3>🎶 Notenrechner</h3><div id="notenBody"><div class="noten-empty">Wird geladen …</div></div>', 'modal-wide');
   notenLoad().then(paintNotenrechner).catch(function(err){
     console.error(err);
@@ -17611,7 +17629,7 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
-  {id:'2026-10-04-schueleransicht', datum:'2026-10-04', fuer:'lehrer', text:'🎒 Nur für Jan: Unter ⚙️ Einstellungen › «Schüleransicht» direkt in die Ansicht einer Schülerin oder eines Schülers wechseln (einmal wählen, danach ein Klick). Gespeichert wird dabei nichts; zurück geht es über das gelbe Band.'},
+  {id:'2026-10-04-schueleransicht', datum:'2026-10-04', fuer:'lehrer', text:'🎒 Neu unter ⚙️ Einstellungen › «Schüleransicht»: die Library so sehen wie eine Schülerin oder ein Schüler (einmal aus der Klassenliste wählen, danach ein Klick). Gespeichert wird dabei nichts; der private Notenrechner und eigene Kalendereinträge bleiben verborgen. Zurück geht es über das gelbe Band.'},
   {id:'2026-10-04-widgets-neben-anordnen', datum:'2026-10-04', fuer:'alle', text:'🧩 Beim Anordnen steht der Knopf «Widgets» jetzt direkt rechts neben «✏️ Anordnen» statt unten. Hörst du mit dem Anordnen auf, verschwindet er wieder.'},
   {id:'2026-10-04-sprache-original', datum:'2026-10-04', fuer:'alle', text:'🇩🇪 Im Sprach-Modus (🌐): Tippe auf einen übersetzten Text, und du siehst ihn auf Deutsch – bei Knöpfen lange drücken. Im Sprach-Fenster kannst du neu «🔊 Vorlesen» einschalten: Dann liest dir die Library den deutschen Text vor. Deine Sprache gehört jetzt zu deinem Konto und kommt auf jedes Gerät mit.'},
   {id:'2026-10-04-sprache-lp', datum:'2026-10-04', fuer:'lehrer', text:'🌐 Im Sprach-Fenster zeigt «👥 Sprachen in …», wer in der Klasse eine andere Sprache oder das Vorlesen nutzt. In Prüfungen steht bei diesen Schüler:innen 🌐 mit dem Sprachkürzel neben dem Namen (Aufgaben waren maschinell übersetzt). «🔊 Vorlesen» lässt sich auch ohne Fremdsprache einschalten – z. B. für schwache Leser:innen.'},

@@ -181,6 +181,19 @@ test('Prüfungsnoten: nur die Person selbst liest, Lehrperson schreibt und lösc
   await assertSucceeds(setDoc(doc(db.lp(), 'progress/sus/pruefungsnoten/G3a_p2'), { note: 4.5, gewicht: 1 }));
   await assertSucceeds(deleteDoc(doc(db.lp(), 'progress/sus/pruefungsnoten/G3a_p2')));
 });
+test('Notenrechner in der Schüleransicht: Jan liest (auch Prüfungsnoten), schreibt aber nicht; andere nicht', async () => {
+  await seed('progress/sus/noten/liste', { faecher: { mathe: [{ id: 'a', name: 'Test', note: 5, gewicht: 1 }] } });
+  await seed('progress/sus/pruefungsnoten/G3b_p1', { note: 5, gewicht: 1 });
+  await assertSucceeds(getDoc(doc(db.jan(), 'progress/sus/noten/liste')));
+  await assertSucceeds(getDocs(collection(db.jan(), 'progress/sus/pruefungsnoten')));
+  await assertFails(setDoc(doc(db.jan(), 'progress/sus/noten/liste'), { faecher: {} }));
+  await assertFails(deleteDoc(doc(db.jan(), 'progress/sus/noten/liste')));
+  await assertSucceeds(getDoc(doc(db.sus(), 'progress/sus/noten/liste')));
+  await assertSucceeds(setDoc(doc(db.sus(), 'progress/sus/noten/liste'), { faecher: {} }));
+  await assertFails(getDoc(doc(db.lp(), 'progress/sus/noten/liste')));
+  await assertFails(getDoc(doc(db.leitung(), 'progress/sus/noten/liste')));
+  await assertFails(getDoc(doc(db.susA(), 'progress/sus/noten/liste')));
+});
 test('Rotstift: Lehrpersonen ja, Praktikum/Zivi und Schüler:innen nicht', async () => {
   await seed('pruefungKorrektur/k1', { titel: 'T', klasse: 'G3b' });
   await seed('pruefungKorrektur/k1/schueler/s1', { name: 'N' });

@@ -495,16 +495,20 @@ service cloud.firestore {
     }
 
     // Privater Notenrechner (progress/{uid}/noten/liste). Nur die Person
-    // selbst. Keine Datenvalidierung, write darf kombiniert bleiben.
+    // selbst schreibt; lesen darf ausser ihr nur Jan (🎒 Schüleransicht, seit
+    // 04.10.2026) — andere Lehrpersonen und die Schulleitung nicht.
+    // Keine Datenvalidierung, write darf kombiniert bleiben.
     match /progress/{uid}/noten/{docId} {
-      allow read, write: if isOwner(uid);
+      allow read: if isOwner(uid) || isJan();
+      allow write: if isOwner(uid);
     }
 
     // Noten aus Online-Prüfungen: nur die Lehrperson trägt ein/entfernt, die
     // Person selbst liest sie (Notenrechner). Lehrpersonen lesen sie nie (die App
     // schreibt/löscht nur) — darum seit 28.09.2026 nicht mehr schulweit lesbar.
+    // Ausnahme seit 04.10.2026: Jan in der 🎒 Schüleransicht (Notenrechner).
     match /progress/{uid}/pruefungsnoten/{notenId} {
-      allow read: if isOwner(uid);
+      allow read: if isOwner(uid) || isJan();
       allow create, update: if isTeacher()
         && request.resource.data.note is number
         && request.resource.data.note >= 1 && request.resource.data.note <= 6
