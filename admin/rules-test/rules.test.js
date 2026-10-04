@@ -286,6 +286,13 @@ test('Stundenplan aus Untis: Person selbst und Lehrpersonen lesen, andere SuS ni
   await assertFails(getDoc(doc(db.susA(), 'progress/sus/einstellungen/stundenplanSchule')));
   await assertFails(getDoc(doc(db.lp(), 'progress/sus/einstellungen/layout')));
 });
+test('Sprache am Konto: Person selbst schreibt, Lehrpersonen lesen, andere SuS nicht', async () => {
+  await assertSucceeds(setDoc(doc(db.sus(), 'progress/sus/einstellungen/sprache'), { code: 'tr', vorlesen: true }));
+  await assertSucceeds(getDoc(doc(db.sus(), 'progress/sus/einstellungen/sprache')));
+  await assertSucceeds(getDoc(doc(db.lp(), 'progress/sus/einstellungen/sprache')));
+  await assertFails(getDoc(doc(db.susA(), 'progress/sus/einstellungen/sprache')));
+  await assertFails(setDoc(doc(db.lp(), 'progress/sus/einstellungen/sprache'), { code: 'de' }));
+});
 test('Alte, klassenlose Collections bleiben gesperrt', async () => {
   await assertFails(getDoc(doc(db.jan(), 'resources/x')));
   await assertFails(setDoc(doc(db.jan(), 'calendarEntries/x'), { a: 1 }));
