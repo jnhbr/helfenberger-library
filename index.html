@@ -3051,11 +3051,67 @@ function isLeitung(){ return !!(state.profile && state.profile.leitung); }
 // Filter in der App — überall, wo Schüler:innen Übungen sehen, sowie in Lernstand/Prüfungen.
 function istLehrerHtml(r){ return !!(r && r.nurLehrer); }
 function fuerRolleSichtbar(r){ return !istLehrerHtml(r) || !!(state.profile && state.profile.role === 'teacher'); }
+/* ===================== 🎒 ANSICHT ALS SCHÜLER:IN (nur Jan) =====================
+   Jan kann unter ⚙️ Einstellungen direkt in die Ansicht einer Schülerin / eines
+   Schülers wechseln (welche:r, merkt sich das Gerät — steht bewusst nicht im Code).
+   Angemeldet bleibt Jan: state.profile ist das Profil der Schüler:in (alsAnsicht:true),
+   state.user nur ein Platzhalter mit deren uid, damit die ganze App deren Pfade liest.
+   Gespeichert wird in dieser Ansicht NICHTS (alle Schreib-Wrapper unten verwerfen),
+   und was laut firestore.rules nur die Schüler:in selbst lesen darf (eigene Noten,
+   private Einträge), bleibt leer. */
+const ALS_SCHUELER_KEY = 'hl_alsSchueler';         // sessionStorage: uid der Schüler:in
+const ALS_SCHUELER_FAV_KEY = 'hl_alsSchuelerFav';  // localStorage: {uid, name} für den Schnellknopf
+function alsSchueler(){ return !!(state.profile && state.profile.alsAnsicht); }
+function alsSchuelerName(){ var p = state.profile || {}; return ((p.displayName || p.username || 'Schüler:in') + (p.nachname ? ' ' + p.nachname : '')).trim(); }
+function alsSchuelerFav(){
+  try{ var f = JSON.parse(localStorage.getItem(ALS_SCHUELER_FAV_KEY) || 'null'); return f && f.uid ? f : null; }catch(e){ return null; }
+}
+function wechsleAlsSchueler(uid){
+  if(!alsSchueler() && !istJan()) return;
+  try{
+    if(uid) sessionStorage.setItem(ALS_SCHUELER_KEY, uid);
+    else sessionStorage.removeItem(ALS_SCHUELER_KEY);
+  }catch(e){ toast('Wechsel ist in diesem Browser nicht möglich.'); return; }
+  stopResourceSync();
+  stopTimeTracking();
+  app.innerHTML = '<div class="spinner-wrap">Wechsle die Ansicht …</div>';
+  closeModal();
+  location.reload();
+}
+function alsSchuelerWaehlen(){
+  if(!istJan()) return;
+  openModal('<h3>🎒 Schüleransicht</h3>'+
+    '<p style="margin:0 0 8px;color:var(--text-muted);font-size:13px;">Wen aus <b>'+esc(klasseLabel())+'</b> möchtest du ansehen? Die Wahl bleibt als Schnellknopf in den Einstellungen. Für eine andere Klasse zuerst oben die Klasse wechseln.</p>'+
+    '<div class="settings-list" id="alsListe"><div class="empty-state">Wird geladen …</div></div>'+
+    '<div class="modal-actions"><button class="btn btn-ghost btn-sm" id="modalOk" type="button">Abbrechen</button></div>');
+  document.getElementById('modalOk').addEventListener('click', openSettings);
+  klassenListeFuerGruppe(state.klasse).then(function(liste){
+    var box = document.getElementById('alsListe');
+    if(!box) return;
+    if(!liste.length){ box.innerHTML = '<div class="empty-state">Keine Schüler:innen in dieser Klasse.</div>'; return; }
+    box.innerHTML = liste.map(function(x, i){
+      return '<div class="settings-row"><div class="grow"><b>'+esc(x.n)+(x.nn ? ' '+esc(x.nn) : '')+'</b></div>'+
+        '<button class="btn btn-primary btn-sm" data-als="'+i+'" type="button">Ansehen</button></div>';
+    }).join('');
+    box.querySelectorAll('[data-als]').forEach(function(b){
+      b.addEventListener('click', function(){
+        var x = liste[+b.getAttribute('data-als')];
+        try{ localStorage.setItem(ALS_SCHUELER_FAV_KEY, JSON.stringify({ uid:x.uid, name:(x.n + (x.nn ? ' ' + x.nn : '')) })); }catch(e){}
+        wechsleAlsSchueler(x.uid);
+      });
+    });
+  }).catch(function(err){
+    console.error('Schüleransicht', err);
+    var box = document.getElementById('alsListe');
+    if(box) box.innerHTML = '<div class="empty-state">Klassenliste konnte nicht geladen werden.</div>';
+  });
+}
 var leitungHinweis = { at:0, input:0 };
 ['pointerdown','keydown'].forEach(function(ev){
   document.addEventListener(ev, function(){ leitungHinweis.input = Date.now(); }, true);
 });
 function leitungBlockiert(refs){
+  if(alsSchueler()) return true;   // Ansicht als Schüler:in: gar nichts speichern
   if(!isLeitung() || !state.user) return false;
   var eigene = ['progress/','streaks/','pushSubscriptions/'].map(function(p){ return p + state.user.uid; });
   return refs.some(function(r){
@@ -3068,7 +3124,7 @@ function leitungNurAnsicht(){
   // leicht verzögert, damit es eine allfällige "Gespeichert"-Meldung überschreibt.
   if(Date.now() - leitungHinweis.input < 3000 && Date.now() - leitungHinweis.at > 1500){
     leitungHinweis.at = Date.now();
-    setTimeout(function(){ toast('👀 Schulleitung: nur Ansicht – nichts gespeichert.'); }, 400);
+    setTimeout(function(){ toast(alsSchueler() ? '👀 Ansicht als '+alsSchuelerName()+' – nichts gespeichert.' : '👀 Schulleitung: nur Ansicht – nichts gespeichert.'); }, 400);
   }
   return Promise.resolve();
 }
@@ -7294,7 +7350,7 @@ async function doLogin(rawName, password){
   var slug = slugName(String(rawName || '').split('@')[0]);
   if(!slug){ throw new Error('leer'); }
   // Nach jedem Login landet die Lehrperson wieder in der eigenen Klasse.
-  try{ sessionStorage.removeItem(KLASSE_ANSICHT_KEY); sessionStorage.removeItem(LEITUNG_ANSICHT_KEY); }catch(e){}
+  try{ sessionStorage.removeItem(KLASSE_ANSICHT_KEY); sessionStorage.removeItem(LEITUNG_ANSICHT_KEY); sessionStorage.removeItem(ALS_SCHUELER_KEY); }catch(e){}
   await setPersistence(auth, browserLocalPersistence);
   var kandidaten = await loginKandidaten(slug);
   var lastErr = null;
@@ -7327,7 +7383,7 @@ function doLogout(){
   // Auch den Ämtliplan vergessen: sonst sieht die naechste Person auf demselben
   // Geraet noch den zwischengespeicherten Stand der vorherigen Sitzung.
   aemtliState = { cfg:null, roster:[], loaded:false, exists:false, inflight:null };
-  try{ sessionStorage.removeItem(KLASSE_ANSICHT_KEY); sessionStorage.removeItem(LEITUNG_ANSICHT_KEY); }catch(e){}
+  try{ sessionStorage.removeItem(KLASSE_ANSICHT_KEY); sessionStorage.removeItem(LEITUNG_ANSICHT_KEY); sessionStorage.removeItem(ALS_SCHUELER_KEY); }catch(e){}
   // Nach dem Abmelden neu laden: Klassenliste, Werkzeuge und Zwischenspeicher
   // gehören zur Klasse der bisherigen Person und dürfen nicht stehen bleiben,
   // wenn sich auf demselben Gerät jemand aus einer anderen Klasse anmeldet.
@@ -7341,7 +7397,7 @@ async function authGeaendert(user){
   // nach stillem Token-Refresh erneut für dieselbe Person - ohne diese Sperre
   // hat das mitten in einem offenen Dialog (z.B. Hausaufgabe eintragen) auf
   // "Start" zurückgesetzt und so unbemerkt den bereits getippten Text riskiert.
-  if(user && lastAuthedUid && user.uid === lastAuthedUid){ state.user = user; return; }
+  if(user && lastAuthedUid && user.uid === lastAuthedUid){ if(!alsSchueler()) state.user = user; return; }
   state.user = user;
   if(!user){
     lastAuthedUid = null;
@@ -7381,6 +7437,24 @@ async function authGeaendert(user){
         toast('Dein Konto ist noch keiner Klasse zugeordnet – bitte bei Herrn Helfenberger melden.');
         await signOut(auth);
         return;
+      }
+    }
+    // 🎒 Jan in der Ansicht einer Schülerin / eines Schülers (siehe alsSchueler()).
+    var alsUid = null;
+    try{ alsUid = sessionStorage.getItem(ALS_SCHUELER_KEY); }catch(e){}
+    if(alsUid){
+      var alsProfil = null;
+      if(profil.role === 'teacher' && profil.username === 'helfenberger'){
+        try{
+          var alsSnap = await getDoc(doc(db, 'students', alsUid));
+          if(alsSnap.exists() && alsSnap.data().role === 'student' && alsSnap.data().klasse) alsProfil = alsSnap.data();
+        }catch(errAls){ console.error('Schüleransicht', errAls); }
+      }
+      if(alsProfil){
+        profil = Object.assign({}, alsProfil, { alsAnsicht:true });
+        state.user = { uid:alsUid, email:'' };
+      } else {
+        try{ sessionStorage.removeItem(ALS_SCHUELER_KEY); }catch(e){}
       }
     }
     lastAuthedUid = user.uid;
@@ -8323,7 +8397,9 @@ function renderChrome(innerHtml){
   html += '<div class="push-popover" id="pushPopover" hidden></div>';
   if(isTeacher && !isLeitung()){ html += '<div class="todo-popover" id="todoPopover" hidden></div>'; }
   if(!isLeitung()){ html += '<div class="push-popover links-popover" id="linksPopover" hidden></div>'; }
-  var fremdBanner = isLeitung()
+  var fremdBanner = alsSchueler()
+    ? '<div class="klasse-fremd-banner"><span>👀 <b>Ansicht als '+esc(alsSchuelerName())+'</b> ('+esc(klasseLabel())+'). Es wird nichts gespeichert.</span><button class="btn btn-sm btn-primary" id="alsZurueckBtn" type="button">🧑‍🏫 Zurück zu meinem Konto</button></div>'
+    : isLeitung()
     ? '<div class="klasse-fremd-banner"><span>👀 <b>Schulleitung – nur Ansicht.</b> <b>'+esc(klasseLabel())+'</b> ('+esc(klasseInfo().lp)+'), '+(isTeacher?'Ansicht der Lehrperson':'Ansicht der Schüler:innen')+'. Es wird nichts gespeichert.</span><button class="btn btn-sm btn-primary" id="leitungAnsichtBtn" type="button">'+(isTeacher?'🎒 Zur Schüleransicht':'🧑‍🏫 Zur Lehreransicht')+'</button></div>'
     : isFremdeKlasse()
     ? '<div class="klasse-fremd-banner"><span>👀 Du bist in '+(istKlasse()?'der Klasse <b>'+esc(state.klasse)+'</b> ('+esc(klasseInfo().lp)+')':'<b>'+esc(klasseLabel())+'</b>')+'. Änderungen werden hier gespeichert.</span><button class="btn btn-sm btn-primary" id="klasseHeimBtn" type="button">Zurück zu '+esc(klasseLabel(state.profile.klasse))+'</button></div>'
@@ -8332,6 +8408,8 @@ function renderChrome(innerHtml){
   app.innerHTML = html;
   app.classList.add('hat-chrome');
   neuNavStart();
+  var alsZurueckBtn = document.getElementById('alsZurueckBtn');
+  if(alsZurueckBtn){ alsZurueckBtn.addEventListener('click', function(){ wechsleAlsSchueler(null); }); }
   var leitungAnsichtBtn = document.getElementById('leitungAnsichtBtn');
   if(leitungAnsichtBtn){ leitungAnsichtBtn.addEventListener('click', function(){ wechsleLeitungAnsicht(isTeacher ? 'schueler' : 'lehrer'); }); }
 
@@ -9340,8 +9418,17 @@ function openSettings(){
   var h = '<h3>⚙️ Einstellungen</h3>';
   h += '<p style="margin:0;color:var(--text-muted);font-size:13px;">Angemeldet als <b>'+esc(state.profile.displayName)+'</b>'+
        (isLeitung() ? ' (Schulleitung, nur Ansicht) · Klasse '+esc(state.klasse) : isTeacher ? ' (Lehrperson, '+esc(klasseLabel(state.profile.klasse))+')' : ' · Klasse '+esc(state.klasse))+'</p>';
+  if(alsSchueler()){
+    h += '<div class="settings-section"><h4>🎒 Schüleransicht</h4><p style="margin:0 0 8px;color:var(--text-muted);font-size:12.5px;">Du siehst die Library als <b>'+esc(alsSchuelerName())+'</b>. Es wird nichts gespeichert.</p>'+
+         '<div class="settings-actions"><button class="btn btn-primary btn-sm" id="setAlsZurueckBtn" type="button">🧑‍🏫 Zurück zu meinem Konto</button></div></div>';
+  } else if(istJan()){
+    var alsFav = alsSchuelerFav();
+    h += '<div class="settings-section"><h4>🎒 Schüleransicht</h4><p style="margin:0 0 8px;color:var(--text-muted);font-size:12.5px;">Die Library so sehen wie eine Schülerin oder ein Schüler. Es wird dabei nichts gespeichert.</p><div class="settings-actions">'+
+         (alsFav ? '<button class="btn btn-primary btn-sm" id="setAlsFavBtn" type="button">🎒 '+esc(alsFav.name || 'Schüler:in')+'</button>' : '')+
+         '<button class="btn btn-'+(alsFav ? 'ghost' : 'primary')+' btn-sm" id="setAlsWahlBtn" type="button">'+(alsFav ? 'Andere wählen' : '🎒 Schüler:in wählen')+'</button></div></div>';
+  }
   h += '<div class="settings-section"><h4>Konto</h4><div class="settings-actions">'+
-       '<button class="btn btn-ghost btn-sm" id="setPwBtn" type="button">🔑 Passwort ändern</button>'+
+       (alsSchueler() ? '' : '<button class="btn btn-ghost btn-sm" id="setPwBtn" type="button">🔑 Passwort ändern</button>')+
        '<button class="btn btn-danger btn-sm" id="setLogoutBtn" type="button">Abmelden</button></div></div>';
   if(isTeacher && !isLeitung()){
     h += '<div class="settings-section"><h4>💾 Mein Speicher</h4><div id="setQuota"><div class="empty-state" style="padding:10px;">Wird geladen …</div></div></div>';
@@ -9373,7 +9460,14 @@ function openSettings(){
   document.getElementById('modalOk').addEventListener('click', closeModal);
   document.getElementById('setWidgetsBtn').addEventListener('click', function(){ closeModal(); openWidgetDrawer(); });
   document.getElementById('setAnordnenBtn').addEventListener('click', function(){ closeModal(); wackelnStart(); });
-  document.getElementById('setPwBtn').addEventListener('click', uiChangePassword);
+  var setPwBtn = document.getElementById('setPwBtn');
+  if(setPwBtn) setPwBtn.addEventListener('click', uiChangePassword);
+  var alsZurueck = document.getElementById('setAlsZurueckBtn');
+  if(alsZurueck) alsZurueck.addEventListener('click', function(){ wechsleAlsSchueler(null); });
+  var alsFavBtn = document.getElementById('setAlsFavBtn');
+  if(alsFavBtn) alsFavBtn.addEventListener('click', function(){ wechsleAlsSchueler(alsSchuelerFav().uid); });
+  var alsWahlBtn = document.getElementById('setAlsWahlBtn');
+  if(alsWahlBtn) alsWahlBtn.addEventListener('click', alsSchuelerWaehlen);
   document.getElementById('setLogoutBtn').addEventListener('click', function(){ closeModal(); doLogout(); });
   document.getElementById('setEinfBtn').addEventListener('click', function(){ closeModal(); openEinfuehrung(); });
   var pwAnfBtn = document.getElementById('setPwAnfBtn');
@@ -12302,7 +12396,9 @@ async function prepareResourceSync(rid){
   syncState.resourceId = rid;
   syncState.tracked = loadTrackedKeys(rid);
   syncState.lastWritten = null;
-  if(!state.user){ syncState.baseline = lsSnapshot(); return; }
+  // Ansicht als Schüler:in: deren Übungsstand nicht in diesen Browser holen
+  // (er würde sich sonst mit Jans eigenem Stand vermischen) und nichts hochladen.
+  if(!state.user || alsSchueler()){ syncState.baseline = lsSnapshot(); return; }
   try{
     var snap = await getDoc(doc(db,'progress', state.user.uid, 'resources', rid));
     var data = snap.exists() ? snap.data() : null;
@@ -17515,6 +17611,7 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-10-04-schueleransicht', datum:'2026-10-04', fuer:'lehrer', text:'🎒 Nur für Jan: Unter ⚙️ Einstellungen › «Schüleransicht» direkt in die Ansicht einer Schülerin oder eines Schülers wechseln (einmal wählen, danach ein Klick). Gespeichert wird dabei nichts; zurück geht es über das gelbe Band.'},
   {id:'2026-10-04-widgets-neben-anordnen', datum:'2026-10-04', fuer:'alle', text:'🧩 Beim Anordnen steht der Knopf «Widgets» jetzt direkt rechts neben «✏️ Anordnen» statt unten. Hörst du mit dem Anordnen auf, verschwindet er wieder.'},
   {id:'2026-10-04-sprache-original', datum:'2026-10-04', fuer:'alle', text:'🇩🇪 Im Sprach-Modus (🌐): Tippe auf einen übersetzten Text, und du siehst ihn auf Deutsch – bei Knöpfen lange drücken. Im Sprach-Fenster kannst du neu «🔊 Vorlesen» einschalten: Dann liest dir die Library den deutschen Text vor. Deine Sprache gehört jetzt zu deinem Konto und kommt auf jedes Gerät mit.'},
   {id:'2026-10-04-sprache-lp', datum:'2026-10-04', fuer:'lehrer', text:'🌐 Im Sprach-Fenster zeigt «👥 Sprachen in …», wer in der Klasse eine andere Sprache oder das Vorlesen nutzt. In Prüfungen steht bei diesen Schüler:innen 🌐 mit dem Sprachkürzel neben dem Namen (Aufgaben waren maschinell übersetzt). «🔊 Vorlesen» lässt sich auch ohne Fremdsprache einschalten – z. B. für schwache Leser:innen.'},
@@ -23843,7 +23940,7 @@ function lphAmOrt(){
 }
 function lphIstDrin(){ return lphImFenster() && lphAmOrt(); }
 function lphMelden(heartbeat, erzwungenRaus){
-  if(!lph.aktiv || !state.user) return;
+  if(!lph.aktiv || !state.user || alsSchueler()) return;
   var drin = erzwungenRaus ? false : lphIstDrin();
   var falsch = !erzwungenRaus && !drin && lphImFenster();
   if(!heartbeat && drin === lph.drin && falsch === lph.falsch) return;
@@ -23949,6 +24046,7 @@ document.addEventListener('fullscreenchange', function(){ if(lph.handBtn) lphHan
 document.addEventListener('webkitfullscreenchange', function(){ if(lph.handBtn) lphHandBtnZeichnen(); });
 function lphHandKlick(){
   if(!lph.aktiv || !state.user) return;
+  if(alsSchueler()){ toast('👀 Ansicht als '+alsSchuelerName()+' – nichts gespeichert.'); return; }
   var oben = !lphHandOben();
   lph.hand = oben ? Date.now() : 0;
   lphHandBtnZeichnen();
