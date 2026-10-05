@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>SVA – Dossier-Werkstatt</title>
 <style>
+  /* Ausdrucke ohne Kopf-/Fusszeilen des Browsers (Datum, Titel, Adresse, Seitenzahl) */
+  @page{margin:1.5cm;@top-left{content:""}@top-center{content:""}@top-right{content:""}@bottom-left{content:""}@bottom-center{content:""}@bottom-right{content:""}}
   /* Design «Projektmappe»: Packpapier, Schreibmaschinen-Etiketten, Leuchtstift, Stempel – wie die Mappe, in der ein Projekt entsteht. */
   :root{--ink:#33240f;--ink2:#6b5637;--gold:#8a5a12;--goldhell:#f2d24b;--papier:#d9c3a0;--blatt:#fdfbf4;--linie:#b99f73;--ok:#2f7d4f;--warn:#a3301f;--gelb:#fbeea0;--mono:"Courier New",Courier,monospace;--sans:Calibri,"Segoe UI",Arial,sans-serif;}
   *{box-sizing:border-box;}
@@ -106,6 +108,7 @@
 var KEY = 'sva_dw_v1';
 var VIDEO = 'nVc2cYSEgpA';
 var JAHR = '2026/27';
+var LEHRER = !!window.__libLehrer;   // setzt die Library für Lehrpersonen: alle Stationen offen, keine Pflicht-Reihenfolge
 var S = laden();
 function laden(){ try{ var o = JSON.parse(localStorage.getItem(KEY) || '{}'); o.c = o.c || {}; o.q = o.q || {}; o.a = o.a || {}; return o; }catch(e){ return {c:{},q:{},a:{}}; } }
 function sichern(){ try{ S.t = Date.now(); localStorage.setItem(KEY, JSON.stringify(S)); }catch(e){} melden(); }
@@ -244,7 +247,7 @@ function melden(){
   var ab = document.getElementById('abschluss'), alle = n === STATIONEN.length;
   if(alle && !ab.firstChild) ab.innerHTML = '<div class="abschluss"><div class="siegel">Dossier<b>BEREIT</b>formal geprüft</div><div><b style="font-size:20px">Alle '+STATIONEN.length+' Stationen erledigt – dein Dossier steht!</b><br>Jetzt zählt der Inhalt: Protokoll laufend schreiben und vor jeder Abgabe den Abgabe-Check machen.</div></div>';
   if(!alle && ab.firstChild) ab.innerHTML = '';
-  document.getElementById('barInfo').textContent = (auffrischFertig() ? 'Station ' + Math.min(n + 1, STATIONEN.length) + ' von ' + STATIONEN.length + ' · ' + n + ' erledigt' : 'Zuerst auffrischen: ' + auffrischAnzahl() + ' von ' + AUFFRISCHEN.length + ' erledigt') + (t ? ' · nächste Abgabe: ' + t.t.replace(/^Abgabe /, '') + ' ' + inTagen(tageBis(t.d)) : '');
+  document.getElementById('barInfo').textContent = (auffrischFertig() || LEHRER ? 'Station ' + Math.min(n + 1, STATIONEN.length) + ' von ' + STATIONEN.length + ' · ' + n + ' erledigt' : 'Zuerst auffrischen: ' + auffrischAnzahl() + ' von ' + AUFFRISCHEN.length + ' erledigt') + (t ? ' · nächste Abgabe: ' + t.t.replace(/^Abgabe /, '') + ' ' + inTagen(tageBis(t.d)) : '');
 }
 
 /* ---------- Ansichten ---------- */
@@ -266,7 +269,7 @@ function zStart(el){
   var offen = STATIONEN.filter(function(s){ return !fertig(s); })[0];
   el.innerHTML = '<h2>Willkommen in der Dossier-Werkstatt</h2>'+
     '<div class="karte"><p style="margin-top:0">Dein <b>Arbeitsdossier</b> zeigt, wie deine SVA entstanden ist. Hier baust du es in Word auf: zuerst kurz die Grundlagen auffrischen, dann 14 Stationen, jede mit dem passenden Ausschnitt aus dem Erklärvideo, den Klicks für dein Windows-Word und einem kurzen Selbstcheck.</p>'+
-    '<div class="reihe"><button class="btn" type="button" data-go="'+(Object.keys(S.q).length ? 'stationen' : 'check')+'">'+(!Object.keys(S.q).length ? 'Los gehts: Einstiegs-Check' : !auffrischFertig() ? 'Weiter: Auffrischen' : 'Weiter bei Station '+(offen ? STATIONEN.indexOf(offen)+1 : 14))+'</button>'+
+    '<div class="reihe"><button class="btn" type="button" data-go="'+(Object.keys(S.q).length ? 'stationen' : 'check')+'">'+(!Object.keys(S.q).length ? 'Los gehts: Einstiegs-Check' : !auffrischFertig() && !LEHRER ? 'Weiter: Auffrischen' : 'Weiter bei Station '+(offen ? STATIONEN.indexOf(offen)+1 : 14))+'</button>'+
     '<button class="btn leise" type="button" data-go="stationen">Alle Stationen</button></div></div>'+
     (t ? '<div class="karte"><span class="tag'+(t.abgabe?' rot':'')+'">'+(t.abgabe?'Nächste Abgabe':'Nächster Termin')+'</span> <b>'+esc(t.t)+'</b> · '+datText(t)+' · '+inTagen(tageBis(t.d))+'<br><span style="color:#5a648c">'+esc(t.z)+'</span></div>' : '')+
     '<div class="karte"><b>So arbeitest du</b><ol class="weg"><li>Word und diese Seite nebeneinander öffnen ({{Windows}} + {{←}} und {{Windows}} + {{→}}).</li><li>Zuerst der Einstiegs-Check und die vier Auffrisch-Stationen – sie sind für alle Pflicht. Danach öffnen sich die 14 Stationen.</li><li>Videoausschnitt ansehen, dann die Schritte in deinem eigenen Dossier nachmachen.</li><li>Selbstcheck abhaken. Deine Lehrperson sieht, bei welcher Station du stehst.</li></ol></div>'.replace(/\{\{(.+?)\}\}/g,'<kbd>$1</kbd>')+
@@ -314,8 +317,8 @@ function stationHtml(st, nr, mitVideo, gesperrt){
   return h + '</div></div>';
 }
 function zStationen(el){
-  var frei = auffrischFertig();
-  el.innerHTML = '<h2>Teil 1 · Auffrischen</h2><div class="hinweis"><b>Für alle Pflicht:</b> Arbeite zuerst diese vier kurzen Stationen zu den Grundlagen durch und hake den Selbstcheck ab. Erst dann öffnen sich die 14 Stationen.'+(frei ? ' <b style="color:var(--ok)">Erledigt ✓</b>' : '')+'</div>'+
+  var frei = auffrischFertig() || LEHRER;
+  el.innerHTML = (LEHRER ? '<div class="achtung"><b>Ansicht für Lehrpersonen:</b> Bei dir sind alle Stationen offen. Schüler:innen müssen zuerst Teil 1 abhaken, bevor sich die 14 Stationen öffnen.</div>' : '')+'<h2>Teil 1 · Auffrischen</h2><div class="hinweis"><b>Für alle Pflicht:</b> Arbeite zuerst diese vier kurzen Stationen zu den Grundlagen durch und hake den Selbstcheck ab. Erst dann öffnen sich die 14 Stationen.'+(auffrischFertig() ? ' <b style="color:var(--ok)">Erledigt ✓</b>' : '')+'</div>'+
     AUFFRISCHEN.map(function(s, i){ return stationHtml(s, 'A'+(i+1), false); }).join('')+
     '<h2 style="margin-top:30px">Teil 2 · Die 14 Stationen</h2>'+
     (frei ? '<div class="hinweis">Arbeite die Stationen der Reihe nach durch. Die Zeit zeigt, wo der passende Teil im Video (32 Minuten) beginnt. Das Video wurde auf einem Mac aufgenommen – die Klicks für dein Windows-Word stehen jeweils darunter.</div>'
@@ -333,7 +336,7 @@ function zStationen(el){
     cb.parentNode.classList.toggle('an', cb.checked);
     var st = STATIONEN.concat(AUFFRISCHEN).filter(function(x){ return x.id === id; })[0], f = fertig(st);
     karte.classList.toggle('fertig', f);
-    if(AUFFRISCHEN.indexOf(st) >= 0 && auffrischFertig() !== !el.querySelector('.station.gesperrt')){ var y = window.scrollY; zStationen(el); window.scrollTo(0, y); }
+    if(!LEHRER && AUFFRISCHEN.indexOf(st) >= 0 && auffrischFertig() !== !el.querySelector('.station.gesperrt')){ var y = window.scrollY; zStationen(el); window.scrollTo(0, y); }
   };
 }
 

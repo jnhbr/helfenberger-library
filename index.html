@@ -201,6 +201,8 @@
   /* ---------- Chrome / header ---------- */
   .topbar{display:flex;align-items:center;flex-wrap:wrap;row-gap:8px;gap:14px;padding:14px 22px;background:var(--surface);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:20;}
   .topbar-logo{height:36px;width:auto;flex-shrink:0;cursor:pointer;display:flex;align-items:center;}
+  /* 🖨️ Kein Datum/Titel/Adresse/Seitenzahl des Browsers auf Ausdrucken (siehe DRUCK_OHNE_KOPF). */
+  @page{@top-left{content:""}@top-center{content:""}@top-right{content:""}@bottom-left{content:""}@bottom-center{content:""}@bottom-right{content:""}}
   .topbar-zurueck{font-size:19px;line-height:1;padding:6px 11px;flex-shrink:0;}
   .topbar-zurueck[hidden]{display:none;}
   .topbar-logo img{height:100%;width:auto;object-fit:contain;display:block;}
@@ -291,6 +293,12 @@
   .sva-naechste{font-size:15.5px;}
   .sva-chip{display:inline-block;border-radius:999px;padding:1px 10px;font-size:12.5px;font-weight:700;background:#E3E7FB;color:#3046C9;}
   .sva-chip.abgabe{background:#FDE5E1;color:#B42318;}
+  .sva-chip.gelb{background:#FFF1C2;color:#7A5200;} .sva-chip.ok{background:#DDF1E4;color:#1B6B3F;} .sva-chip.papier{background:#EDE6D6;color:#5C4A22;}
+  .sva-achtung{border:1px solid #F3C9C2;background:#FFF7F5;border-radius:10px;padding:10px 14px;} .sva-achtung.ruhig{border-color:var(--border);background:transparent;color:var(--text-muted);font-size:14px;}
+  .sva-achtung ul{margin:6px 0 2px;padding-left:20px;} .sva-achtung li{margin:5px 0;line-height:1.9;} .sva-achtung p{margin:6px 0 0;}
+  .sva-rueck{margin-top:10px;padding:10px;border:1px dashed var(--border);border-radius:8px;display:flex;flex-direction:column;gap:6px;align-items:flex-start;} .sva-rueck .modal-input{width:100%;}
+  .sva-pform{display:grid;grid-template-columns:1fr 1fr;gap:6px 10px;margin:8px 0;} .sva-pform label.breit{grid-column:1 / -1;} .sva-pform .modal-input{width:100%;}
+  .sva-rueckbox{border-radius:10px;padding:10px 14px;background:#E9F6EE;border:1px solid #BFE3CC;} .sva-rueckbox.ueber{background:#FFF4D6;border-color:#EBD08A;}
   .sva-details summary{cursor:pointer;font-weight:600;}
   .sva-tab{width:100%;border-collapse:collapse;margin-top:8px;font-size:14.5px;}
   .sva-tab td,.sva-tab th{padding:7px 8px;border-bottom:1px solid var(--border);text-align:left;vertical-align:top;}
@@ -5296,7 +5304,7 @@ function earlybirdDrucken(datum, alle){
   var zeilen = alle.map(function(x, i){
     return '<tr><td class="nr">'+(i+1)+'</td><td>'+esc(earlybirdName(x))+'</td><td>'+esc(x.klasse || '')+'</td><td>'+esc(x.vonName || '')+'</td><td>'+esc(x.auftrag || '')+'</td><td class="box">'+(x.anwesend ? '☒' : '☐')+'</td></tr>';
   }).join('');
-  var css = '@page{size:A4;margin:2cm;}' +
+  var css = '@page{size:A4;margin:2cm;'+DRUCK_OHNE_KOPF+'}' +
     'body{font-family:Calibri,Carlito,"Segoe UI",Arial,sans-serif;font-size:11pt;line-height:1.4;color:#000;background:#fff;margin:0;}' +
     '.blatt{max-width:17cm;margin:0 auto;padding:16px;} @media print{.blatt{padding:0;max-width:none;} .werkzeug{display:none;}}' +
     'table{border-collapse:collapse;width:100%;} .kopf td{vertical-align:middle;padding:0;} .kopf .logo{width:4.2cm;} .kopf td + td{padding-left:10pt;}' +
@@ -6864,6 +6872,10 @@ function toast(msg){
 }
 
 function esc(s){ return (s||'').toString().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+/* 🖨️ Ausdrucke ohne die Kopf-/Fusszeilen des Browsers (Datum, Seitentitel, Adresse, Seitenzahl): Besetzt eine Seite alle
+   sechs Rand-Felder selbst (hier: leer), lässt Chrome/Edge die eigenen weg; die Seitenränder bleiben. Gehört in JEDES
+   Druck-CSS der Library (@page{…}). Safari und Firefox kennen das nicht – dort bleibt es bei der Einstellung im Druckdialog. */
+var DRUCK_OHNE_KOPF = '@top-left{content:""}@top-center{content:""}@top-right{content:""}@bottom-left{content:""}@bottom-center{content:""}@bottom-right{content:""}';
 
 /* ===================== "BLEISTIFT"-EASTER-EGG (unten rechts) =====================
    Rein dekoratives Detail für aufmerksame Schüler:innen: der Bleistift neben der
@@ -12451,6 +12463,7 @@ function svaKopfHtml(isTeacher){
   var heute = todayStr();
   var naechste = SVA_TERMINE.filter(function(t){ return (t.bis || t.d) >= heute; })[0];
   var html = '<div class="sk-panel sva-plan">';
+  if(isTeacher && /^[A-Za-z]3/.test(state.klasse || '')) html += '<div id="svaAchtung"></div>';
   if(isTeacher && heute < SVA_SICHTBAR_AB){
     html += '<div class="sva-vorschau">👀 Vorschau: Schüler:innen sehen die Kachel «SVA» ab '+esc(svaDatum({d:SVA_SICHTBAR_AB}))+'.</div>';
   }
@@ -12678,36 +12691,73 @@ function svaDruck(titel, body){
     'table{border-collapse:collapse;width:100%;}td,th{border:1px solid #777;padding:3pt 6pt;text-align:left;vertical-align:top;}th{background:#e6e6e6;}'+
     '.karte{display:inline-flex;flex-direction:column;justify-content:center;width:9cm;height:5cm;border:1px dashed #777;margin:0 4mm 4mm 0;padding:6mm;box-sizing:border-box;text-align:center;break-inside:avoid;}'+
     '.karte b{font-size:17pt;line-height:1.25;}.blatt{break-after:page;}.blatt:last-child{break-after:auto;}.klein{font-size:9pt;color:#444;}.pk{white-space:nowrap;text-align:center;}'+
-    '@media print{body{margin:0;}}</style></head><body>'+body+'<script>window.onload=function(){setTimeout(function(){window.print();},200);};<\/script></body></html>');
+    '@page{margin:1.5cm;'+DRUCK_OHNE_KOPF+'}@media print{body{margin:0;}}</style></head><body>'+body+'<script>window.onload=function(){setTimeout(function(){window.print();},200);};<\/script></body></html>');
   w.document.close();
 }
 
-/* 📋 Projekte der Klasse: Themen, Journal, Rapporte, Ausstellung */
-var svaProj = {klasse:null, sicht:'themen', liste:null, lauf:0};
+/* 📋 Projekte der Klasse: Themen, Journal, Rapporte, Ausstellung
+   Zusätzlich pro Klasse:
+   - klasseninfo/svaRueck  {r:{uid:{status:'ok'|'ueber', text, am, von}}}  Rückmeldung zum Grobkonzept – die Schüler:in
+     sieht sie im Fach SVA (svaRueckZeigen). Das Dokument ist für die ganze Klasse lesbar (bestehende Regel), die
+     Oberfläche zeigt nur die eigene Rückmeldung.
+   - klassenzimmer/svaPapier {p:{uid:{thema, produkt, stunden, titel, zeigt, bedarf}}}  nur Lehrpersonen: Angaben für
+     Schüler:innen, die auf Papier arbeiten – fliessen in Listen, Tischkarten und Bedarf ein. */
+var svaProj = {klasse:null, sicht:'themen', liste:null, lauf:0, rueck:{}, papier:{}};
+function svaRueckRef(klasse){ return kdocFor(klasse, 'klasseninfo', 'svaRueck'); }
+function svaPapierRef(klasse){ return kdocFor(klasse, 'klassenzimmer', 'svaPapier'); }
+function svaErsteZeile(t){ return String(t || '').split('\n')[0].trim(); }
+// Was gilt für eine Person: die eigenen Einträge aus «Mein SVA-Projekt», sonst die Papier-Angaben der Lehrperson.
+function svaWerte(x, papier){
+  var p = x.p, pa = (papier || {})[x.s.uid] || null, g = (p && p.g) || {}, a = (p && p.a) || {zeigt:{}, bedarf:{}};
+  var br = p ? svaAngekreuzt(SVA_BEDARF, a.bedarf) : []; if(p && a.anderes) br.push(a.anderes);
+  return {
+    papier: !p && !!pa,
+    thema: svaErsteZeile(g.thema) || (pa && pa.thema) || '',
+    produkt: svaErsteZeile(g.produkt) || (pa && pa.produkt) || '',
+    stunden: p ? svaStunden(p) : (pa && typeof pa.stunden === 'number' ? pa.stunden : null),
+    titel: (p && a.titel) || (pa && pa.titel) || '',
+    zeigt: p ? svaAngekreuzt(SVA_ZEIGT, a.zeigt).join(', ') : ((pa && pa.zeigt) || ''),
+    bedarf: p ? br.join(', ') : ((pa && pa.bedarf) || '')
+  };
+}
+async function svaKlasseDaten(klasse){
+  var roster = await svaRoster(klasse);
+  var res = await Promise.all([
+    Promise.all(roster.map(function(s){
+      return getDoc(doc(db, 'progress', s.uid, 'resources', SVA_PROJ_ID)).then(function(d){ return {s:s, p:svaProjLesen(d.exists() ? d.data() : null)}; }, function(){ return {s:s, p:null}; });
+    })),
+    getDoc(svaRueckRef(klasse)).catch(function(){ return null; }),
+    getDoc(svaPapierRef(klasse)).catch(function(){ return null; })
+  ]);
+  return {liste:res[0], rueck:(res[1] && res[1].exists() && res[1].data().r) || {}, papier:(res[2] && res[2].exists() && res[2].data().p) || {}};
+}
 function svaProjekte(){
   svaProj.klasse = svaStandKlasse(); svaProj.liste = null;
   openModal('<h3>📋 SVA: Projekte der Klasse</h3><div class="sva-wahl"><label class="modal-label" for="svaPrKl">Klasse</label>'+svaKlassenWahl('svaPrKl', svaProj.klasse)+
     '<div class="sva-knoepfe" id="svaPrSicht"></div></div><div id="svaPr" class="sva-stand">Lädt …</div>'+
     '<div class="modal-actions"><span id="svaPrDruck" class="sva-knoepfe"></span><button class="btn btn-primary" id="svaPrZu" type="button">Schliessen</button></div>', 'modal-wide');
-  document.getElementById('svaPrZu').addEventListener('click', closeModal);
+  document.getElementById('svaPrZu').addEventListener('click', function(){ svaAchtung.cache = {}; closeModal(); if(state.route.name === 'subject' && state.route.subject === 'sva') svaAchtungZeigen(); });
   var sel = document.getElementById('svaPrKl');
   sel.addEventListener('change', function(){ svaProj.klasse = sel.value; svaProjLaden(); });
   document.getElementById('svaPrSicht').addEventListener('click', function(e){ var b = e.target.closest('[data-sicht]'); if(b){ svaProj.sicht = b.getAttribute('data-sicht'); svaProjZeichnen(); } });
   document.getElementById('svaPrDruck').addEventListener('click', function(e){ var b = e.target.closest('[data-druck]'); if(b) svaProjDrucken(b.getAttribute('data-druck')); });
+  document.getElementById('svaPr').addEventListener('click', svaProjKlick);
   svaProjLaden();
 }
 async function svaProjLaden(){
   var lauf = ++svaProj.lauf, el = document.getElementById('svaPr');
   if(el) el.textContent = 'Lädt …';
-  var liste;
-  try{
-    var roster = await svaRoster(svaProj.klasse);
-    liste = await Promise.all(roster.map(function(s){
-      return getDoc(doc(db, 'progress', s.uid, 'resources', SVA_PROJ_ID)).then(function(d){ return {s:s, p:svaProjLesen(d.exists() ? d.data() : null)}; }, function(){ return {s:s, p:null}; });
-    }));
-  }catch(err){ console.error(err); liste = null; }
+  var d = null;
+  try{ d = await svaKlasseDaten(svaProj.klasse); }catch(err){ console.error(err); }
   if(lauf !== svaProj.lauf) return;
-  svaProj.liste = liste; svaProjZeichnen();
+  svaProj.liste = d ? d.liste : null; svaProj.rueck = d ? d.rueck : {}; svaProj.papier = d ? d.papier : {};
+  svaProjZeichnen();
+}
+function svaRueckChip(r){ return !r || !r.status ? '' : r.status === 'ok' ? ' <span class="sva-chip ok">besprochen ✓</span>' : ' <span class="sva-chip abgabe">überarbeiten</span>'; }
+function svaPapierForm(x){
+  var pa = svaProj.papier[x.s.uid] || {}, f = function(k, label, breit){ return '<label class="sva-klein'+(breit ? ' breit' : '')+'">'+label+'<input type="'+(k === 'stunden' ? 'number' : 'text')+'" class="modal-input" data-pf="'+k+'" value="'+esc(pa[k] == null ? '' : pa[k])+'"'+(k === 'stunden' ? ' min="0" max="300" step="0.5"' : ' maxlength="160"')+'></label>'; };
+  return '<details class="sva-papier" data-uid="'+esc(x.s.uid)+'"><summary>✏️ Auf Papier: nachtragen</summary><div class="sva-pform">'+f('thema','Thema',true)+f('produkt','Produkt',true)+f('stunden','Stunden bisher')+f('titel','Titel Tischkarte')+
+    f('zeigt','Stellt aus')+f('bedarf','Braucht (Strom, Stellwand …)')+'</div><button class="btn btn-primary btn-sm" type="button" data-psave="1">Speichern</button> <span class="sva-klein" data-pinfo="1"></span></details>';
 }
 function svaProjZeichnen(){
   var el = document.getElementById('svaPr'), sichtEl = document.getElementById('svaPrSicht'), druckEl = document.getElementById('svaPrDruck');
@@ -12720,53 +12770,146 @@ function svaProjZeichnen(){
   if(!liste){ el.textContent = 'Daten konnten nicht geladen werden.'; return; }
   if(!liste.length){ el.textContent = 'In der Klasse '+svaProj.klasse+' sind keine Schüler:innen erfasst.'; return; }
   var name = function(x){ return esc(x.s.displayName || x.s.username || '?'); };
-  var leer = function(x, spalten){ return '<tr class="vorbei"><td>'+name(x)+'</td><td colspan="'+spalten+'">noch nichts eingetragen</td></tr>'; };
+  var pap = function(w){ return w.papier ? ' <span class="sva-chip papier">Papier</span>' : ''; };
   var html = '';
   if(svaProj.sicht === 'themen'){
     html = '<table class="sva-tab"><tr><th>Name</th><th>Thema</th><th>Produkt</th><th>Grobkonzept</th></tr>'+liste.map(function(x){
-      if(!x.p) return leer(x, 3);
-      var g = x.p.g, n = SVA_GK_FELDER.filter(function(f){ return (g[f[0]] || '').trim(); }).length;
-      return '<tr><td>'+name(x)+'</td><td>'+esc((g.thema || '–').split('\n')[0])+'</td><td>'+esc((g.produkt || '–').split('\n')[0])+'</td><td>'+n+' / '+SVA_GK_FELDER.length+
-        (g.bereit ? ' <span class="sva-chip">bereit</span>' : '')+'<details><summary>ansehen</summary>'+SVA_GK_FELDER.map(function(f){ return '<p class="sva-klein"><b>'+esc(f[1])+'</b><br>'+(svaZeilen(g[f[0]]) || '–')+'</p>'; }).join('')+'</details></td></tr>';
+      var w = svaWerte(x, svaProj.papier);
+      if(!x.p) return '<tr'+(w.papier ? '' : ' class="vorbei"')+'><td>'+name(x)+pap(w)+'</td><td>'+esc(w.thema || '–')+'</td><td>'+esc(w.produkt || '–')+'</td><td>'+(w.papier ? '' : 'noch nichts eingetragen')+svaPapierForm(x)+'</td></tr>';
+      var g = x.p.g, n = SVA_GK_FELDER.filter(function(f){ return (g[f[0]] || '').trim(); }).length, r = svaProj.rueck[x.s.uid] || {};
+      return '<tr><td>'+name(x)+'</td><td>'+esc(w.thema || '–')+'</td><td>'+esc(w.produkt || '–')+'</td><td>'+n+' / '+SVA_GK_FELDER.length+
+        (g.bereit ? ' <span class="sva-chip">bereit</span>' : '')+'<span data-rchip="'+esc(x.s.uid)+'">'+svaRueckChip(r)+'</span><details><summary>ansehen und rückmelden</summary>'+
+        SVA_GK_FELDER.map(function(f){ return '<p class="sva-klein"><b>'+esc(f[1])+'</b><br>'+(svaZeilen(g[f[0]]) || '–')+'</p>'; }).join('')+
+        '<div class="sva-rueck" data-uid="'+esc(x.s.uid)+'"><b>Rückmeldung an '+name(x)+'</b> <span class="sva-klein">(erscheint bei ihr/ihm im Fach SVA)</span>'+
+        '<select class="modal-input" data-rf="status"><option value="">– keine Rückmeldung –</option><option value="ok"'+(r.status === 'ok' ? ' selected' : '')+'>✅ besprochen – passt</option><option value="ueber"'+(r.status === 'ueber' ? ' selected' : '')+'>✏️ bitte überarbeiten</option></select>'+
+        '<textarea class="modal-input" rows="2" data-rf="text" maxlength="600" placeholder="Kommentar, z. B. was noch fehlt">'+esc(r.text || '')+'</textarea>'+
+        '<button class="btn btn-primary btn-sm" type="button" data-rsave="1">Rückmeldung speichern</button> <span class="sva-klein" data-rinfo="1"></span></div></details></td></tr>';
     }).join('')+'</table>';
   } else if(svaProj.sicht === 'journal'){
     html = '<table class="sva-tab"><tr><th>Name</th><th>Stunden</th><th>Einträge</th><th>letzter Eintrag</th></tr>'+liste.map(function(x){
-      if(!x.p) return leer(x, 3);
-      var j = x.p.j.slice().sort(function(a, b){ return (a.d || '') < (b.d || '') ? 1 : -1; }), h = svaStunden(x.p);
-      return '<tr><td>'+name(x)+'</td><td><span class="sva-balken"><span style="width:'+Math.min(100, Math.round(h / 60 * 100))+'%"></span></span> '+String(h).replace('.', ',')+' h</td><td>'+j.length+
+      var w = svaWerte(x, svaProj.papier), h = w.stunden;
+      var balken = h == null ? '–' : '<span class="sva-balken"><span style="width:'+Math.min(100, Math.round(h / 60 * 100))+'%"></span></span> '+String(h).replace('.', ',')+' h';
+      if(!x.p) return '<tr'+(w.papier ? '' : ' class="vorbei"')+'><td>'+name(x)+pap(w)+'</td><td>'+balken+'</td><td colspan="2">'+(w.papier ? 'Journal auf Papier' : 'noch nichts eingetragen')+'</td></tr>';
+      var j = x.p.j.slice().sort(function(a, b){ return (a.d || '') < (b.d || '') ? 1 : -1; });
+      return '<tr><td>'+name(x)+'</td><td>'+balken+'</td><td>'+j.length+
         (j.length ? '<details><summary>ansehen</summary>'+j.map(function(e){ return '<p class="sva-klein"><b>'+esc(svaDatCH(e.d))+'</b> '+esc(e.von || '')+(e.bis ? '–'+esc(e.bis) : '')+(e.ort ? ' · '+esc(e.ort) : '')+'<br>'+svaZeilen(e.was)+(e.kom ? '<br><i>'+svaZeilen(e.kom)+'</i>' : '')+'</p>'; }).join('')+'</details>' : '')+
         '</td><td>'+(j[0] ? esc(svaDatCH(j[0].d)) : '–')+'</td></tr>';
-    }).join('')+'</table><p class="sva-klein">Balken = Anteil an 60 Stunden (Richtwert 60–80).</p>';
+    }).join('')+'</table><p class="sva-klein">Balken = Anteil an 60 Stunden (Richtwert 60–80). Stunden von Papier-Schüler:innen trägst du unter «Themen und Grobkonzept» nach.</p>';
   } else if(svaProj.sicht === 'rapport'){
     var zelle = function(r){ if(!r || (!r.am && !r.stand && !r.fertig && !r.muehe && !r.weiter)) return '–';
       return (r.stand || 0)+' %'+(r.am ? ' · ✓ '+esc(svaDatCH(r.am)) : ' · offen')+(r.hilfe ? ' <span class="sva-chip abgabe">Gespräch gewünscht</span>' : '')+
         '<details><summary>ansehen</summary><p class="sva-klein"><b>Fertig</b><br>'+(svaZeilen(r.fertig) || '–')+'</p><p class="sva-klein"><b>Macht Mühe</b><br>'+(svaZeilen(r.muehe) || '–')+'</p><p class="sva-klein"><b>Nächste Schritte</b><br>'+(svaZeilen(r.weiter) || '–')+'</p></details>'; };
     html = '<table class="sva-tab"><tr><th>Name</th><th>Rapport Dezember</th><th>Rapport Januar</th></tr>'+liste.map(function(x){
-      return x.p ? '<tr><td>'+name(x)+'</td><td>'+zelle(x.p.r.dez)+'</td><td>'+zelle(x.p.r.jan)+'</td></tr>' : leer(x, 2);
+      return x.p ? '<tr><td>'+name(x)+'</td><td>'+zelle(x.p.r.dez)+'</td><td>'+zelle(x.p.r.jan)+'</td></tr>' : '<tr class="vorbei"><td>'+name(x)+pap(svaWerte(x, svaProj.papier))+'</td><td colspan="2">Rapport mündlich oder auf Papier</td></tr>';
     }).join('')+'</table>';
   } else {
     html = '<table class="sva-tab"><tr><th>Name</th><th>Titel Tischkarte</th><th>stellt aus</th><th>braucht</th><th>Checkliste</th></tr>'+liste.map(function(x){
-      if(!x.p) return leer(x, 4);
-      var a = x.p.a, br = svaAngekreuzt(SVA_BEDARF, a.bedarf); if(a.anderes) br.push(a.anderes);
-      var ch = 0; Object.keys(a.check).forEach(function(k){ if(a.check[k]) ch++; });
-      return '<tr><td>'+name(x)+'</td><td>'+esc(a.titel || '–')+'</td><td>'+esc(svaAngekreuzt(SVA_ZEIGT, a.zeigt).join(', ') || '–')+'</td><td>'+esc(br.join(', ') || '–')+'</td><td>'+ch+' / 8</td></tr>';
-    }).join('')+'</table>';
+      var w = svaWerte(x, svaProj.papier), ch = 0;
+      if(x.p) Object.keys(x.p.a.check).forEach(function(k){ if(x.p.a.check[k]) ch++; });
+      return '<tr'+(x.p || w.papier ? '' : ' class="vorbei"')+'><td>'+name(x)+pap(w)+'</td><td>'+esc(w.titel || '–')+'</td><td>'+esc(w.zeigt || '–')+'</td><td>'+esc(w.bedarf || '–')+'</td><td>'+(x.p ? ch+' / 8' : '–')+'</td></tr>';
+    }).join('')+'</table><p class="sva-klein">Angaben von Papier-Schüler:innen trägst du unter «Themen und Grobkonzept» nach.</p>';
   }
-  el.innerHTML = '<p class="sva-klein">Klasse '+esc(svaProj.klasse)+': '+liste.filter(function(x){ return x.p; }).length+' von '+liste.length+' haben «Mein SVA-Projekt» benutzt. Wer auf Papier arbeitet, erscheint als «noch nichts eingetragen».</p>'+html;
+  var papierN = liste.filter(function(x){ return !x.p && svaProj.papier[x.s.uid]; }).length;
+  el.innerHTML = '<p class="sva-klein">Klasse '+esc(svaProj.klasse)+': '+liste.filter(function(x){ return x.p; }).length+' von '+liste.length+' arbeiten in «Mein SVA-Projekt»'+(papierN ? ', '+papierN+' auf Papier nachgetragen' : '')+'.</p>'+html;
+}
+function svaProjKlick(e){
+  var rs = e.target.closest('[data-rsave]'), ps = e.target.closest('[data-psave]');
+  if(rs){
+    var box = rs.closest('.sva-rueck'), uid = box.getAttribute('data-uid'), info = box.querySelector('[data-rinfo]');
+    var status = box.querySelector('[data-rf="status"]').value, text = box.querySelector('[data-rf="text"]').value.trim().slice(0, 600), p;
+    if(!status && !text){ delete svaProj.rueck[uid]; var weg = {}; weg['r.'+uid] = deleteField(); p = updateDoc(svaRueckRef(svaProj.klasse), weg).catch(function(err){ if(err && err.code !== 'not-found') throw err; }); }
+    else { var r = {status:status, text:text, am:todayStr(), von:state.profile.nachname || state.profile.displayName || state.profile.username || ''}; svaProj.rueck[uid] = r; var d = {r:{}}; d.r[uid] = r; p = setDoc(svaRueckRef(svaProj.klasse), d, {merge:true}); }
+    info.textContent = 'speichert …';
+    p.then(function(){ info.textContent = (!status && !text) ? 'Rückmeldung entfernt.' : 'Gespeichert – sichtbar im Fach SVA.'; var chip = document.querySelector('[data-rchip="'+uid+'"]'); if(chip) chip.innerHTML = svaRueckChip(svaProj.rueck[uid]); },
+           function(err){ console.error(err); info.textContent = 'Konnte nicht gespeichert werden.'; });
+  } else if(ps){
+    var pbox = ps.closest('.sva-papier'), puid = pbox.getAttribute('data-uid'), pinfo = pbox.querySelector('[data-pinfo]'), pa = {}, leer = true;
+    Array.prototype.forEach.call(pbox.querySelectorAll('[data-pf]'), function(inp){
+      var k = inp.getAttribute('data-pf'), v = inp.value.trim();
+      if(k === 'stunden'){ if(v !== '' && !isNaN(+v)){ pa.stunden = Math.max(0, Math.min(300, Math.round(+v * 2) / 2)); leer = false; } }
+      else if(v){ pa[k] = v.slice(0, 160); leer = false; }
+    });
+    var pp;
+    if(leer){ delete svaProj.papier[puid]; var w2 = {}; w2['p.'+puid] = deleteField(); pp = updateDoc(svaPapierRef(svaProj.klasse), w2).catch(function(err){ if(err && err.code !== 'not-found') throw err; }); }
+    else {
+      // Erst den alten Eintrag ganz entfernen (merge würde geleerte Felder stehen lassen), dann neu setzen.
+      svaProj.papier[puid] = pa; var d2 = {p:{}}; d2.p[puid] = pa; var w3 = {}; w3['p.'+puid] = deleteField();
+      pp = updateDoc(svaPapierRef(svaProj.klasse), w3).catch(function(err){ if(err && err.code !== 'not-found') throw err; }).then(function(){ return setDoc(svaPapierRef(svaProj.klasse), d2, {merge:true}); });
+    }
+    pinfo.textContent = 'speichert …';
+    pp.then(function(){ pinfo.textContent = leer ? 'Eintrag entfernt.' : 'Gespeichert.'; }, function(err){ console.error(err); pinfo.textContent = 'Konnte nicht gespeichert werden.'; });
+  }
 }
 function svaProjDrucken(art){
   var liste = svaProj.liste || [], kl = svaProj.klasse, name = function(x){ return esc(x.s.displayName || x.s.username || '?'); };
+  var w = function(x){ return svaWerte(x, svaProj.papier); };
   if(art === 'themen'){
     svaDruck('Themenwahl SVA '+kl, '<h1>Themenwahl SVA 2026/27 · Klasse '+esc(kl)+'</h1><p class="klein">Stand: '+new Date().toLocaleDateString('de-CH')+'</p><table><tr><th>Name</th><th>Thema</th><th>Produkt</th></tr>'+
-      liste.map(function(x){ var g = (x.p && x.p.g) || {}; return '<tr><td>'+name(x)+'</td><td>'+esc((g.thema || '').split('\n')[0])+'</td><td>'+esc((g.produkt || '').split('\n')[0])+'</td></tr>'; }).join('')+'</table>');
+      liste.map(function(x){ var v = w(x); return '<tr><td>'+name(x)+'</td><td>'+esc(v.thema)+'</td><td>'+esc(v.produkt)+'</td></tr>'; }).join('')+'</table>');
   } else if(art === 'karten'){
-    svaDruck('Tischkarten SVA '+kl, liste.map(function(x){ var a = (x.p && x.p.a) || {}, g = (x.p && x.p.g) || {};
-      return '<div class="karte"><b>'+esc(a.titel || (g.thema || '').split('\n')[0] || '…')+'</b><span>'+name(x)+', '+esc(kl)+'</span></div>'; }).join(''));
+    svaDruck('Tischkarten SVA '+kl, liste.map(function(x){ var v = w(x); return '<div class="karte"><b>'+esc(v.titel || v.thema || '…')+'</b><span>'+name(x)+', '+esc(kl)+'</span></div>'; }).join(''));
   } else {
     svaDruck('Bedarf Ausstellung '+kl, '<h1>SVA-Ausstellung 19./20. März 2027 · Bedarf Klasse '+esc(kl)+'</h1><table><tr><th>Name</th><th>Titel</th><th>stellt aus</th><th>braucht</th><th>Platz</th></tr>'+
-      liste.map(function(x){ var a = (x.p && x.p.a) || {zeigt:{}, bedarf:{}}, br = svaAngekreuzt(SVA_BEDARF, a.bedarf); if(a.anderes) br.push(a.anderes);
-        return '<tr><td>'+name(x)+'</td><td>'+esc(a.titel || '')+'</td><td>'+esc(svaAngekreuzt(SVA_ZEIGT, a.zeigt).join(', '))+'</td><td>'+esc(br.join(', '))+'</td><td style="width:3cm"></td></tr>'; }).join('')+'</table>');
+      liste.map(function(x){ var v = w(x); return '<tr><td>'+name(x)+'</td><td>'+esc(v.titel)+'</td><td>'+esc(v.zeigt)+'</td><td>'+esc(v.bedarf)+'</td><td style="width:3cm"></td></tr>'; }).join('')+'</table>');
   }
+}
+
+/* 🔔 Braucht Aufmerksamkeit (Lehrperson, oben im Fach SVA, für die offene 3. Klasse)
+   Gründe: Gespräch gewünscht · Grobkonzept fehlt/unfertig (ab 7 Tage vor der Abgabe) · Rückmeldung «überarbeiten» offen ·
+   Rapport überfällig · seit 14 Tagen kein Journaleintrag (ab den ersten Arbeitstagen). Wer nicht in «Mein SVA-Projekt»
+   arbeitet und auch nicht auf Papier nachgetragen ist, erscheint einmal gesammelt. 5 Minuten zwischengespeichert. */
+var svaAchtung = {cache:{}};
+function svaTagePlus(iso, n){ var d = new Date(iso+'T12:00:00'); d.setDate(d.getDate() + n); return localDateStr(d); }
+function svaAchtungGruende(x, daten, heute){
+  var p = x.p, g = [], uid = x.s.uid, r = daten.rueck[uid] || {};
+  if(!p) return g;
+  ['dez','jan'].forEach(function(k){ if(p.r[k] && p.r[k].hilfe) g.push({art:'rot', t:'wünscht ein Gespräch (Rapport '+(k === 'dez' ? 'Dezember' : 'Januar')+')'}); });
+  var felder = SVA_GK_FELDER.filter(function(f){ return (p.g[f[0]] || '').trim(); }).length;
+  if(heute >= svaTagePlus('2026-11-25', -7) && r.status !== 'ok' && felder < SVA_GK_FELDER.length) g.push({art:'rot', t:'Grobkonzept unvollständig ('+felder+' von '+SVA_GK_FELDER.length+' Feldern), Abgabe 25.11.'});
+  if(r.status === 'ueber') g.push({art:'gelb', t:'Grobkonzept: Überarbeitung offen'});
+  if(p.g.bereit && !r.status) g.push({art:'gelb', t:'Grobkonzept bereit – wartet auf deine Rückmeldung'});
+  if(heute > '2026-12-11' && !(p.r.dez && p.r.dez.am)) g.push({art:'gelb', t:'Rapport Dezember fehlt'});
+  if(heute > '2027-01-21' && !(p.r.jan && p.r.jan.am)) g.push({art:'gelb', t:'Rapport Januar fehlt'});
+  if(heute >= '2026-12-01' && heute <= '2027-03-08'){
+    var letzter = ''; p.j.forEach(function(e){ if((e.d || '') > letzter) letzter = e.d; });
+    if(!letzter) g.push({art:'gelb', t:'noch kein Journaleintrag'});
+    else if(letzter < svaTagePlus(heute, -14)) g.push({art:'gelb', t:'seit '+svaDatCH(letzter)+' kein Journaleintrag'});
+  }
+  return g;
+}
+function svaAchtungHtml(daten, klasse, heute){
+  var zeilen = [], ohne = [];
+  daten.liste.forEach(function(x){
+    var name = esc(x.s.displayName || x.s.username || '?');
+    if(!x.p && !daten.papier[x.s.uid]){ ohne.push(name); return; }
+    var g = svaAchtungGruende(x, daten, heute);
+    if(g.length) zeilen.push('<li><b>'+name+'</b>: '+g.map(function(q){ return '<span class="sva-chip '+(q.art === 'rot' ? 'abgabe' : 'gelb')+'">'+esc(q.t)+'</span>'; }).join(' ')+'</li>');
+  });
+  if(!zeilen.length && !ohne.length) return '<div class="sva-achtung ruhig">🔔 Klasse '+esc(klasse)+': Im Moment braucht niemand besondere Aufmerksamkeit.</div>';
+  return '<div class="sva-achtung"><b>🔔 Braucht Aufmerksamkeit · Klasse '+esc(klasse)+'</b>'+(zeilen.length ? '<ul>'+zeilen.join('')+'</ul>' : '<p class="sva-klein">Bei allen, die eingetragen haben, ist alles im Plan.</p>')+
+    (ohne.length ? '<p class="sva-klein">Noch nichts in «Mein SVA-Projekt» und nicht auf Papier nachgetragen ('+ohne.length+'): '+ohne.join(', ')+'</p>' : '')+'</div>';
+}
+function svaAchtungZeigen(){
+  if(!svaIstLehrer() || !/^[A-Za-z]3/.test(state.klasse || '')) return;
+  var klasse = state.klasse, ziel = function(){ return document.getElementById('svaAchtung'); };
+  if(!ziel()) return;
+  var c = svaAchtung.cache[klasse];
+  var zeichnen = function(d){ var el = ziel(); if(el && state.klasse === klasse) el.innerHTML = svaAchtungHtml(d, klasse, todayStr()); };
+  if(c && Date.now() - c.at < 5*60*1000){ zeichnen(c.daten); return; }
+  svaKlasseDaten(klasse).then(function(d){ svaAchtung.cache[klasse] = {at:Date.now(), daten:d}; zeichnen(d); }).catch(function(err){ console.error(err); });
+}
+// Schüler:in im Fach SVA: Rückmeldung der Lehrperson zum Grobkonzept anzeigen.
+function svaRueckZeigen(){
+  if(svaIstLehrer() || !state.user) return;
+  getDoc(svaRueckRef(state.klasse)).then(function(d){
+    var r = d.exists() ? (d.data().r || {})[state.user.uid] : null, box = document.querySelector('.sva-plan');
+    if(!r || (!r.status && !r.text) || !box || document.getElementById('svaRueckBox')) return;
+    var el = document.createElement('div');
+    el.id = 'svaRueckBox'; el.className = 'sva-rueckbox'+(r.status === 'ueber' ? ' ueber' : '');
+    el.innerHTML = '<b>💬 Rückmeldung zu deinem Grobkonzept'+(r.von ? ' von '+esc(r.von) : '')+'</b> <span class="sva-klein">'+esc(svaDatCH(r.am))+'</span><br>'+
+      (r.status === 'ok' ? '✅ Besprochen – dein Grobkonzept passt.' : r.status === 'ueber' ? '✏️ Bitte überarbeite dein Grobkonzept.' : '')+(r.text ? '<br>'+svaZeilen(r.text) : '');
+    box.insertBefore(el, box.firstChild);
+  }).catch(function(){});
 }
 
 /* 📮 Briefkästen für die fünf Abgaben (in der offenen Klasse), verknüpft mit den Kalendereinträgen sva2627_* */
@@ -12926,7 +13069,7 @@ function renderSubject(subjectId, folderId){
 
   renderChrome(html);
   document.getElementById('backBtn').addEventListener('click', goHome);
-  if(subjectId === 'sva'){ svaKopfVerdrahten(); svaVorlageZeigen(); }
+  if(subjectId === 'sva'){ svaKopfVerdrahten(); svaVorlageZeigen(); svaRueckZeigen(); svaAchtungZeigen(); }
   var diktatAnalyseBtn = document.getElementById('diktatAnalyseBtn');
   if(diktatAnalyseBtn){
     diktatAnalyseBtn.addEventListener('click', function(){
@@ -14866,6 +15009,10 @@ function injectExerciseHelpers(html, rid){
   if(!html || !rid) return html;
   try{
     var out = html;
+    // 🖨️ Ausdrucke aus Übungsseiten ohne Browser-Kopf-/Fusszeilen (ändert sonst nichts am Layout).
+    var druckStil = '<style>@page{'+DRUCK_OHNE_KOPF+'}</style>';
+    if(/<\/head>/i.test(out)) out = out.replace(/<\/head>/i, function(m){ return druckStil + m; });
+    else out = druckStil + out;
     var viewRe = /(?:var|let)\s+VIEW\s*=\s*\{\s*mode\s*:\s*['"]home['"]\s*\}\s*;?/;
     var renderRe = /function render\(\)\s*\{/;
     if(viewRe.test(out) && renderRe.test(out)){
@@ -14944,7 +15091,11 @@ function renderResource(r){
   var contentPromise = r.statisch ? fetch(r.statisch, {cache:'no-cache'}).then(function(res){
     if(!res.ok) throw new Error('statische Seite '+res.status);
     return res.text();
-  }).then(function(text){ return [{exists:function(){ return true; }, data:function(){ return {html:text}; }}]; })
+  }).then(function(text){
+    // Die statische Seite erfährt, ob eine Lehrperson schaut (SVA-Werkstatt: dann sind alle Stationen offen).
+    text = text.replace(/<head>/i, '<head><script>window.__libLehrer = '+(state.profile.role === 'teacher' ? 'true' : 'false')+';<\/script>');
+    return [{exists:function(){ return true; }, data:function(){ return {html:text}; }}];
+  })
   : getContentDoc(doc(db,'resourceContent', contentId)).then(function(snap){
     if(!snap.exists()){ throw new Error('no content'); }
     var chunkCount = snap.data().chunkCount || 0;
@@ -19778,6 +19929,7 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-10-05-sva-lp4', datum:'2026-10-05', fuer:'lehrer', text:'🎓 SVA: Oben im Fach SVA steht für deine 3. Klasse neu «🔔 Braucht Aufmerksamkeit» (Gespräch gewünscht, Grobkonzept fehlt, Rapport überfällig, lange kein Journaleintrag). Unter «📋 Projekte der Klasse» gibst du zum Grobkonzept eine Rückmeldung (besprochen / überarbeiten + Kommentar), die das Kind im Fach SVA sieht, und trägst für Schüler:innen, die auf Papier arbeiten, Thema, Stunden und Ausstellungsbedarf nach.'},
   {id:'2026-10-05-sva-alle', datum:'2026-10-05', fuer:'alle', text:'🎓 Neu: die Kachel «SVA» für die Abschlussarbeit der 3. Klassen. Dort findest du den Fahrplan mit allen Terminen, die «Dossier-Werkstatt» (Schritt für Schritt zum Arbeitsdossier in Word, mit Erklärvideo) und «Mein SVA-Projekt» (Grobkonzept, Arbeitsjournal, Rapport, Ausstellung). Bist du in der 1. oder 2. Klasse und brauchst die Kachel noch nicht? Lange auf die Kachel drücken und mit «−» ausblenden.'},
   {id:'2026-10-05-vor', datum:'2026-10-05', fuer:'alle', text:'→ Neben dem Zurück-Pfeil gibt es jetzt auch einen Pfeil nach vorne.'},
   {id:'2026-10-05-sva-lp3', datum:'2026-10-05', fuer:'lehrer', text:'🎓 SVA: Die Seiten haben das neue Design «Projektmappe». In der Beurteilung lässt sich eine Auswahl wieder entfernen (✕ beim Kriterium oder «Ganze Beurteilung löschen»). Unter «📊 Wer steht wo?» kannst du einzelnen Schüler:innen die fertige Word-Rettungsvorlage zuweisen – nur sie sehen dann den Knopf zum Herunterladen.'},
@@ -31471,7 +31623,7 @@ function pruefDruckHtml(cfg, mitL, bilder){
     else b += '<div class="leer" style="height:' + ((a.antwortzeilen == null ? 2 : a.antwortzeilen) * 17) + 'pt"></div>';
     h += b + '</div>';
   });
-  var css = '@page{size:A4;margin:2cm;}' +
+  var css = '@page{size:A4;margin:2cm;'+DRUCK_OHNE_KOPF+'}' +
     'body{font-family:Calibri,Carlito,"Segoe UI",Arial,sans-serif;font-size:11pt;line-height:1.5;color:#000;background:#fff;margin:0;}' +
     '.blatt{max-width:17cm;margin:0 auto;padding:16px;} @media print{.blatt{padding:0;max-width:none;} .werkzeug{display:none;}}' +
     'p{margin:0;} table{border-collapse:collapse;width:100%;}' +
@@ -32630,7 +32782,7 @@ async function sikoreDrucken(p, loesung, tab){
     '.sk-leer{display:block;width:100%;min-width:20mm;height:8mm;border-bottom:1.5px solid #111;text-align:center;font-size:16px;font-weight:700;color:#c00;line-height:8mm}'+
     '.sk-qs{font-size:11px;color:#444;border:1px solid #888;border-radius:10px;padding:1px 6px;white-space:nowrap;align-self:center}'+
     '.knopf{position:fixed;top:10px;right:10px;padding:8px 14px;font-size:14px}@media print{.knopf{display:none}}'+
-    '@page{size:A4;margin:0}';
+    '@page{size:A4;margin:0;'+DRUCK_OHNE_KOPF+'}';
   var html = '<!doctype html><html lang="de"><head><meta charset="utf-8"><title>'+esc(p.titel)+(loesung ? ' – Lösungen' : '')+'</title><style>'+css+'</style></head><body>'+
     '<button class="knopf" onclick="window.print()">🖨️ Drucken</button>'+seiten+'</body></html>';
   var url = URL.createObjectURL(new Blob([html], {type:'text/html;charset=utf-8'}));
