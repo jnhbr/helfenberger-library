@@ -2764,6 +2764,53 @@
   :root[data-design="neu"] .res-mehr-menu .btn:hover{background:var(--surface-2);}
   :root[data-design="neu"] .res-mehr-menu .btn-danger{color:var(--bad);}
 
+  /* ===================== 🤖 HILFE-BOT (Logo-Animation + Sprechblase) =====================
+     Klick aufs Sek-Altnau-Logo: die Schrift blendet aus, das blaue Männchen steht in fünf
+     Posen auf (assets/ki-bot/pose-1…5.png), aus seinem Mund wächst die Sprechblase.
+     Die Ebenen sind gleich gross wie logo.png und liegen deckungsgleich darüber; sie
+     erben die Grössenregeln von «.topbar-logo img». */
+  .topbar-logo .kib-logo{position:relative;display:block;line-height:0;min-width:0;}
+  .topbar-logo:focus-visible{outline:3px solid var(--gelb,#FEEB15);outline-offset:2px;}
+  .topbar-logo .kib-ebenen img{position:absolute;left:0;top:0;opacity:0;}
+  .topbar-logo.kib-an .kib-ganz{visibility:hidden;}
+  .topbar-logo.kib-an .kib-ebenen .kib-figuren,
+  .topbar-logo.kib-an .kib-ebenen .kib-schrift{opacity:1;}
+  .topbar-logo.kib-an .kib-ebenen .kib-schrift{transition:opacity .22s ease;}
+  .topbar-logo.kib-an.kib-wach .kib-ebenen .kib-schrift{opacity:0;}
+  .topbar-logo.kib-an.kib-sofort .kib-ebenen .kib-schrift{transition:none;}
+  .topbar-logo.kib-an .kib-ebenen[data-pose="1"] .kib-pose[data-p="1"],
+  .topbar-logo.kib-an .kib-ebenen[data-pose="2"] .kib-pose[data-p="2"],
+  .topbar-logo.kib-an .kib-ebenen[data-pose="3"] .kib-pose[data-p="3"],
+  .topbar-logo.kib-an .kib-ebenen[data-pose="4"] .kib-pose[data-p="4"],
+  .topbar-logo.kib-an .kib-ebenen[data-pose="5"] .kib-pose[data-p="5"]{opacity:1;}
+
+  .kib-panel{position:fixed;z-index:80;left:8px;top:8px;width:min(370px,calc(100vw - 16px));max-height:min(540px,calc(100vh - 24px));display:flex;flex-direction:column;background:var(--surface);color:var(--text);border:2px solid var(--blau,#189CDA);border-radius:18px;box-shadow:0 6px 0 var(--blau,#189CDA);transform:scale(.04);opacity:0;pointer-events:none;transition:transform .26s cubic-bezier(.2,1.3,.4,1),opacity .14s ease;}
+  .kib-panel.offen{transform:none;opacity:1;pointer-events:auto;}
+  .kib-panel[hidden]{display:none;}
+  .kib-zipfel{position:absolute;width:16px;height:16px;left:-10px;top:calc(var(--kib-z,40px) - 8px);background:var(--surface);border:2px solid var(--blau,#189CDA);border-top-color:transparent;border-right-color:transparent;border-radius:0 0 0 4px;transform:rotate(45deg);}
+  .kib-panel.kib-oben .kib-zipfel{left:calc(var(--kib-z,40px) - 8px);top:-10px;border-color:var(--blau,#189CDA);border-right-color:transparent;border-bottom-color:transparent;border-radius:4px 0 0 0;}
+  .kib-panel.kib-ohne .kib-zipfel{display:none;}
+  .kib-kopf{display:flex;align-items:center;gap:8px;padding:9px 10px 8px 16px;border-bottom:2px solid var(--surface-2);font-family:Montserrat,'Atkinson Hyperlegible',sans-serif;font-weight:800;font-size:15px;}
+  .kib-kopf span{flex:1;}
+  .kib-zu{border:0;background:none;color:var(--text-muted);font-size:16px;line-height:1;width:32px;height:32px;border-radius:8px;cursor:pointer;}
+  .kib-zu:hover{background:var(--surface-2);color:var(--text);}
+  .kib-verlauf{flex:1;min-height:110px;overflow-y:auto;padding:12px 14px;display:flex;flex-direction:column;gap:8px;font-size:14.5px;line-height:1.45;overscroll-behavior:contain;}
+  .kib-msg{max-width:90%;padding:8px 12px;border-radius:14px;white-space:pre-line;overflow-wrap:anywhere;}
+  .kib-bot{align-self:flex-start;background:var(--surface-2);border-bottom-left-radius:4px;}
+  .kib-ich{align-self:flex-end;background:var(--blau,#189CDA);color:#1D1D1B;border-bottom-right-radius:4px;}
+  .kib-chips{display:flex;flex-wrap:wrap;gap:6px;}
+  .kib-chip{border:2px solid var(--border);background:var(--surface);color:var(--text);border-radius:999px;padding:5px 11px;font:inherit;font-size:13.5px;line-height:1.3;cursor:pointer;text-align:left;}
+  .kib-chip:hover{border-color:var(--blau,#189CDA);}
+  .kib-chip.kib-los{border-color:#1D1D1B;background:var(--gelb,#FEEB15);color:#1D1D1B;font-weight:700;}
+  .kib-eingabe{display:flex;gap:8px;padding:10px 12px 12px;border-top:2px solid var(--surface-2);}
+  .kib-eingabe input{flex:1;min-width:0;border:2px solid var(--border);border-radius:10px;padding:8px 10px;font:inherit;font-size:16px;background:var(--surface);color:var(--text);}
+  .kib-eingabe input:focus{outline:none;border-color:var(--blau,#189CDA);}
+  @media (prefers-reduced-motion: reduce){
+    .kib-panel{transform:none;transition:opacity .1s ease;}
+    .topbar-logo.kib-an .kib-ebenen .kib-schrift{transition:none;}
+  }
+  @media print{ .kib-panel{display:none !important;} }
+
 </style>
 <script>if(/-test\//.test(location.pathname))document.documentElement.classList.add('test-site');</script>
 </head>
@@ -7646,6 +7693,7 @@ function goResource(res){
 /* ===================== RENDER: LOGIN ===================== */
 
 function renderLogin(){
+  if(kib.offen || kib.laeuft) kibZu(true);
   app.innerHTML =
     '<div class="login-wrap"><div class="login-card">'+
     '<div class="login-logo"><img src="assets/logo.png" alt="" onerror="this.style.display=\'none\'"></div>'+
@@ -8452,11 +8500,534 @@ function neuNavStart(){
   }
 }
 
+/* ===================== 🤖 HILFE-BOT =====================
+   Klick aufs Sek-Altnau-Logo in der Leiste: die Schrift blendet aus, das blaue Männchen
+   steht in fünf Posen auf (assets/ki-bot/pose-1…5.png, gebaut mit posen-bauen.py aus den
+   Library-Unterlagen) und aus seinem Mund wächst eine Sprechblase mit der Hilfe.
+   Zur Startseite führt weiterhin der Titel daneben.
+
+   Der Bot ist bewusst KEINE KI: er sucht die passende Antwort aus KIB_WISSEN heraus
+   (Stichwörter, Wortstämme, Tippfehler-tolerant). Es verlässt nichts das Gerät.
+   Eine echte KI liesse sich später in kibFragen() einhängen (Cloud Function).
+
+   Die Sprechblase hängt an document.body und überlebt so jedes renderChrome; das Logo
+   wird dort neu gebaut und von kibChromeNeu() wieder in den richtigen Zustand gesetzt.
+   Neue Funktion in der Library → hier einen Eintrag ergänzen (und hilfe.html nachführen). */
+var KIB_BILDER = ['logo-figuren','logo-schrift','pose-1','pose-2','pose-3','pose-4','pose-5'];
+var KIB_TAKT = 95;                  // ms pro Pose
+var KIB_MUND = {x:0.345, y:0.385};  // Mund des stehenden Männchens (Anteil an Breite/Höhe von logo.png)
+var kib = {offen:false, laeuft:false, pose:1, geladen:null, timer:null, panel:null, wer:null};
+
+var KIB_ZIELE = {
+  start:        {t:'🏠 Zur Startseite',          los:function(){ goHome(); }},
+  kalender:     {t:'📅 Zum Kalender',            los:function(){ state.route = {name:'kalender'}; render(); }},
+  stundenplan:  {t:'🗓️ Zum Stundenplan',         los:function(){ state.route = {name:'stundenplan'}; render(); }},
+  tools:        {t:'🧰 Zu den Tools',            los:function(){ state.route = {name:'tools'}; render(); }},
+  neu:          {t:'🆕 Zu den Neuigkeiten',      los:function(){ state.route = {name:'neu'}; render(); }},
+  klassenzimmer:{t:'🏫 Zum Klassenzimmer',       los:function(){ state.route = {name:'klassenzimmer'}; render(); }},
+  lernstand:    {t:'📈 Zur Lernstand-Übersicht', los:function(){ state.route = {name:'lernstand'}; render(); }},
+  earlybird:    {t:'🐦 Zu Earlybird',            los:function(){ state.route = {name:'earlybird'}; render(); }},
+  einstellungen:{t:'⚙️ Einstellungen öffnen',    dialog:true, los:function(){ openSettings(); }},
+  fragebox:     {t:'❓ Fragebox öffnen',         dialog:true, los:function(){ openFragebox(); }},
+  suche:        {t:'🔍 Suche öffnen',            dialog:true, los:function(){ openSearchModal(); }},
+  sprache:      {t:'🌐 Sprache wählen',          dialog:true, los:function(){ i18nWahl(); }},
+  einfuehrung:  {t:'👋 Einführung ansehen',      dialog:true, los:function(){ openEinfuehrung(); }},
+  rueckmeldung: {t:'💬 Rückmeldung schreiben',   dialog:true, los:function(){ openRueckmeldungen(); }},
+  anleitung:    {t:'📖 Anleitung öffnen',        los:function(){ window.open('hilfe.html', '_blank', 'noopener'); }}
+};
+
+/* fuer: 'alle' | 'sus' (Schüler:innen) | 'lp' (Lehrpersonen).
+   f = Frage (steht auch auf den Vorschlägen), w = zusätzliche Suchwörter, a = Antwort, ziel = Knopf aus KIB_ZIELE. */
+var KIB_WISSEN = [
+  // ---------- für alle ----------
+  {id:'passwort', fuer:'alle', f:'Wie ändere ich mein Passwort?', w:'kennwort pw neues passwort wechseln setzen', ziel:'einstellungen',
+   a:'Öffne ⚙️ Einstellungen und tippe auf «🔑 Passwort ändern». Gib dein Passwort nie weiter.'},
+  {id:'abmelden', fuer:'alle', f:'Wie melde ich mich ab?', w:'ausloggen logout abmeldung konto wechseln anderes konto', ziel:'einstellungen',
+   a:'Öffne ⚙️ Einstellungen. Dort steht der Knopf «Abmelden».'},
+  {id:'app', fuer:'alle', f:'Wie bekomme ich die Library als App aufs Handy?', w:'installieren startbildschirm homebildschirm home-bildschirm iphone ipad android dock lesezeichen icon handy tablet',
+   a:'• iPhone/iPad (Safari): Seite öffnen → Teilen-Symbol → «Zum Home-Bildschirm».\n• Android (Chrome): Seite öffnen → Menü ⋮ → «Zum Startbildschirm hinzufügen».\n• Laptop: als Lesezeichen speichern oder «Installieren» bzw. «Zum Dock hinzufügen» wählen.'},
+  {id:'sprache', fuer:'alle', f:'Wie stelle ich eine andere Sprache ein?', w:'englisch französisch italienisch spanisch türkisch ukrainisch kurdisch arabisch dari paschto übersetzen übersetzung language eltern deutsch', ziel:'sprache',
+   a:'Mit dem Knopf 🌐 (in der Leiste unter «Mehr») wählst du die Sprache. Dann erscheint die Library in dieser Sprache. Nur in den Sprachfächern bleiben die Aufgaben im Original.'},
+  {id:'dunkel', fuer:'alle', f:'Wie schalte ich den Dunkelmodus ein?', w:'hell dunkel darstellung dark mode nachtmodus mond sonne farbe schwarz',
+   a:'In der Leiste unter «Mehr» findest du 🌙 Darstellung. Ein Tipp darauf wechselt zwischen Hell und Dunkel.'},
+  {id:'suche', fuer:'alle', f:'Wie finde ich eine Übung schnell?', w:'suchen suche finden lupe übung nicht gefunden wo ist', ziel:'suche',
+   a:'Mit der 🔍 Suche in der Leiste. Tipp ein Wort aus dem Titel ein, dann erscheinen die passenden Übungen.'},
+  {id:'mehr', fuer:'alle', f:'Wo sind die Symbole in der Leiste hin?', w:'mehr knopf symbole icons leiste favoriten favorit verschwunden fehlt menü seitenleiste oben',
+   a:'Die meisten Symbole stehen in der Leiste unter «Mehr». Mit «★ Favoriten wählen» bestimmst du, welche immer sichtbar bleiben.'},
+  {id:'widgets', fuer:'alle', f:'Wie ordne ich Kacheln und Symbole neu an?', w:'verschieben anordnen ausblenden widgets kachel wackeln zurückholen einblenden reihenfolge fächer sortieren',
+   a:'Drück lange auf eine Kachel oder ein Symbol, bis alles wackelt. Dann kannst du ziehen. Mit «−» blendest du etwas aus.\nZurückholen: ⚙️ Einstellungen › 🧩 Widgets.', ziel:'einstellungen'},
+  {id:'erinnerungen', fuer:'alle', f:'Wie bekomme ich Erinnerungen?', w:'erinnerung push benachrichtigung glocke mitteilung nachricht vorabend einschalten ausschalten',
+   a:'Tippe auf 🔔 (in der Leiste unter «Mehr») und schalte die Erinnerungen ein. Dann bekommst du am Vorabend um 18 Uhr eine Nachricht, was am nächsten Tag fällig ist. Dort schaltest du sie auch wieder aus.'},
+  {id:'tools', fuer:'alle', f:'Was kann ich mit den Tools machen?', w:'pdf verkleinern komprimieren zusammenführen zusammenfügen foto bild qr-code qr seitenzahlen wasserzeichen ton aufnehmen aufnahme drehen löschen seiten', ziel:'tools',
+   a:'Unter 🧰 Tools findest du Helfer für Vorträge und Abgaben: PDFs und Fotos verkleinern, mehrere PDFs oder Fotos zu einem PDF zusammenführen, Seiten löschen, drehen oder verschieben, PDF in Bilder, 🔳 QR-Code, 🔢 Seitenzahlen und Wasserzeichen, 🎙️ Ton aufnehmen.\nAlles passiert auf deinem Gerät. Es wird nichts hochgeladen.'},
+  {id:'neuigkeiten', fuer:'alle', f:'Was ist neu in der Library?', w:'neuigkeiten neu änderungen update geändert rot leuchtet', ziel:'neu',
+   a:'Unter 🆕 Neuigkeiten steht, was sich an der Library geändert hat. Leuchtet das Symbol rot, gibt es etwas Neues.'},
+  {id:'einfuehrung', fuer:'alle', f:'Wo finde ich die Einführung?', w:'einführung tour erklärung anfang erste schritte was kann die library überblick', ziel:'einfuehrung',
+   a:'Die 👋 Einführung zeigt dir in Kürze, was die Library kann. Du findest sie jederzeit unter ⚙️ Einstellungen.'},
+  {id:'ferien', fuer:'alle', f:'Wann sind die nächsten Ferien?', w:'ferien countdown tage frei schulferien',
+   a:'In der Leiste steht der 🚨 Ferien-Countdown: Er zeigt, wie viele Tage es noch bis zu den nächsten Ferien sind.'},
+  {id:'links', fuer:'alle', f:'Wo finde ich wichtige Links?', w:'link links webseiten seiten adresse url',
+   a:'Unter 🔗 Links (in der Leiste unter «Mehr») stehen wichtige Seiten mit einem Klick. Bei Schüler:innen erscheint das Symbol nur, wenn die Lehrperson Links geteilt hat.'},
+  {id:'stundenplan', fuer:'sus', f:'Wo sehe ich meinen Stundenplan?', w:'stundenplan lektion lektionen freilektion zimmer wann schule unterricht heute morgen', ziel:'stundenplan',
+   a:'Unter 🗓️ Stundenplan in der Leiste. Deine Freilektionen kannst du selbst ergänzen. Auf der Startseite steht, was jetzt und als Nächstes kommt.'},
+
+  {id:'wer', fuer:'alle', f:'Wer bist du?', w:'ki künstliche intelligenz bot roboter chatgpt mensch computer',
+   a:'Ich bin die Library-Hilfe, das blaue Männchen aus dem Logo. Ich bin keine künstliche Intelligenz: Ich suche zu deiner Frage die passende Antwort aus der Anleitung heraus. Darum kenne ich mich nur mit der Bedienung der Library aus.'},
+
+  // ---------- Schüler:innen ----------
+  {id:'aufgabe', fuer:'sus', f:'Kannst du mir bei einer Aufgabe helfen?', w:'lösen lösung aufgabe erklären erkläre hilf helfen ausrechnen antwort verstehe stimmt', ziel:'fragebox',
+   a:'Bei den Aufgaben selbst kann ich nicht helfen, ich kenne nur die Bedienung der Library. In vielen Übungen bekommst du bei einem Fehler einen Tipp. Kommst du nicht weiter, frag deine Lehrperson, z. B. über die ❓ Fragebox.'},
+  {id:'login', fuer:'sus', problem:true, f:'Ich habe mein Passwort vergessen.', w:'anmelden anmeldung login einloggen klappt nicht falsch vergessen kürzel vorname passwort weiss nicht mehr',
+   a:'Sag es deiner Lehrperson. Sie lässt ein neues Passwort für dich setzen.\nKlappt nur die Anmeldung nicht: Prüfe Vornamen bzw. Kürzel und achte beim Passwort auf Gross- und Kleinschreibung.'},
+  {id:'uebungen', fuer:'sus', f:'Wo finde ich meine Übungen?', w:'übung übungen aufgaben fach ordner öffnen üben lernen rot markiert aktuell thema vollbild', ziel:'start',
+   a:'Tippe auf der Startseite ein Fach an (z. B. Mathe), dann wählst du Ordner und Übung.\nRot markierte Übungen sind die aktuellen Themen. Mit «Vollbild» übst du ohne Ablenkung.'},
+  {id:'fortschritt', fuer:'sus', f:'Wird mein Fortschritt gespeichert?', w:'speichern gespeichert stand fortschritt weg verloren anderes gerät weitermachen weiter aufgehört',
+   a:'Ja, automatisch, auch auf anderen Geräten. Öffnest du eine Übung wieder, landest du bei der Aufgabe, bei der du aufgehört hast.'},
+  {id:'trainer', fuer:'sus', f:'Was ist der Übungstrainer?', w:'übungstrainer trainer training level einmaleins sikore kopfrechnen wochenziel tempo bestzeit rechtschreibung grammatik kantone periodensystem verben',
+   a:'In fast jedem Fach steht zuoberst der ⚡ Übungstrainer: kurze Trainings mit eigenen Levels, z. B. Einmaleins, 🧮 SIKORE, Rechtschreibung, Grammatik, Verben oder Kantone.\nDie Aufgaben sind jedes Mal neu, und du kontrollierst sofort selbst. Mit dem 🎯 Wochenziel bleibst du dran, im ⏱ Tempo-Modus jagst du deine Bestzeit.'},
+  {id:'tippen', fuer:'sus', f:'Wo lerne ich das Tippen mit zehn Fingern?', w:'tipptrainer tippen tastatur zehn finger 10-finger blind schreiben tastaturschreiben',
+   a:'Im Fach Medien und Informatik steht der ⌨️ Tipptrainer. Dort lernst du Lektion für Lektion, blind mit zehn Fingern zu tippen.'},
+  {id:'karten', fuer:'sus', f:'Wie lerne ich mit den Karteikarten?', w:'karteikarten karten voci wörter wortschatz vokabeln boxen box umdrehen paare akzent englisch französisch voci-trainer lernen',
+   a:'Du lernst wie mit echten Karten in fünf Boxen: Was du kannst, rutscht eine Box weiter und kommt erst in ein paar Tagen wieder. Was du nicht weisst, kommt sofort nochmals.\nDu wählst die Art (Karte umdrehen, selber schreiben, aus vier Antworten auswählen, Paare finden, ⏱ Tempo-Runde) und die Richtung. Beim Schreiben helfen Tasten für é, è, ç und Co.'},
+  {id:'serie', fuer:'sus', f:'Was bedeutet die Flamme 🔥?', w:'flamme serie lern-serie voci-serie streak tage hintereinander tagesziel glückssträhne feuer',
+   a:'Die 🔥 Lern-Serie zeigt, an wie vielen Tagen hintereinander du geübt hast. Du kannst dir ein Tagesziel setzen.\nBei den Karteikarten gibt es die 🔥 Voci-Serie: Übst du pro Tag mindestens 10 Karten in einem Fach, brennt deine Flamme weiter.'},
+  {id:'hausaufgaben', fuer:'sus', f:'Wo sehe ich meine Hausaufgaben?', w:'hausaufgabe hausaufgaben ufzgi aufgaben termine abgabe abgaben fällig kalender abhaken erledigt eigene eintragen material prüfungstermin', ziel:'kalender',
+   a:'Auf der Startseite siehst du, was als Nächstes fällig ist. Unter 📅 Kalender findest du alle Hausaufgaben, Abgaben und Prüfungen. Gehören Übungen oder PDFs dazu, stehen sie unter «Material».\nErledigtes kannst du für dich abhaken. Mit «+ Eigene Hausaufgabe eintragen» notierst du eigene Termine, die nur du siehst.'},
+  {id:'kalender-handy', fuer:'sus', f:'Wie kommen die Termine in meinen Handy-Kalender?', w:'kalender handy übernehmen abonnieren exportieren export in meinen kalender eltern computer outlook',
+   a:'Im 📅 Kalender gibt es «📅 In meinen Kalender». Damit übernimmst du Hausaufgaben, Abgaben und Prüfungen (auf Wunsch mit den Ferien) in den Kalender auf dem Handy oder Computer, mit Erinnerung am Vorabend. Das ist auch für Eltern praktisch.', ziel:'kalender'},
+  {id:'pruefung', fuer:'sus', f:'Wie starte ich eine Online-Prüfung?', w:'prüfung test online-prüfung starten verfügbar warteraum punkte beginnen schreiben',
+   a:'Steht oben «📝 Prüfung verfügbar», kannst du die Prüfung starten, sobald die Lehrperson es sagt.\nAchtung: Verlässt du die Prüfung (anderer Tab, anderes Fenster, Esc, neu laden), wirst du gesperrt.'},
+  {id:'gesperrt', fuer:'sus', problem:true, f:'Ich bin in der Prüfung gesperrt. Was jetzt?', w:'gesperrt sperre entsperren entsperrt gesperrt prüfung rausgeflogen verlassen blockiert',
+   a:'Melde dich bei deiner Lehrperson. Nur sie kann dich wieder entsperren. Bleib danach in der Prüfung: kein anderer Tab, kein anderes Fenster, nicht neu laden.'},
+  {id:'noten', fuer:'sus', f:'Was ist der Notenrechner?', w:'note noten notenrechner durchschnitt schnitt zeugnis eintragen berechnen resultat resultate',
+   a:'Unter 🎶 Notenrechner (in der Leiste unter «Mehr») trägst du Noten ein und berechnest den Durchschnitt. Deine Einträge siehst nur du. Gibt die Lehrperson die Resultate einer Online-Prüfung frei, steht diese Note automatisch dort.'},
+  {id:'fragebox', fuer:'sus', f:'Wie stelle ich meiner Lehrperson eine Frage?', w:'fragebox frage fragen anonym lehrer lehrerin lehrperson schreiben melden kontakt', ziel:'fragebox',
+   a:'Mit der ❓ Fragebox. Du kannst anonym fragen, dann steht nirgends, von wem die Frage kommt. Oder du schickst deinen Namen mit.'},
+  {id:'aemtli', fuer:'sus', f:'Wo sehe ich mein Ämtli?', w:'ämtli amt ämtliplan besen putzen eingeteilt dienst',
+   a:'Unter 🧹 Ämtli (in der Leiste unter «Mehr») stehen deine nächsten Ämtli-Termine und mit wem du eingeteilt bist.'},
+  {id:'mitmachen', fuer:'sus', f:'Wie mache ich bei Quiz, Umfrage oder Abstimmung mit?', w:'quiz umfrage wortwolke abstimmung millionär mitmachen beamer abstimmen läuft knopf spiel rangliste',
+   a:'Läuft etwas, erscheint oben ein Knopf, z. B. «🎮 Quiz läuft – mitmachen» oder «🗳️ Abstimmung». Einfach antippen und mitmachen. Bei einer Abstimmung kannst du deine Stimme ändern, bis sie geschlossen wird.'},
+  {id:'lernphase', fuer:'sus', f:'Was ist die Lernphase?', w:'lernphase hand hochstrecken melden',
+   a:'In der 📚 Lernphase sieht die Lehrperson, ob du in der Library bist (nicht, was du sonst auf dem Gerät machst). Oben steht, an welcher Übung du arbeiten sollst. Ein Tipp darauf öffnet sie.\nBrauchst du Hilfe, tippst du auf «✋ Ich habe eine Frage».'},
+  {id:'gruppen', fuer:'sus', f:'Wo finde ich die Übungen einer anderen Lehrperson?', w:'gruppe gruppen andere lehrperson niveau niveaugruppe halbklasse wahlfach andere klasse mathe englisch',
+   a:'Bist du in einer Gruppe einer anderen Lehrperson (z. B. Mathe in einer anderen Klasse), siehst du im Fach auch ihre Übungen und im Kalender ihre Hausaufgaben. Fehlt etwas, sag es dieser Lehrperson: Sie muss dich in ihre Gruppe aufnehmen.'},
+  {id:'earlybird', fuer:'sus', f:'Was ist Earlybird?', w:'earlybird early bird mittwoch morgen früh eingetragen nachholen',
+   a:'🐦 Earlybird ist jeweils am Mittwoch von 06:30 bis 07:30. Die nächsten Termine stehen im Kalender. Bist du eingetragen, steht es dort.', ziel:'kalender'},
+  {id:'rechner', fuer:'sus', f:'Gibt es einen Taschenrechner?', w:'taschenrechner rechner rechnen tastatur mathe lehrmittel mathematik kapitel niveau',
+   a:'In den Mathe-Übungen gibt es den Taschenrechner 🧮. Du kannst ihn auch mit der Tastatur bedienen.\nIn Mathe findest du zudem alle Online-Übungen der Lehrmittel Mathematik 1, 2 und 3, geordnet nach Kapitel und Niveau.'},
+  {id:'werkstatt', fuer:'sus', f:'Was ist die Rechtschreib-Werkstatt?', w:'rechtschreib-werkstatt werkstatt posten pass werkstatt-pass hördiktat diktat langsamer schneller tempo abspielen',
+   a:'Die ✍️ Rechtschreib-Werkstatt (Deutsch, je nach Klasse) hat 20 Posten und einen digitalen Werkstatt-Pass. Die Hördiktate kannst du langsamer (0,75×) oder schneller (1,5×, 2×) abspielen. Nach je fünf Posten steht im Pass die Prüfung zu diesem Teil, mit deiner Note, sobald sie da ist.'},
+  {id:'datenschutz', fuer:'sus', f:'Was sieht meine Lehrperson von mir?', w:'datenschutz sieht sehen privat daten überwachung anonym geheim eltern',
+   a:'Die Lehrperson sieht, wie weit du bei den Übungen und Trainings bist und wie viel du geübt hast. So kann sie gezielt helfen.\nNur du siehst: den Notenrechner, deine eigenen Hausaufgaben und deine Häkchen. Eine anonyme Frage bleibt wirklich anonym.'},
+  {id:'kaputt', fuer:'sus', problem:true, f:'Etwas funktioniert nicht.', w:'fehler kaputt geht nicht funktioniert nicht lädt nicht weiss weisser bildschirm hängt problem bug absturz leer',
+   a:'Lade die Seite neu. Hilft das nicht, gib deiner Lehrperson Bescheid.\nTechnische Fehler meldet die Library übrigens automatisch an Herrn Helfenberger.'},
+
+  // ---------- Lehrpersonen ----------
+  {id:'lp-stundenplan', fuer:'lp', f:'Wie trage ich den Stundenplan ein?', w:'stundenplan klassenplan lektion lektionen zimmer doppellektion andere lehrperson plan kollegin kollege', ziel:'stundenplan',
+   a:'Unter 🗓️ Stundenplan. Den Klassenplan trägt die Klassenlehrperson ein («Aus meinem Plan» übernimmt Lektionen aus dem eigenen Plan). Im persönlichen Plan erfasst du pro Lektion Fach, Zimmer und Klasse, auch Doppellektionen.\n«Andere Lehrperson …» zeigt den Plan einer Kollegin oder eines Kollegen (nur ansehen).'},
+  {id:'lp-hochladen', fuer:'lp', f:'Wie lade ich eine Übung oder ein PDF hoch?', w:'hochladen upload ablegen ablagefeld übung pdf html datei link hinzufügen neue übung grösse gross mb zu gross', ziel:'start',
+   a:'1. Auf der Startseite das Fach öffnen (bei Bedarf einen Ordner).\n2. Die HTML-Übung oder das PDF ins Ablagefeld ziehen, oder «🔗 Link hinzufügen» für eine Webseite.\n3. Titel prüfen, fertig: Die Schüler:innen sehen die Übung sofort.\nGrössen: HTML-Übungen bis 8 MB, PDFs bis 4 MB. Grössere PDFs komprimieren oder als Link ablegen.'},
+  {id:'lp-bearbeiten', fuer:'lp', f:'Wie ersetze oder bearbeite ich eine Übung?', w:'ersetzen bearbeiten ändern neue fassung version wiederherstellen umbenennen verschieben löschen sortieren ordner datei ersetzen',
+   a:'Bei der Übung findest du (unter «⋯») ✏️ Bearbeiten (Texte direkt ändern), «Datei ersetzen» (neue Fassung; Titel, Ort und Übungsstände bleiben) und «Vorherige Version wiederherstellen». Übungen lassen sich auch sortieren und in Ordner verschieben.'},
+  {id:'lp-speicher', fuer:'lp', f:'Wie viel Speicher habe ich?', w:'speicher voll platz gb kontingent speicherplatz', ziel:'einstellungen',
+   a:'Jede Lehrperson hat 1 GB. Die Anzeige steht unter ⚙️ Einstellungen › «💾 Mein Speicher».\nIst der Speicher voll: alte Übungen oder PDFs löschen oder grosse Dateien als «🔗 Link» ablegen. Kopien von Übungen anderer belegen keinen zusätzlichen Speicher.'},
+  {id:'lp-teilen', fuer:'lp', f:'Wie teile ich Übungen mit anderen Lehrpersonen?', w:'teilen empfehlen empfohlen duplizieren aktualisieren kopie kopieren übernehmen kollegen andere lehrpersonen stern', ziel:'einstellungen',
+   a:'«☆ Empfehlen» bei einer Übung schlägt sie allen anderen Lehrpersonen vor.\nEmpfehlungen der anderen findest du unter ⚙️ Einstellungen › «⭐ Von Lehrern empfohlen». Mit 📥 Duplizieren kommt eine Kopie auf deine Seite, 🔄 Aktualisieren holt eine neue Fassung. Die gleichen Knöpfe erscheinen auch direkt auf einer fremden Seite.'},
+  {id:'lp-klasse', fuer:'lp', f:'Wie wechsle ich in eine andere Klasse?', w:'klasse wechseln andere klasse seite fremde gelbes band richtige klasse meine seiten zurück eigene',
+   a:'Mit dem Knopf «🏫 Klasse ▾» in der Leiste. Zuoberst stehen ⭐ Meine Seiten, darüber kannst du nach Klasse oder Lehrperson suchen.\nEin gelbes Band zeigt, dass du nicht auf deiner eigenen Seite bist. Bevor dort etwas gespeichert wird, fragt die Library nach («Richtige Klasse?»).'},
+  {id:'lp-falsch', fuer:'lp', f:'Ich habe in einer falschen Klasse etwas geändert.', w:'versehen falsch falsche klasse geändert rückgängig aus versehen',
+   a:'Mach die Änderung rückgängig oder melde dich bei der betroffenen Lehrperson. Das gelbe Band und die Nachfrage «Richtige Klasse?» sollen genau das verhindern.'},
+  {id:'lp-kalender', fuer:'lp', f:'Wie trage ich Hausaufgaben und Prüfungen ein?', w:'hausaufgabe hausaufgaben abgabe prüfung termin erinnerung eintragen kalender verlinken checkliste abgabe-checkliste abgegeben', ziel:'kalender',
+   a:'Im 📅 Kalender trägst du Hausaufgaben, Abgaben, Prüfungen und Erinnerungen ein. Beim Eintrag lassen sich Übungen oder PDFs verlinken. Unter «Für» wählst du die ganze Klasse oder eine deiner Gruppen.\nMit der Abgabe-Checkliste hakst du ab, wer abgegeben hat.'},
+  {id:'lp-gruppen', fuer:'lp', f:'Wie lege ich eine Gruppe an?', w:'gruppe gruppen niveaugruppe freifach halbklasse wahlfach mehrere klassen flp isf mitglieder neue gruppe erstellen anlegen machen', ziel:'kalender',
+   a:'Im 📅 Kalender auf «👥 Gruppen» › «+ Neue Gruppe». Name und Fach wählen, dann Schüler:innen über das Suchfeld finden oder eine Klasse aufklappen und ankreuzen.\nGruppenmitglieder sehen im Fach zusätzlich deine Übungen und erscheinen bei dir in Abgabe-Checkliste und Lernstand.'},
+  {id:'lp-sieht-nicht', fuer:'lp', problem:true, f:'Eine Schülerin sieht meine Übungen nicht.', w:'sieht nicht schüler schülerin übungen fehlen nicht sichtbar findet nicht',
+   a:'Ist sie in deiner Klasse? Sonst nimm sie in eine 👥 Gruppe dieses Fachs auf (📅 Kalender › «👥 Gruppen»).', ziel:'kalender'},
+  {id:'lp-pw-sus', fuer:'lp', f:'Ein Schüler hat das Passwort vergessen.', w:'passwort vergessen schüler schülerin zurücksetzen reset neues passwort anmelden klappt nicht', ziel:'einstellungen',
+   a:'⚙️ Einstellungen › «🔑 Passwort einer Schüler:in zurücksetzen»: Anfrage stellen. Das neue Passwort erscheint dort, sobald es gesetzt ist.'},
+  {id:'lp-karten', fuer:'lp', f:'Wie lege ich ein Karteikarten-Set an?', w:'karteikarten set karten voci wörter liste excel einfügen voci-test vokabeln erstellen anlegen', ziel:'klassenzimmer',
+   a:'🏫 Klassenzimmer › «Karteikarten» › Set pro Fach anlegen. Karten als Liste einfügen («house = Haus», eine pro Zeile; Excel-Listen einfach hineinkopieren, mehrere richtige Antworten mit «/»).\nDie 📊 Klassenübersicht eines Sets zeigt die schwierigsten Wörter. Mit «📝 Voci-Test» wird aus dem Set direkt eine Prüfung.'},
+  {id:'lp-trainer', fuer:'lp', f:'Was sind die Übungstrainer?', w:'übungstrainer trainer sikore tipptrainer klassenübersicht automatisch aufgaben',
+   a:'⚡ Übungstrainer stehen in fast jedem Fach zuoberst. Die Aufgaben entstehen automatisch, du musst nichts pflegen. Pro Trainer gibt es eine 📊 Klassenübersicht. 🧮 SIKORE (Mathematik) und ⌨️ Tipptrainer (Medien und Informatik) funktionieren gleich.'},
+  {id:'lp-klassenzimmer', fuer:'lp', f:'Welche Werkzeuge gibt es im Klassenzimmer?', w:'klassenzimmer werkzeuge beamer ruhephase lärmampel countdown würfel glücksrad stadt land fluss gruppen partner ämtliplan vergessen-zähler', ziel:'klassenzimmer',
+   a:'Im 🏫 Klassenzimmer (gedacht für den Beamer) findest du u. a. ⏱ Ruhephase mit Countdown und Lärmampel, Sitzplan, Klassen-Quiz, ⚡ Blitzumfrage, ☁️ Wortwolke, 💰 Wer wird Millionär, 🗳️ Abstimmungen, 📝 Prüfungen, 📡 Live, 📚 Lernphase, Würfel, Glücksrad, Gruppen & Partner, Ämtliplan, Vergessen-Zähler und Fragebox. Die Werkzeuge lassen sich anordnen und ausblenden.'},
+  {id:'lp-sitzplan', fuer:'lp', f:'Wie mache ich einen Sitzplan?', w:'sitzplan sitzordnung plätze zufall tische erstellen', ziel:'klassenzimmer',
+   a:'Im 🏫 Klassenzimmer unter «Sitzplan»: mit Zufallsverteilung und gespeicherten Sitzordnungen.'},
+  {id:'lp-quiz', fuer:'lp', f:'Wie starte ich ein Quiz oder eine Umfrage?', w:'quiz klassen-quiz umfrage blitzumfrage wortwolke millionär abstimmung live starten spiel joker', ziel:'klassenzimmer',
+   a:'Im 🏫 Klassenzimmer: Klassen-Quiz, ⚡ Blitzumfrage und ☁️ Wortwolke starten, die Klasse macht auf ihren Geräten mit. Bei 💰 Wer wird Millionär spielt die Klasse gemeinsam, die Mehrheit entscheidet. 🗳️ Abstimmungen gehen an beliebige Klassen oder Jahrgänge, anonym oder mit Namen.'},
+  {id:'lp-pruefung', fuer:'lp', f:'Wie erstelle ich eine Online-Prüfung?', w:'prüfung online-prüfung test erstellen neue prüfung notenmassstab zeitlimit voci-test rechtschreib diktat', ziel:'klassenzimmer',
+   a:'🏫 Klassenzimmer › «📝 Prüfungen» › «➕ Neue Prüfung»: zuerst Art, Klasse und unter «Für» die ganze Klasse oder eine Gruppe wählen. Arten: aus einer Übung, Voci-Test, Rechtschreib-Werkstatt, Übungstrainer, SIKORE, Tippen, Diktat.\nDann Aufgabenformate, Notenmassstab, Punkte und optional ein Zeitlimit einstellen und die Prüfung öffnen.'},
+  {id:'lp-pruefung-lauf', fuer:'lp', f:'Wie läuft eine Online-Prüfung ab?', w:'warteraum freigeben starten test starten entsperren gesperrt sperre live-übersicht resultate freigeben noten',
+   a:'Nach «▶️ Freigeben» landen die Schüler:innen im ⏳ Warteraum. Mit «▶️ Test starten» beginnen alle gleichzeitig.\nWer das Fenster wechselt oder das Vollbild verlässt, wird gesperrt. In der Live-Übersicht kannst du die Person wieder entsperren. Nach dem Freigeben der Resultate landen die Noten im Notenrechner der Schüler:innen.'},
+  {id:'lp-baukasten', fuer:'lp', f:'Wie stelle ich die Aufgaben einer Prüfung zusammen?', w:'baukasten aufgaben auswählen tauschen ersetzen eigene aufgaben musterlösung entwurf drucken papier pdf word docx lösungsblatt',
+   a:'Im 🧩 Baukasten: Aufgaben mit Lösung ansehen, löschen, mit 🎲 gegen eine zufällige gleicher Art tauschen oder mit 🔁 durch eine selbst gewählte ersetzen. Im Entwurf kannst du Aufgaben aus mehreren Übungen zusammenstellen und eigene ergänzen.\nMit 🖨️ Drucken gibt es Prüfung und Lösungsblatt als PDF oder Word im Prüfungs-Design der Sek Altnau.'},
+  {id:'lp-lernstand', fuer:'lp', f:'Wo sehe ich den Lernstand meiner Klasse?', w:'lernstand übersicht fortschritt klasse wer hat geübt auswertung sikore-übersicht werkstatt-übersicht voci-übersicht serie', ziel:'lernstand',
+   a:'Unter 📈 Lernstand: Fortschritt aller Schüler:innen in allen Fächern. Zuoberst im aufgeklappten Fach stehen die Spezial-Übersichten (📊 SIKORE, 🧩 Werkstatt, 🗣️ Voci). Die Lern-Serie 🔥 zeigt, wer regelmässig übt.'},
+  {id:'lp-live', fuer:'lp', f:'Wie sehe ich, wo die Klasse gerade steht?', w:'live echtzeit gerade jetzt übung stand lernphase hand fragen wer ist da',
+   a:'📡 Live (oben rechts in einer geöffneten Übung) zeigt in Echtzeit, wo die Klasse steht.\nIn der 📚 Lernphase siehst du, wer in der Library ist. Schüler:innen können mit «✋ Ich habe eine Frage» die Hand hochstrecken: Du hörst einen kurzen Ton und tippst ✓, wenn es erledigt ist.'},
+  {id:'lp-fragebox', fuer:'lp', f:'Wie beantworte ich Fragen aus der Fragebox?', w:'fragebox fragen anonym beantworten antwort veröffentlichen', ziel:'fragebox',
+   a:'In der ❓ Fragebox stehen die Fragen deiner Klasse (auch anonyme). Deine Antworten kannst du für die Klasse veröffentlichen.'},
+  {id:'lp-earlybird', fuer:'lp', f:'Wie trage ich jemanden für Earlybird ein?', w:'earlybird early bird mittwoch eintragen auftrag aufsicht liste austragen', ziel:'earlybird',
+   a:'Symbol 🐦 (in der Leiste unter «Mehr»): Unter ✏️ Eintragen wählst du Termin und Klasse, kreuzt Schüler:innen an und notierst bei Bedarf einen 📝 Auftrag. Unter 🏫 Ganze Schule hakt die Aufsicht ab, wer da war, und druckt die Liste mit 🖨️.'},
+  {id:'lp-extras', fuer:'lp', f:'Wozu sind To-dos, Pflanzen und Schulden da?', w:'to-do todo todos pflanzen giessen giesserinnerung schulden schulden-liste geld schoggibrötli',
+   a:'📝 To-dos: deine private Aufgabenliste. 🪴 Pflanzen: Giesserinnerung mit rotem Band, bis abgehakt. 💸 Schulden: kleine Beträge, die Schüler:innen dir schulden; pro Klasse ein- und ausschaltbar unter ⚙️ Einstellungen › 🧩 Widgets.'},
+  {id:'lp-kaputt', fuer:'lp', problem:true, f:'Eine Übung zeigt einen weissen Bildschirm.', w:'fehler kaputt geht nicht funktioniert nicht weiss weisser bildschirm lädt nicht problem bug leer',
+   a:'Seite neu laden. Hilft das nicht: die Übungsdatei lokal im Browser öffnen und testen, dann mit «Datei ersetzen» neu hochladen. Bleibt der Fehler, schreib Jan eine Rückmeldung.', ziel:'rueckmeldung'},
+  {id:'lp-rueckmeldung', fuer:'lp', f:'Wie melde ich Jan einen Fehler oder eine Idee?', w:'rückmeldung fehler melden idee wunsch verbesserung vorschlag jan helfenberger feedback', ziel:'rueckmeldung',
+   a:'⚙️ Einstellungen › «💬 Rückmeldung schreiben»: Fehler, Verbesserungsvorschlag oder Sonstiges melden. Unter «Meine Rückmeldungen» siehst du, ob es umgesetzt wurde.'},
+  {id:'lp-anleitung', fuer:'lp', f:'Gibt es eine ausführliche Anleitung?', w:'anleitung hilfe handbuch dokumentation erklärung nachlesen', ziel:'anleitung',
+   a:'Ja. Die 📖 Hilfe für Lehrpersonen erklärt alle Bereiche der Library Schritt für Schritt.'}
+];
+
+var KIB_START = {
+  sus:['hausaufgaben','uebungen','passwort','pruefung','fragebox','app'],
+  lp:['lp-hochladen','lp-kalender','lp-pruefung','lp-gruppen','lp-pw-sus','lp-teilen']
+};
+var KIB_STOPP = (' ich du er sie es wir ihr man der die das den dem des ein eine einen einem einer eines und oder aber wie wo was wer wann warum wieso weshalb' +
+  ' kann kannst koennen koennte darf mein meine meinen meinem meiner dein deine ist sind bin bist war hat habe hast haben nicht mir mich dir dich im in an am auf zu zum zur' +
+  ' bei mit von vom fuer aus gibt geht gehts mache machen macht tun tue soll muss will moechte bitte mal noch auch nur so da dann denn doch ja hallo hoi hey hi sali gruezi guten salut hello danke merci super cool ok okay tschuess ciao' +
+  ' etwas dies diese dieser dieses jetzt hier dort wenn als ob um ueber unter nach vor the how can ').split(' ');
+
+function kibNorm(s){
+  return String(s || '').toLowerCase()
+    .replace(/ä/g,'ae').replace(/ö/g,'oe').replace(/ü/g,'ue').replace(/ß/g,'ss')
+    .replace(/[éèêë]/g,'e').replace(/[àâ]/g,'a').replace(/ç/g,'c')
+    .replace(/[^a-z0-9]+/g,' ').trim();
+}
+function kibStamm(w){
+  if(w.length > 5) w = w.replace(/(ern|en|er|es|em|e|n|s)$/, '');
+  return w;
+}
+function kibWoerter(s){
+  var out = [];
+  kibNorm(s).split(' ').forEach(function(w){
+    if(w.length < 2 || KIB_STOPP.indexOf(w) >= 0) return;
+    w = kibStamm(w);
+    if(out.indexOf(w) < 0) out.push(w);
+  });
+  return out;
+}
+/* Höchstens ein Tippfehler (ein Zeichen ersetzt, eingefügt, gelöscht oder zwei vertauscht). */
+function kibFast(a, b){
+  var la = a.length, lb = b.length;
+  if(Math.abs(la - lb) > 1 || Math.min(la, lb) < 5) return false;
+  var i = 0;
+  while(i < la && i < lb && a[i] === b[i]) i++;
+  if(la === lb){
+    if(a.slice(i + 1) === b.slice(i + 1)) return true;
+    return a[i] === b[i + 1] && a[i + 1] === b[i] && a.slice(i + 2) === b.slice(i + 2);
+  }
+  return la > lb ? a.slice(i + 1) === b.slice(i) : a.slice(i) === b.slice(i + 1);
+}
+function kibIndex(){
+  if(kibIndex.fertig) return;
+  KIB_WISSEN.forEach(function(e){
+    e._w = kibWoerter(e.f + ' ' + e.w);
+    e._a = kibWoerter(e.a).filter(function(w){ return e._w.indexOf(w) < 0; });
+  });
+  kibIndex.fertig = true;
+}
+function kibTreffer(q, liste, gewicht){
+  var best = 0;
+  for(var i = 0; i < liste.length; i++){
+    var w = liste[i], p = 0;
+    if(w === q) p = 1;
+    else if(q.length >= 4 && w.length >= 4 && (w.indexOf(q) === 0 || q.indexOf(w) === 0)) p = 0.8;
+    else if(q.length >= 5 && w.length >= 5 && (w.indexOf(q) > 0 || q.indexOf(w) > 0)) p = 0.6;
+    else if(kibFast(q, w)) p = 0.6;
+    if(p > best){ best = p; if(best === 1) break; }
+  }
+  return best * gewicht;
+}
+function kibRolle(){ return state.profile && state.profile.role === 'teacher' ? 'lp' : 'sus'; }
+function kibFuerMich(e){ return e.fuer === 'alle' || e.fuer === kibRolle(); }
+function kibEintrag(id){ for(var i = 0; i < KIB_WISSEN.length; i++){ if(KIB_WISSEN[i].id === id) return KIB_WISSEN[i]; } return null; }
+/* Liefert die passenden Einträge, bester zuerst: [{e, p}]. */
+function kibSuchen(text){
+  kibIndex();
+  var qs = kibWoerter(text), res = [];
+  if(!qs.length) return res;
+  // «… geht nicht», «kein …»: Einträge zu Störungen zählen etwas mehr.
+  var problem = /(^| )(nicht|nichts|kein|keine|keinen|fehler|kaputt)( |$)/.test(kibNorm(text));
+  KIB_WISSEN.forEach(function(e){
+    if(!kibFuerMich(e)) return;
+    var p = 0, stark = 0;
+    qs.forEach(function(q){
+      var a = kibTreffer(q, e._w, 3), b = kibTreffer(q, e._a, 1);
+      if(a >= 1.8) stark++;
+      p += Math.max(a, b);
+    });
+    // Eine Antwort gilt nur, wenn mindestens ein Stichwort wirklich sitzt.
+    if(stark && p >= 1.8) res.push({e:e, p:p + (e.fuer === 'alle' ? 0 : 0.2) + (problem && e.problem ? 1 : 0)});
+  });
+  res.sort(function(a, b){ return b.p - a.p; });
+  return res;
+}
+
+function kibRuhig(){ return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); }
+function kibLogo(){ return document.getElementById('logoBtn'); }
+function kibLogoHtml(){
+  return '<span class="kib-logo"><img class="kib-ganz" src="assets/logo.png" alt="" onerror="this.style.display=\'none\'"></span>';
+}
+function kibLaden(){
+  if(!kib.geladen){
+    kib.geladen = Promise.all(KIB_BILDER.map(function(n){
+      return new Promise(function(ok, nein){ var i = new Image(); i.onload = ok; i.onerror = nein; i.src = 'assets/ki-bot/' + n + '.png'; });
+    })).then(function(){ return true; }, function(){ kib.geladen = null; return false; });
+  }
+  return kib.geladen;
+}
+/* Legt die Ebenen über das Logo und zeigt die Pose. wach = Schrift ausgeblendet. */
+function kibEbenenEin(pose, wach, sofort){
+  var logo = kibLogo(), halt = logo && logo.querySelector('.kib-logo');
+  if(!halt) return;
+  var eb = halt.querySelector('.kib-ebenen');
+  if(!eb){
+    eb = document.createElement('span');
+    eb.className = 'kib-ebenen';
+    eb.setAttribute('aria-hidden', 'true');
+    var h = '<img class="kib-figuren" src="assets/ki-bot/logo-figuren.png" alt=""><img class="kib-schrift" src="assets/ki-bot/logo-schrift.png" alt="">';
+    for(var i = 1; i <= 5; i++) h += '<img class="kib-pose" data-p="' + i + '" src="assets/ki-bot/pose-' + i + '.png" alt="">';
+    eb.innerHTML = h;
+    halt.appendChild(eb);
+  }
+  eb.setAttribute('data-pose', pose);
+  logo.classList.toggle('kib-sofort', !!sofort);
+  logo.classList.add('kib-an');
+  logo.classList.toggle('kib-wach', !!wach);
+}
+function kibEbenenAus(){
+  var logo = kibLogo();
+  if(logo) logo.classList.remove('kib-an', 'kib-wach', 'kib-sofort');
+}
+function kibPosen(von, bis, fertig){
+  clearInterval(kib.timer); kib.timer = null;
+  var setze = function(p){
+    kib.pose = p;
+    var eb = document.querySelector('#logoBtn .kib-ebenen');
+    if(eb) eb.setAttribute('data-pose', p);
+  };
+  if(!document.querySelector('#logoBtn.kib-an') || kibRuhig()){ setze(bis); fertig(); return; }
+  var p = von, schritt = bis > von ? 1 : -1;
+  kib.timer = setInterval(function(){
+    p += schritt; setze(p);
+    if(p === bis){ clearInterval(kib.timer); kib.timer = null; fertig(); }
+  }, KIB_TAKT);
+}
+function kibUmschalten(){
+  if(kib.laeuft) return;
+  if(kib.offen) kibZu(); else kibAuf();
+}
+function kibAuf(){
+  kib.laeuft = true;
+  kibLaden().then(function(ok){
+    var fertig = function(){ kib.offen = true; kib.laeuft = false; kibBlaseAuf(); };
+    if(!ok || !kibLogo()){ fertig(); return; }
+    kib.pose = 1;
+    kibEbenenEin(1, false, false);
+    // Erst einen Moment zeichnen lassen, dann blendet die Schrift aus und die Posen laufen.
+    setTimeout(function(){
+      var l = kibLogo(); if(l && l.classList.contains('kib-an')) l.classList.add('kib-wach');
+      setTimeout(function(){ kibPosen(1, 5, fertig); }, kibRuhig() ? 0 : 150);
+    }, 30);
+  });
+}
+function kibZu(sofort){
+  var p = kib.panel;
+  clearInterval(kib.timer); kib.timer = null;
+  if(p) p.classList.remove('offen');
+  kib.offen = false;
+  if(sofort){
+    if(p) p.hidden = true;
+    kib.pose = 1; kib.laeuft = false; kibEbenenAus();
+    return;
+  }
+  kib.laeuft = true;
+  var logo = kibLogo(); if(logo) logo.setAttribute('aria-expanded', 'false');
+  setTimeout(function(){
+    if(p) p.hidden = true;
+    kibPosen(5, 1, function(){
+      var l = kibLogo(); if(l){ l.classList.remove('kib-sofort'); l.classList.remove('kib-wach'); }   // Schrift blendet wieder ein
+      setTimeout(function(){ kibEbenenAus(); kib.laeuft = false; }, kibRuhig() ? 0 : 260);
+    });
+  }, 170);
+}
+/* Nach jedem renderChrome: Klick ans neue Logo hängen und den Zustand wiederherstellen. */
+function kibChromeNeu(){
+  var logo = kibLogo();
+  if(!logo) return;
+  logo.addEventListener('click', kibUmschalten);
+  logo.addEventListener('keydown', function(e){
+    if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); kibUmschalten(); }
+  });
+  logo.setAttribute('aria-expanded', kib.offen ? 'true' : 'false');
+  if(kib.offen && kibWerBinIch() !== kib.wer){ kibZu(true); return; }
+  if(kib.offen || kib.laeuft){ kibEbenenEin(kib.pose, true, true); }
+  if(kib.offen) kibPlatz();
+}
+function kibWerBinIch(){
+  var p = state.profile || {};
+  return [state.user && state.user.uid || '', p.role || '', p.alsAnsicht ? 'als' : ''].join('|');
+}
+
+function kibPanelBauen(){
+  if(kib.panel) return kib.panel;
+  var p = document.createElement('div');
+  p.className = 'kib-panel'; p.id = 'kibPanel'; p.hidden = true;
+  p.setAttribute('role', 'dialog');
+  p.setAttribute('aria-label', 'Library-Hilfe');
+  p.innerHTML = '<span class="kib-zipfel" aria-hidden="true"></span>' +
+    '<div class="kib-kopf"><span>💬 Library-Hilfe</span><button type="button" class="kib-zu" id="kibZuBtn" title="Schliessen" aria-label="Schliessen">✕</button></div>' +
+    '<div class="kib-verlauf" id="kibVerlauf" aria-live="polite"></div>' +
+    '<form class="kib-eingabe" id="kibForm"><input id="kibFrage" type="text" maxlength="160" autocomplete="off" placeholder="Frag mich etwas zur Library …" aria-label="Deine Frage"><button class="btn btn-primary btn-sm" type="submit">Fragen</button></form>';
+  document.body.appendChild(p);
+  kib.panel = p;
+  p.querySelector('#kibZuBtn').addEventListener('click', function(){ if(!kib.laeuft) kibZu(); });
+  p.querySelector('#kibForm').addEventListener('submit', function(e){
+    e.preventDefault();
+    var feld = p.querySelector('#kibFrage'), t = feld.value.trim();
+    if(!t) return;
+    feld.value = '';
+    kibFragen(t);
+  });
+  p.querySelector('#kibVerlauf').addEventListener('click', function(e){
+    var b = e.target.closest('button[data-kib-id],button[data-kib-ziel]');
+    if(!b) return;
+    if(b.hasAttribute('data-kib-ziel')){ kibLos(b.getAttribute('data-kib-ziel')); return; }
+    var ein = kibEintrag(b.getAttribute('data-kib-id'));
+    if(ein){ kibSag(esc(ein.f), 'kib-ich'); kibAntwort(ein); }
+  });
+  p.addEventListener('keydown', function(e){ if(e.key === 'Escape' && !kib.laeuft){ e.stopPropagation(); kibZu(); } });
+  window.addEventListener('resize', kibPlatz);
+  window.addEventListener('scroll', kibPlatz, {passive:true});
+  return p;
+}
+function kibBlaseAuf(){
+  if(!state.profile){ kibZu(true); return; }
+  var p = kibPanelBauen();
+  if(kib.wer !== kibWerBinIch()){
+    kib.wer = kibWerBinIch();
+    p.querySelector('#kibVerlauf').innerHTML = '';
+    kib.frage = null;
+    kibBegruessen();
+  }
+  var logo = kibLogo(); if(logo) logo.setAttribute('aria-expanded', 'true');
+  p.hidden = false;
+  kibPlatz();
+  void p.offsetWidth;   // Startzustand festhalten, damit die Blase aus dem Mund herauswächst
+  p.classList.add('offen');
+  if(window.matchMedia && window.matchMedia('(hover: hover)').matches){
+    setTimeout(function(){ var f = p.querySelector('#kibFrage'); if(f && kib.offen) f.focus({preventScroll:true}); }, 280);
+  }
+}
+/* Setzt die Blase so, dass ihr Zipfel am Mund des Männchens sitzt: neben dem Logo
+   (Seitenleiste) oder darunter (schmale Fenster, Leiste oben). */
+function kibPlatz(){
+  var p = kib.panel;
+  if(!p || p.hidden) return;
+  var logo = kibLogo(), img = logo && logo.querySelector('.kib-ganz');
+  var r = img ? img.getBoundingClientRect() : null;
+  var vw = window.innerWidth, vh = window.innerHeight;
+  p.style.maxHeight = '';
+  var pw = p.offsetWidth, ph = p.offsetHeight;
+  if(!r || !r.width){
+    p.classList.add('kib-ohne'); p.classList.remove('kib-oben');
+    p.style.left = '8px'; p.style.top = '8px'; p.style.transformOrigin = '0 0';
+    return;
+  }
+  var mx = r.left + r.width * KIB_MUND.x, my = r.top + r.height * KIB_MUND.y;
+  var seitlich = vw >= 1000 && mx + 18 + pw <= vw - 8;
+  var left, top, z;
+  if(seitlich){
+    left = mx + 18;
+    top = Math.max(8, Math.min(my - 24, vh - ph - 14));   // knapp unter dem gelben Bogen, damit das Logo frei bleibt
+    z = Math.max(20, Math.min(my - top, ph - 20));
+    p.style.transformOrigin = '-10px ' + z + 'px';
+    p.classList.toggle('kib-ohne', my < 0 || my > vh);
+  } else {
+    var feld = logo.getBoundingClientRect();
+    top = Math.max(8, feld.bottom + 14);
+    left = Math.max(8, Math.min(mx - 30, vw - pw - 8));
+    z = Math.max(18, Math.min(mx - left, pw - 18));
+    p.style.maxHeight = Math.max(240, Math.min(540, vh - top - 14)) + 'px';
+    p.style.transformOrigin = z + 'px -10px';
+    p.classList.toggle('kib-ohne', feld.bottom < 0);
+  }
+  p.classList.toggle('kib-oben', !seitlich);
+  p.style.left = Math.round(left) + 'px';
+  p.style.top = Math.round(top) + 'px';
+  p.style.setProperty('--kib-z', Math.round(z) + 'px');
+}
+
+function kibText(s){ return esc(s).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>'); }
+function kibSag(html, klasse){
+  var v = kib.panel.querySelector('#kibVerlauf');
+  var d = document.createElement('div');
+  d.className = klasse === 'kib-chips' ? 'kib-chips' : 'kib-msg ' + klasse;
+  if(klasse === 'kib-ich'){ d.setAttribute('data-noi18n', ''); kib.frage = d; }
+  d.innerHTML = html;
+  v.appendChild(d);
+  // Zur letzten Frage springen, nicht ans Ende: lange Antworten liest man von oben.
+  v.scrollTop = kib.frage && kib.frage.parentNode === v ? Math.max(0, kib.frage.offsetTop - v.offsetTop - 8) : 0;
+  return d;
+}
+function kibChipsHtml(eintraege, ziele){
+  var h = '';
+  (ziele || []).forEach(function(z){ if(KIB_ZIELE[z]) h += '<button type="button" class="kib-chip kib-los" data-kib-ziel="' + z + '">' + esc(KIB_ZIELE[z].t) + '</button>'; });
+  (eintraege || []).forEach(function(e){ h += '<button type="button" class="kib-chip" data-kib-id="' + e.id + '">' + esc(e.f) + '</button>'; });
+  return h;
+}
+function kibBegruessen(){
+  var p = state.profile || {};
+  var name = String(p.displayName || p.username || '').split(' ')[0];
+  kibSag(kibText('Hoi' + (name ? ' ' + name : '') + '! Ich helfe dir bei der Bedienung der Library. Tipp auf eine Frage oder schreib mir ein Stichwort, z. B. «Passwort».'), 'kib-bot');
+  var start = (KIB_START[kibRolle()] || []).map(kibEintrag).filter(function(e){ return e && kibFuerMich(e); });
+  kibSag(kibChipsHtml(start), 'kib-chips');
+}
+function kibAntwort(ein, weitere){
+  kibSag(kibText(ein.a), 'kib-bot');
+  var h = kibChipsHtml(weitere || [], ein.ziel ? [ein.ziel] : []);
+  if(h) kibSag(h, 'kib-chips');
+  kibPlatz();
+}
+/* Gruss, Dank und «Wer bist du?» – ohne Suche. */
+function kibPlaudern(text){
+  var t = ' ' + kibNorm(text) + ' ';
+  if(/ (wer|was) bist du | bist du (eine |ein )?(ki|ai|bot|roboter|mensch) | wie heisst du /.test(t)){ kibAntwort(kibEintrag('wer')); return true; }
+  if(kibWoerter(text).length) return false;
+  if(/ (danke|merci|super|cool|ok|okay|tschuess|ciao) /.test(t)){ kibSag(kibText('Gern geschehen! Wenn noch etwas ist, frag einfach.'), 'kib-bot'); return true; }
+  if(/ (hallo|hoi|hey|hi|sali|gruezi|guten|salut|hello) /.test(t)){ kibSag(kibText('Hoi! Wobei kann ich dir helfen?'), 'kib-bot'); return true; }
+  return false;
+}
+function kibFragen(text){
+  kibSag(esc(text), 'kib-ich');
+  if(kibPlaudern(text)){ kibPlatz(); return; }
+  var res = kibSuchen(text);
+  if(res.length){
+    var weitere = res.slice(1, 4).filter(function(r){ return r.p >= res[0].p * 0.55; }).map(function(r){ return r.e; });
+    kibAntwort(res[0].e, weitere);
+    return;
+  }
+  var lp = kibRolle() === 'lp';
+  kibSag(kibText(lp
+    ? 'Dazu habe ich keine Antwort gefunden. Versuch es mit einem anderen Stichwort, schau in die Anleitung oder schreib Jan eine Rückmeldung.'
+    : 'Dazu habe ich keine Antwort gefunden. Versuch es mit einem anderen Stichwort (z. B. «Hausaufgaben», «Prüfung», «Passwort») oder frag deine Lehrperson.'), 'kib-bot');
+  kibSag(kibChipsHtml([], lp ? ['anleitung', 'rueckmeldung'] : ['fragebox']), 'kib-chips');
+  kibPlatz();
+}
+function kibLos(z){
+  var ziel = KIB_ZIELE[z];
+  if(!ziel) return;
+  // Dialoge liegen über der Blase, und auf schmalen Fenstern verdeckt die Blase die Seite: dann schliessen.
+  if(ziel.dialog || window.innerWidth < 1000) kibZu(true);
+  ziel.los();
+}
+
 function renderChrome(innerHtml){
   var isTeacher = state.profile && state.profile.role === 'teacher';
   var html = '';
   html += '<div class="topbar">';
-  html += '<div class="topbar-logo" id="logoBtn"><img src="assets/logo.png" alt="" onerror="this.style.display=\'none\'"></div>';
+  html += '<div class="topbar-logo" id="logoBtn" role="button" tabindex="0" title="Hilfe" aria-label="Library-Hilfe öffnen">'+kibLogoHtml()+'</div>';
   html += '<div class="topbar-title" id="titleBtn">Helfenberger\'s Library</div>';
   html += neuNavHtml(isTeacher);
   html += '<button class="btn btn-ghost btn-sm topbar-coin" id="coinBtn" type="button" title="Schulden" hidden>💸<span class="topbar-coin-badge" id="coinBadge" hidden></span></button>';
@@ -8514,7 +9085,7 @@ function renderChrome(innerHtml){
   var leitungAnsichtBtn = document.getElementById('leitungAnsichtBtn');
   if(leitungAnsichtBtn){ leitungAnsichtBtn.addEventListener('click', function(){ wechsleLeitungAnsicht(isTeacher ? 'schueler' : 'lehrer'); }); }
 
-  document.getElementById('logoBtn').addEventListener('click', goHome);
+  kibChromeNeu();   // Logo = Hilfe-Bot; zur Startseite führt der Titel
   document.getElementById('titleBtn').addEventListener('click', goHome);
   document.getElementById('settingsBtn').addEventListener('click', openSettings);
   var sebQuitBtn = document.getElementById('sebQuitBtn');
@@ -17729,6 +18300,7 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-10-05-hilfe-bot', datum:'2026-10-05', fuer:'alle', text:'💬 Neu: die Library-Hilfe. Tipp in der Leiste auf das Logo der Sekundarschule Altnau – das blaue Männchen steht auf und beantwortet deine Fragen zur Bedienung (z. B. «Wo sehe ich meine Hausaufgaben?»). Zur Startseite kommst du weiterhin über «Start» oder den Titel «Helfenberger\'s Library».'},
   {id:'2026-10-05-millionaer', datum:'2026-10-05', fuer:'lehrer', text:'💰 Neues Spiel «Wer wird Millionär» (Klassenzimmer › Live mit der Klasse): Die Klasse spielt gemeinsam. Beim Eröffnen erscheint eine Wartelobby mit der ganzen Klasse – du siehst, wer eingeloggt ist und wer noch fehlt (auf den Schülergeräten geht das Spiel von selbst auf). Die Frage steht am Beamer, alle stimmen still auf dem eigenen Gerät ab, der Zwischenstand bleibt verdeckt – gewählt ist, was die Mehrheit tippt. Bei Gleichstand gibt es eine Stichwahl unter den meistgewählten Antworten; steht es dann immer noch gleich, bekommt ein zufällig gezogenes Kind das Veto und entscheidet allein. Falsche Antworten kosten ein Leben, dazu gibt es die Joker 50:50, Frage tauschen und Zweite Chance. Fragen: eigene Sets mit Stufen (leicht, mittel, schwer), jedes Klassen-Quiz, jede Übung, aus der sich auch eine Prüfung machen lässt (inkl. Karteikarten), oder ein Import als Text bzw. JSON-Datei. Millionär-Sets lassen sich wie Quizze im Fach-Ordner ablegen.'},
   {id:'2026-10-05-millionaer-sus', datum:'2026-10-05', fuer:'alle', text:'💰 Neu: «Wer wird Millionär» mit der ganzen Klasse. Startet deine Lehrperson das Spiel, geht es auf deinem Gerät von selbst auf (sonst oben auf «Millionär läuft – mitmachen» tippen). Du tippst still deine Antwort an – was die Mehrheit wählt, gilt für alle. Bei Gleichstand gibt es eine Stichwahl, und wenn es dann immer noch gleich steht, entscheidet ein zufällig gezogenes Kind allein.'},
   {id:'2026-10-05-mathe-einordnen', datum:'2026-10-05', fuer:'lehrer', text:'📝 Prüfungen aus Mathe-Übungsseiten: Aufgaben wie «Proportional oder nicht?» kamen als «Wahr/Falsch» – bei einer Situation mit Frage («Wie viele braucht es jetzt?») ergab das keinen Sinn. Solche Aufgaben erscheinen jetzt als Auswahl «Proportional / Nicht proportional» (Übungen 3ab und 3c sind angepasst). Bereits angelegte Prüfungen behalten ihre Fragen – dort die Fragen neu ziehen.'},
