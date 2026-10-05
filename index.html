@@ -2492,6 +2492,9 @@
   .stp-tag.ferien{opacity:.75;}
   .stp-cell.ferien{min-height:44px;border:1px dashed var(--border);background:repeating-linear-gradient(135deg, var(--surface-2) 0 6px, transparent 6px 12px);}
   .stp-cell.termin{outline:2px dashed color-mix(in srgb, var(--c) 70%, transparent);outline-offset:-3px;}
+  .stp-sub.stp-par{font-weight:800;color:color-mix(in srgb, var(--c) 70%, var(--text));}
+  .stp-par-check{align-items:flex-start;background:color-mix(in srgb, #4361EE 10%, var(--surface));}
+  .stp-par-check small{display:block;font-weight:500;font-size:12.5px;color:var(--text-muted);}
   .stp-tagchip{flex:1;border:none;border-radius:12px;padding:9px 0;font-weight:800;font-size:14px;cursor:pointer;color:var(--tc);background:color-mix(in srgb, var(--tc) 12%, var(--surface));position:relative;}
   .stp-tagchip.on{background:var(--tc);color:#fff;box-shadow:0 8px 16px -10px var(--tc);}
   .stp-tagchip.heute::after{content:'';position:absolute;top:5px;right:7px;width:6px;height:6px;border-radius:50%;background:currentColor;}
@@ -2716,6 +2719,11 @@
   /* Roter Punkt an «Mehr», wenn darunter etwas wartet (Zähler/Neuigkeiten), solange es zugeklappt ist. */
   :root[data-design="neu"] .topbar:not(.neu-mehr-offen):has(#topbarIcons > :not(.neu-fav):not(.layout-aus) .topbar-badge:not([hidden]), #neuBtn.topbar-neu-an:not(.neu-fav):not(.layout-aus), #coinBtn:not(.neu-fav):not([hidden]) .topbar-coin-badge:not([hidden]), #pflanzenBtn:not(.neu-fav):not(.layout-aus) .topbar-todo-badge:not([hidden])) .neu-mehr-btn::after{content:'';flex:none;width:10px;height:10px;border-radius:50%;background:var(--bad);margin-left:6px;}
   @media (max-width:999px){ :root[data-design="neu"] .topbar{position:static;} }
+  /* Handy: Favoriten und Mehr-Einträge behalten ihre Breite und brechen in eine weitere Zeile um,
+     statt sich in eine einzige zu quetschen (sonst ragt «Favoriten wählen» über den Rand). */
+  @media (max-width:600px){
+    :root[data-design="neu"] .topbar #topbarIcons > .topbar-bell:not(#searchBtn), :root[data-design="neu"] .topbar .neu-fav-wahl{flex:0 0 auto;min-width:44px;padding:7px 8px;}
+  }
 
   @media (min-width:1000px){
     :root[data-design="neu"] #app.hat-chrome{padding-left:248px;}
@@ -18300,6 +18308,8 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-10-05-termin-parallel', datum:'2026-10-05', fuer:'lehrer', text:'↔️ Termin parallel zur Lektion: Müssen nur einige Schüler:innen weg (z. B. Zahnarzt-Kontrolle, Berufsberatung, Probe), hakst du beim «📌 Termin» neu «Parallel zur Lektion» an. Die Lektion bleibt im Stundenplan stehen, der Termin steht mit ↔️ darunter – auch bei der Klasse und in «Jetzt / Als Nächstes».'},
+  {id:'2026-10-05-handy-symbole', datum:'2026-10-05', fuer:'alle', text:'📱 Handy: Hast du viele Symbole in der Leiste oder «Mehr» offen, gehen sie jetzt auf eine weitere Zeile, statt abgeschnitten zu werden.'},
   {id:'2026-10-05-hilfe-bot', datum:'2026-10-05', fuer:'alle', text:'💬 Neu: die Library-Hilfe. Tipp in der Leiste auf das Logo der Sekundarschule Altnau – das blaue Männchen steht auf und beantwortet deine Fragen zur Bedienung (z. B. «Wo sehe ich meine Hausaufgaben?»). Zur Startseite kommst du weiterhin über «Start» oder den Titel «Helfenberger\'s Library».'},
   {id:'2026-10-05-millionaer', datum:'2026-10-05', fuer:'lehrer', text:'💰 Neues Spiel «Wer wird Millionär» (Klassenzimmer › Live mit der Klasse): Die Klasse spielt gemeinsam. Beim Eröffnen erscheint eine Wartelobby mit der ganzen Klasse – du siehst, wer eingeloggt ist und wer noch fehlt (auf den Schülergeräten geht das Spiel von selbst auf). Die Frage steht am Beamer, alle stimmen still auf dem eigenen Gerät ab, der Zwischenstand bleibt verdeckt – gewählt ist, was die Mehrheit tippt. Bei Gleichstand gibt es eine Stichwahl unter den meistgewählten Antworten; steht es dann immer noch gleich, bekommt ein zufällig gezogenes Kind das Veto und entscheidet allein. Falsche Antworten kosten ein Leben, dazu gibt es die Joker 50:50, Frage tauschen und Zweite Chance. Fragen: eigene Sets mit Stufen (leicht, mittel, schwer), jedes Klassen-Quiz, jede Übung, aus der sich auch eine Prüfung machen lässt (inkl. Karteikarten), oder ein Import als Text bzw. JSON-Datei. Millionär-Sets lassen sich wie Quizze im Fach-Ordner ablegen.'},
   {id:'2026-10-05-millionaer-sus', datum:'2026-10-05', fuer:'alle', text:'💰 Neu: «Wer wird Millionär» mit der ganzen Klasse. Startet deine Lehrperson das Spiel, geht es auf deinem Gerät von selbst auf (sonst oben auf «Millionär läuft – mitmachen» tippen). Du tippst still deine Antwort an – was die Mehrheit wählt, gilt für alle. Bei Gleichstand gibt es eine Stichwahl, und wenn es dann immer noch gleich steht, entscheidet ein zufällig gezogenes Kind allein.'},
@@ -37324,6 +37334,8 @@ function paintWidgetDrawer(){
        progress/{uid}/einstellungen/stundenplanTermine -> {termine:{'YYYY-MM-DD':{slot:{t,zi,frei,kl}}}} eigene
        klassen/{k}/klasseninfo/stundenplanTermine      -> {termine:{…:{slot:{t,zi,frei,lp}}}} für die ganze Klasse
      (slot = Zeilen-ID wie im Zellen-Key; kl im eigenen Termin = auch in diese Klasse geschrieben).
+     par:true = parallel zur Lektion: nur einige sind weg, die Lektion bleibt stehen und der
+     Termin steht als Zeile darunter.
      Eigene Dokumente, per setDoc mit merge — der Wochenplan überschreibt sie so nie. */
 
 var STP_TAGE = ['Mo','Di','Mi','Do','Fr'];
@@ -37524,8 +37536,13 @@ function stpTermin(ansicht, datum, slot){
 // Was an diesem Datum wirklich stattfindet: Termin > Ferien > Wochenplan.
 function stpAm(plan, ansicht, datum, slot){
   var tm = stpTermin(ansicht, datum, slot);
-  if(tm) return {c:tm.c, termin:tm};
   var f = rbuFerien(datum);
+  if(tm && tm.c.par && !tm.c.frei && !f){
+    // Parallel zur Lektion: sie findet für die anderen statt (ohne Lektion darunter ein normaler Termin).
+    var n = plan.zelle(stpKey(rbuTag(datum), slot));
+    if(stpInfo(n)) return {c:n, termin:tm, par:true};
+  }
+  if(tm) return {c:tm.c, termin:tm};
   if(f) return {c:null, ferien:f};
   return {c:plan.zelle(stpKey(rbuTag(datum), slot))};
 }
@@ -37569,6 +37586,7 @@ function stpTerminBearbeiten(key){
   if(vonLp) h += '<div class="stp-hinweis">Von der Lehrperson eingetragen: <b>'+esc(stpTerminTitel(vonLp))+'</b>'+(vonLp.zi ? ' · 📍 '+esc(vonLp.zi) : '')+'. Dein eigener Termin steht bei dir darüber.</div>';
   h += '<label class="modal-label">Was findet statt?</label><input type="text" id="stpTmText" maxlength="40" placeholder="z. B. Sporttag, Exkursion, Elterngespräch" value="'+q(c.t)+'">';
   h += '<label class="stp-frei-check" style="margin-top:10px;"><input type="checkbox" id="stpTmFrei"'+(c.frei ? ' checked' : '')+'> 🌴 Die Lektion fällt aus (frei)</label>';
+  if(lehrer) h += '<label class="stp-frei-check stp-par-check"><input type="checkbox" id="stpTmPar"'+(c.par && !c.frei ? ' checked' : '')+'> <span>↔️ Parallel zur Lektion<small>Nur einige Schüler:innen sind weg – für die anderen findet die Lektion normal statt.</small></span></label>';
   h += '<div class="stp-felder2" style="margin-top:0;"><div><label class="modal-label">Ort / Zimmer</label><input type="text" id="stpTmZi" maxlength="30" placeholder="z. B. Turnhalle" value="'+q(c.zi)+'"></div>'+
        '<div><label class="modal-label">Dauer</label><select id="stpTmDauer"><option value="nur">Nur diese Lektion</option>'+
        (halb.length > 1 ? '<option value="halb">Ganzer '+(hi === 0 ? 'Vormittag' : 'Nachmittag')+'</option>' : '')+'<option value="tag">Ganzer Tag</option></select></div></div>';
@@ -37583,7 +37601,11 @@ function stpTerminBearbeiten(key){
   h += '<button class="btn btn-ghost btn-sm" id="modalCancel" type="button">Abbrechen</button>'+
        '<button class="btn btn-primary btn-sm" id="modalOk" type="button">Speichern</button></div>';
   openModal(h);
-  var text = document.getElementById('stpTmText'), freiEl = document.getElementById('stpTmFrei');
+  var text = document.getElementById('stpTmText'), freiEl = document.getElementById('stpTmFrei'), parEl = document.getElementById('stpTmPar');
+  if(parEl){
+    freiEl.addEventListener('change', function(){ if(freiEl.checked) parEl.checked = false; });
+    parEl.addEventListener('change', function(){ if(parEl.checked) freiEl.checked = false; });
+  }
   function slots(){
     var d = document.getElementById('stpTmDauer').value;
     return d === 'tag' ? zeilen.map(function(x){ return String(x.s); }) : d === 'halb' ? halb[hi].slice() : [slot];
@@ -37619,6 +37641,7 @@ function stpTerminBearbeiten(key){
     var t = text.value.trim(), ort = document.getElementById('stpTmZi').value.trim();
     if(!freiEl.checked && !t){ text.focus(); return; }
     var wert = freiEl.checked ? {frei:true} : {};
+    if(parEl && parEl.checked && !freiEl.checked) wert.par = true;
     if(t) wert.t = t;
     if(ort) wert.zi = ort;
     speichern(wert);
@@ -37702,7 +37725,7 @@ function stpZeichnen(){
     }
   }
   if(stp.bearbeiten && !vorlage){
-    h += '<div class="stp-hinweis">Tippe auf eine Lektion, um <b>nur für diese Woche</b> etwas einzutragen – z. B. Sporttag, Exkursion, Elterngespräch oder einen Ausfall. '+
+    h += '<div class="stp-hinweis">Tippe auf eine Lektion, um <b>nur für diese Woche</b> etwas einzutragen – z. B. Sporttag, Exkursion, Elterngespräch oder einen Ausfall'+(lehrer ? ' (auch «parallel zur Lektion», wenn nur einige weg sind)' : '')+'. '+
       (!lehrer ? 'Nur du siehst deine Termine.' : stp.ansicht === 'klasse' ? 'Die ganze Klasse '+esc(state.klasse)+' sieht sie in ihrem Stundenplan.' : 'Du wählst, ob nur du den Termin siehst oder auch eine Klasse.')+'</div>';
   } else if(stp.bearbeiten){
     h += '<div class="stp-hinweis">'+(lehrer
@@ -37732,6 +37755,7 @@ function stpZeichnen(){
       inner += '<span class="stp-txt"><span class="stp-name">'+esc(info.name)+'</span>';
       var sub = [c.kl ? '👥 '+c.kl : '', c.zi ? '📍 '+c.zi : '', c.lp || ''].filter(Boolean).join(' · ');
       if(sub) inner += '<span class="stp-sub">'+esc(sub)+'</span>';
+      if(a.par) inner += '<span class="stp-sub stp-par">↔️ '+esc(a.termin.c.t || 'Termin')+'</span>';
       inner += '</span>';
     } else if(c && c.frei){
       inner += '<span class="stp-txt"><span class="stp-name">🌴 '+(a.termin ? 'Fällt aus' : 'Frei')+'</span>'+(a.termin && c.t ? '<span class="stp-sub">'+esc(c.t)+'</span>' : '')+'</span>';
@@ -37843,7 +37867,8 @@ function stpZeichnen(){
       var a = am(tg, zl);
       if(a.termin){
         var tc = a.termin.c;
-        uiInfo(stpTerminTitel(tc), [STP_TAGE_LANG[tg]+', '+stpDatumKurz(stpDatum(tg)), zl.von+' – '+zl.bis, tc.zi ? '📍 '+tc.zi : '', tc.kl ? 'auch für die Klasse '+tc.kl : '', !a.termin.eigen && tc.lp ? 'eingetragen von '+tc.lp : ''].filter(Boolean).join(' · '));
+        var pi = a.par ? stpInfo(a.c) : null;
+        uiInfo(stpTerminTitel(tc), [STP_TAGE_LANG[tg]+', '+stpDatumKurz(stpDatum(tg)), zl.von+' – '+zl.bis, tc.zi ? '📍 '+tc.zi : '', pi ? '↔️ parallel zu '+pi.name+' – für alle anderen findet die Lektion normal statt' : '', tc.kl ? 'auch für die Klasse '+tc.kl : '', !a.termin.eigen && tc.lp ? 'eingetragen von '+tc.lp : ''].filter(Boolean).join(' · '));
         return;
       }
       var info = stpInfo(a.c);
@@ -38071,7 +38096,7 @@ function stpZeitenBearbeiten(){
 function stpNaechste(){
   var plan = stpPlan('mein'), zeiten = stpZeilen(plan), heute = stpHeute(), jetzt = stpJetztMin(), heuteStr = todayStr();
   // Mit Datum: in den Ferien gibt es keine Lektionen, ausserordentliche Termine gehen vor.
-  function lektion(datum, i){ var z = zeiten[i], c = stpAm(plan, 'mein', datum, z.s).c; var info = stpInfo(c); return info ? {tag:rbuTag(datum), i:i, c:c, info:info, z:z} : null; }
+  function lektion(datum, i){ var z = zeiten[i], a = stpAm(plan, 'mein', datum, z.s), c = a.c; var info = stpInfo(c); return info ? {tag:rbuTag(datum), i:i, c:c, info:info, z:z, par:a.par ? a.termin.c.t || 'Termin' : ''} : null; }
   var aktuell = null, danach = null;
   if(heute >= 0){
     for(var i = 0; i < zeiten.length; i++){
@@ -38102,7 +38127,7 @@ function renderStpJetzt(){
   var n = stpNaechste();
   if(!n.aktuell && !n.danach){ el.innerHTML = ''; return; }
   function chip(l, label, extra){
-    var sub = [l.c.kl ? '👥 '+l.c.kl : '', l.c.zi ? '📍 '+l.c.zi : '', extra || ''].filter(Boolean).join(' · ');
+    var sub = [l.c.kl ? '👥 '+l.c.kl : '', l.c.zi ? '📍 '+l.c.zi : '', l.par ? '↔️ '+l.par : '', extra || ''].filter(Boolean).join(' · ');
     return '<div class="stp-jchip" style="--c:'+l.info.color+'">'+
       (l.info.img ? '<img class="'+(l.info.full?'':'ct')+'" src="'+l.info.img+'" alt="">' : '<span class="stp-dot"></span>')+
       '<div><small>'+label+'</small><b>'+esc(l.info.name)+'</b>'+(sub ? '<span>'+esc(sub)+'</span>' : '')+'</div></div>';
