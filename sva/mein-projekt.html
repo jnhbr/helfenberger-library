@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SVA – Mein SVA-Projekt</title>
+<style>
+  /* Design «Diplomarbeit»: Papier, Serifenschrift, Dunkelblau und Gold – die Seite sieht aus wie eine gesetzte Abschlussarbeit. */
+  :root{--ink:#1b2a4a;--ink2:#4a5674;--gold:#8a6d1f;--goldhell:#c9a646;--papier:#f6f1e4;--blatt:#fffdf6;--linie:#c9bfa4;--ok:#2f7d4f;--warn:#a3301f;--gelb:#fff3bf;}
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:Georgia,"Times New Roman",serif;font-size:17px;line-height:1.55;color:var(--ink);background:var(--papier);}
+  header{max-width:940px;margin:0 auto;padding:22px 14px 0;text-align:center;}
+  .titelblatt{border-top:4px double var(--ink);border-bottom:4px double var(--ink);padding:14px 10px 12px;}
+  .schule{font-size:12.5px;letter-spacing:2.5px;color:var(--gold);text-transform:uppercase;}
+  header h1{margin:4px 0 2px;font-size:32px;font-weight:400;letter-spacing:.3px;}
+  header p{margin:0;font-style:italic;color:var(--ink2);}
+  .bar{height:3px;background:var(--linie);margin:12px auto 0;max-width:420px;}
+  .bar span{display:block;height:100%;background:var(--gold);transition:width .3s;}
+  .barinfo{font-size:14px;margin-top:6px;color:var(--ink2);font-style:italic;}
+  nav{display:flex;gap:4px 18px;flex-wrap:wrap;justify-content:center;padding:10px 14px;background:var(--papier);border-bottom:1px solid var(--linie);position:sticky;top:0;z-index:5;}
+  nav button{font:inherit;font-size:14px;letter-spacing:1.4px;text-transform:uppercase;border:0;border-bottom:2px solid transparent;background:none;color:var(--ink2);padding:4px 2px;cursor:pointer;}
+  nav button.on{color:var(--ink);border-bottom-color:var(--gold);}
+  main{max-width:940px;margin:0 auto;padding:18px 14px 60px;}
+  h2{font-size:24px;font-weight:400;margin:10px 0 12px;padding-bottom:4px;border-bottom:1px solid var(--ink);}
+  .karte{background:var(--blatt);border:1px solid var(--linie);padding:14px 18px;margin:0 0 12px;}
+  .hinweis{background:var(--blatt);border-left:4px solid var(--gold);padding:9px 14px;margin:10px 0;}
+  .achtung{background:#fbf1ec;border-left:4px solid var(--warn);padding:9px 14px;margin:10px 0;}
+  .station{padding:0;margin:0;border-width:0 0 1px;border-style:dotted;border-color:#8a93a8;background:none;}
+  .station.offen{background:var(--blatt);border:1px solid var(--linie);margin:8px 0 14px;}
+  .skopf{display:flex;align-items:baseline;gap:10px;width:100%;text-align:left;font:inherit;background:none;border:0;padding:9px 6px;cursor:pointer;color:inherit;}
+  .station.offen .skopf{padding:12px 18px;border-bottom:1px solid var(--linie);}
+  .snr{flex:none;min-width:30px;font-variant-numeric:tabular-nums;color:var(--gold);}
+  .stitel{font-size:18px;}
+  .station.offen .stitel{font-size:21px;}
+  .leiter{flex:1;border-bottom:1px dotted #8a93a8;transform:translateY(-4px);min-width:16px;}
+  .szeit{font-size:14px;color:var(--ink2);white-space:nowrap;font-style:italic;}
+  .sstatus{display:none;font-size:14px;color:var(--ok);white-space:nowrap;}
+  .station.fertig .sstatus{display:inline;}
+  .station.fertig .stitel{color:var(--ink2);}
+  .station.gesperrt .skopf{cursor:not-allowed;color:#9aa0b0;} .station.gesperrt .snr{color:#b9b3a0;}
+  .sbody{display:none;padding:2px 18px 18px;}
+  .station.offen .sbody{display:block;}
+  .sbody h3{font-size:12.5px;font-weight:400;text-transform:uppercase;letter-spacing:1.8px;color:var(--gold);margin:18px 0 4px;}
+  ol.weg{margin:4px 0;padding-left:24px;} ol.weg li{margin:4px 0;}
+  kbd,.klick{font-family:Calibri,"Segoe UI",Arial,sans-serif;font-size:.92em;background:#fff;border:1px solid var(--ink);padding:0 6px;white-space:nowrap;}
+  kbd{border-radius:4px;border-color:var(--ink2);box-shadow:0 1px 0 var(--ink2);}
+  ul.fehler{margin:4px 0;padding-left:22px;} ul.fehler li{margin:2px 0;}
+  .checks label{display:flex;gap:11px;align-items:flex-start;padding:7px 10px;border:1px solid var(--linie);margin:6px 0;cursor:pointer;background:#fff;}
+  .checks input{width:19px;height:19px;margin-top:4px;flex:none;accent-color:var(--ok);}
+  .checks label.an{background:#eef6ee;border-color:#a9cdb2;}
+  .video{margin:8px 0;}
+  .video iframe{width:100%;aspect-ratio:16/9;border:1px solid var(--ink);background:#000;display:block;margin-top:8px;}
+  .btn{font-family:Calibri,"Segoe UI",Arial,sans-serif;font-size:16px;border:1px solid var(--ink);padding:7px 15px;cursor:pointer;background:var(--ink);color:#fffdf6;text-decoration:none;display:inline-block;}
+  .btn.leise{background:transparent;color:var(--ink);}
+  .reihe{display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
+  table.plan{width:100%;border-collapse:collapse;} table.plan td,table.plan th{border-bottom:1px dotted #8a93a8;padding:8px 6px;text-align:left;vertical-align:top;}
+  table.plan th{font-weight:400;font-size:12.5px;letter-spacing:1.8px;text-transform:uppercase;color:var(--gold);border-bottom:1px solid var(--ink);}
+  table.plan tr.vorbei td{color:#8b93a5;} table.plan tr.naechste td{background:var(--gelb);}
+  .tag{display:inline-block;padding:0 8px;font-family:Calibri,Arial,sans-serif;font-size:13px;border:1px solid var(--gold);color:var(--gold);letter-spacing:.5px;}
+  .tag.rot{border-color:var(--warn);color:var(--warn);}
+  .frage{margin:0 0 14px;} .frage p{margin:0 0 6px;font-size:18px;}
+  .frage label{display:block;padding:6px 10px;border:1px solid var(--linie);margin:4px 0;cursor:pointer;background:#fff;}
+  .frage label.richtig{background:#eef6ee;border-color:#8fc3a0;} .frage label.falsch{background:#fbeceb;border-color:#e0a59e;}
+  .gruppe{font-size:12.5px;letter-spacing:1.8px;text-transform:uppercase;color:var(--gold);margin:18px 0 4px;}
+  .abschluss{display:flex;gap:18px;align-items:center;max-width:912px;margin:16px auto 0;padding:16px 20px;border:1px solid var(--goldhell);background:var(--blatt);text-align:left;}
+  .siegel{flex:none;width:86px;height:86px;border-radius:50%;background:var(--goldhell);color:var(--ink);display:grid;place-items:center;text-align:center;font-size:11.5px;letter-spacing:1.2px;text-transform:uppercase;line-height:1.25;
+    box-shadow:0 0 0 3px var(--blatt),0 0 0 5px var(--goldhell);animation:siegel .7s cubic-bezier(.2,1.4,.4,1) both;}
+  .siegel b{display:block;font-size:22px;letter-spacing:0;}
+  @keyframes siegel{from{transform:scale(2.2) rotate(-25deg);opacity:0;}to{transform:scale(1) rotate(-8deg);opacity:1;}}
+  @media (prefers-reduced-motion:reduce){.siegel{animation:none;transform:rotate(-8deg);}}
+  .nurdruck{display:none;}
+  table.kb td,table.kb th{border:1px solid var(--linie);padding:5px 8px;vertical-align:top;text-align:left;} table.kb{border-collapse:collapse;width:100%;background:#fff;}
+  table.kb th{font-weight:400;font-size:12.5px;letter-spacing:1.4px;text-transform:uppercase;}
+  @media print{
+    header,nav,.nichtdrucken{display:none!important;} body{background:#fff;font-family:Calibri,Arial,sans-serif;font-size:11pt;line-height:1.5;} main{max-width:none;padding:0;}
+    .ansicht{display:none!important;} #kurzblatt{display:block!important;} .nurdruck{display:block;} .karte{border:0;padding:0;}
+    table.kb td,table.kb th{border:1px solid #999;padding:3px 6px;font-size:10pt;line-height:1.5;}
+  }
+
+  /* Formulare (Mein SVA-Projekt) */
+  label{display:block;margin:8px 0 2px;} label.fl{font-size:19px;margin:0;}
+  .hilfe{font-size:14.5px;font-style:italic;color:var(--ink2);margin:0 0 6px;}
+  textarea,input[type=text],input[type=date],input[type=time]{display:block;width:100%;font-family:Calibri,"Segoe UI",Arial,sans-serif;font-size:16.5px;line-height:1.45;color:var(--ink);background:#fff;border:1px solid var(--linie);padding:7px 9px;margin-top:3px;}
+  textarea{resize:vertical;} textarea:focus,input:focus{outline:2px solid var(--goldhell);outline-offset:0;border-color:var(--gold);}
+  input[type=range]{width:100%;accent-color:var(--gold);}
+  .zwei{display:grid;grid-template-columns:2fr 1fr;gap:10px;} .vier{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;}
+  @media (max-width:640px){.zwei,.vier{grid-template-columns:1fr 1fr;}}
+  .zeile{display:flex;align-items:baseline;gap:10px;padding:4px 0;} .zeile .leiter{flex:1;}
+  .eintrag p{margin:6px 0;} .eintrag .kom{font-style:italic;color:var(--ink2);}
+  .btn.klein{font-size:14px;padding:4px 10px;} .fehlertext{color:var(--warn);font-family:Calibri,Arial,sans-serif;}
+  #druck{display:none;}
+  @media print{
+    body.druckt header,body.druckt nav,body.druckt .ansicht{display:none!important;} body.druckt #druck{display:block!important;}
+    body.druckt{font-family:Calibri,Arial,sans-serif;font-size:11pt;line-height:1.5;background:#fff;color:#000;}
+    .dt{font-size:18pt;margin:0;font-weight:700;} .dv{margin:0 0 10pt;}
+    .df{border:1px solid #000;margin-bottom:-1px;break-inside:avoid;} .dl{font-weight:700;background:#e6e6e6;padding:2pt 6pt;border-bottom:1px solid #000;} .dw{padding:4pt 6pt;min-height:1.6cm;}
+    .du{width:100%;border-collapse:collapse;margin-top:14pt;} .du td{width:50%;border-bottom:1px solid #000;padding:22pt 0 2pt;font-size:9pt;}
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="titelblatt">
+    <div class="schule">Sekundarschule Altnau · SVA 2026/27</div>
+    <h1>Mein SVA-Projekt</h1>
+    <p>Thema und Grobkonzept, Arbeitsjournal, Rapport und Ausstellung an einem Ort</p>
+  </div>
+  <div class="bar"><span id="barFill" style="width:0%"></span></div>
+  <div class="barinfo" id="barInfo"></div>
+</header>
+<nav id="nav"></nav>
+<main>
+  <section class="ansicht" id="v-start"></section>
+  <section class="ansicht" id="v-konzept"></section>
+  <section class="ansicht" id="v-journal"></section>
+  <section class="ansicht" id="v-rapport"></section>
+  <section class="ansicht" id="v-ausstellung"></section>
+  <section id="druck"></section>
+</main>
+<script>
+/* Eigener Speicher-Schlüssel (Präfix sva_), nie localStorage.clear(). Die Library sichert ihn geräteübergreifend;
+   die Lehrperson liest ihn in «📋 Projekte der Klasse» (progress/{uid}/resources/sva_projekt.storeJson). */
+var KEY = 'sva_mp_v1', JAHR = '2026/27', ZIEL_MIN = 60, ZIEL_MAX = 80;
+var S = laden();
+function laden(){ var o; try{ o = JSON.parse(localStorage.getItem(KEY) || '{}'); }catch(e){ o = {}; } o.g = o.g || {}; o.j = o.j || []; o.r = o.r || {}; o.a = o.a || {}; o.a.zeigt = o.a.zeigt || {}; o.a.bedarf = o.a.bedarf || {}; o.a.check = o.a.check || {}; return o; }
+var spTimer = null;
+function sichern(sofort){ clearTimeout(spTimer); var f = function(){ try{ S.t = Date.now(); localStorage.setItem(KEY, JSON.stringify(S)); }catch(e){} melden(); }; if(sofort) f(); else spTimer = setTimeout(f, 500); }
+window.addEventListener('pagehide', function(){ sichern(true); });
+function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function heute(){ var d = new Date(); return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2); }
+function datCH(iso){ if(!iso) return ''; var p = iso.split('-'); return (+p[2])+'.'+(+p[1])+'.'+p[0]; }
+function minuten(e){ if(!e.von || !e.bis) return 0; var a = e.von.split(':'), b = e.bis.split(':'), m = (+b[0])*60 + (+b[1]) - ((+a[0])*60 + (+a[1])); return m > 0 ? m : 0; }
+function stunden(){ var m = 0; S.j.forEach(function(e){ m += minuten(e); }); return m / 60; }
+function hText(h){ return (Math.round(h * 10) / 10).toString().replace('.', ','); }
+
+var FELDER = [
+  ['thema',   'Ausgewähltes Thema', 'Erkläre in wenigen Sätzen, was du genau bearbeiten willst.', 3],
+  ['inhalt',  'Inhalt / Ideen', 'Was gehört alles zu deiner Arbeit? Welche Ideen hast du schon?', 4],
+  ['fragen',  'Fragestellungen, Bemerkungen, Probleme', 'Was willst du herausfinden? Was ist noch unklar?', 3],
+  ['schritte','Arbeitsschritte', 'In welcher Reihenfolge gehst du vor? Ein Schritt pro Zeile.', 5],
+  ['zielSach','Ziel zur Sache (Sachkompetenz)', 'Was willst du am Schluss können oder wissen? So konkret, dass man es überprüfen kann.', 2],
+  ['zielSelbst','Ziel zu dir (Selbstkompetenz)', 'Was nimmst du dir für dein Arbeitsverhalten vor?', 2],
+  ['produkt', 'Art des Produktes', 'Mein Resultat ist … (z. B. ein Tisch, ein Kochbuch, ein Video, eine Tanzvorführung).', 2],
+  ['praes',   'Präsentation des Produktes', 'Wie zeigst du deine Arbeit an der Ausstellung?', 2],
+  ['quellen', 'Quellen, Material, Arbeitsorte', 'Was brauchst du und wo arbeitest du? Schreibe dazu, was du von der Schule brauchst.', 3],
+  ['stolper', 'Stolpersteine', 'Ein bis zwei Schwierigkeiten, die auf dich zukommen könnten – und was du dann tust.', 2]
+];
+var RAPPORTE = [['dez', 'Erster Rapport', 'nach den Arbeitstagen vom 9.–11. Dezember', '2026-12-11'], ['jan', 'Zweiter Rapport', 'nach den Arbeitstagen vom 19.–21. Januar', '2027-01-21']];
+var ZEIGT = ['Produkt', 'Plakat', 'PowerPoint', 'gedruckte und gebundene Arbeit', 'Esswaren oder Getränke', 'Tiere', 'heikle Ware (zerbrechlich, nicht für Kinderhände)'];
+var BEDARF = ['Tisch', 'Strom', 'Stellwand', 'Wandtafel', 'Beamer', 'Musikanlage', 'Propangas'];
+var CHECK = ['Mein Dossier ist gedruckt und liegt bereit.', 'Mein Produkt ist fertig und transportbereit.', 'Der Titel auf meiner Tischkarte stimmt.', 'Ich kann meine Arbeit in zwei bis drei Minuten frei erklären.', 'Alles Material für meinen Platz ist bereit (Plakat, Laptop, Verlängerungskabel …).', 'Der Transport in die Schule ist organisiert.', 'Der Abtransport am Samstag nach der Ausstellung ist organisiert.', 'Meine Eltern und mein Lehrbetrieb wissen, wann die Ausstellung ist.'];
+
+function konzeptStand(){ var n = 0; FELDER.forEach(function(f){ if((S.g[f[0]] || '').trim()) n++; }); return n; }
+function melden(){
+  var h = stunden();
+  document.getElementById('barFill').style.width = Math.min(100, Math.round(h / ZIEL_MIN * 100)) + '%';
+  document.getElementById('barInfo').textContent = hText(h) + ' von ' + ZIEL_MIN + '–' + ZIEL_MAX + ' Stunden · Grobkonzept: ' + konzeptStand() + ' von ' + FELDER.length + ' Feldern';
+}
+var ANSICHTEN = [['start','Übersicht'],['konzept','Thema und Grobkonzept'],['journal','Arbeitsjournal'],['rapport','Rapport'],['ausstellung','Ausstellung']];
+function zeige(id){
+  sichern(true); S.v = id; try{ localStorage.setItem(KEY, JSON.stringify(S)); }catch(e){}
+  document.body.classList.remove('druckt'); document.getElementById('druck').innerHTML = '';
+  document.getElementById('nav').innerHTML = ANSICHTEN.map(function(a){ return '<button type="button" data-v="'+a[0]+'"'+(a[0]===id?' class="on"':'')+'>'+a[1]+'</button>'; }).join('');
+  Array.prototype.forEach.call(document.querySelectorAll('.ansicht'), function(el){ el.style.display = 'none'; el.onclick = el.oninput = el.onchange = null; });
+  var el = document.getElementById('v-'+id); el.style.display = 'block';
+  ({start:zStart, konzept:zKonzept, journal:zJournal, rapport:zRapport, ausstellung:zAusstellung})[id](el);
+  window.scrollTo(0, 0);
+}
+document.getElementById('nav').addEventListener('click', function(e){ var b = e.target.closest('button[data-v]'); if(b) zeige(b.getAttribute('data-v')); });
+function feld(id, wert, zeilen, platz){ return '<textarea data-f="'+id+'" rows="'+zeilen+'" placeholder="'+esc(platz || '')+'">'+esc(wert || '')+'</textarea>'; }
+
+function zStart(el){
+  var h = stunden(), letzter = S.j.slice().sort(function(a, b){ return a.d < b.d ? 1 : -1; })[0];
+  el.innerHTML = '<h2>Übersicht</h2>'+
+    '<div class="karte"><div class="zwei"><label>Vorname und Name<input type="text" data-k="name" value="'+esc(S.name)+'" placeholder="Vorname Nachname"></label><label>Klasse<input type="text" data-k="klasse" value="'+esc(S.klasse)+'" placeholder="G3b"></label></div></div>'+
+    '<div class="karte"><div class="zeile"><span>Mein Thema</span><span class="leiter"></span><b>'+(S.g.thema ? esc(S.g.thema.split('\n')[0].slice(0, 70)) : 'noch offen')+'</b></div>'+
+    '<div class="zeile"><span>Grobkonzept</span><span class="leiter"></span><b>'+konzeptStand()+' von '+FELDER.length+' Feldern'+(S.g.bereit ? ' · bereit zum Besprechen' : '')+'</b></div>'+
+    '<div class="zeile"><span>Arbeitszeit</span><span class="leiter"></span><b>'+hText(h)+' Stunden in '+S.j.length+(S.j.length === 1 ? ' Eintrag' : ' Einträgen')+'</b></div>'+
+    '<div class="zeile"><span>Letzter Eintrag</span><span class="leiter"></span><b>'+(letzter ? datCH(letzter.d) : '–')+'</b></div>'+
+    '<div class="zeile"><span>Rapporte</span><span class="leiter"></span><b>'+RAPPORTE.filter(function(r){ return S.r[r[0]] && S.r[r[0]].am; }).length+' von 2 abgeschlossen</b></div></div>'+
+    '<div class="hinweis">Alles, was du hier einträgst, sieht deine Lehrperson. Trag nach <b>jeder</b> Arbeitsphase kurz ins Arbeitsjournal ein – daraus schreibst du später dein Arbeitsprotokoll im Dossier.</div>';
+  el.oninput = function(e){ var k = e.target.getAttribute('data-k'); if(k){ S[k] = e.target.value; sichern(); } };
+}
+
+function zKonzept(el){
+  el.innerHTML = '<h2>Thema und Grobkonzept</h2><div class="hinweis">Abgabe bis <b>Mittwoch, 25. November 2026</b>. Fülle alle Felder aus, besprich das Grobkonzept mit deiner Lehrperson und druck es zum Unterschreiben aus (du, deine Eltern, deine Lehrperson).</div>'+
+    FELDER.map(function(f){ return '<div class="karte"><label class="fl">'+esc(f[1])+'</label><div class="hilfe">'+esc(f[2])+'</div>'+feld(f[0], S.g[f[0]], f[3])+'</div>'; }).join('')+
+    '<div class="karte checks"><label'+(S.g.bereit?' class="an"':'')+'><input type="checkbox" id="bereit"'+(S.g.bereit?' checked':'')+'><span>Mein Grobkonzept ist vollständig – ich möchte es mit meiner Lehrperson besprechen.</span></label>'+
+    '<div class="reihe" style="margin-top:10px"><button class="btn" type="button" id="gDruck">🖨️ Grobkonzept drucken</button></div></div>';
+  el.oninput = function(e){ var f = e.target.getAttribute('data-f'); if(f){ S.g[f] = e.target.value; sichern(); } };
+  el.onchange = function(e){ if(e.target.id === 'bereit'){ S.g.bereit = e.target.checked; S.g.bereitAm = e.target.checked ? heute() : ''; e.target.parentNode.classList.toggle('an', e.target.checked); sichern(true); } };
+  document.getElementById('gDruck').onclick = function(){
+    sichern(true);
+    document.getElementById('druck').innerHTML = '<h1 class="dt">Grobkonzept SVA '+JAHR+'</h1><p class="dv">von '+esc(S.name || '________________________')+(S.klasse ? ', '+esc(S.klasse) : '')+'</p>'+
+      FELDER.map(function(f){ return '<div class="df"><div class="dl">'+esc(f[1])+'</div><div class="dw">'+(esc(S.g[f[0]] || '').replace(/\n/g, '<br>') || '&nbsp;')+'</div></div>'; }).join('')+
+      '<div class="df"><div class="dl">Mindmap</div><div class="dw" style="min-height:7cm"></div></div>'+
+      '<table class="du"><tr><td>Schüler/Schülerin</td><td>Unterschrift Lehrperson</td></tr><tr><td>Unterschrift Eltern</td><td>Datum</td></tr></table>';
+    document.body.classList.add('druckt'); window.print();
+  };
+}
+
+function zJournal(el, offenKopie){
+  var liste = S.j.map(function(e, i){ return {e:e, i:i}; }).sort(function(a, b){ return (a.e.d + (a.e.von || '')) < (b.e.d + (b.e.von || '')) ? 1 : -1; });
+  var h = stunden();
+  el.innerHTML = '<h2>Arbeitsjournal</h2><div class="hinweis">Nach jeder Arbeitsphase ein kurzer Eintrag. Die Stunden werden gezählt (Richtwert: <b>'+ZIEL_MIN+' bis '+ZIEL_MAX+' Stunden</b>). Fotos kommen direkt ins Word-Dossier – hier schreibst du nur den Text.</div>'+
+    '<div class="karte"><label class="fl">Neuer Eintrag</label><div class="vier"><label>Datum<input type="date" id="jD" value="'+heute()+'"></label><label>von<input type="time" id="jV"></label><label>bis<input type="time" id="jB"></label><label>Arbeitsort<input type="text" id="jO" placeholder="zu Hause, Werkstatt …"></label></div>'+
+    '<label>Was habe ich gemacht?<textarea id="jW" rows="3" placeholder="Arbeitsschritt kurz beschreiben"></textarea></label>'+
+    '<label>Kommentar<textarea id="jK" rows="2" placeholder="Was hat gut geklappt? Was war schwierig? Was nehme ich mit?"></textarea></label>'+
+    '<div class="reihe"><button class="btn" type="button" id="jAdd">Eintrag speichern</button><span id="jErr" class="fehlertext"></span></div></div>'+
+    '<h2 style="margin-top:24px">'+S.j.length+(S.j.length === 1 ? ' Eintrag' : ' Einträge')+' · '+hText(h)+' Stunden</h2>'+
+    (liste.length ? liste.map(function(x){ var e = x.e, m = minuten(e); return '<div class="karte eintrag"><div class="zeile"><b>'+datCH(e.d)+'</b><span>'+esc(e.von || '')+(e.bis ? '–'+esc(e.bis) : '')+(e.ort ? ' · '+esc(e.ort) : '')+'</span><span class="leiter"></span><span>'+(m ? hText(m/60)+' h' : 'ohne Zeit')+'</span></div>'+
+      '<p>'+esc(e.was).replace(/\n/g,'<br>')+'</p>'+(e.kom ? '<p class="kom">'+esc(e.kom).replace(/\n/g,'<br>')+'</p>' : '')+
+      '<div class="reihe"><button class="btn leise klein" type="button" data-kop="'+x.i+'">📋 Text fürs Protokoll kopieren</button><button class="btn leise klein" type="button" data-del="'+x.i+'">Löschen</button></div></div>'; }).join('') : '<div class="karte">Noch kein Eintrag.</div>');
+  document.getElementById('jAdd').onclick = function(){
+    var e = {d:document.getElementById('jD').value, von:document.getElementById('jV').value, bis:document.getElementById('jB').value, ort:document.getElementById('jO').value.trim(), was:document.getElementById('jW').value.trim(), kom:document.getElementById('jK').value.trim()};
+    var err = !e.d ? 'Bitte ein Datum wählen.' : !e.was ? 'Bitte schreiben, was du gemacht hast.' : (e.von && e.bis && !minuten(e)) ? 'Die Endzeit muss nach der Startzeit liegen.' : '';
+    if(err){ document.getElementById('jErr').textContent = err; return; }
+    S.j.push(e); sichern(true); zJournal(el);
+  };
+  el.onclick = function(ev){
+    var d = ev.target.closest('[data-del]'), k = ev.target.closest('[data-kop]');
+    if(d){ if(d.getAttribute('data-sicher')){ S.j.splice(+d.getAttribute('data-del'), 1); sichern(true); zJournal(el); } else { d.setAttribute('data-sicher', '1'); d.textContent = 'Wirklich löschen?'; } }
+    if(k){ var e = S.j[+k.getAttribute('data-kop')], txt = datCH(e.d)+(e.von ? ', '+e.von+(e.bis ? '–'+e.bis : '')+' Uhr' : '')+(e.ort ? ', '+e.ort : '')+'\n'+e.was+(e.kom ? '\nKommentar: '+e.kom : '');
+      var fertig = function(){ k.textContent = '✓ Kopiert'; };
+      if(navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(fertig, function(){ k.textContent = 'Kopieren nicht möglich'; }); else k.textContent = 'Kopieren nicht möglich'; }
+  };
+}
+
+function zRapport(el){
+  el.innerHTML = '<h2>Rapport an die Lehrperson</h2><div class="hinweis">Zweimal berichtest du kurz, wo du stehst. Ehrlich sein lohnt sich: So kann dir deine Lehrperson rechtzeitig helfen.</div>'+
+    RAPPORTE.map(function(r){ var x = S.r[r[0]] || {}; return '<div class="karte" data-r="'+r[0]+'"><label class="fl">'+r[1]+' <span class="tag'+(x.am?'':' rot')+'">'+(x.am ? 'abgeschlossen am '+datCH(x.am) : 'bis '+datCH(r[3]))+'</span></label><div class="hilfe">'+r[2]+'</div>'+
+      '<label>So weit bin ich: <b class="proz">'+(x.stand || 0)+' %</b><input type="range" min="0" max="100" step="10" value="'+(x.stand || 0)+'" data-rf="stand"></label>'+
+      '<label>Das ist fertig'+feld('fertig', x.fertig, 2)+'</label><label>Das macht mir Mühe'+feld('muehe', x.muehe, 2)+'</label><label>Meine nächsten Schritte'+feld('weiter', x.weiter, 2)+'</label>'+
+      '<div class="checks"><label'+(x.hilfe?' class="an"':'')+'><input type="checkbox" data-rf="hilfe"'+(x.hilfe?' checked':'')+'><span>Ich brauche ein Gespräch mit meiner Lehrperson.</span></label></div>'+
+      '<div class="reihe" style="margin-top:8px"><button class="btn" type="button" data-rab="1">'+(x.am ? 'Rapport wieder öffnen' : 'Rapport abschliessen')+'</button></div></div>'; }).join('');
+  var rx = function(t){ var k = t.closest('[data-r]').getAttribute('data-r'); S.r[k] = S.r[k] || {}; return S.r[k]; };
+  el.oninput = function(e){ var t = e.target, f = t.getAttribute('data-f'), rf = t.getAttribute('data-rf'); if(!t.closest('[data-r]')) return;
+    if(f){ rx(t)[f] = t.value; sichern(); } if(rf === 'stand'){ rx(t).stand = +t.value; t.parentNode.querySelector('.proz').textContent = t.value+' %'; sichern(); } };
+  el.onchange = function(e){ var t = e.target; if(t.getAttribute('data-rf') === 'hilfe'){ rx(t).hilfe = t.checked; t.parentNode.classList.toggle('an', t.checked); sichern(true); } };
+  el.onclick = function(e){ var b = e.target.closest('[data-rab]'); if(b){ var x = rx(b); x.am = x.am ? '' : heute(); sichern(true); zRapport(el); } };
+}
+
+function haken(liste, obj, gruppe){ return '<div class="checks">'+liste.map(function(t, i){ return '<label'+(obj[i]?' class="an"':'')+'><input type="checkbox" data-g="'+gruppe+'" data-i="'+i+'"'+(obj[i]?' checked':'')+'><span>'+esc(t)+'</span></label>'; }).join('')+'</div>'; }
+function zAusstellung(el){
+  el.innerHTML = '<h2>Ausstellung am 19. und 20. März 2027</h2><div class="hinweis">Am <b>Montag, 8. März</b> planen wir die Ausstellung. Fülle den Bedarf bis dann aus – daraus entstehen die Platzeinteilung und deine Tischkarte.</div>'+
+    '<div class="karte"><label class="fl">Titel auf meiner Tischkarte</label><div class="hilfe">Kurz und einladend, z. B. «Aus alt mach neu: mein Töffli».</div><input type="text" data-a="titel" value="'+esc(S.a.titel)+'" maxlength="60"></div>'+
+    '<div class="karte"><label class="fl">Das stelle ich aus</label>'+haken(ZEIGT, S.a.zeigt, 'zeigt')+'</div>'+
+    '<div class="karte"><label class="fl">Das brauche ich von der Schule</label><div class="hilfe">Nur ankreuzen, was wirklich nötig ist.</div>'+haken(BEDARF, S.a.bedarf, 'bedarf')+'<label>Anderes<input type="text" data-a="anderes" value="'+esc(S.a.anderes)+'"></label></div>'+
+    '<div class="karte"><label class="fl">Checkliste vor der Ausstellung</label>'+haken(CHECK, S.a.check, 'check')+'</div>'+
+    '<div class="karte"><b>Ablauf</b><div class="zeile"><span>Do, 18. März</span><span class="leiter"></span><span>Nachmittag: Platz einrichten</span></div><div class="zeile"><span>Fr, 19. März</span><span class="leiter"></span><span>Besuchstag und 2. Klassen, bis ca. 15 Uhr</span></div><div class="zeile"><span>Sa, 20. März</span><span class="leiter"></span><span>Öffentliche Ausstellung, danach aufräumen (ca. 12 Uhr)</span></div></div>';
+  el.oninput = function(e){ var a = e.target.getAttribute('data-a'); if(a){ S.a[a] = e.target.value; sichern(); } };
+  el.onchange = function(e){ var t = e.target, g = t.getAttribute('data-g'); if(g){ S.a[g][+t.getAttribute('data-i')] = t.checked; t.parentNode.classList.toggle('an', t.checked); sichern(true); } };
+}
+melden();
+zeige(S.v && ANSICHTEN.some(function(a){ return a[0] === S.v; }) ? S.v : 'start');
+</script>
+</body>
+</html>
