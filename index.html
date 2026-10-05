@@ -283,6 +283,23 @@
   .resource-card.sk-karte{width:100%;font:inherit;color:inherit;text-align:left;cursor:pointer;}
   .resource-card.sk-karte:hover{border-color:var(--brand);}
   .sk-karte-pfeil{font-size:26px;line-height:1;color:var(--text-muted);flex-shrink:0;}
+  /* 🎓 SVA */
+  .sva-plan{display:flex;flex-direction:column;gap:10px;}
+  .sva-vorschau{background:#FFF4D6;color:#7A5200;border-radius:8px;padding:6px 10px;font-size:13.5px;}
+  .sva-naechste{font-size:15.5px;}
+  .sva-chip{display:inline-block;border-radius:999px;padding:1px 10px;font-size:12.5px;font-weight:700;background:#E3E7FB;color:#3046C9;}
+  .sva-chip.abgabe{background:#FDE5E1;color:#B42318;}
+  .sva-details summary{cursor:pointer;font-weight:600;}
+  .sva-tab{width:100%;border-collapse:collapse;margin-top:8px;font-size:14.5px;}
+  .sva-tab td,.sva-tab th{padding:7px 8px;border-bottom:1px solid var(--border);text-align:left;vertical-align:top;}
+  .sva-tab td:first-child{white-space:nowrap;}
+  .sva-tab tr.vorbei td{color:var(--text-muted);}
+  .sva-tab tr.jetzt td{background:rgba(255,214,10,.18);}
+  .sva-klein{font-size:13px;color:var(--text-muted);}
+  .sva-knoepfe{display:flex;flex-wrap:wrap;gap:8px;}
+  .sva-stand{max-height:62vh;overflow:auto;}
+  .sva-balken{display:inline-block;width:90px;height:8px;border-radius:5px;background:var(--border);vertical-align:middle;overflow:hidden;}
+  .sva-balken span{display:block;height:100%;background:#2E9E5B;}
   .resource-card.current{border-color:var(--bad);box-shadow:var(--shadow), inset 4px 0 0 var(--bad);}
   .resource-info{flex:1;min-width:200px;}
   .resource-info h4{margin:0 0 4px;font-size:15.5px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
@@ -3430,6 +3447,7 @@ const SUBJECTS = [
   {id:'textiles-werken', name:'TTG', gruppe:'neben', color:'#DB6A8F', soft:'#FBE3EB', img:'assets/subject-textiles-werken.webp'},
   {id:'wah', name:'WAH', gruppe:'neben', color:'#D97706', soft:'#FBEBD3', img:'assets/subject-wah.webp', full:true},
   {id:'berufswahl', name:'Berufswahl', gruppe:'neben', color:'#E8752C', soft:'#FBE4D4', img:'assets/subject-berufswahl.webp'},
+  {id:'sva', name:'SVA', gruppe:'neben', color:'#3046C9', soft:'#E3E7FB', img:'assets/subject-sva.webp'},
   {id:'gtz', name:'GTZ', gruppe:'frei', color:'#3D6A8A', soft:'#DCE8EF', img:'assets/subject-gtz.webp'},
   {id:'fotokurs', name:'Fotokurs', gruppe:'frei', color:'#6B7280', soft:'#E7E9EE', img:'assets/subject-fotokurs.webp'},
   // IDs bleiben aus Kompatibilität (Noten, Stundenplan): psychologie = ERG, freies-schreiben = Zeichnen.
@@ -9789,7 +9807,7 @@ function lmvzMerge(){
   var v = state.lmvzV;
   state.folders = state.folders.filter(function(f){ return !f.virtual; });
   state.resources = state.resources.filter(function(r){ return !r.virtual; }).concat(tippVirtuell(state.route.subject))
-    .concat(mtVirtuell(state.route.subject)).concat(kkVirtuell(state.route.subject)).concat(kzmVirtuell(state.route.subject));
+    .concat(mtVirtuell(state.route.subject)).concat(kkVirtuell(state.route.subject)).concat(kzmVirtuell(state.route.subject)).concat(svaVirtuell(state.route.subject));
   if(state.route.subject !== LMVZ_SUBJECT) return;
   var sv = sikoreVirtuell();
   state.folders = state.folders.concat(sv.folders);
@@ -12337,6 +12355,130 @@ async function bkLabel(stand, uid){
   return label;
 }
 
+/* ===================== 🎓 SVA (Selbständige Vertiefungsarbeit) =====================
+   Fach-Kachel «SVA» für alle Klassen. Schüler:innen sehen sie ab SVA_SICHTBAR_AB,
+   Lehrpersonen sofort (Vorschau). 1./2. Klassen dürfen die Kachel ausblenden (svaDarfAus).
+   Die Dossier-Werkstatt ist eine statische Seite (sva/dossier-werkstatt.html) und läuft als
+   virtuelle Übung im normalen Viewer (r.statisch). Ihr Stand (localStorage sva_dw_v1) wird
+   wie bei jeder Übung nach progress/{uid}/resources/sva_werkstatt gesichert; daraus liest
+   «Wer steht wo?». Keine neue Collection, keine neue Regel.
+   Termine hier und in sva/dossier-werkstatt.html (TERMINE) gleich halten. */
+var SVA_SICHTBAR_AB = '2026-10-19';
+var SVA_WERK_ID = 'sva_werkstatt';
+var SVA_CHECKS = [2,1,2,2,2,2,2,1,2,2,1,2,2,2];   // Selbstcheck-Punkte pro Station s1…s14
+var SVA_ABGABE_PUNKTE = 20;
+var SVA_TERMINE = [
+  {id:'thema',      d:'2026-11-02', bis:null,         typ:'erinnerung', t:'SVA: Themenfindung', text:'Montagmorgen in der Schule. Ziel: Dein Thema ist konkret und bereit zur Umsetzung.'},
+  {id:'grundstein', d:'2026-11-23', bis:'2026-11-25', typ:'erinnerung', t:'SVA: Grundsteine und erste Schritte (23.–25.11.)', text:'Schule / zu Hause. Grobkonzept, Dossier-Gerüst und Materialliste stehen, erste Arbeitsschritte sind gemacht.'},
+  {id:'grob',       d:'2026-11-25', bis:null,         typ:'abgabe',     t:'SVA: Grobkonzept abgeben', text:'Unterschrieben von dir, deinen Eltern und der Lehrperson.'},
+  {id:'geruest',    d:'2026-11-25', bis:null,         typ:'abgabe',     t:'SVA: Dossier-Gerüst abgeben', text:'Titelseite, Kapitel, Verzeichnisse, Kopf- und Fusszeile stehen.'},
+  {id:'frei1',      d:'2026-12-09', bis:'2026-12-11', typ:'erinnerung', t:'SVA: Freie Arbeitszeit zu Hause (9.–11.12.)', text:'Arbeitsplatz und Material sind bereit. Protokoll laufend schreiben.'},
+  {id:'stand1',     d:'2026-12-11', bis:null,         typ:'abgabe',     t:'SVA: Zwischenstand + erster Rapport', text:'Aktuelles Dossier abgeben und der Lehrperson kurz berichten.'},
+  {id:'frei2',      d:'2027-01-19', bis:'2027-01-21', typ:'erinnerung', t:'SVA: Freie Arbeitszeit zu Hause (19.–21.1.)', text:'Die SVA ist danach zum grossen Teil gemacht, das Dossier ziemlich fertig.'},
+  {id:'stand2',     d:'2027-01-21', bis:null,         typ:'abgabe',     t:'SVA: Zwischenstand + Rapport', text:'Aktuelles Dossier abgeben und der Lehrperson kurz berichten.'},
+  {id:'schluss',    d:'2027-03-08', bis:null,         typ:'abgabe',     t:'SVA: Schlussabgabe Arbeitsdossier', text:'Die Arbeit ist fertig! Word + PDF abgeben und ein Exemplar gedruckt mitbringen. Vorher den Abgabe-Check machen.'},
+  {id:'planung',    d:'2027-03-08', bis:null,         typ:'erinnerung', t:'SVA: Ausstellungsplanung', text:'In der Schule: Ort, Material und Präsentation planen.'},
+  {id:'einrichten', d:'2027-03-18', bis:null,         typ:'erinnerung', t:'SVA: Ausstellung einrichten', text:'Nachmittag: Jede:r richtet den eigenen Platz ein.'},
+  {id:'ausstellung',d:'2027-03-19', bis:'2027-03-20', typ:'erinnerung', t:'SVA-Ausstellung (19./20.3.)', text:'Freitag: Besuchstag und 2. Klassen. Samstag: öffentliche Ausstellung, danach aufräumen.'}
+];
+function svaIstLehrer(){ return !!(state.profile && state.profile.role === 'teacher'); }
+function svaFrei(){ return svaIstLehrer() || todayStr() >= SVA_SICHTBAR_AB; }
+// 3. Klassen (G3b, E3a …) arbeiten an der SVA und behalten die Kachel; alle anderen dürfen sie ausblenden.
+function svaDarfAus(){ return !!(state.profile && !svaIstLehrer() && !/^[A-Za-z]3/.test(state.profile.klasse || state.klasse || '')); }
+function svaVirtuell(subject){
+  if(subject !== 'sva') return [];
+  return [{id:SVA_WERK_ID, subject:'sva', folderId:null, order:-2000, virtual:true, svaWerk:true, statisch:'sva/dossier-werkstatt.html',
+    title:'🧰 Dossier-Werkstatt – dein Arbeitsdossier in Word'}];
+}
+function svaDatum(t){
+  var wt = ['So','Mo','Di','Mi','Do','Fr','Sa'], a = new Date(t.d+'T12:00:00');
+  var s = wt[a.getDay()]+' '+a.getDate()+'.'+(a.getMonth()+1)+'.';
+  if(t.bis){ var b = new Date(t.bis+'T12:00:00'); s = wt[a.getDay()]+'–'+wt[b.getDay()]+' '+a.getDate()+'.–'+b.getDate()+'.'+(b.getMonth()+1)+'.'; }
+  return s+String(a.getFullYear()).slice(2);
+}
+function svaTage(iso){ var h = new Date(); h.setHours(12,0,0,0); return Math.round((new Date(iso+'T12:00:00') - h) / 86400000); }
+function svaKopfHtml(isTeacher){
+  var heute = todayStr();
+  var naechste = SVA_TERMINE.filter(function(t){ return (t.bis || t.d) >= heute; })[0];
+  var html = '<div class="sk-panel sva-plan">';
+  if(isTeacher && heute < SVA_SICHTBAR_AB){
+    html += '<div class="sva-vorschau">👀 Vorschau: Schüler:innen sehen die Kachel «SVA» ab '+esc(svaDatum({d:SVA_SICHTBAR_AB}))+'.</div>';
+  }
+  if(naechste){
+    var n = svaTage(naechste.d);
+    html += '<div class="sva-naechste"><span class="sva-chip'+(naechste.typ === 'abgabe' ? ' abgabe' : '')+'">'+(naechste.typ === 'abgabe' ? 'Nächste Abgabe' : 'Nächster Termin')+'</span> '+
+      '<b>'+esc(naechste.t.replace(/^SVA: /, ''))+'</b> · '+esc(svaDatum(naechste))+' · '+(n <= 0 ? 'heute' : n === 1 ? 'morgen' : 'in '+n+' Tagen')+'</div>';
+  }
+  html += '<details class="sva-details"><summary>🗓️ Fahrplan SVA 2026/27 – alle Termine</summary><table class="sva-tab">'+
+    SVA_TERMINE.map(function(t){
+      return '<tr class="'+((t.bis || t.d) < heute ? 'vorbei' : '')+(t === naechste ? ' jetzt' : '')+'"><td>'+esc(svaDatum(t))+'</td><td><b>'+esc(t.t.replace(/^SVA: /, ''))+'</b>'+
+        (t.typ === 'abgabe' ? ' <span class="sva-chip abgabe">Abgabe</span>' : '')+'<br><span class="sva-klein">'+esc(t.text)+'</span></td></tr>';
+    }).join('')+'</table></details>';
+  html += '<div class="sva-knoepfe"><a class="btn btn-ghost btn-sm" href="sva/SVA-Leitfaden-2026-27.pdf" target="_blank" rel="noopener">📄 Leitfaden SVA (PDF)</a>'+
+    '<a class="btn btn-ghost btn-sm" href="https://youtu.be/nVc2cYSEgpA" target="_blank" rel="noopener">▶️ Erklärvideo Arbeitsdossier</a>';
+  if(isTeacher){
+    html += '<button class="btn btn-ghost btn-sm" id="svaStandBtn" type="button">📊 Wer steht wo?</button>'+
+      '<button class="btn btn-ghost btn-sm" id="svaKalBtn" type="button" title="Trägt alle SVA-Termine als Erinnerungen und Abgaben in den Kalender dieser Klasse ein (mit Push am Vorabend)">📅 Termine in den Kalender dieser Klasse</button>';
+  }
+  return html+'</div></div>';
+}
+function svaKopfVerdrahten(){
+  var a = document.getElementById('svaStandBtn'); if(a) a.addEventListener('click', svaWerStehtWo);
+  var b = document.getElementById('svaKalBtn'); if(b) b.addEventListener('click', function(){
+    uiConfirm('SVA-Termine eintragen?', 'Alle '+SVA_TERMINE.length+' SVA-Termine 2026/27 kommen in den Kalender der Klasse '+state.klasse+' – die Abgaben mit Abhak-Liste. Schon eingetragene Termine werden nicht verdoppelt.', 'Eintragen', svaKalenderEintragen);
+  });
+}
+async function svaKalenderEintragen(){
+  try{
+    for(var i=0;i<SVA_TERMINE.length;i++){
+      var t = SVA_TERMINE[i], ref = kdoc('calendarEntries', 'sva2627_'+t.id);
+      var da = await getDoc(ref);
+      var data = {type:t.typ, subject:'sva', title:t.t, description:t.text, dueDate:t.d};
+      if(!da.exists()){ data.resourceId = ''; data.resourceTitle = ''; data.resources = []; data.createdAt = serverTimestamp(); data.createdBy = state.user.uid; }
+      await setDoc(ref, data, {merge:true});
+    }
+    toast('SVA-Termine stehen im Kalender der Klasse '+state.klasse+'.');
+  }catch(err){ console.error(err); toast('Termine konnten nicht eingetragen werden.'); }
+}
+function svaStandLesen(d){
+  // storeJson = JSON der localStorage-Schlüssel der Übung; darin sva_dw_v1 = Stand der Werkstatt.
+  try{
+    var store = JSON.parse((d && d.storeJson) || '{}'), s = JSON.parse(store.sva_dw_v1 || 'null');
+    if(!s) return null;
+    var fertig = 0, erste = 0;
+    SVA_CHECKS.forEach(function(n, i){
+      var c = (s.c || {})['s'+(i+1)] || [], ok = true;
+      for(var j=0;j<n;j++){ if(!c[j]) ok = false; }
+      if(ok) fertig++; else if(!erste) erste = i+1;
+    });
+    var ab = 0; Object.keys(s.a || {}).forEach(function(k){ if(s.a[k]) ab++; });
+    return {fertig:fertig, erste:erste, abgabe:ab, check:Object.keys(s.q || {}).length, t:s.t || 0};
+  }catch(e){ return null; }
+}
+async function svaWerStehtWo(){
+  openModal('<h3>📊 Dossier-Werkstatt: Wer steht wo?</h3><div id="svaStand" class="sva-stand">Lädt …</div><div class="modal-actions"><button class="btn btn-primary" id="svaStandZu" type="button">Schliessen</button></div>', 'modal-wide');
+  document.getElementById('svaStandZu').addEventListener('click', closeModal);
+  var liste;
+  try{
+    var roster = await loadStudentRoster();
+    liste = await Promise.all(roster.map(function(s){
+      return getDoc(doc(db, 'progress', s.uid, 'resources', SVA_WERK_ID)).then(function(d){ return {s:s, st:svaStandLesen(d.exists() ? d.data() : null)}; }, function(){ return {s:s, st:null}; });
+    }));
+  }catch(err){ console.error(err); liste = null; }
+  var el = document.getElementById('svaStand'); if(!el) return;
+  if(!liste){ el.textContent = 'Stand konnte nicht geladen werden.'; return; }
+  if(!liste.length){ el.textContent = 'In dieser Klasse sind keine Schüler:innen erfasst.'; return; }
+  var N = SVA_CHECKS.length;
+  el.innerHTML = '<table class="sva-tab sva-standtab"><tr><th>Name</th><th>Stationen</th><th>arbeitet an</th><th>Abgabe-Check</th><th>zuletzt</th></tr>'+
+    liste.map(function(x){
+      var st = x.st, name = esc(x.s.displayName || x.s.username || '?');
+      if(!st) return '<tr class="vorbei"><td>'+name+'</td><td colspan="4">noch nicht geöffnet</td></tr>';
+      return '<tr><td>'+name+'</td><td><span class="sva-balken"><span style="width:'+Math.round(st.fertig / N * 100)+'%"></span></span> '+st.fertig+' / '+N+'</td>'+
+        '<td>'+(st.fertig === N ? '✅ fertig' : 'Station '+st.erste)+'</td><td>'+st.abgabe+' / '+SVA_ABGABE_PUNKTE+'</td>'+
+        '<td>'+(st.t ? new Date(st.t).toLocaleDateString('de-CH') : '–')+'</td></tr>';
+    }).join('')+'</table><p class="sva-klein">Der Stand wird gesichert, während die Werkstatt offen ist (spätestens beim Verlassen). Wer auf Papier arbeitet, erscheint als «noch nicht geöffnet».</p>';
+}
+
 function renderSubject(subjectId, folderId){
   clearOverviewWatchers();
   clearSubjectWatchers();
@@ -12351,6 +12493,7 @@ function renderSubject(subjectId, folderId){
   html += '<div class="back-row"><button class="btn btn-ghost btn-sm" id="backBtn">&larr; Alle Fächer</button></div>';
   html += '<div class="subject-head"><div class="subject-visual" style="background:'+s.soft+';">'+s.icon+'</div><h2>'+s.name+'</h2></div>';
   html += '<div class="crumbs" id="crumbs"></div>';
+  if(subjectId === 'sva') html += svaKopfHtml(isTeacher);
 
   if(isTeacher && subjectId==='deutsch'){
     html += '<div class="back-row"><button class="btn btn-ghost btn-sm" id="diktatAnalyseBtn" type="button">📊 Fehleranalyse Diktate</button></div>';
@@ -12382,6 +12525,7 @@ function renderSubject(subjectId, folderId){
 
   renderChrome(html);
   document.getElementById('backBtn').addEventListener('click', goHome);
+  if(subjectId === 'sva') svaKopfVerdrahten();
   var diktatAnalyseBtn = document.getElementById('diktatAnalyseBtn');
   if(diktatAnalyseBtn){
     diktatAnalyseBtn.addEventListener('click', function(){
@@ -12876,6 +13020,11 @@ function resourceCardHtml(r, index, total, isTeacher){
   if(r.tippen){
     return '<button type="button" class="resource-card sk-karte" id="open-'+r.id+'"><div class="resource-info"><h4>'+esc(r.title)+'</h4>'+
       '<div class="resource-meta">Blind tippen lernen · Lektion für Lektion · Tempo und Genauigkeit</div></div>'+
+      '<span class="sk-karte-pfeil" aria-hidden="true">›</span></button>';
+  }
+  if(r.svaWerk){
+    return '<button type="button" class="resource-card sk-karte" id="open-'+r.id+'"><div class="resource-info"><h4>'+esc(r.title)+'</h4>'+
+      '<div class="resource-meta">14 Stationen mit Erklärvideo · Klickwege für Word · Abgabe-Check · alle Termine</div></div>'+
       '<span class="sk-karte-pfeil" aria-hidden="true">›</span></button>';
   }
   if(r.mtHub){
@@ -14391,7 +14540,11 @@ function renderResource(r){
   watchProgress(r.id, function(p){ updateViewerProgress(p); });
 
   var contentId = resourceContentId(r);
-  var contentPromise = getContentDoc(doc(db,'resourceContent', contentId)).then(function(snap){
+  var contentPromise = r.statisch ? fetch(r.statisch, {cache:'no-cache'}).then(function(res){
+    if(!res.ok) throw new Error('statische Seite '+res.status);
+    return res.text();
+  }).then(function(text){ return [{exists:function(){ return true; }, data:function(){ return {html:text}; }}]; })
+  : getContentDoc(doc(db,'resourceContent', contentId)).then(function(snap){
     if(!snap.exists()){ throw new Error('no content'); }
     var chunkCount = snap.data().chunkCount || 0;
     var chunkIndexes = [];
@@ -19224,6 +19377,7 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-10-05-sva-kachel', datum:'2026-10-05', fuer:'lehrer', text:'🎓 Neue Kachel «SVA» (Vorschau für Lehrpersonen, Schüler:innen sehen sie ab 19. Oktober): Fahrplan 2026/27 mit allen Terminen, Leitfaden und die «Dossier-Werkstatt» – 14 Stationen mit Ausschnitten aus dem Erklärvideo, Klickwegen für Word, Abgabe-Check und Kurzblatt zum Drucken. Als Lehrperson trägst du mit «📅 Termine in den Kalender dieser Klasse» alle SVA-Termine ein und siehst unter «📊 Wer steht wo?», bei welcher Station deine Klasse steht.'},
   {id:'2026-10-05-briefkasten-ordner', datum:'2026-10-05', fuer:'lehrer', text:'📁 Briefkasten mit Ordner pro Schüler:in: Geben deine Schüler:innen viele Dateien ab (z. B. GTZ), hakst du beim Aufstellen oder Bearbeiten «Eigener Ordner pro Schüler:in» an. Jede Person bekommt dann in deinem Abgabe-Ordner einen Unterordner mit ihrem Namen und sammelt dort ihre Dateien. Wirft sie eine Datei mit gleichem Namen neu ein, wandert die frühere Fassung in ihren «_Backup»-Ordner, alle anderen Dateien bleiben.'},
   {id:'2026-10-05-briefkasten-sus', datum:'2026-10-05', fuer:'alle', text:'📮 Neu: der Briefkasten. Musst du eine Datei abgeben, steht im Fach ein gelber Briefkasten. Tipp auf «Einwerfen», wähl deine Dateien (oder zieh sie auf den Briefkasten) und wirf sie ein. Du siehst danach, wann du abgegeben hast – öffnen kannst du die Datei dort nicht mehr. Bis zur Leerung darfst du neu einwerfen, dann zählt die neue Abgabe.'},
   {id:'2026-10-05-briefkasten-lp', datum:'2026-10-05', fuer:'lehrer', text:'📮 Neu: Briefkasten für Datei-Abgaben (statt Teams). Im Fach auf «📮 Briefkasten aufstellen»: Titel, Ordnername auf deinem Computer, erlaubte Dateien (PDF, AutoCAD, Bilder …), auf Wunsch eine Frist – danach ist er zu oder Einwürfe werden als «verspätet» markiert – und ein Eintrag im Kalender. Mit «📬 Leeren» (Chrome oder Edge am Computer) landen die Abgaben in einem Ordner auf deinem Computer, als «Vorname_Dateiname»; wirft jemand neu ein, wandert die alte Fassung in den Ordner «_Backup». In der Library bleibt nach dem Leeren nur, wer wann abgegeben hat. Unter «👥 Abgaben» siehst du, wer fehlt, und verlängerst mit ⏰ die Frist für einzelne.'},
@@ -26741,7 +26895,7 @@ function updateLernphaseBanner(){
 function lphUebungOeffnen(){
   var n = lph.aktiv && lph.aktiv.nurUebung;
   if(!n || !n.id) return;
-  var v = sikoreVirtuell().resources.concat(tippVirtuell(TIPP_SUBJECT)).concat(mtVirtuellAlle()).concat(kkAlleRes()).filter(function(r){ return r.id === n.id; })[0];
+  var v = sikoreVirtuell().resources.concat(tippVirtuell(TIPP_SUBJECT)).concat(mtVirtuellAlle()).concat(kkAlleRes()).concat(svaVirtuell('sva')).filter(function(r){ return r.id === n.id; })[0];
   if(v){ goResource(v); return; }
   getDoc(kdoc('resources', n.id)).then(function(d){
     if(!d.exists()){ toast('Die Übung «' + (n.titel || '') + '» wurde nicht gefunden.'); return; }
@@ -27117,7 +27271,7 @@ function openLernphase(){
     snap.forEach(function(d){ dazu(Object.assign({id:d.id}, d.data())); });
     // Virtuelle Trainer einzeln absichern: fällt einer aus, sollen die übrigen Übungen trotzdem erscheinen.
     [function(){ return sikoreVirtuell().resources; }, function(){ return tippVirtuell(TIPP_SUBJECT); },
-     function(){ return mtVirtuellAlle(); }, function(){ return kkAlleRes(); }].forEach(function(fn){
+     function(){ return mtVirtuellAlle(); }, function(){ return kkAlleRes(); }, function(){ return svaVirtuell('sva'); }].forEach(function(fn){
       try{ (fn() || []).forEach(dazu); }catch(e){ console.error('Lernphase: virtuelle Übungen', e); }
     });
     SUBJECTS.map(function(f){ return f.id; }).concat(Object.keys(proFach)).filter(function(f, i, a){ return proFach[f] && a.indexOf(f) === i; }).forEach(function(f){
@@ -37917,7 +38071,7 @@ function layoutRef(){ return doc(db, 'progress', state.user.uid, 'einstellungen'
 // ganze Klasse (klassen/{k}/appMeta/schulden), nicht nur ein persönliches Ausblenden.
 function layoutIstAus(key){
   if(key === 'leiste:coinBtn') return !schulden.an;
-  if(key.indexOf('kacheln:') === 0 && !layoutIstLehrer()) return false;
+  if(key.indexOf('kacheln:') === 0 && !layoutIstLehrer() && !(key === 'kacheln:sva' && svaDarfAus())) return false;
   return (layout.aus || []).indexOf(key) >= 0;
 }
 function layoutAusAnzahl(){
@@ -37993,12 +38147,12 @@ function ordneNach(base, saved){
 
 function kachelnReihenfolge(isTeacher){
   layoutAusCache();
-  var base = SUBJECTS.filter(function(s){ return !s.teacherOnly || isTeacher; }).map(function(s){ return s.id; });
+  var base = SUBJECTS.filter(function(s){ return (!s.teacherOnly || isTeacher) && (s.id !== 'sva' || svaFrei()); }).map(function(s){ return s.id; });
   return ordneNach(base, layout.ordnung.kacheln);
 }
 function kachelnSichtbar(isTeacher){
   return kachelnReihenfolge(isTeacher).map(subjectById).filter(function(s){
-    return s && !(isTeacher && layoutIstAus('kacheln:'+s.id));
+    return s && !((isTeacher || (s.id === 'sva' && svaDarfAus())) && layoutIstAus('kacheln:'+s.id));
   });
 }
 function initKachelSort(){
@@ -38009,6 +38163,9 @@ function initKachelSort(){
     Array.prototype.forEach.call(grid.querySelectorAll('[data-sort]'), function(el){
       el.setAttribute('data-ausblendbar', 'kacheln:'+el.getAttribute('data-sort'));
     });
+  } else if(svaDarfAus()){
+    var svaEl = grid.querySelector('[data-sort="sva"]');
+    if(svaEl) svaEl.setAttribute('data-ausblendbar', 'kacheln:sva');
   }
   wackelMarken();
 }

@@ -1,0 +1,335 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SVA – Dossier-Werkstatt</title>
+<style>
+  :root{--ink:#16204a;--blau:#2743c7;--violett:#6a3fd6;--tuerkis:#12a3a8;--hell:#eef1fd;--linie:#d9def5;--ok:#1d9a5b;--warn:#c2410c;--gelb:#fff3bf;}
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:Calibri,"Segoe UI",system-ui,sans-serif;font-size:17px;line-height:1.5;color:var(--ink);background:#f6f7fc;}
+  header{background:linear-gradient(120deg,var(--tuerkis),var(--blau) 45%,var(--violett));color:#fff;padding:22px 20px 16px;}
+  header h1{margin:0;font-size:28px;letter-spacing:.2px;}
+  header p{margin:4px 0 0;opacity:.92;}
+  .bar{height:10px;border-radius:6px;background:rgba(255,255,255,.28);margin-top:12px;overflow:hidden;}
+  .bar span{display:block;height:100%;background:#fff;border-radius:6px;transition:width .3s;}
+  .barinfo{font-size:14px;margin-top:5px;opacity:.95;}
+  nav{display:flex;gap:6px;flex-wrap:wrap;padding:10px 14px;background:#fff;border-bottom:1px solid var(--linie);position:sticky;top:0;z-index:5;}
+  nav button{font:inherit;font-size:15.5px;border:1px solid var(--linie);background:#fff;color:var(--ink);border-radius:999px;padding:6px 14px;cursor:pointer;}
+  nav button.on{background:var(--blau);border-color:var(--blau);color:#fff;font-weight:700;}
+  main{max-width:940px;margin:0 auto;padding:18px 14px 60px;}
+  h2{font-size:23px;margin:6px 0 10px;}
+  .karte{background:#fff;border:1px solid var(--linie);border-radius:14px;padding:14px 16px;margin:0 0 12px;}
+  .hinweis{background:var(--hell);border-left:5px solid var(--blau);border-radius:8px;padding:9px 13px;margin:10px 0;}
+  .achtung{background:#fff4ec;border-left:5px solid var(--warn);border-radius:8px;padding:9px 13px;margin:10px 0;}
+  .station{padding:0;overflow:hidden;}
+  .skopf{display:flex;align-items:center;gap:12px;width:100%;text-align:left;font:inherit;background:none;border:0;padding:13px 16px;cursor:pointer;color:inherit;}
+  .snr{flex:none;width:36px;height:36px;border-radius:50%;background:var(--hell);color:var(--blau);display:grid;place-items:center;font-weight:700;}
+  .station.fertig .snr{background:var(--ok);color:#fff;}
+  .stitel{flex:1;font-weight:700;font-size:18.5px;}
+  .szeit{font-size:14px;color:#5a648c;white-space:nowrap;}
+  .sbody{display:none;padding:0 16px 16px;border-top:1px solid var(--linie);}
+  .station.offen .sbody{display:block;}
+  .sbody h3{font-size:16px;text-transform:uppercase;letter-spacing:.6px;color:#5a648c;margin:16px 0 4px;}
+  ol.weg{margin:4px 0;padding-left:22px;} ol.weg li{margin:3px 0;}
+  kbd,.klick{background:#eef0f7;border:1px solid #cfd4ea;border-radius:5px;padding:0 6px;font:inherit;font-size:.94em;white-space:nowrap;}
+  ul.fehler{margin:4px 0;padding-left:20px;} ul.fehler li{margin:2px 0;}
+  .checks label{display:flex;gap:10px;align-items:flex-start;padding:7px 10px;border:1px solid var(--linie);border-radius:9px;margin:6px 0;cursor:pointer;background:#fff;}
+  .checks input{width:20px;height:20px;margin-top:3px;flex:none;accent-color:var(--ok);}
+  .checks label.an{background:#ecf8f1;border-color:#b9e3cb;}
+  .video{margin:8px 0;}
+  .video iframe{width:100%;aspect-ratio:16/9;border:0;border-radius:10px;background:#000;display:block;}
+  .btn{font:inherit;font-size:16px;border:0;border-radius:9px;padding:8px 15px;cursor:pointer;background:var(--blau);color:#fff;font-weight:700;text-decoration:none;display:inline-block;}
+  .btn.leise{background:#fff;color:var(--blau);border:1px solid var(--blau);font-weight:400;}
+  .reihe{display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
+  table.plan{width:100%;border-collapse:collapse;} table.plan td,table.plan th{border-bottom:1px solid var(--linie);padding:8px 6px;text-align:left;vertical-align:top;}
+  table.plan tr.vorbei td{color:#8b93b5;} table.plan tr.naechste td{background:var(--gelb);}
+  .tag{display:inline-block;border-radius:999px;padding:1px 10px;font-size:13.5px;background:var(--hell);color:var(--blau);font-weight:700;}
+  .tag.rot{background:#fde5e1;color:#b42318;}
+  .frage{margin:0 0 14px;} .frage p{margin:0 0 6px;font-weight:700;}
+  .frage label{display:block;padding:6px 10px;border:1px solid var(--linie);border-radius:8px;margin:4px 0;cursor:pointer;background:#fff;}
+  .frage label.richtig{background:#ecf8f1;border-color:#8fd3ae;} .frage label.falsch{background:#fdecea;border-color:#f1aaa2;}
+  .gruppe{font-weight:700;margin:14px 0 4px;}
+  .nurdruck{display:none;}
+  @media print{
+    header,nav,.nichtdrucken{display:none!important;} body{background:#fff;font-size:11pt;line-height:1.5;} main{max-width:none;padding:0;}
+    .ansicht{display:none!important;} #kurzblatt{display:block!important;} .nurdruck{display:block;} .karte{border:0;padding:0;}
+    table.kb td,table.kb th{border:1px solid #999;padding:3px 6px;font-size:10pt;line-height:1.5;vertical-align:top;} table.kb{border-collapse:collapse;width:100%;}
+  }
+  table.kb td,table.kb th{border:1px solid var(--linie);padding:5px 8px;vertical-align:top;text-align:left;} table.kb{border-collapse:collapse;width:100%;background:#fff;}
+</style>
+</head>
+<body>
+<header>
+  <h1>SVA – Dossier-Werkstatt</h1>
+  <p>Schritt für Schritt zu deinem Arbeitsdossier in Word – mit dem Erklärvideo von Herrn Schoch.</p>
+  <div class="bar"><span id="barFill" style="width:0%"></span></div>
+  <div class="barinfo" id="barInfo"></div>
+</header>
+<nav id="nav"></nav>
+<main>
+  <section class="ansicht" id="v-start"></section>
+  <section class="ansicht" id="v-check"></section>
+  <section class="ansicht" id="v-stationen"></section>
+  <section class="ansicht" id="v-abgabe"></section>
+  <section class="ansicht" id="v-termine"></section>
+  <section class="ansicht" id="kurzblatt"></section>
+</main>
+<script>
+/* Eigener Speicher-Schlüssel (Präfix sva_), nie localStorage.clear(). Die Library sichert ihn geräteübergreifend. */
+var KEY = 'sva_dw_v1';
+var VIDEO = 'nVc2cYSEgpA';
+var JAHR = '2026/27';
+var S = laden();
+function laden(){ try{ var o = JSON.parse(localStorage.getItem(KEY) || '{}'); o.c = o.c || {}; o.q = o.q || {}; o.a = o.a || {}; return o; }catch(e){ return {c:{},q:{},a:{}}; } }
+function sichern(){ try{ S.t = Date.now(); localStorage.setItem(KEY, JSON.stringify(S)); }catch(e){} melden(); }
+function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function k(s){ return s.replace(/\[\[(.+?)\]\]/g, '<span class="klick">$1</span>').replace(/\{\{(.+?)\}\}/g, '<kbd>$1</kbd>'); }
+function sek(t){ var p = t.split(':'); return (+p[0])*60 + (+p[1]); }
+
+/* ---------- Termine ---------- */
+var TERMINE = [
+  {d:'2026-11-02', bis:null,         t:'Themenfindung', wo:'Schule (Montagmorgen)', z:'Dein Thema ist konkret und bereit zur Umsetzung. Du hast einen Plan B im Hinterkopf.'},
+  {d:'2026-11-23', bis:'2026-11-25', t:'Grundsteine und erste Schritte', wo:'Schule / zu Hause', z:'Grobkonzept steht, Dossier-Gerüst ist gebaut, Materialliste ist erstellt, erste Arbeitsschritte sind gemacht.'},
+  {d:'2026-11-25', bis:null,         t:'Abgabe Grobkonzept', wo:'Briefkasten in der Library oder auf Papier', z:'Unterschrieben von dir, deinen Eltern und der Lehrperson.', abgabe:true},
+  {d:'2026-11-25', bis:null,         t:'Abgabe Dossier-Gerüst', wo:'Briefkasten in der Library', z:'Titelseite, Kapitel, Verzeichnisse, Kopf- und Fusszeile stehen (Stationen 1–8 und 12–13).', abgabe:true},
+  {d:'2026-12-09', bis:'2026-12-11', t:'Freie Arbeitszeit', wo:'zu Hause', z:'Der erste Teil deiner SVA ist erstellt. Du schreibst das Protokoll laufend.'},
+  {d:'2026-12-11', bis:null,         t:'Zwischenstand + erster Rapport', wo:'Briefkasten in der Library', z:'Aktuelles Dossier einwerfen und der Lehrperson kurz berichten.', abgabe:true},
+  {d:'2027-01-19', bis:'2027-01-21', t:'Freie Arbeitszeit', wo:'zu Hause', z:'Deine SVA ist zum grossen Teil gemacht, das Dossier ist schon ziemlich fertig.'},
+  {d:'2027-01-21', bis:null,         t:'Zwischenstand + Rapport', wo:'Briefkasten in der Library', z:'Aktuelles Dossier einwerfen und der Lehrperson kurz berichten.', abgabe:true},
+  {d:'2027-03-08', bis:null,         t:'Schlussabgabe Dossier', wo:'Word + PDF im Briefkasten und gedruckt', z:'Die Arbeit ist fertig! Zuerst den Abgabe-Check machen.', abgabe:true},
+  {d:'2027-03-08', bis:null,         t:'Ausstellungsplanung', wo:'Schule', z:'Ort und Material für deine Ausstellung sind geplant, die Präsentation ist vorbereitet.'},
+  {d:'2027-03-18', bis:null,         t:'Ausstellung einrichten', wo:'Schule (Nachmittag)', z:'Du richtest deinen Platz ein.'},
+  {d:'2027-03-19', bis:'2027-03-20', t:'SVA-Ausstellung', wo:'Schule', z:'Freitag: Besuchstag und 2. Klassen. Samstag: öffentliche Ausstellung, danach aufräumen.'}
+];
+var WT = ['So','Mo','Di','Mi','Do','Fr','Sa'], MON = ['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'];
+function dat(iso){ var p = iso.split('-'); return new Date(+p[0], +p[1]-1, +p[2]); }
+function datText(t){ var a = dat(t.d); if(!t.bis) return WT[a.getDay()]+', '+a.getDate()+'. '+MON[a.getMonth()]+' '+a.getFullYear(); var b = dat(t.bis); return WT[a.getDay()]+'–'+WT[b.getDay()]+', '+a.getDate()+'.–'+b.getDate()+'. '+MON[b.getMonth()]+' '+b.getFullYear(); }
+function tageBis(iso){ var h = new Date(); h.setHours(0,0,0,0); return Math.round((dat(iso) - h) / 86400000); }
+function naechsterTermin(nurAbgabe){ for(var i=0;i<TERMINE.length;i++){ var t = TERMINE[i]; if(tageBis(t.bis || t.d) >= 0 && (!nurAbgabe || t.abgabe)) return t; } return null; }
+function inTagen(n){ return n === 0 ? 'heute' : n === 1 ? 'morgen' : 'in '+n+' Tagen'; }
+
+/* ---------- Stationen ---------- */
+var STATIONEN = [
+ {id:'s1', t:'Speichern und starten', v:['0:00','1:06'],
+  weg:['Word öffnen und ein [[Leeres Dokument]] erstellen.','[[Datei]] › [[Speichern unter]] › dein [[OneDrive]] der Schule wählen.','Dateiname: «SVA_Dossier_DeinVorname». Mit [[Speichern]] bestätigen.','Oben links prüfen: [[Automatisches Speichern]] steht auf «Ein».'],
+  tipp:'Liegt die Datei auf OneDrive, speichert Word von selbst. So verlierst du nichts, auch wenn der Akku leer ist.',
+  fehler:['Datei nur auf dem Desktop oder im Download-Ordner gespeichert.','Mehrere Fassungen mit ähnlichen Namen (Dossier_neu, Dossier_neu2).'],
+  c:['Mein Dossier liegt auf OneDrive.','«Automatisches Speichern» ist eingeschaltet.']},
+ {id:'s2', t:'Gliederung: die Kapitel hinschreiben', v:['1:06','1:51'],
+  weg:['Schreibe die Kapitel untereinander, jedes auf eine eigene Zeile: Inhaltsverzeichnis, Vorwort, Arbeitsprotokoll, Schlusswort, Bild- und Literaturnachweis, Anhang.','Notizen, die später wieder wegkommen, markierst du gelb: Text markieren › [[Start]] › [[Texthervorhebungsfarbe]].'],
+  tipp:'Gelb heisst: «Das muss ich noch ersetzen oder löschen.» Am Schluss darf nichts Gelbes mehr im Dossier stehen.',
+  fehler:['Kapitel fehlen oder heissen anders als verlangt.'],
+  c:['Alle sechs Kapitel stehen untereinander im Dokument.']},
+ {id:'s3', t:'Titelseite', v:['1:51','5:22'],
+  weg:['Cursor ganz an den Anfang setzen. [[Einfügen]] › [[Deckblatt]] › ein schlichtes Deckblatt wählen.','Titel deiner Arbeit eintragen.','Darunter: «SVA '+JAHR+'», dein Vor- und Nachname, deine Klasse.','Bild oder Grafik einfügen: [[Einfügen]] › [[Bilder]] › [[Dieses Gerät]].','Logo der Sek Altnau einfügen (unten herunterladen).','Bild anklicken › Symbol [[Layoutoptionen]] neben dem Bild › [[Hinter den Text]]. Jetzt kannst du es frei verschieben.'],
+  achtung:'Im Video steht «2023/24» und das Logo kommt aus Teams. Bei dir gilt: «SVA '+JAHR+'», und das Logo lädst du hier herunter.',
+  logo:true,
+  fehler:['Unscharfes oder zu dunkles Bild: der Titel ist kaum lesbar.','Jahr, Name oder Klasse fehlen.'],
+  c:['Titel, Bild, Logo, «SVA '+JAHR+'», Name und Klasse stehen auf der Titelseite.','Mein Bild ist scharf und der Titel gut lesbar.']},
+ {id:'s4', t:'Überschriften und Seitenumbrüche', v:['5:22','7:05'],
+  weg:['Jeden Kapitelnamen anklicken › [[Start]] › Formatvorlagen › [[Überschrift 1]].','Cursor vor den ersten Buchstaben eines Kapitels setzen › {{Strg}} + {{Enter}} (oder [[Einfügen]] › [[Seitenumbruch]]).','Das bei jedem Hauptkapitel wiederholen: Jedes Kapitel beginnt oben auf einer neuen Seite.'],
+  tipp:'Nie mit vielen leeren Zeilen auf die nächste Seite «rutschen». Sobald du Text ergänzt, verschiebt sich sonst alles.',
+  fehler:['Überschrift nur fett und gross gemacht statt mit der Formatvorlage: Dann erscheint sie nicht im Inhaltsverzeichnis.','Leerzeilen statt Seitenumbruch.'],
+  c:['Alle Hauptkapitel haben die Formatvorlage «Überschrift 1».','Jedes Hauptkapitel beginnt mit einem Seitenumbruch auf einer neuen Seite.']},
+ {id:'s5', t:'Inhaltsverzeichnis', v:['7:05','8:28'],
+  weg:['Cursor auf die Seite «Inhaltsverzeichnis» setzen.','[[Referenzen]] › [[Inhaltsverzeichnis]] › [[Automatische Tabelle 1]].','Word schreibt selbst einen Titel darüber. Deinen eigenen Titel «Inhaltsverzeichnis» kannst du löschen.','Aktualisieren: ins Verzeichnis klicken › [[Inhaltsverzeichnis aktualisieren]] › [[Gesamtes Verzeichnis aktualisieren]].'],
+  tipp:'Das Verzeichnis ändert sich nicht von allein. Vor jeder Abgabe aktualisieren!',
+  fehler:['Im Verzeichnis steht «Fehler! Textmarke nicht definiert.» Das passiert, wenn es nicht aktualisiert wurde.','Seitenzahlen im Verzeichnis stimmen nicht mit dem Dossier überein.'],
+  c:['Mein Inhaltsverzeichnis ist automatisch erstellt (nicht von Hand getippt).','Ich weiss, wie ich es aktualisiere.']},
+ {id:'s6', t:'Vorwort mit Unterkapiteln', v:['8:28','11:02'],
+  weg:['Auf der Seite «Vorwort» drei Zeilen schreiben: Projektvorstellung, Ziele, Betreuung und Unterstützung.','Jede der drei Zeilen anklicken › [[Start]] › [[Überschrift 2]].','Inhaltsverzeichnis aktualisieren: Die Unterkapitel erscheinen eingerückt.'],
+  tipp:'Projektvorstellung: Was mache ich? Wie kam ich auf die Idee? Was motiviert mich? · Ziele: aus deinem Grobkonzept. · Betreuung: Wer unterstützt dich und warum?',
+  fehler:['Vorwort zu kurz: Die drei Teile fehlen.'],
+  c:['Mein Vorwort hat die drei Unterkapitel als «Überschrift 2».','Die Unterkapitel erscheinen im Inhaltsverzeichnis.']},
+ {id:'s7', t:'Arbeitsprotokoll als Tabelle', v:['11:02','15:31'],
+  weg:['[[Einfügen]] › [[Tabelle]] › 2 Spalten × 3 Zeilen.','Die drei Zellen links markieren › Rechtsklick › [[Zellen verbinden]]: Platz für das Bild.','Rechts oben: Datum, Arbeitszeit (von–bis) und Arbeitsort.','Die zwei Zellen rechts unten markieren › Rechtsklick › [[Zellen verbinden]]: Platz für den Text.','Ganze Tabelle markieren › {{Strg}} + {{C}}. Darunter klicken › {{Strg}} + {{V}}: So entsteht der nächste Eintrag.','Immer eine leere Tabelle am Schluss stehen lassen, die du wieder kopieren kannst.','Formatierungszeichen einblenden: [[Start]] › [[¶]]. Dann siehst du Absätze und Umbrüche (beim Drucken sind sie unsichtbar).'],
+  tipp:'Jeder Eintrag: Datum, Arbeitszeit, Arbeitsort · Titel des Arbeitsschritts (fett) · Was habe ich gemacht? · ein Bild · ein Kommentar (Was hat gut geklappt? Was war schwierig? Was nehme ich mit?).',
+  fehler:['Bilder zu klein: Man erkennt nichts.','Einträge erst am Schluss aus dem Gedächtnis geschrieben.','Ein Eintrag ist über zwei Seiten zerrissen.'],
+  c:['Meine Protokoll-Tabelle steht und ich habe eine leere Kopie am Schluss.','Ich weiss, was in jeden Eintrag gehört.']},
+ {id:'s8', t:'Schlusswort', v:['15:31','15:56'],
+  weg:['Auf der Seite «Schlusswort» in Gelb notieren, was hineinkommt: Was nehme ich mit? Was hat gut geklappt? Was würde ich anders machen? Zeitaufwand, Gedanken zur Arbeit, Dank.','Das Schlusswort schreibst du erst am Ende, als zusammenhängenden Text.'],
+  fehler:['Der Zeitaufwand fehlt.','Schlusswort in Eile geschrieben: viele Fehler, anderer Zeilenabstand.'],
+  c:['Meine Notizen fürs Schlusswort stehen (gelb markiert).']},
+ {id:'s9', t:'Bilder beschriften und Bildverzeichnis', v:['15:56','19:53'],
+  weg:['Bild einfügen: [[Einfügen]] › [[Bilder]].','Rechtsklick auf das Bild › [[Beschriftung einfügen…]].','Bezeichnung: [[Abbildung]] · Position: [[Unter dem ausgewählten Element]] · Text: was man sieht und woher das Bild ist.','Auf der Seite «Bild- und Literaturnachweis»: [[Referenzen]] › [[Abbildungsverzeichnis einfügen]].','Darüber den Titel «Bildverzeichnis» schreiben › [[Überschrift 2]].','Alles aktualisieren: {{Strg}} + {{A}}, dann {{F9}} (auf manchen Laptops {{Fn}} + {{F9}}).'],
+  tipp:'Eigene Fotos: «eigenes Bild» schreiben. Bilder aus dem Internet: die Webseite angeben. Lizenzfreie Bilder findest du z. B. auf pixabay.com.',
+  fehler:['Bilder nur nummeriert, aber nicht benannt.','Quelle bei Internetbildern fehlt.'],
+  c:['Jedes Bild hat eine Beschriftung mit «Abbildung …».','Mein Bildverzeichnis ist automatisch eingefügt.']},
+ {id:'s10', t:'Quellen und Literaturverzeichnis', v:['19:53','24:09'],
+  weg:['Cursor hinter den Satz setzen, der aus einer Quelle stammt.','[[Referenzen]] › [[Zitat einfügen]] › [[Neue Quelle hinzufügen…]].','Quellentyp wählen: [[Website]] oder [[Buch]].','Website: Autor (bei Wikipedia «Wikipedia»), Name der Webseite, URL und das Datum, an dem du die Seite geöffnet hast.','Buch: Autor, Titel, Jahr, Ort und Verlag.','Auf der Seite «Bild- und Literaturnachweis»: [[Referenzen]] › [[Literaturverzeichnis]] einfügen. Titel «Literaturverzeichnis» als [[Überschrift 2]].'],
+  achtung:'Künstliche Intelligenz (ChatGPT, Copilot usw.) darfst du nur zum Korrigieren deines eigenen Textes brauchen. Schreiben musst du selbst.',
+  fehler:['Text aus dem Internet kopiert, ohne die Quelle anzugeben.','Nur «Google» oder «Internet» als Quelle.'],
+  c:['Ich kann eine Quelle mit «Zitat einfügen» erfassen.','Mein Literaturverzeichnis ist automatisch eingefügt.']},
+ {id:'s11', t:'Anhang', v:['24:09','24:31'],
+  weg:['Auf der Seite «Anhang» notieren, was dazugehört: Grobkonzept, Baupläne, Skizzen, Rezepte, Kostenaufstellung.','Gescannte Blätter fügst du als Bild ein.'],
+  fehler:['Das Grobkonzept fehlt im Anhang.'],
+  c:['Ich weiss, was in meinen Anhang kommt.']},
+ {id:'s12', t:'Blocksatz, Zeilenabstand, Silbentrennung', v:['24:31','26:12'],
+  weg:['Alles markieren: {{Strg}} + {{A}}.','[[Start]] › [[Blocksatz]] (Symbol mit gleich langen Linien).','[[Start]] › [[Zeilen- und Absatzabstand]] › [[1,5]].','[[Layout]] › [[Silbentrennung]] › [[Automatisch]].'],
+  tipp:'Blocksatz ohne Silbentrennung gibt hässliche Lücken zwischen den Wörtern. Darum gehören die beiden zusammen.',
+  fehler:['Nicht überall derselbe Zeilenabstand.','Titelseite und Tabellen sind nach «Alles markieren» verrutscht: kurz kontrollieren.'],
+  c:['Mein Text steht im Blocksatz mit Zeilenabstand 1,5.','Die automatische Silbentrennung ist eingeschaltet.']},
+ {id:'s13', t:'Kopf- und Fusszeile, Seitenzahlen', v:['26:12','29:18'],
+  weg:['Auf der Seite mit dem Inhaltsverzeichnis oben in den Rand doppelklicken: Die Kopfzeile öffnet sich.','Links «SVA '+JAHR+'» schreiben › {{Tab}} › Titel deiner Arbeit › {{Tab}} › [[Kopf- und Fusszeile]] › [[Seitenzahl]] › [[Aktuelle Position]] › [[Einfache Zahl]].','Unten in den Rand doppelklicken: Fusszeile. Links dein Name › {{Tab}} › Logo einfügen und klein ziehen › {{Tab}} › deine Klasse.','Mit Doppelklick in den Text zurück.'],
+  achtung:'Im Video steht «SVA 2023/2024» und «E3a». Du schreibst «SVA '+JAHR+'» und deine eigene Klasse.',
+  fehler:['Die Seitenzahlen fehlen: Dann nützt auch das Inhaltsverzeichnis nichts.','Kopfzeile von Hand auf jeder Seite getippt.'],
+  c:['Kopfzeile: SVA '+JAHR+' – Titel – Seitenzahl.','Fusszeile: Name – Logo – Klasse.']},
+ {id:'s14', t:'Eigenes Design und Tipps', v:['29:18','32:06'],
+  weg:['[[Start]] › Rechtsklick auf die Formatvorlage [[Überschrift 1]] › [[Ändern…]]: Schrift, Grösse und Farbe wählen. Alle Überschriften ändern sich gleichzeitig.','Dasselbe für [[Überschrift 2]] und für [[Standard]] (dein normaler Text).','Für den Text eine gut lesbare Schrift nehmen, z. B. Calibri. Höchstens zwei Schriftarten im ganzen Dossier.'],
+  tipp:'Protokoll immer gleich nach dem Arbeiten schreiben. Dossier am Schluss von jemandem gegenlesen lassen. Früh anfangen: Das Dossier braucht mehr Zeit, als du denkst.',
+  fehler:['Verspielte Schrift, die schwer zu lesen ist.','Jede Überschrift einzeln von Hand formatiert.'],
+  c:['Ich kann eine Formatvorlage ändern.','Mein Dossier braucht höchstens zwei Schriftarten.']}
+];
+var AUFFRISCHEN = [
+ {id:'a1', t:'Markieren und Tastenkürzel', weg:['Ein Wort: Doppelklick. Ein Absatz: Dreifachklick. Alles: {{Strg}} + {{A}}.','Kopieren {{Strg}} + {{C}} · Einfügen {{Strg}} + {{V}} · Rückgängig {{Strg}} + {{Z}} · Speichern {{Strg}} + {{S}}.','Text ohne fremde Formatierung einfügen: Rechtsklick › Einfügeoptionen › [[Nur den Text übernehmen]].'], c:['Ich kenne die fünf Tastenkürzel auswendig.']},
+ {id:'a2', t:'Formatierungszeichen und Seitenumbruch', weg:['[[Start]] › [[¶]] blendet unsichtbare Zeichen ein: ¶ = Absatz, · = Leerschlag, → = Tabulator.','Neue Seite: {{Strg}} + {{Enter}}. Du siehst dann «Seitenumbruch» als gestrichelte Linie.','Einen Umbruch löschen: davor klicken und {{Entf}} drücken.'], c:['Ich kann Formatierungszeichen ein- und ausblenden.','Ich mache neue Seiten mit einem Seitenumbruch.']},
+ {id:'a3', t:'Bilder einfügen und platzieren', weg:['[[Einfügen]] › [[Bilder]] › [[Dieses Gerät]].','Grösse immer an einer Ecke ziehen, sonst wird das Bild verzerrt.','Bild anklicken › [[Layoutoptionen]] › [[Rechteck]] (Text fliesst um das Bild) oder [[Hinter den Text]].','Zuschneiden: Bild anklicken › [[Bildformat]] › [[Zuschneiden]].'], c:['Ich kann ein Bild einfügen, zuschneiden und frei platzieren.']},
+ {id:'a4', t:'Tabellen', weg:['[[Einfügen]] › [[Tabelle]] › Anzahl Felder wählen.','Zellen verbinden: markieren › Rechtsklick › [[Zellen verbinden]].','Spaltenbreite: die Linie zwischen zwei Spalten mit der Maus ziehen.','Neue Zeile am Schluss: in die letzte Zelle klicken und {{Tab}} drücken.'], c:['Ich kann eine Tabelle einfügen und Zellen verbinden.']}
+];
+var FRAGEN = [
+ {f:'Wie beginnst du in Word eine neue Seite?', a:['Viele Male Enter drücken, bis die neue Seite kommt','Mit einem Seitenumbruch (Strg + Enter)','Mit der Leertaste'], r:1, zu:'a2'},
+ {f:'Wie wird ein Titel zur Überschrift, die im Inhaltsverzeichnis erscheint?', a:['Fett und gross machen','Unterstreichen','Formatvorlage «Überschrift 1» zuweisen'], r:2, zu:'s4'},
+ {f:'Wofür ist das Zeichen ¶ im Menü Start?', a:['Es blendet Absatzmarken und Umbrüche ein','Es fügt ein Bild ein','Es druckt das Dokument'], r:0, zu:'a2'},
+ {f:'Welche Tastenkombination macht den letzten Schritt rückgängig?', a:['Strg + Z','Strg + A','Strg + P'], r:0, zu:'a1'},
+ {f:'Du ziehst ein Bild grösser. Wo musst du ziehen, damit es nicht verzerrt wird?', a:['An der Seite','An einer Ecke','Oben in der Mitte'], r:1, zu:'a3'},
+ {f:'Wo fügst du ein automatisches Inhaltsverzeichnis ein?', a:['Einfügen › Tabelle','Referenzen › Inhaltsverzeichnis','Layout › Spalten'], r:1, zu:'s5'},
+ {f:'Wie kommst du in die Kopfzeile?', a:['Doppelklick oben in den Seitenrand','Rechtsklick auf den Text','Über Datei › Drucken'], r:0, zu:'s13'},
+ {f:'Wie verbindest du mehrere Tabellenzellen zu einer?', a:['Zellen markieren › Rechtsklick › Zellen verbinden','Die Linien mit dem Radiergummi löschen','Das geht in Word nicht'], r:0, zu:'a4'}
+];
+var ABGABE = [
+ {g:'Aufbau', p:['Titelseite: Titel, Bild, Logo, «SVA '+JAHR+'», Name, Klasse','Inhaltsverzeichnis: automatisch, aktualisiert, ohne «Textmarke nicht definiert»','Vorwort mit Projektvorstellung, Zielen und Betreuung','Arbeitsprotokoll: jeder Eintrag mit Datum, Zeit, Ort, Text, Bild und Kommentar','Schlusswort: Rückblick, Zeitaufwand, Dank','Bildverzeichnis und Literaturverzeichnis sind vorhanden und aktualisiert','Anhang mit Grobkonzept']},
+ {g:'Gestaltung', p:['Überall Blocksatz, Zeilenabstand 1,5 und Silbentrennung','Kopfzeile (SVA '+JAHR+' – Titel – Seitenzahl) und Fusszeile (Name – Logo – Klasse)','Seitenzahlen stimmen mit dem Inhaltsverzeichnis überein','Bilder sind scharf, gross genug und beschriftet','Höchstens zwei Schriftarten, nichts mehr gelb markiert','Kein Eintrag und keine Tabelle ist unschön über zwei Seiten zerrissen']},
+ {g:'Sprache', p:['Rechtschreibprüfung durchgeführt: [[Überprüfen]] › [[Editor]]','Jemand hat mein Dossier gegengelesen','Alles selbst geschrieben; KI höchstens zum Korrigieren gebraucht','Alle Quellen sind angegeben']},
+ {g:'Abgabe', p:['Als PDF gespeichert: [[Datei]] › [[Exportieren]] › [[PDF/XPS-Dokument erstellen]]','Word-Datei und PDF im Briefkasten der Library eingeworfen','Ein Exemplar gedruckt (für die Ausstellung)']}
+];
+
+/* ---------- Fortschritt ---------- */
+function fertig(st){ var c = S.c[st.id] || []; for(var i=0;i<st.c.length;i++){ if(!c[i]) return false; } return true; }
+function anzahlFertig(){ return STATIONEN.filter(fertig).length; }
+function melden(){
+  var n = anzahlFertig();
+  document.getElementById('barFill').style.width = Math.round(n / STATIONEN.length * 100) + '%';
+  var t = naechsterTermin(true);
+  document.getElementById('barInfo').textContent = n + ' von ' + STATIONEN.length + ' Stationen erledigt' + (t ? ' · nächste Abgabe: ' + t.t + ' ' + inTagen(tageBis(t.d)) : '');
+}
+
+/* ---------- Ansichten ---------- */
+var ANSICHTEN = [['start','Start'],['check','Einstiegs-Check'],['stationen','Stationen'],['abgabe','Abgabe-Check'],['termine','Termine'],['kurz','Kurzblatt']];
+function zeige(id){
+  S.v = id;
+  try{ localStorage.setItem(KEY, JSON.stringify(S)); }catch(e){}
+  document.getElementById('nav').innerHTML = ANSICHTEN.map(function(a){ return '<button type="button" data-v="'+a[0]+'"'+(a[0]===id?' class="on"':'')+'>'+a[1]+'</button>'; }).join('');
+  Array.prototype.forEach.call(document.querySelectorAll('.ansicht'), function(el){ el.style.display = 'none'; });
+  var el = document.getElementById(id === 'kurz' ? 'kurzblatt' : 'v-'+id);
+  el.style.display = 'block';
+  ({start:zStart, check:zCheck, stationen:zStationen, abgabe:zAbgabe, termine:zTermine, kurz:zKurz})[id](el);
+  window.scrollTo(0, 0);
+}
+document.getElementById('nav').addEventListener('click', function(e){ var b = e.target.closest('button[data-v]'); if(b) zeige(b.getAttribute('data-v')); });
+
+function zStart(el){
+  var t = naechsterTermin(false), n = anzahlFertig();
+  var offen = STATIONEN.filter(function(s){ return !fertig(s); })[0];
+  el.innerHTML = '<h2>Willkommen in der Dossier-Werkstatt</h2>'+
+    '<div class="karte"><p style="margin-top:0">Dein <b>Arbeitsdossier</b> zeigt, wie deine SVA entstanden ist. Hier baust du es in Word auf: 14 Stationen, jede mit dem passenden Ausschnitt aus dem Erklärvideo, den Klicks für dein Windows-Word und einem kurzen Selbstcheck.</p>'+
+    '<div class="reihe"><button class="btn" type="button" data-go="'+(Object.keys(S.q).length ? 'stationen' : 'check')+'">'+(n ? 'Weiter bei Station '+(offen ? STATIONEN.indexOf(offen)+1 : 14) : 'Los gehts: Einstiegs-Check')+'</button>'+
+    '<button class="btn leise" type="button" data-go="stationen">Alle Stationen</button></div></div>'+
+    (t ? '<div class="karte"><span class="tag'+(t.abgabe?' rot':'')+'">'+(t.abgabe?'Nächste Abgabe':'Nächster Termin')+'</span> <b>'+esc(t.t)+'</b> · '+datText(t)+' · '+inTagen(tageBis(t.d))+'<br><span style="color:#5a648c">'+esc(t.z)+'</span></div>' : '')+
+    '<div class="karte"><b>So arbeitest du</b><ol class="weg"><li>Word und diese Seite nebeneinander öffnen ({{Windows}} + {{←}} und {{Windows}} + {{→}}).</li><li>Videoausschnitt ansehen, dann die Schritte in deinem eigenen Dossier nachmachen.</li><li>Selbstcheck abhaken. Deine Lehrperson sieht, bei welcher Station du stehst.</li></ol></div>'.replace(/\{\{(.+?)\}\}/g,'<kbd>$1</kbd>')+
+    '<div class="karte"><b>Das gehört ins Dossier</b><br>Titelseite · Inhaltsverzeichnis · Vorwort · Arbeitsprotokoll · Schlusswort · Bild- und Literaturnachweis · Anhang<div class="hinweis">Den Leitfaden mit allen Vorgaben findest du im Fach SVA bei den Unterlagen.</div></div>';
+  el.onclick = function(e){ var b = e.target.closest('[data-go]'); if(b) zeige(b.getAttribute('data-go')); };
+}
+
+function zCheck(el){
+  var beantwortet = Object.keys(S.q).length, html = '<h2>Einstiegs-Check</h2><div class="karte">Acht kurze Fragen zu Word. Danach siehst du, was du noch auffrischen solltest. Keine Note – nur für dich.</div>';
+  FRAGEN.forEach(function(q, i){
+    var g = S.q[i];
+    html += '<div class="karte frage"><p>'+(i+1)+'. '+esc(q.f)+'</p>'+q.a.map(function(a, j){
+      var cls = g === undefined ? '' : (j === q.r ? ' class="richtig"' : (j === g ? ' class="falsch"' : ''));
+      return '<label'+cls+'><input type="radio" name="q'+i+'" value="'+j+'"'+(g===j?' checked':'')+(g!==undefined?' disabled':'')+'> '+esc(a)+'</label>';
+    }).join('')+'</div>';
+  });
+  if(beantwortet === FRAGEN.length){
+    var falsch = FRAGEN.filter(function(q, i){ return S.q[i] !== q.r; }), ziele = {};
+    falsch.forEach(function(q){ ziele[q.zu] = true; });
+    var liste = Object.keys(ziele).map(function(id){ var s = AUFFRISCHEN.concat(STATIONEN).filter(function(x){ return x.id === id; })[0]; return '<li>'+(id.charAt(0)==='a' ? 'Auffrischen: ' : 'Station: ')+esc(s.t)+'</li>'; }).join('');
+    html += '<div class="karte"><b>'+(FRAGEN.length - falsch.length)+' von '+FRAGEN.length+' richtig.</b> '+(falsch.length ? 'Schau dir das besonders gut an:<ul class="fehler">'+liste+'</ul>' : 'Super, du bist bereit für die Stationen!')+
+      '<div class="reihe"><button class="btn" type="button" id="zuSt">Zu den Stationen</button><button class="btn leise" type="button" id="nochmal">Check wiederholen</button></div></div>';
+  }
+  el.innerHTML = html;
+  el.onchange = function(e){ var r = e.target; if(r.type !== 'radio') return; S.q[+r.name.slice(1)] = +r.value; sichern(); zCheck(el); };
+  var a = document.getElementById('zuSt'); if(a) a.onclick = function(){ zeige('stationen'); };
+  var b = document.getElementById('nochmal'); if(b) b.onclick = function(){ S.q = {}; sichern(); zCheck(el); window.scrollTo(0,0); };
+}
+
+function stationHtml(st, nr, mitVideo){
+  var c = S.c[st.id] || [], h = '<div class="karte station'+(fertig(st)?' fertig':'')+(S.offen===st.id?' offen':'')+'" data-id="'+st.id+'">'+
+    '<button type="button" class="skopf"><span class="snr">'+(fertig(st)?'✓':nr)+'</span><span class="stitel">'+esc(st.t)+'</span>'+(st.v?'<span class="szeit">Video '+st.v[0]+'–'+st.v[1]+'</span>':'')+'</button><div class="sbody">';
+  if(mitVideo && st.v){
+    h += '<h3>Erklärvideo</h3><div class="video" data-start="'+sek(st.v[0])+'" data-end="'+sek(st.v[1])+'"><div class="reihe"><button class="btn" type="button" data-play="1">▶ Ausschnitt ansehen ('+st.v[0]+'–'+st.v[1]+')</button>'+
+      '<a class="btn leise" target="_blank" rel="noopener" href="https://youtu.be/'+VIDEO+'?t='+sek(st.v[0])+'">Auf YouTube öffnen</a></div></div>';
+  }
+  if(st.achtung) h += '<div class="achtung"><b>Achtung, bei uns anders:</b> '+esc(st.achtung)+'</div>';
+  h += '<h3>So gehts in Word</h3><ol class="weg">'+st.weg.map(function(w){ return '<li>'+k(esc(w))+'</li>'; }).join('')+'</ol>';
+  if(st.logo) h += '<p><a class="btn leise" href="assets/logo-pruefung.png" download="Logo_Sek_Altnau.png">⬇ Logo der Sek Altnau herunterladen</a></p>';
+  if(st.tipp) h += '<div class="hinweis"><b>Tipp:</b> '+k(esc(st.tipp))+'</div>';
+  if(st.fehler) h += '<h3>Typische Fehler</h3><ul class="fehler">'+st.fehler.map(function(f){ return '<li>'+esc(f)+'</li>'; }).join('')+'</ul>';
+  h += '<h3>Selbstcheck</h3><div class="checks">'+st.c.map(function(t, i){ return '<label'+(c[i]?' class="an"':'')+'><input type="checkbox" data-i="'+i+'"'+(c[i]?' checked':'')+'><span>'+esc(t)+'</span></label>'; }).join('')+'</div>';
+  return h + '</div></div>';
+}
+function zStationen(el){
+  el.innerHTML = '<h2>Stationen</h2><div class="hinweis">Arbeite die Stationen der Reihe nach durch. Die Zeiten zeigen, welcher Teil des Videos (32 Minuten) zur Station gehört. Das Video wurde auf einem Mac aufgenommen – die Klicks für dein Windows-Word stehen jeweils darunter.</div>'+
+    STATIONEN.map(function(s, i){ return stationHtml(s, i+1, true); }).join('')+
+    '<h2 style="margin-top:26px">Auffrischen</h2><div class="hinweis">Kurze Hilfen zu den Grundlagen – wenn der Einstiegs-Check es empfiehlt oder du unsicher bist.</div>'+
+    AUFFRISCHEN.map(function(s, i){ return stationHtml(s, 'A'+(i+1), false); }).join('');
+  el.onclick = function(e){
+    var kopf = e.target.closest('.skopf'), play = e.target.closest('[data-play]');
+    if(kopf){ var id = kopf.parentNode.getAttribute('data-id'); S.offen = S.offen === id ? null : id; Array.prototype.forEach.call(el.querySelectorAll('.station'), function(x){ x.classList.toggle('offen', x.getAttribute('data-id') === S.offen); if(x.getAttribute('data-id') !== S.offen){ var f = x.querySelector('iframe'); if(f) f.remove(); } }); }
+    if(play){ var v = play.closest('.video'); if(!v.querySelector('iframe')){ var f = document.createElement('iframe'); f.allow = 'fullscreen; encrypted-media; picture-in-picture'; f.allowFullscreen = true; f.referrerPolicy = 'strict-origin-when-cross-origin'; f.src = 'https://www.youtube-nocookie.com/embed/'+VIDEO+'?start='+v.getAttribute('data-start')+'&end='+v.getAttribute('data-end')+'&autoplay=1&rel=0'; v.appendChild(f); } }
+  };
+  el.onchange = function(e){
+    var cb = e.target; if(cb.type !== 'checkbox') return;
+    var karte = cb.closest('.station'), id = karte.getAttribute('data-id');
+    S.c[id] = S.c[id] || []; S.c[id][+cb.getAttribute('data-i')] = cb.checked; sichern();
+    cb.parentNode.classList.toggle('an', cb.checked);
+    var st = STATIONEN.concat(AUFFRISCHEN).filter(function(x){ return x.id === id; })[0], f = fertig(st);
+    karte.classList.toggle('fertig', f);
+    var nr = STATIONEN.indexOf(st) >= 0 ? STATIONEN.indexOf(st)+1 : 'A'+(AUFFRISCHEN.indexOf(st)+1);
+    karte.querySelector('.snr').textContent = f ? '✓' : nr;
+  };
+}
+
+function zAbgabe(el){
+  var total = 0, an = 0, html = '<h2>Abgabe-Check</h2><div class="karte">Geh diese Liste vor jeder Abgabe durch – spätestens vor der Schlussabgabe am <b>Montag, 8. März 2027</b>. Die Punkte entsprechen dem, was im Beurteilungsraster zum Arbeitsdossier zählt.</div>';
+  ABGABE.forEach(function(g, gi){
+    html += '<div class="gruppe">'+esc(g.g)+'</div><div class="checks">'+g.p.map(function(p, i){ var key = gi+'_'+i, on = !!S.a[key]; total++; if(on) an++; return '<label'+(on?' class="an"':'')+'><input type="checkbox" data-k="'+key+'"'+(on?' checked':'')+'><span>'+k(esc(p))+'</span></label>'; }).join('')+'</div>';
+  });
+  el.innerHTML = html + '<div class="karte" style="margin-top:14px"><b id="abStand">'+an+' von '+total+' erledigt</b></div>';
+  el.onchange = function(e){ var cb = e.target; if(cb.type !== 'checkbox') return; S.a[cb.getAttribute('data-k')] = cb.checked; sichern(); cb.parentNode.classList.toggle('an', cb.checked);
+    document.getElementById('abStand').textContent = el.querySelectorAll('input:checked').length+' von '+total+' erledigt'; };
+}
+
+function terminZeilen(){
+  var n = naechsterTermin(false);
+  return TERMINE.map(function(t){ var vorbei = tageBis(t.bis || t.d) < 0; return '<tr class="'+(vorbei?'vorbei':'')+(t===n?' naechste':'')+'"><td style="white-space:nowrap">'+datText(t)+'</td><td><b>'+esc(t.t)+'</b>'+(t.abgabe?' <span class="tag rot">Abgabe</span>':'')+'<br>'+esc(t.z)+'</td><td>'+esc(t.wo)+'</td></tr>'; }).join('');
+}
+function zTermine(el){
+  el.innerHTML = '<h2>Termine SVA '+JAHR+'</h2><div class="karte"><table class="plan"><tr><th>Wann</th><th>Was</th><th>Wo</th></tr>'+terminZeilen()+'</table></div>'+
+    '<div class="hinweis">Rechne mit <b>60 bis 80 Stunden</b> Arbeit. Die Tage in der Schule reichen dafür nicht: Plane auch Zeit in deiner Freizeit ein.</div>';
+}
+
+function zKurz(el){
+  var zeilen = STATIONEN.map(function(s, i){ return '<tr><td>'+(i+1)+'</td><td><b>'+esc(s.t)+'</b></td><td>'+s.weg.map(function(w){ return k(esc(w)); }).join(' ')+'</td><td style="white-space:nowrap">'+s.v[0]+'</td></tr>'; }).join('');
+  el.innerHTML = '<h2>Kurzblatt: Arbeitsdossier in Word</h2><div class="nichtdrucken reihe" style="margin-bottom:10px"><button class="btn" type="button" id="druck">🖨️ Drucken</button><span>Alle Klickwege und Termine auf einen Blick.</span></div>'+
+    '<table class="kb"><tr><th>Nr.</th><th>Station</th><th>So gehts in Word (Windows)</th><th>Video ab</th></tr>'+zeilen+'</table>'+
+    '<h3 style="margin:14px 0 4px">Termine SVA '+JAHR+'</h3><table class="kb">'+TERMINE.map(function(t){ return '<tr><td style="white-space:nowrap">'+datText(t)+'</td><td>'+(t.abgabe?'<b>'+esc(t.t)+'</b>':esc(t.t))+'</td><td>'+esc(t.wo)+'</td></tr>'; }).join('')+'</table>'+
+    '<p>Erklärvideo: youtu.be/'+VIDEO+' · Vorgaben: Blocksatz, Zeilenabstand 1,5, Silbentrennung, Kopf- und Fusszeile, automatische Verzeichnisse · KI nur zum Korrigieren.</p>';
+  document.getElementById('druck').onclick = function(){ window.print(); };
+}
+
+melden();
+zeige(S.v && ANSICHTEN.some(function(a){ return a[0] === S.v; }) ? S.v : 'start');
+</script>
+</body>
+</html>
