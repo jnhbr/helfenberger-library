@@ -2492,7 +2492,15 @@
   .stp-tag.ferien{opacity:.75;}
   .stp-cell.ferien{min-height:44px;border:1px dashed var(--border);background:repeating-linear-gradient(135deg, var(--surface-2) 0 6px, transparent 6px 12px);}
   .stp-cell.termin{outline:2px dashed color-mix(in srgb, var(--c) 70%, transparent);outline-offset:-3px;}
-  .stp-sub.stp-par{font-weight:800;color:color-mix(in srgb, var(--c) 70%, var(--text));}
+  /* Termin parallel zur Lektion: das Feld ist zweigeteilt – eine Hälfte das Fach, die andere der Termin.
+     In der Tagesliste (Handy) nebeneinander, im Wochenraster übereinander (dort sind die Felder schmal). */
+  .stp-doppel{flex:1;min-width:0;display:flex;gap:4px;}
+  .stp-doppel > .stp-cell{flex:1 1 0;padding:7px 7px;}
+  .stp-doppel .stp-img, .stp-doppel .stp-dot{display:none;}
+  .stp-doppel .stp-name{white-space:normal;line-height:1.15;hyphens:auto;-webkit-hyphens:auto;overflow-wrap:break-word;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;}
+  .stp-grid .stp-doppel{flex-direction:column;}
+  .stp-grid .stp-doppel > .stp-cell{flex:1 1 auto;min-height:40px;padding:5px 8px;}
+  .stp-grid .stp-doppel .stp-name{-webkit-line-clamp:1;}
   .stp-par-check{align-items:flex-start;background:color-mix(in srgb, #4361EE 10%, var(--surface));}
   .stp-par-check small{display:block;font-weight:500;font-size:12.5px;color:var(--text-muted);}
   .stp-tagchip{flex:1;border:none;border-radius:12px;padding:9px 0;font-weight:800;font-size:14px;cursor:pointer;color:var(--tc);background:color-mix(in srgb, var(--tc) 12%, var(--surface));position:relative;}
@@ -18308,7 +18316,7 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
-  {id:'2026-10-05-termin-parallel', datum:'2026-10-05', fuer:'lehrer', text:'↔️ Termin parallel zur Lektion: Müssen nur einige Schüler:innen weg (z. B. Zahnarzt-Kontrolle, Berufsberatung, Probe), hakst du beim «📌 Termin» neu «Parallel zur Lektion» an. Die Lektion bleibt im Stundenplan stehen, der Termin steht mit ↔️ darunter – auch bei der Klasse und in «Jetzt / Als Nächstes».'},
+  {id:'2026-10-05-termin-parallel', datum:'2026-10-05', fuer:'lehrer', text:'↔️ Termin parallel zur Lektion: Müssen nur einige Schüler:innen weg (z. B. Zahnarzt-Kontrolle, Berufsberatung, Probe), hakst du beim «📌 Termin» neu «Parallel zur Lektion» an. Das Lektionsfeld ist dann zweigeteilt: eine Hälfte das Fach, die andere der Termin – auch im Stundenplan der Klasse.'},
   {id:'2026-10-05-handy-symbole', datum:'2026-10-05', fuer:'alle', text:'📱 Handy: Hast du viele Symbole in der Leiste oder «Mehr» offen, gehen sie jetzt auf eine weitere Zeile, statt abgeschnitten zu werden.'},
   {id:'2026-10-05-hilfe-bot', datum:'2026-10-05', fuer:'alle', text:'💬 Neu: die Library-Hilfe. Tipp in der Leiste auf das Logo der Sekundarschule Altnau – das blaue Männchen steht auf und beantwortet deine Fragen zur Bedienung (z. B. «Wo sehe ich meine Hausaufgaben?»). Zur Startseite kommst du weiterhin über «Start» oder den Titel «Helfenberger\'s Library».'},
   {id:'2026-10-05-millionaer', datum:'2026-10-05', fuer:'lehrer', text:'💰 Neues Spiel «Wer wird Millionär» (Klassenzimmer › Live mit der Klasse): Die Klasse spielt gemeinsam. Beim Eröffnen erscheint eine Wartelobby mit der ganzen Klasse – du siehst, wer eingeloggt ist und wer noch fehlt (auf den Schülergeräten geht das Spiel von selbst auf). Die Frage steht am Beamer, alle stimmen still auf dem eigenen Gerät ab, der Zwischenstand bleibt verdeckt – gewählt ist, was die Mehrheit tippt. Bei Gleichstand gibt es eine Stichwahl unter den meistgewählten Antworten; steht es dann immer noch gleich, bekommt ein zufällig gezogenes Kind das Veto und entscheidet allein. Falsche Antworten kosten ein Leben, dazu gibt es die Joker 50:50, Frage tauschen und Zweite Chance. Fragen: eigene Sets mit Stufen (leicht, mittel, schwer), jedes Klassen-Quiz, jede Übung, aus der sich auch eine Prüfung machen lässt (inkl. Karteikarten), oder ein Import als Text bzw. JSON-Datei. Millionär-Sets lassen sich wie Quizze im Fach-Ordner ablegen.'},
@@ -37334,8 +37342,8 @@ function paintWidgetDrawer(){
        progress/{uid}/einstellungen/stundenplanTermine -> {termine:{'YYYY-MM-DD':{slot:{t,zi,frei,kl}}}} eigene
        klassen/{k}/klasseninfo/stundenplanTermine      -> {termine:{…:{slot:{t,zi,frei,lp}}}} für die ganze Klasse
      (slot = Zeilen-ID wie im Zellen-Key; kl im eigenen Termin = auch in diese Klasse geschrieben).
-     par:true = parallel zur Lektion: nur einige sind weg, die Lektion bleibt stehen und der
-     Termin steht als Zeile darunter.
+     par:true = parallel zur Lektion: nur einige sind weg, das Feld ist zweigeteilt
+     (.stp-doppel: eine Hälfte die Lektion, die andere der Termin).
      Eigene Dokumente, per setDoc mit merge — der Wochenplan überschreibt sie so nie. */
 
 var STP_TAGE = ['Mo','Di','Mi','Do','Fr'];
@@ -37747,7 +37755,9 @@ function stpZeichnen(){
     var key = stpKey(tag, z.s), a = am(tag, z), c = a.c, info = stpInfo(c);
     var istJetzt = tag === heute && jetzt >= stpMin(z.von) && jetzt < stpMin(z.bis) && !stpLeer(c) && !c.frei;
     var eigen = !a.termin && !a.ferien && plan.eigen && plan.eigen(key);
-    var cls = 'stp-cell' + (info ? '' : (c && c.frei ? ' frei' : ' leer')) + (a.ferien ? ' ferien' : '') + (a.termin ? ' termin' : '') + (istJetzt ? ' jetzt' : '') + (eigen ? ' eigen' : '') + (stp.bearbeiten ? ' edit' : '') + ((a.termin || (info && info.fachId)) && !stp.bearbeiten ? ' link' : '');
+    // Parallel-Termin: das Fach behält sein eigenes (halbes) Feld, der Termin steht im zweiten daneben.
+    var tmHier = a.termin && !a.par;
+    var cls = 'stp-cell' + (info ? '' : (c && c.frei ? ' frei' : ' leer')) + (a.ferien ? ' ferien' : '') + (tmHier ? ' termin' : '') + (istJetzt ? ' jetzt' : '') + (eigen ? ' eigen' : '') + (stp.bearbeiten ? ' edit' : '') + ((tmHier || (info && info.fachId)) && !stp.bearbeiten ? ' link' : '');
     var st = info ? ' style="--c:'+info.color+'"' : '';
     var inner = '';
     if(info){
@@ -37755,7 +37765,6 @@ function stpZeichnen(){
       inner += '<span class="stp-txt"><span class="stp-name">'+esc(info.name)+'</span>';
       var sub = [c.kl ? '👥 '+c.kl : '', c.zi ? '📍 '+c.zi : '', c.lp || ''].filter(Boolean).join(' · ');
       if(sub) inner += '<span class="stp-sub">'+esc(sub)+'</span>';
-      if(a.par) inner += '<span class="stp-sub stp-par">↔️ '+esc(a.termin.c.t || 'Termin')+'</span>';
       inner += '</span>';
     } else if(c && c.frei){
       inner += '<span class="stp-txt"><span class="stp-name">🌴 '+(a.termin ? 'Fällt aus' : 'Frei')+'</span>'+(a.termin && c.t ? '<span class="stp-sub">'+esc(c.t)+'</span>' : '')+'</span>';
@@ -37764,10 +37773,15 @@ function stpZeichnen(){
     } else if(a.ferien){
       inner += '<span class="stp-plus" title="'+esc(a.ferien.label)+'">'+a.ferien.icon+'</span>';
     }
-    if(a.termin) inner += '<span class="stp-eigen-tag" title="Nur diese Woche">📌</span>';
+    if(tmHier) inner += '<span class="stp-eigen-tag" title="Nur diese Woche">📌</span>';
     if(istJetzt) inner += '<span class="stp-jetzt-tag">JETZT</span>';
     if(eigen) inner += '<span class="stp-eigen-tag" title="Von dir geändert">✎</span>';
-    return '<button type="button" class="'+cls+'"'+st+' data-k="'+key+'">'+inner+'</button>';
+    var feld = '<button type="button" class="'+cls+'"'+st+' data-k="'+key+'">'+inner+'</button>';
+    if(!a.par) return feld;
+    var tc = a.termin.c, ti = stpInfo(tc);
+    return '<div class="stp-doppel">'+feld+
+      '<button type="button" class="stp-cell termin'+(stp.bearbeiten ? ' edit' : ' link')+'"'+(ti ? ' style="--c:'+ti.color+'"' : '')+' data-k="'+key+'" data-tm="1" title="Parallel zur Lektion – nur diese Woche">'+
+      '<span class="stp-txt"><span class="stp-name">📌 '+esc(tc.t || 'Termin')+'</span>'+(tc.zi ? '<span class="stp-sub">📍 '+esc(tc.zi)+'</span>' : '')+'</span></button></div>';
   }
   function pause(j){
     if(j === 0) return '';
@@ -37865,7 +37879,7 @@ function stpZeichnen(){
       var tg = parseInt(key, 10), zl = zeilen.find(function(x){ return stpKey(tg, x.s) === key; });
       if(!zl) return;
       var a = am(tg, zl);
-      if(a.termin){
+      if(a.termin && (!a.par || b.hasAttribute('data-tm'))){
         var tc = a.termin.c;
         var pi = a.par ? stpInfo(a.c) : null;
         uiInfo(stpTerminTitel(tc), [STP_TAGE_LANG[tg]+', '+stpDatumKurz(stpDatum(tg)), zl.von+' – '+zl.bis, tc.zi ? '📍 '+tc.zi : '', pi ? '↔️ parallel zu '+pi.name+' – für alle anderen findet die Lektion normal statt' : '', tc.kl ? 'auch für die Klasse '+tc.kl : '', !a.termin.eigen && tc.lp ? 'eingetragen von '+tc.lp : ''].filter(Boolean).join(' · '));
