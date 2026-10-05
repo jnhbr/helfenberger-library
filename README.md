@@ -246,6 +246,10 @@ Zwischenlager in Firestore (`klassen/{k}/briefkaesten/{id}/abgaben/{aid}/chunks`
   `admin/briefkasten-abholen.js`; Ziel `~/Desktop/Altnau/Fächer/<Fach>/Abgaben/<Ordner>/`, Einstellungen in
   `~/Library/Application Support/LibraryBriefkasten/config.json`). `status`, `jetzt`, `uninstall` siehe Skript.
 
+Optionen pro Briefkasten: «📁 Eigener Ordner pro Schüler:in» (`proPerson`: `<Ordner>/<Vorname>/<Originalname>`, Dateien sammeln
+sich, nur gleiche Dateinamen werden ersetzt) und – wo der Dienst läuft – ein frei wählbarer Zielpfad
+(`lehrer/{uid}/briefkaesten/{bid}.pfad`; ändert er sich, zieht der Dienst den Ordner um).
+
 Ablage: `<Vorname>_<Originalname>`, frühere Fassungen derselben Person in `_Backup/` mit Zeitstempel,
 `_Backup/briefkasten-stand.json` merkt sich, wer welche Dateien hat. Beide Wege teilen diese Logik – bei Änderungen
 `bkLeerenLauf` (index.html) und `ablegen` (briefkasten-abholen.js) gleich halten.

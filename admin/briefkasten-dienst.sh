@@ -42,7 +42,9 @@ EOF
     fi
     if [ ! -d "$ZIEL/node_modules/firebase-admin" ]; then
       (cd "$ZIEL" && [ -f package.json ] || echo '{"name":"library-briefkasten","private":true}' > "$ZIEL/package.json")
-      (cd "$ZIEL" && npm install --no-audit --no-fund firebase-admin@12 >/dev/null)
+      # Eigener Cache: der normale npm-Cache hatte auf Jans Mac Dateien mit falschen Rechten.
+      (cd "$ZIEL" && npm install --no-audit --no-fund --cache "$ZIEL/.npm-cache" firebase-admin@12 >/dev/null)
+      rm -rf "$ZIEL/.npm-cache"
     fi
     cat > "$PLIST" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>

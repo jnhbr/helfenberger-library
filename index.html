@@ -407,6 +407,8 @@
   .bk-typen{display:flex;flex-wrap:wrap;gap:6px 14px;margin:0 0 16px;font-size:13.5px;}
   .bk-typen label,.bk-haken{display:flex;align-items:center;gap:6px;font-size:13.5px;}
   .bk-haken{margin:0 0 12px;}
+  .modal .bk-haken-hinweis{margin:-6px 0 14px 24px;}
+  .modal .bk-pfad-hinweis{margin:-10px 0 14px;}
   .bk-reihe{display:flex;gap:10px;}
   .bk-reihe > *{flex:1;min-width:0;}
   .modal input[type=time]{width:100%;padding:11px 13px;border:1px solid var(--border);border-radius:10px;font:inherit;background:var(--surface-2);color:var(--text);margin-bottom:16px;}
@@ -11501,13 +11503,16 @@ function openTodoEditor(t){
                                                            ownerUid, ownerName, gruppeId, gruppeName, kalenderId}
      klassen/{k}/briefkaesten/{bid}/abgaben/{uid}_{zufall} {uid, am, abgeholt, dateien:[{n,g,c}], chunkCount, groesse}  (Quittung)
      klassen/{k}/briefkaesten/{bid}/abgaben/{aid}/chunks/{i} {bin}  (Inhalt, nur die Lehrperson des Briefkastens liest ihn)
-     lehrer/{uid}/briefkaesten/{bid}                       {klasse, titel}  Verzeichnis für den Abhol-Dienst
+     lehrer/{uid}/briefkaesten/{bid}                       {klasse, titel, pfad}  Verzeichnis für den Abhol-Dienst; pfad = eigener Zielordner
+     lehrer/{uid}/briefkaesten/_dienst                     {basis, muster, faecher}  meldet der Dienst, damit der Dialog den Zielpfad zeigt
    Schüler:innen können nach dem Einwurf nichts mehr öffnen (Regeln), nur die
    Quittung sehen und bis zur Frist neu einwerfen. Abholen:
      - Jans Mac: admin/briefkasten-abholen.js (launchd, alle paar Minuten)
      - alle anderen: Knopf «📬 Leeren» (File System Access API, Chrome/Edge)
    Beide legen ab unter <Fach>/…/<ordner>/<Vorname>_<Originalname>, schieben die
-   frühere Fassung derselben Person nach _Backup/ (mit Zeitstempel), führen
+   frühere Fassung derselben Person nach _Backup/ (mit Zeitstempel) — bzw. mit
+   proPerson:true unter <ordner>/<Vorname>/<Originalname>, wo sich die Dateien
+   sammeln und nur gleiche Dateinamen ersetzt werden (<Vorname>/_Backup/) —, führen
    _Backup/briefkasten-stand.json nach, löschen die chunks und setzen abgeholt.
    Die Ablage-Logik (Namen, Backup, Stand-Datei) muss in beiden gleich bleiben. */
 const BK_TYPEN = [
@@ -11662,7 +11667,7 @@ function bkKarteHtml(x){
   var b = x.bk, meiner = bkIstMeiner(b), isTeacher = state.profile.role === 'teacher';
   var zu = bkZustand(b, state.user.uid) === 'zu';
   var sub = (b.frist ? 'Leerung: '+esc(bkZeitText(b.frist))+(b.fristArt === 'spaet' ? ' (danach verspätet)' : '') : 'Ohne Frist')+
-    ' · '+esc(bkTypenText(b));
+    ' · '+esc(bkTypenText(b))+(b.proPerson && isTeacher ? ' · 📁 Ordner pro Person' : '');
   var h = '<div class="bk-card'+(zu ? ' bk-zu' : '')+'" id="bk-'+esc(b.id)+'">'+
     '<span class="bk-mini" aria-hidden="true">'+bkSvg({mini:true, zu:zu})+'</span>'+
     '<div class="resource-info"><h4>'+esc(b.titel)+
@@ -11733,7 +11738,9 @@ function bkEinwurfDialog(klasse, bk){
           '<input type="file" id="bkDatei" multiple'+(accept ? ' accept="'+esc(accept)+'"' : '')+' hidden>'+
           '<div class="bk-knoepfe"><button class="btn btn-ghost btn-sm" id="bkWaehlen" type="button">📄 Dateien wählen</button>'+
           '<button class="btn btn-primary btn-sm" id="bkEinwerfen" type="button" disabled>📮 Einwerfen</button></div>'+
-          '<p class="bk-zeile bk-klein">Oder zieh die Dateien auf den Briefkasten. Nach dem Einwurf kannst du sie hier nicht mehr öffnen. Bis zur Leerung darfst du neu einwerfen, dann zählt die neue Abgabe.</p>'+
+          '<p class="bk-zeile bk-klein">Oder zieh die Dateien auf den Briefkasten. Nach dem Einwurf kannst du sie hier nicht mehr öffnen. '+
+            (bk.proPerson ? 'Du kannst mehrmals einwerfen, alles kommt in deinen Ordner. Wirfst du eine Datei mit gleichem Namen nochmals ein, ersetzt sie die frühere.'
+              : 'Bis zur Leerung darfst du neu einwerfen, dann zählt die neue Abgabe.')+'</p>'+
           '<div class="bk-balken" id="bkBalken"><div></div></div>')+
         (nurAnsicht ? '<p class="bk-zeile bk-klein">Vorschau: So sieht die Klasse den Briefkasten.</p>' : '')+
         '<div class="login-err" id="bkErr"></div>'+
@@ -11752,6 +11759,12 @@ function bkEinwurfDialog(klasse, bk){
       if(!quittungEl.isConnected) return;
       if(!liste.length){ quittungEl.innerHTML = ''; return; }
       var a = liste[0];
+      if(bk.proPerson){
+        var alle = bkDateienGesamt(liste);
+        quittungEl.innerHTML = '<div class="bk-quittung"><b>✓ Zuletzt eingeworfen am '+esc(bkZeitText(bkMs(a.am)))+'</b><br>'+
+          'In deinem Ordner: '+alle.length+' Datei'+(alle.length === 1 ? '' : 'en')+' ('+alle.slice(0, 12).map(esc).join(', ')+(alle.length > 12 ? ' und '+(alle.length - 12)+' weitere' : '')+')</div>';
+        return;
+      }
       quittungEl.innerHTML = '<div class="bk-quittung"><b>✓ Eingeworfen am '+esc(bkZeitText(bkMs(a.am)))+'</b><br>'+
         (a.dateien || []).map(function(f){ return esc(f.n); }).join(', ')+
         (liste.length > 1 ? '<br>'+liste.length+'. Fassung, die früheren sind ersetzt.' : '')+'</div>';
@@ -11829,6 +11842,15 @@ function bkEinwurfDialog(klasse, bk){
     zeichnen();
   });
 }
+// «Ordner pro Person»: alle bisher eingeworfenen Dateinamen einer Person (gleicher Name zählt einmal).
+function bkDateienGesamt(abgaben){
+  var da = {}, out = [];
+  abgaben.forEach(function(a){ (a.dateien || []).forEach(function(f){
+    var k = (bkSicher(f.n) || 'Datei').toLowerCase();
+    if(!da[k]){ da[k] = true; out.push(f.n); }
+  }); });
+  return out.sort(function(x, y){ return x.localeCompare(y, 'de'); });
+}
 // Lädt die Dateien hoch: zuerst die chunks, zuletzt die Quittung — erst mit ihr gilt
 // der Einwurf (die Abholung sieht nur vollständige Einwürfe).
 async function bkEinwerfen(klasse, bk, files, fortschritt){
@@ -11865,10 +11887,15 @@ function bkEditor(existing){
     '<p>'+esc(s.name)+': Die Klasse wirft hier Dateien ein. Du holst sie ab, danach liegen sie nur noch bei dir.</p>'+
     '<label class="modal-label">Titel</label><input type="text" id="bkTitel" maxlength="80" value="'+esc(existing ? existing.titel : '')+'" placeholder="z. B. Schienen Blatt 3">'+
     '<label class="modal-label">Ordner auf deinem Computer</label><input type="text" id="bkOrdner" maxlength="80" value="'+esc(ordnerVon)+'" placeholder="So heisst der Ordner mit den Abgaben">'+
+    '<div id="bkPfadBox" style="display:none;"><label class="modal-label">Genauer Pfad auf deinem Mac (Abhol-Dienst)</label>'+
+      '<input type="text" id="bkPfad" maxlength="300" spellcheck="false" autocapitalize="off" autocomplete="off">'+
+      '<p class="bk-klein bk-pfad-hinweis">Der Abhol-Dienst legt die Abgaben genau in diesem Ordner ab. Änderst du den Pfad später, zieht der Ordner mit um.</p></div>'+
     '<label class="modal-label">Für</label><select id="bkFuer"><option value="">Ganze Seite '+esc(klasseLabel())+'</option></select>'+
     '<label class="modal-label">Erlaubte Dateien</label><div class="bk-typen" id="bkTypen">'+BK_TYPEN.map(function(t){
       return '<label><input type="checkbox" value="'+t.id+'"'+(typen.indexOf(t.id) >= 0 ? ' checked' : '')+'> '+esc(t.label)+'</label>';
     }).join('')+'</div>'+
+    '<label class="bk-haken"><input type="checkbox" id="bkProPerson"'+(existing && existing.proPerson ? ' checked' : '')+'> 📁 Eigener Ordner pro Schüler:in (bei vielen Dateien)</label>'+
+    '<p class="bk-klein bk-haken-hinweis">Jede Person bekommt in deinem Ordner einen Unterordner mit ihrem Namen und sammelt dort ihre Dateien. Wirft sie eine Datei mit gleichem Namen neu ein, ersetzt diese die frühere Fassung; alle anderen Dateien bleiben.</p>'+
     '<label class="bk-haken"><input type="checkbox" id="bkHatFrist"'+(hatFrist ? ' checked' : '')+'> Mit Abgabefrist (Leerung)</label>'+
     '<div id="bkFristBox">'+
       '<div class="bk-reihe"><input type="date" id="bkDatum" value="'+esc(localDateStr(fristD))+'"><input type="time" id="bkUhr" value="'+pad2(fristD.getHours())+':'+pad2(fristD.getMinutes())+'"></div>'+
@@ -11888,8 +11915,30 @@ function bkEditor(existing){
   var hatFristEl = document.getElementById('bkHatFrist'), fristBox = document.getElementById('bkFristBox');
   var ordnerFolgt = !existing;
   titelEl.focus();
-  titelEl.addEventListener('input', function(){ if(ordnerFolgt) ordnerEl.value = bkSicher(titelEl.value); });
-  ordnerEl.addEventListener('input', function(){ ordnerFolgt = false; });
+  // Zielpfad des Abhol-Dienstes (nur wo einer läuft: er meldet Basis/Muster/Fach-Ordner in
+  // lehrer/{uid}/briefkaesten/_dienst). Ein abweichender Pfad steht im Verzeichnis-Eintrag
+  // (nicht im Briefkasten selbst – den liest auch die Klasse).
+  var pfadEl = document.getElementById('bkPfad'), dienst = null, pfadFolgt = true;
+  function pfadStandard(){
+    if(!dienst) return '';
+    var fach = (dienst.faecher || {})[subjectId] || bkSicher(s.name) || 'Fach';
+    return String(dienst.basis || '').replace(/\/+$/, '')+'/'+String(dienst.muster || '{fach}/Abgaben/{ordner}')
+      .replace('{fach}', fach).replace('{ordner}', bkSicher(ordnerEl.value || titelEl.value) || 'Briefkasten');
+  }
+  function pfadNachziehen(){ if(dienst && pfadFolgt) pfadEl.value = pfadStandard(); }
+  pfadEl.addEventListener('input', function(){ pfadFolgt = false; });
+  if(!existing || bkIstMeiner(existing)){
+    var verz = collection(db, 'lehrer', state.user.uid, 'briefkaesten');
+    Promise.all([getDoc(doc(verz, '_dienst')), existing ? getDoc(doc(verz, existing.id)) : null]).then(function(r){
+      if(!r[0].exists() || !pfadEl.isConnected) return;
+      dienst = r[0].data();
+      document.getElementById('bkPfadBox').style.display = '';
+      var eigen = r[1] && r[1].exists() ? (r[1].data().pfad || '') : '';
+      if(eigen){ pfadEl.value = eigen; pfadFolgt = false; } else pfadNachziehen();
+    }).catch(function(err){ console.warn('Briefkasten-Dienst', err); });
+  }
+  titelEl.addEventListener('input', function(){ if(ordnerFolgt) ordnerEl.value = bkSicher(titelEl.value); pfadNachziehen(); });
+  ordnerEl.addEventListener('input', function(){ ordnerFolgt = false; pfadNachziehen(); });
   function fristZeigen(){ fristBox.style.display = hatFristEl.checked ? '' : 'none'; }
   hatFristEl.addEventListener('change', fristZeigen); fristZeigen();
   // «Alle Dateien» schliesst die einzelnen Arten aus und umgekehrt.
@@ -11925,6 +11974,12 @@ function bkEditor(existing){
       var p = dt.split('-').map(Number), u = uhr.split(':').map(Number);
       frist = new Date(p[0], p[1]-1, p[2], u[0], u[1], 0, 0).getTime();
     }
+    var verzEintrag = { klasse: state.klasse, titel: titel.slice(0, 80) };
+    if(dienst){
+      var pv = pfadEl.value.trim().replace(/\/+$/, '');
+      if(pv && !/^(~\/|\/Users\/)./.test(pv)) return fehler('Der Pfad muss in deinem Benutzerordner liegen, also mit ~/ beginnen (z. B. ~/Desktop/Altnau/Fächer/GTZ/Abgaben/Schienen).', pfadEl);
+      verzEintrag.pfad = pv && pv !== pfadStandard() ? pv : '';
+    }
     var gruppe = meineGruppen.filter(function(g){ return g.id === fuerEl.value; })[0] || null;
     var id = existing ? existing.id : 'bk_'+Date.now()+'_'+bkZufall(6);
     var mitKalender = !!frist && document.getElementById('bkKalender').checked;
@@ -11934,6 +11989,7 @@ function bkEditor(existing){
       frist: frist, fristArt: frist ? document.getElementById('bkFristArt').value : 'hart',
       offen: existing ? document.getElementById('bkOffen').checked : true,
       gruppeId: gruppe ? gruppe.id : null, gruppeName: gruppe ? gruppe.name : '',
+      proPerson: document.getElementById('bkProPerson').checked,
       kalenderId: kalenderId, updatedAt: serverTimestamp()
     };
     if(!existing){
@@ -11945,7 +12001,7 @@ function bkEditor(existing){
     try{
       if(existing) await setDoc(bkRef(state.klasse, id), data, {merge:true});
       else await setDoc(bkRef(state.klasse, id), data);
-      await setDoc(doc(db, 'lehrer', existing ? existing.ownerUid : state.user.uid, 'briefkaesten', id), { klasse: state.klasse, titel: data.titel })
+      await setDoc(doc(db, 'lehrer', existing ? existing.ownerUid : state.user.uid, 'briefkaesten', id), verzEintrag, {merge:true})
         .catch(function(err){ console.warn('Briefkasten-Verzeichnis', err); });
       if(mitKalender){
         var eintrag = { type:'abgabe', subject:subjectId, title:data.titel, description:'📮 Abgabe über den Briefkasten in der Library', dueDate:localDateStr(new Date(frist)),
@@ -12043,8 +12099,9 @@ function bkAbgabenDialog(klasse, bk){
       var l = (proUid[p.uid] || []).sort(function(a, b){ return bkMs(b.am) - bkMs(a.am); });
       var a = l[0], txt;
       if(a){
-        txt = '<span class="bk-ok">✓ '+esc(bkZeitText(bkMs(a.am)))+'</span> · '+(a.dateien || []).length+' Datei'+((a.dateien || []).length === 1 ? '' : 'en')+
-          (l.length > 1 ? ' · '+l.length+'. Fassung' : '')+
+        var nDat = bk.proPerson ? bkDateienGesamt(l).length : (a.dateien || []).length;
+        txt = '<span class="bk-ok">✓ '+esc(bkZeitText(bkMs(a.am)))+'</span> · '+nDat+' Datei'+(nDat === 1 ? '' : 'en')+
+          (l.length > 1 ? ' · '+(bk.proPerson ? l.length+' Einwürfe' : l.length+'. Fassung') : '')+
           ((a.spaet != null ? a.spaet : bkIstSpaet(bk, a)) ? ' · <span class="bk-warn">verspätet</span>' : '')+
           (a.abgeholt ? ' · 📁 abgeholt' : ' · 📬 im Briefkasten');
       } else txt = '<span class="muted">noch nichts</span>';
@@ -12127,6 +12184,16 @@ async function bkDateiSchreiben(dir, name, teile){
   for(var i = 0; i < teile.length; i++) await w.write(teile[i]);
   await w.close();
 }
+// Schiebt eine Datei mit Zeitstempel im Namen in den Backup-Ordner (kopieren + entfernen).
+async function bkInsBackup(von, name, backup, am){
+  var fh;
+  try{ fh = await von.getFileHandle(name); }catch(e){ return false; }
+  var t = bkTeilen(name);
+  var ziel = await bkFreierName(backup, t[0]+'_'+bkStempel(am)+t[1]);
+  await bkDateiSchreiben(backup, ziel, [await fh.getFile()]);
+  await von.removeEntry(name);
+  return true;
+}
 async function bkStandLesen(backup){
   try{
     var fh = await backup.getFileHandle('briefkasten-stand.json');
@@ -12204,29 +12271,43 @@ async function bkLeerenLauf(klasse, bk, basis, melde){
     if(!ganz){ res.fehler++; continue; }
     var label = await bkLabel(stand, a.uid);
     var spaet = bkIstSpaet(bk, a);
-    var alt = stand.personen[a.uid];
-    if(alt && (alt.dateien || []).length){
-      var st = bkStempel(alt.am), verschoben = false;
-      for(var j = 0; j < alt.dateien.length; j++){
-        var altName = alt.dateien[j], fh;
-        try{ fh = await dir.getFileHandle(altName); }catch(e){ continue; }
-        var t = bkTeilen(altName);
-        var ziel = await bkFreierName(backup, t[0]+'_'+st+t[1]);
-        await bkDateiSchreiben(backup, ziel, [await fh.getFile()]);
-        await dir.removeEntry(altName);
-        verschoben = true;
+    var alt = stand.personen[a.uid], namen = [], pos = 0, verschoben = false, f, df;
+    if(bk.proPerson){
+      // 📁 Ordner pro Person: Dateien sammeln sich in <Name>/, nur gleiche Dateinamen werden ersetzt.
+      var pdir = await dir.getDirectoryHandle(label, {create:true});
+      var pro = (alt && alt.proDatei) || {}, gesehen = {};
+      for(f = 0; f < (a.dateien || []).length; f++){
+        df = a.dateien[f];
+        var roh = bkSicher(df.n) || 'Datei', key = roh.toLowerCase(), z = 2;
+        while(gesehen[key]) key = roh.toLowerCase()+'#'+(z++);
+        gesehen[key] = true;
+        var vor = pro[key];
+        if(vor && await bkInsBackup(pdir, vor.name, await pdir.getDirectoryHandle('_Backup', {create:true}), vor.am)) verschoben = true;
+        var tr = bkTeilen(roh);
+        var pname = await bkFreierName(pdir, tr[0]+(spaet ? ' (verspätet)' : '')+tr[1]);
+        await bkDateiSchreiben(pdir, pname, teile.slice(pos, pos + df.c));
+        pos += df.c;
+        pro[key] = { name:pname, am:bkMs(a.am) };
       }
-      if(verschoben) res.ersetzt++;
+      stand.personen[a.uid] = { label:label, aid:a.id, am:bkMs(a.am), spaet:spaet, proDatei:pro,
+        dateien:Object.keys(pro).map(function(k){ return pro[k].name; }) };
+    } else {
+      // Flach: der neue Einwurf ersetzt den ganzen früheren Einwurf der Person.
+      if(alt && !alt.proDatei){
+        for(var j = 0; j < (alt.dateien || []).length; j++){
+          if(await bkInsBackup(dir, alt.dateien[j], backup, alt.am)) verschoben = true;
+        }
+      }
+      for(f = 0; f < (a.dateien || []).length; f++){
+        df = a.dateien[f];
+        var name = await bkFreierName(dir, bkLokalName(label, df.n, spaet));
+        await bkDateiSchreiben(dir, name, teile.slice(pos, pos + df.c));
+        pos += df.c;
+        namen.push(name);
+      }
+      stand.personen[a.uid] = { label:label, aid:a.id, am:bkMs(a.am), dateien:namen, spaet:spaet };
     }
-    var namen = [], pos = 0;
-    for(var f = 0; f < (a.dateien || []).length; f++){
-      var df = a.dateien[f];
-      var name = await bkFreierName(dir, bkLokalName(label, df.n, spaet));
-      await bkDateiSchreiben(dir, name, teile.slice(pos, pos + df.c));
-      pos += df.c;
-      namen.push(name);
-    }
-    stand.personen[a.uid] = { label:label, aid:a.id, am:bkMs(a.am), dateien:namen, spaet:spaet };
+    if(verschoben) res.ersetzt++;
     stand.briefkasten = bk.id; stand.titel = bk.titel;
     await bkDateiSchreiben(backup, 'briefkasten-stand.json', [JSON.stringify(stand, null, 2)]);
     var batch = fsWriteBatch(db);
@@ -19143,6 +19224,7 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-10-05-briefkasten-ordner', datum:'2026-10-05', fuer:'lehrer', text:'📁 Briefkasten mit Ordner pro Schüler:in: Geben deine Schüler:innen viele Dateien ab (z. B. GTZ), hakst du beim Aufstellen oder Bearbeiten «Eigener Ordner pro Schüler:in» an. Jede Person bekommt dann in deinem Abgabe-Ordner einen Unterordner mit ihrem Namen und sammelt dort ihre Dateien. Wirft sie eine Datei mit gleichem Namen neu ein, wandert die frühere Fassung in ihren «_Backup»-Ordner, alle anderen Dateien bleiben.'},
   {id:'2026-10-05-briefkasten-sus', datum:'2026-10-05', fuer:'alle', text:'📮 Neu: der Briefkasten. Musst du eine Datei abgeben, steht im Fach ein gelber Briefkasten. Tipp auf «Einwerfen», wähl deine Dateien (oder zieh sie auf den Briefkasten) und wirf sie ein. Du siehst danach, wann du abgegeben hast – öffnen kannst du die Datei dort nicht mehr. Bis zur Leerung darfst du neu einwerfen, dann zählt die neue Abgabe.'},
   {id:'2026-10-05-briefkasten-lp', datum:'2026-10-05', fuer:'lehrer', text:'📮 Neu: Briefkasten für Datei-Abgaben (statt Teams). Im Fach auf «📮 Briefkasten aufstellen»: Titel, Ordnername auf deinem Computer, erlaubte Dateien (PDF, AutoCAD, Bilder …), auf Wunsch eine Frist – danach ist er zu oder Einwürfe werden als «verspätet» markiert – und ein Eintrag im Kalender. Mit «📬 Leeren» (Chrome oder Edge am Computer) landen die Abgaben in einem Ordner auf deinem Computer, als «Vorname_Dateiname»; wirft jemand neu ein, wandert die alte Fassung in den Ordner «_Backup». In der Library bleibt nach dem Leeren nur, wer wann abgegeben hat. Unter «👥 Abgaben» siehst du, wer fehlt, und verlängerst mit ⏰ die Frist für einzelne.'},
   {id:'2026-10-05-termin-parallel', datum:'2026-10-05', fuer:'lehrer', text:'↔️ Termin parallel zur Lektion: Müssen nur einige Schüler:innen weg (z. B. Zahnarzt-Kontrolle, Berufsberatung, Probe), hakst du beim «📌 Termin» neu «Parallel zur Lektion» an. Das Lektionsfeld ist dann zweigeteilt: eine Hälfte das Fach, die andere der Termin – auch im Stundenplan der Klasse.'},
