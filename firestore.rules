@@ -307,6 +307,93 @@ service cloud.firestore {
       }
     }
 
+    // 📮 Briefkasten (Datei-Abgabe, seit 05.10.2026). Die Klasse und die
+    // 👥 Gruppenmitglieder der Seite sehen den Briefkasten und werfen ein:
+    // abgaben/{uid}_{zufall} (Quittung ohne Inhalt) + chunks/{i} ({bin}).
+    // Den INHALT (chunks) liest nur die Lehrperson, der der Briefkasten gehört —
+    // Schüler:innen können ihre Abgabe nach dem Einwurf nicht mehr öffnen, sie
+    // sehen nur die eigene Quittung. Beim Abholen (Dienst auf dem Mac bzw.
+    // «Leeren» im Browser) werden die chunks gelöscht und abgeholt gesetzt.
+    // Frist: frist (ms) + fristArt 'hart' (danach zu) | 'spaet' (geht weiter,
+    // wird als verspätet markiert); verlaengert.{uid} = ms verlängert einzeln.
+    function bkDaten(klasse, bid) {
+      return get(/databases/$(database)/documents/klassen/$(klasse)/briefkaesten/$(bid)).data;
+    }
+    function bkGehoertMir(klasse, bid) {
+      return isTeacher() && bkDaten(klasse, bid).ownerUid == request.auth.uid;
+    }
+    function bkOffen(klasse, bid) {
+      let b = bkDaten(klasse, bid);
+      return b.get('offen', true) == true
+        && (b.get('frist', null) == null
+            || b.get('fristArt', 'hart') == 'spaet'
+            || request.time.toMillis() < b.frist
+            || request.time.toMillis() < b.get('verlaengert', {}).get(request.auth.uid, 0));
+    }
+    function bkOk() {
+      return request.resource.data.titel is string
+        && request.resource.data.titel.size() > 0 && request.resource.data.titel.size() <= 80
+        && request.resource.data.ordner is string
+        && request.resource.data.ordner.size() > 0 && request.resource.data.ordner.size() <= 80
+        && request.resource.data.subject is string && request.resource.data.subject.size() <= 40
+        && request.resource.data.typen is list && request.resource.data.typen.size() <= 12
+        && request.resource.data.fristArt in ['hart', 'spaet']
+        && (request.resource.data.get('frist', null) == null || request.resource.data.frist is number);
+    }
+    match /klassen/{klasse}/briefkaesten/{bid} {
+      allow read: if inKlasseLesen(klasse) || inGruppeVon(klasse);
+      allow create: if isTeacher() && bkOk()
+        && request.resource.data.ownerUid == request.auth.uid;
+      allow update: if isTeacher() && bkOk()
+        && (resource.data.ownerUid == request.auth.uid || isJan())
+        && request.resource.data.ownerUid == resource.data.ownerUid;
+      // Separat: bei einem delete ist request.resource null.
+      allow delete: if isTeacher() && (resource.data.ownerUid == request.auth.uid || isJan());
+
+      match /abgaben/{aid} {
+        allow read: if bkGehoertMir(klasse, bid)
+          || (isSignedIn() && resource.data.uid == request.auth.uid);
+        allow create: if (inKlasse(klasse) || inGruppeVon(klasse))
+          && aid.matches(request.auth.uid + '_[A-Za-z0-9]{6,24}')
+          && request.resource.data.uid == request.auth.uid
+          && request.resource.data.am == request.time
+          && request.resource.data.abgeholt == false
+          && request.resource.data.dateien is list
+          && request.resource.data.dateien.size() > 0 && request.resource.data.dateien.size() <= 10
+          && request.resource.data.chunkCount is int
+          && request.resource.data.chunkCount > 0 && request.resource.data.chunkCount <= 60
+          && request.resource.data.groesse is int
+          && request.resource.data.keys().hasOnly(['uid', 'am', 'abgeholt', 'dateien', 'chunkCount', 'groesse'])
+          && bkOffen(klasse, bid);
+        // Nur die Lehrperson des Briefkastens: «abgeholt» setzen.
+        allow update: if bkGehoertMir(klasse, bid)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['abgeholt', 'abgeholtAm', 'spaet']);
+        // Separat: bei einem delete ist request.resource null.
+        allow delete: if bkGehoertMir(klasse, bid);
+
+        match /chunks/{cid} {
+          allow read: if bkGehoertMir(klasse, bid);
+          allow create: if (inKlasse(klasse) || inGruppeVon(klasse))
+            && aid.matches(request.auth.uid + '_[A-Za-z0-9]{6,24}')
+            && cid.matches('[0-9]{1,2}')
+            && request.resource.data.bin is bytes
+            && request.resource.data.bin.size() < 950000
+            && request.resource.data.keys().hasOnly(['bin'])
+            && bkOffen(klasse, bid);
+          allow update: if false;
+          // Separat: bei einem delete ist request.resource null.
+          allow delete: if bkGehoertMir(klasse, bid);
+        }
+      }
+    }
+
+    // Verzeichnis der eigenen Briefkästen (über alle Seiten hinweg), damit der
+    // Abhol-Dienst nicht jede Seite durchsuchen muss: lehrer/{uid}/briefkaesten/{bid} = {klasse}.
+    match /lehrer/{uid}/briefkaesten/{bid} {
+      allow read: if isTeacher() && isOwner(uid);
+      allow write: if isTeacher() && isOwner(uid);
+    }
+
     // 👥 Gruppen (pro Lehrperson und Fach, Schüler:innen aus beliebigen Klassen).
     // Lehrpersonen lesen alle, Schüler:innen nur die eigenen (array-contains).
     // Ändern/Löschen nur die Lehrperson, der die Gruppe gehört.

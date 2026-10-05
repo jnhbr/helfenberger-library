@@ -235,3 +235,17 @@ Fallback dienen, falls du z. B. offline testen willst.
 - `node admin/uebung-ersetzen.js --klasse G3b --suche "Text"` bzw. `--id <id> --datei neu.html [--ja]` — Übung/Lehrer-HTML ersetzen wie «Datei ersetzen» in der App (Kopien in allen Klassen mit, vorherige Fassung wiederherstellbar; ohne `--ja` nur Vorschau).
 - `node admin/material-import.js --klasse G3b --datei paket.json [--ordner "Name"] [--ja]` — Material-Paket (Quizze, Blitzumfragen, Wortwolken, Karteikarten) importieren wie «📥 Paket importieren»; nutzt dieselbe Aufbereitung wie die App (aus `index.html`).
 - `node schuljahr.js vorlage|plan|ausfuehren <datei.json> [--ja]` — Schuljahreswechsel (Klassen ziehen weiter, 3. Klassen schliessen ab; macht vorher eine Sicherung).
+
+## 📮 Briefkasten (Datei-Abgabe)
+
+Lehrpersonen stellen im Fach einen Briefkasten auf, Schüler:innen werfen Dateien ein. Die Dateien liegen nur als
+Zwischenlager in Firestore (`klassen/{k}/briefkaesten/{id}/abgaben/{aid}/chunks`), bis die Lehrperson sie abholt:
+
+- **Alle Lehrpersonen:** Knopf «📬 Leeren» in Chrome/Edge (schreibt in einen einmal gewählten Ordner).
+- **Jans Mac, automatisch alle 5 Minuten:** `bash admin/briefkasten-dienst.sh install` (launchd-Dienst mit
+  `admin/briefkasten-abholen.js`; Ziel `~/Desktop/Altnau/Fächer/<Fach>/Abgaben/<Ordner>/`, Einstellungen in
+  `~/Library/Application Support/LibraryBriefkasten/config.json`). `status`, `jetzt`, `uninstall` siehe Skript.
+
+Ablage: `<Vorname>_<Originalname>`, frühere Fassungen derselben Person in `_Backup/` mit Zeitstempel,
+`_Backup/briefkasten-stand.json` merkt sich, wer welche Dateien hat. Beide Wege teilen diese Logik – bei Änderungen
+`bkLeerenLauf` (index.html) und `ablegen` (briefkasten-abholen.js) gleich halten.

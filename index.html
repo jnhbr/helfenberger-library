@@ -367,6 +367,49 @@
   .folder-count{font-size:12px;color:var(--text-muted);margin-top:2px;}
   .folder-actions{display:flex;align-items:center;gap:8px;flex-shrink:0;flex-wrap:wrap;}
   .section-label{font-size:12px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--text-muted);margin:4px 2px -2px;}
+  /* 📮 Briefkasten */
+  .bk-card{background:var(--surface);border:1px solid var(--border);border-left:5px solid #FFCC00;border-radius:var(--radius-sm);padding:12px 18px;box-shadow:var(--shadow);display:flex;align-items:center;gap:16px;flex-wrap:wrap;}
+  .bk-card.bk-zu{border-left-color:var(--border);}
+  .bk-mini{width:44px;flex-shrink:0;}
+  .bk-mini svg{display:block;width:100%;height:auto;}
+  .bk-sub{font-size:13px;color:var(--text-muted);}
+  .bk-ok,.modal .bk-ok{color:var(--good);font-weight:600;}
+  .bk-warn,.modal .bk-warn{color:#B45309;font-weight:600;}
+  .bk-klein{font-size:12.5px;color:var(--text-muted);}
+  .bk-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
+  .bk-buehne{display:flex;gap:26px;align-items:flex-start;flex-wrap:wrap;margin:6px 0 16px;}
+  .bk-kasten{position:relative;width:200px;padding-top:64px;flex-shrink:0;margin:0 auto;cursor:pointer;}
+  .bk-kasten svg{display:block;width:200px;height:auto;transition:filter .15s ease;}
+  .bk-kasten.drag svg{filter:drop-shadow(0 0 12px #FFCC00);}
+  .bk-bahn{position:absolute;left:65px;top:0;width:70px;height:141px;overflow:hidden;pointer-events:none;}
+  .bk-brief{width:70px;height:90px;box-sizing:border-box;padding:12px 9px;background:#fff;border:1px solid #C9CDD8;border-radius:3px;opacity:0;}
+  .bk-brief::before{content:"";display:block;height:100%;background:repeating-linear-gradient(#fff 0 8px,#CCD1DE 8px 10px);}
+  .bk-kasten.einwurf .bk-brief{animation:bkEinwurf 1.3s cubic-bezier(.5,0,.8,.6) forwards;}
+  @keyframes bkEinwurf{0%{opacity:0;transform:translateY(-16px);}18%{opacity:1;transform:translateY(0);}100%{opacity:1;transform:translateY(150px);}}
+  @media (prefers-reduced-motion: reduce){ .bk-kasten.einwurf .bk-brief{animation:none;} }
+  .bk-seite{flex:1;min-width:230px;}
+  .bk-zeile,.modal .bk-zeile{font-size:13.5px;margin:0 0 6px;}
+  .modal .bk-klein{font-size:12.5px;}
+  .bk-knoepfe{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0;}
+  .bk-knoepfe .btn[disabled]{opacity:.45;cursor:default;}
+  .bk-wahl{list-style:none;margin:10px 0;padding:0;display:flex;flex-direction:column;gap:6px;}
+  .bk-wahl li{display:flex;align-items:center;gap:8px;background:var(--surface-2);border-radius:8px;padding:7px 10px;font-size:13px;}
+  .bk-wahl li span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .bk-wahl li small{color:var(--text-muted);white-space:nowrap;}
+  .bk-wahl li.falsch,.bk-wahl li.falsch small{background:var(--bad-soft);color:var(--bad);}
+  .bk-wahl button{border:0;background:none;cursor:pointer;color:inherit;font-size:15px;padding:2px 4px;}
+  .bk-quittung{background:var(--good-soft);color:var(--good);border-radius:10px;padding:9px 12px;font-size:13px;margin:8px 0;overflow-wrap:anywhere;}
+  .bk-balken{height:8px;border-radius:99px;background:var(--surface-2);overflow:hidden;margin:10px 0;display:none;}
+  .bk-balken.an{display:block;}
+  .bk-balken div{height:100%;width:0;background:#FFCC00;transition:width .2s ease;}
+  .bk-tab{width:100%;border-collapse:collapse;font-size:13.5px;margin:8px 0 14px;}
+  .bk-tab td{padding:7px 6px;border-bottom:1px solid var(--border);vertical-align:middle;}
+  .bk-typen{display:flex;flex-wrap:wrap;gap:6px 14px;margin:0 0 16px;font-size:13.5px;}
+  .bk-typen label,.bk-haken{display:flex;align-items:center;gap:6px;font-size:13.5px;}
+  .bk-haken{margin:0 0 12px;}
+  .bk-reihe{display:flex;gap:10px;}
+  .bk-reihe > *{flex:1;min-width:0;}
+  .modal input[type=time]{width:100%;padding:11px 13px;border:1px solid var(--border);border-radius:10px;font:inherit;background:var(--surface-2);color:var(--text);margin-bottom:16px;}
   .zusatz-ordner .folder-glyph{font-size:20px;}
   .zusatz-pfeil{margin-left:auto;font-size:22px;color:var(--text-muted);transition:transform .15s ease;}
   .zusatz-ordner.offen .zusatz-pfeil{transform:rotate(90deg);}
@@ -3677,6 +3720,9 @@ function calendarEntryLineHtml(e, isTeacher, roster){
       ? '<details class="cal-res-menu"><summary>📎 Material ('+links.length+')</summary>'+linksHtml+'</details>'
       : linksHtml;
   }
+  if(e.briefkastenId){
+    html += '<div class="cal-res-links"><button class="btn btn-ghost btn-sm cal-open-res-btn cal-bk-btn" type="button" data-bk="'+esc(e.briefkastenId)+'"'+(e.quelle ? ' data-klasse="'+esc(e.quelle)+'"' : '')+'>📮 '+(isTeacher ? 'Zum Briefkasten' : 'Im Briefkasten einwerfen')+'</button></div>';
+  }
   if(isTeacher && hasSubmissionChecklist(e.type) && roster){
     html += '<button class="btn btn-ghost btn-sm cal-sub-btn" type="button" data-id="'+esc(e.id)+'">☑ '+esc(submittedCountLabel(e, roster))+'</button>';
   }
@@ -4710,6 +4756,15 @@ function wireCalendarResourceLinks(container){
     btn.addEventListener('click', async function(){
       var rid = btn.getAttribute('data-resource-id');
       var quelle = btn.getAttribute('data-klasse');
+      var bid = btn.getAttribute('data-bk');
+      if(bid){   // 📮 Briefkasten statt Übung
+        try{
+          var bs = await getDoc(bkRef(quelle || state.klasse, bid));
+          if(!bs.exists()){ toast('Dieser Briefkasten wurde abgebaut.'); return; }
+          bkOeffnen(quelle || state.klasse, Object.assign({id:bid}, bs.data()));
+        }catch(err){ console.warn(err); toast('Briefkasten konnte nicht geöffnet werden.'); }
+        return;
+      }
       try{
         var snap = await getDoc(quelle ? kdocFor(quelle, 'resources', rid) : kdoc('resources', rid));
         if(!snap.exists() || !fuerRolleSichtbar(snap.data())){ toast('Diese Übung wurde entfernt.'); return; }
@@ -9602,6 +9657,7 @@ var MAX_FOLDER_DEPTH = 6;   // Sicherheitsnetz gegen versehentlich tiefe Bäume
 function clearSubjectWatchers(){
   if(state.resourceUnsub){ try{ state.resourceUnsub(); }catch(e){} state.resourceUnsub = null; }
   if(state.folderUnsub){ try{ state.folderUnsub(); }catch(e){} state.folderUnsub = null; }
+  if(state.bkUnsub){ try{ state.bkUnsub(); }catch(e){} state.bkUnsub = null; }
 }
 
 function folderById(id){
@@ -11436,6 +11492,770 @@ function openTodoEditor(t){
 
 /* ===================== RENDER: FACH / ORDNER ===================== */
 
+/* ===================== 📮 BRIEFKASTEN (Datei-Abgabe, seit 05.10.2026) =====================
+   Lehrpersonen stellen in einem Fach (auch in einem Ordner) einen Briefkasten auf,
+   Schüler:innen werfen Dateien ein. Die Dateien liegen nur als ZWISCHENLAGER in
+   Firestore, bis die Lehrperson sie abholt — danach gibt es sie nur noch lokal:
+     klassen/{k}/briefkaesten/{bid}                       {titel, ordner, subject, fachName, folderId, typen:[...],
+                                                           frist (ms|null), fristArt 'hart'|'spaet', offen, verlaengert:{uid:ms},
+                                                           ownerUid, ownerName, gruppeId, gruppeName, kalenderId}
+     klassen/{k}/briefkaesten/{bid}/abgaben/{uid}_{zufall} {uid, am, abgeholt, dateien:[{n,g,c}], chunkCount, groesse}  (Quittung)
+     klassen/{k}/briefkaesten/{bid}/abgaben/{aid}/chunks/{i} {bin}  (Inhalt, nur die Lehrperson des Briefkastens liest ihn)
+     lehrer/{uid}/briefkaesten/{bid}                       {klasse, titel}  Verzeichnis für den Abhol-Dienst
+   Schüler:innen können nach dem Einwurf nichts mehr öffnen (Regeln), nur die
+   Quittung sehen und bis zur Frist neu einwerfen. Abholen:
+     - Jans Mac: admin/briefkasten-abholen.js (launchd, alle paar Minuten)
+     - alle anderen: Knopf «📬 Leeren» (File System Access API, Chrome/Edge)
+   Beide legen ab unter <Fach>/…/<ordner>/<Vorname>_<Originalname>, schieben die
+   frühere Fassung derselben Person nach _Backup/ (mit Zeitstempel), führen
+   _Backup/briefkasten-stand.json nach, löschen die chunks und setzen abgeholt.
+   Die Ablage-Logik (Namen, Backup, Stand-Datei) muss in beiden gleich bleiben. */
+const BK_TYPEN = [
+  {id:'pdf',   label:'PDF', ext:['pdf']},
+  {id:'dwg',   label:'AutoCAD (.dwg)', ext:['dwg','dxf']},
+  {id:'bild',  label:'Fotos / Bilder', ext:['jpg','jpeg','png','heic','heif','webp','gif']},
+  {id:'word',  label:'Word / Text', ext:['doc','docx','odt','pages','rtf','txt']},
+  {id:'ppt',   label:'PowerPoint', ext:['ppt','pptx','key','odp']},
+  {id:'excel', label:'Excel', ext:['xls','xlsx','csv','numbers','ods']},
+  {id:'alle',  label:'Alle Dateien', ext:null}
+];
+const BK_MAX_BYTES = 40 * 1024 * 1024;   // pro Einwurf, alle Dateien zusammen (Regel: höchstens 60 chunks)
+const BK_MAX_DATEIEN = 10;
+var bkStatusCache = {};                  // bid -> {t, html, neu}
+
+function bkCol(klasse){ return collection(db, 'klassen', klasse, 'briefkaesten'); }
+function bkRef(klasse, bid){ return doc(db, 'klassen', klasse, 'briefkaesten', bid); }
+function bkAbgabenCol(klasse, bid){ return collection(db, 'klassen', klasse, 'briefkaesten', bid, 'abgaben'); }
+function bkAbgabeRef(klasse, bid, aid){ return doc(db, 'klassen', klasse, 'briefkaesten', bid, 'abgaben', aid); }
+function bkChunkRef(klasse, bid, aid, i){ return doc(db, 'klassen', klasse, 'briefkaesten', bid, 'abgaben', aid, 'chunks', String(i)); }
+function bkZufall(n){ var z = 'abcdefghijklmnopqrstuvwxyz0123456789', s = ''; for(var i=0;i<n;i++) s += z.charAt(Math.floor(Math.random()*z.length)); return s; }
+function bkMs(t){ return !t ? 0 : typeof t === 'number' ? t : t.toMillis ? t.toMillis() : t.seconds ? t.seconds*1000 : 0; }
+function bkIstMeiner(bk){ return state.profile.role === 'teacher' && !isLeitung() && !state.profile.alsAnsicht && bk.ownerUid === state.user.uid; }
+function bkKannLokal(){ return typeof window.showDirectoryPicker === 'function'; }
+function bkExt(name){ var m = /\.([A-Za-z0-9]{1,8})$/.exec(name || ''); return m ? m[1].toLowerCase() : ''; }
+// Erlaubte Endungen oder null = alles.
+function bkErlaubt(bk){
+  var typen = bk.typen || [];
+  if(!typen.length || typen.indexOf('alle') >= 0) return null;
+  var out = [];
+  BK_TYPEN.forEach(function(t){ if(t.ext && typen.indexOf(t.id) >= 0) out = out.concat(t.ext); });
+  return out;
+}
+function bkTypenText(bk){
+  var typen = bk.typen || [];
+  if(!typen.length || typen.indexOf('alle') >= 0) return 'alle Dateien';
+  return BK_TYPEN.filter(function(t){ return typen.indexOf(t.id) >= 0; }).map(function(t){ return t.label; }).join(', ');
+}
+function bkTagKurz(d){ return ['So','Mo','Di','Mi','Do','Fr','Sa'][d.getDay()]; }
+function bkZeitText(ms){
+  var d = new Date(ms);
+  return bkTagKurz(d)+' '+pad2(d.getDate())+'.'+pad2(d.getMonth()+1)+'., '+pad2(d.getHours())+':'+pad2(d.getMinutes())+' Uhr';
+}
+function bkSchildText(bk){
+  if(!bk.frist) return 'jederzeit';
+  var d = new Date(bk.frist);
+  return bkTagKurz(d)+' '+pad2(d.getDate())+'.'+pad2(d.getMonth()+1)+'. '+pad2(d.getHours())+':'+pad2(d.getMinutes());
+}
+// 'offen' | 'spaet' (geht noch, wird markiert) | 'zu'
+function bkZustand(bk, uid){
+  if(bk.offen === false) return 'zu';
+  if(!bk.frist) return 'offen';
+  var jetzt = Date.now();
+  if(jetzt < bk.frist) return 'offen';
+  if(bk.verlaengert && bk.verlaengert[uid] > jetzt) return 'offen';
+  return bk.fristArt === 'spaet' ? 'spaet' : 'zu';
+}
+function bkIstSpaet(bk, a){
+  var am = bkMs(a.am);
+  if(!bk.frist || am <= bk.frist) return false;
+  return !(bk.verlaengert && bk.verlaengert[a.uid] >= am);
+}
+function bkGroesse(b){ return b >= 1024*1024 ? (b/1024/1024).toFixed(1).replace('.', ',')+' MB' : Math.max(1, Math.round(b/1024))+' KB'; }
+
+// Der gelbe Briefkasten. mini: ohne Beschriftung (Karte in der Liste).
+function bkSvg(o){
+  o = o || {};
+  var s = '<svg viewBox="0 0 200 250" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Gelber Briefkasten">'+
+    '<rect x="88" y="196" width="24" height="54" fill="#7C828D"/>'+
+    '<rect x="76" y="242" width="48" height="8" rx="2" fill="#5F656F"/>'+
+    '<rect x="20" y="34" width="160" height="176" rx="12" fill="#FFCC00" stroke="#C99700" stroke-width="3"/>'+
+    '<path d="M12 54 V44 Q12 16 42 16 H158 Q188 16 188 44 V54 Z" fill="#F5BE00" stroke="#C99700" stroke-width="3" stroke-linejoin="round"/>'+
+    '<rect x="42" y="68" width="116" height="16" rx="3" fill="#1D1D1B"/>'+
+    '<rect class="bk-klappe" x="38" y="62" width="124" height="11" rx="3" fill="#E3AE00" stroke="#B88A00" stroke-width="1.5"/>'+
+    '<g fill="none" stroke="#1D1D1B" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">'+
+      '<circle cx="106" cy="130" r="13"/><path d="M93 130 H82"/><path d="M119 130 H138"/></g>'+
+    '<path d="M82 123 L62 112 V148 L82 137 Z" fill="#1D1D1B"/><rect x="137" y="124" width="7" height="12" rx="2" fill="#1D1D1B"/>';
+  if(!o.mini){
+    s += '<text x="100" y="99" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="9.5" font-weight="700" letter-spacing="1.5" fill="#1D1D1B">BRIEFEINWURF</text>'+
+      '<rect x="44" y="160" width="112" height="38" rx="4" fill="#FFFDF2" stroke="#B88A00" stroke-width="1.5"/>'+
+      '<text x="100" y="174" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="8" font-weight="700" letter-spacing="1.2" fill="#6B5600">LEERUNG</text>'+
+      '<text x="100" y="190" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="12" font-weight="700" fill="#1D1D1B">'+esc(o.schild || '')+'</text>';
+  } else {
+    s += '<rect x="44" y="160" width="112" height="38" rx="4" fill="#FFFDF2" stroke="#B88A00" stroke-width="1.5"/>';
+  }
+  if(o.zu){
+    s += '<rect x="34" y="57" width="132" height="31" rx="4" fill="#C8102E"/>'+
+      (o.mini ? '' : '<text x="100" y="77" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="12" font-weight="700" letter-spacing="1.5" fill="#FFFFFF">GESCHLOSSEN</text>');
+  }
+  return s + '</svg>';
+}
+
+/* ---------- Liste im Fach ---------- */
+function bkFachLaden(subjectId){
+  state.briefkaesten = []; state.bkFremd = []; state.bkMeineGruppen = null; state.bkOhneEigene = false;
+  var hier = function(){ return state.route.name === 'subject' && state.route.subject === subjectId; };
+  state.bkUnsub = onSnapshot(query(kcol('briefkaesten'), where('subject','==',subjectId)), function(snap){
+    state.briefkaesten = [];
+    snap.forEach(function(d){ state.briefkaesten.push(Object.assign({id:d.id}, d.data())); });
+    bkListeZeichnen();
+  }, function(err){ console.warn('Briefkästen nicht ladbar', err); });
+  if(state.profile.role === 'teacher' || isLeitung()) return;
+  loadMitgliedGruppen().then(function(gr){ if(!hier()) return; state.bkMeineGruppen = gr; bkListeZeichnen(); });
+  // 👥 Briefkästen auf den Seiten der Gruppen-Lehrpersonen.
+  fachQuellen(subjectId).then(function(fq){
+    if(!hier()) return;
+    state.bkOhneEigene = !!fq.ohneEigene;
+    return Promise.all(fq.fremd.map(function(p){
+      return getDocs(query(kcolFor(p.klasse, 'briefkaesten'), where('subject','==',subjectId))).then(function(snap){
+        var out = [];
+        snap.forEach(function(d){ out.push({bk:Object.assign({id:d.id}, d.data()), klasse:p.klasse, lp:p.lp}); });
+        return out;
+      }).catch(function(err){ console.warn('Briefkästen nicht ladbar ('+p.klasse+')', err); return []; });
+    })).then(function(l){ if(!hier()) return; state.bkFremd = [].concat.apply([], l); bkListeZeichnen(); });
+  });
+}
+// Für eine Gruppe aufgestellt: Schüler:innen sehen ihn nur, wenn sie dabei sind.
+function bkFuerMich(bk){
+  if(state.profile.role === 'teacher' || isLeitung() || !bk.gruppeId) return true;
+  return (state.bkMeineGruppen || []).some(function(g){ return g.id === bk.gruppeId; });
+}
+function bkListeZeichnen(){
+  var el = document.getElementById('bkListe');
+  if(!el || state.route.name !== 'subject') return;
+  var here = state.route.folderId || null;
+  var isTeacher = state.profile.role === 'teacher';
+  var liste = [];
+  if(!(!isTeacher && state.bkOhneEigene)){
+    (state.briefkaesten || []).forEach(function(b){
+      // Ordner inzwischen gelöscht: der Briefkasten steht wieder direkt im Fach.
+      var fid = b.folderId && folderById(b.folderId) ? b.folderId : null;
+      if(fid === here && bkFuerMich(b)) liste.push({bk:b, klasse:state.klasse});
+    });
+  }
+  if(!here) (state.bkFremd || []).forEach(function(x){ if(bkFuerMich(x.bk)) liste.push(x); });
+  liste.sort(function(a, b){
+    return (a.bk.frist || 9e15) - (b.bk.frist || 9e15) || (a.bk.titel || '').localeCompare(b.bk.titel || '', 'de');
+  });
+  if(!liste.length){ el.innerHTML = ''; return; }
+  el.innerHTML = '<div class="section-label">📮 Briefkasten</div>' + liste.map(bkKarteHtml).join('');
+  liste.forEach(function(x){
+    var b = x.bk, meiner = bkIstMeiner(b);
+    var on = function(pre, fn){ var k = document.getElementById(pre + b.id); if(k) k.addEventListener('click', fn); };
+    on('bkopen-', function(){ bkOeffnen(x.klasse, b); });
+    on('bkleer-', function(){ bkLeerenStart(x.klasse, b); });
+    on('bkedit-', function(){ bkEditor(b); });
+    on('bkdel-', function(){ bkLoeschenFragen(x.klasse, b); });
+    bkKarteStatus(x, meiner);
+  });
+}
+function bkKarteHtml(x){
+  var b = x.bk, meiner = bkIstMeiner(b), isTeacher = state.profile.role === 'teacher';
+  var zu = bkZustand(b, state.user.uid) === 'zu';
+  var sub = (b.frist ? 'Leerung: '+esc(bkZeitText(b.frist))+(b.fristArt === 'spaet' ? ' (danach verspätet)' : '') : 'Ohne Frist')+
+    ' · '+esc(bkTypenText(b));
+  var h = '<div class="bk-card'+(zu ? ' bk-zu' : '')+'" id="bk-'+esc(b.id)+'">'+
+    '<span class="bk-mini" aria-hidden="true">'+bkSvg({mini:true, zu:zu})+'</span>'+
+    '<div class="resource-info"><h4>'+esc(b.titel)+
+      (b.gruppeName ? ' <span class="cal-gruppe-tag">👥 '+esc(b.gruppeName)+'</span>' : '')+
+      (x.lp ? ' <span class="cal-gruppe-tag">'+esc(x.lp)+'</span>' : '')+
+      (isTeacher && !meiner ? ' <span class="cal-gruppe-tag">von '+esc(b.ownerName || '?')+'</span>' : '')+'</h4>'+
+      '<div class="bk-sub">'+sub+'</div><div class="bk-sub" id="bkstat-'+esc(b.id)+'"></div></div>'+
+    '<div class="bk-actions">';
+  if(meiner){
+    h += (bkKannLokal() ? '<button class="btn btn-primary btn-sm" id="bkleer-'+esc(b.id)+'" type="button">📬 Leeren</button>' : '')+
+      '<button class="btn btn-ghost btn-sm" id="bkopen-'+esc(b.id)+'" type="button">👥 Abgaben</button>'+
+      '<button class="btn btn-ghost btn-sm" id="bkedit-'+esc(b.id)+'" type="button">Bearbeiten</button>'+
+      '<button class="btn btn-danger btn-sm" id="bkdel-'+esc(b.id)+'" type="button">Löschen</button>';
+  } else {
+    h += '<button class="btn '+(isTeacher || zu ? 'btn-ghost' : 'btn-primary')+' btn-sm" id="bkopen-'+esc(b.id)+'" type="button">'+
+      (isTeacher ? 'Ansehen' : zu ? 'Ansehen' : '📮 Einwerfen')+'</button>';
+  }
+  return h + '</div></div>';
+}
+// Zweite Zeile der Karte: Lehrperson = wie viel liegt drin, Schüler:in = eigene Quittung.
+function bkKarteStatus(x, meiner){
+  var b = x.bk, el = document.getElementById('bkstat-'+b.id);
+  if(!el) return;
+  var c = bkStatusCache[b.id];
+  if(c && Date.now() - c.t < 30000){ el.innerHTML = c.html; return; }
+  var setzen = function(html){ bkStatusCache[b.id] = {t:Date.now(), html:html}; var e2 = document.getElementById('bkstat-'+b.id); if(e2) e2.innerHTML = html; };
+  if(meiner){
+    getDocs(bkAbgabenCol(x.klasse, b.id)).then(function(snap){
+      var neu = 0, personen = {};
+      snap.forEach(function(d){ var a = d.data(); personen[a.uid] = true; if(!a.abgeholt) neu++; });
+      var n = Object.keys(personen).length;
+      setzen((neu ? '<span class="bk-warn">📬 '+neu+' neu im Briefkasten</span> · ' : '')+(n ? n+' '+(n === 1 ? 'Person hat' : 'Personen haben')+' eingeworfen' : 'Noch nichts eingeworfen'));
+    }).catch(function(err){ console.warn('Briefkasten-Stand', err); });
+  } else if(state.profile.role !== 'teacher' && !isLeitung()){
+    getDocs(query(bkAbgabenCol(x.klasse, b.id), where('uid','==',state.user.uid))).then(function(snap){
+      var letzte = null;
+      snap.forEach(function(d){ var a = d.data({serverTimestamps:'estimate'}); if(!letzte || bkMs(a.am) > bkMs(letzte.am)) letzte = a; });
+      setzen(letzte ? '<span class="bk-ok">✓ Eingeworfen am '+esc(bkZeitText(bkMs(letzte.am)))+'</span>' : 'Noch nichts eingeworfen');
+    }).catch(function(err){ console.warn('Briefkasten-Quittung', err); });
+  }
+}
+function bkOeffnen(klasse, bk){
+  if(bkIstMeiner(bk)) bkAbgabenDialog(klasse, bk);
+  else bkEinwurfDialog(klasse, bk);
+}
+
+/* ---------- Einwurf (Schüler:innen) ---------- */
+function bkEinwurfDialog(klasse, bk){
+  var uid = state.user.uid;
+  var zustand = bkZustand(bk, uid);
+  var erlaubt = bkErlaubt(bk);
+  var nurAnsicht = state.profile.role === 'teacher' && !bkIstMeiner(bk) || isLeitung() || !!state.profile.alsAnsicht;
+  var accept = erlaubt ? erlaubt.map(function(e){ return '.'+e; }).join(',') : '';
+  openModal(
+    '<h3>📮 '+esc(bk.titel)+'</h3>'+
+    '<div class="bk-buehne">'+
+      '<div class="bk-kasten" id="bkKasten">'+bkSvg({schild:bkSchildText(bk), zu:zustand === 'zu'})+
+        '<div class="bk-bahn"><div class="bk-brief"></div></div></div>'+
+      '<div class="bk-seite">'+
+        '<p class="bk-zeile">'+esc(bk.fachName || subjectName(bk.subject))+' · bei '+esc(bk.ownerName || '')+'</p>'+
+        '<p class="bk-zeile"><b>'+(bk.frist ? 'Leerung: '+esc(bkZeitText(bk.frist)) : 'Ohne Frist')+'</b></p>'+
+        '<p class="bk-zeile">Erlaubt: '+esc(bkTypenText(bk))+'</p>'+
+        (zustand === 'spaet' ? '<p class="bk-zeile bk-warn">Die Frist ist vorbei. Du kannst noch einwerfen, es wird aber als verspätet markiert.</p>' : '')+
+        (zustand === 'zu' ? '<p class="bk-zeile bk-warn">Der Briefkasten ist geschlossen. Melde dich bei deiner Lehrperson, wenn du noch etwas abgeben musst.</p>' : '')+
+        '<div id="bkQuittung"></div>'+
+        (zustand === 'zu' || nurAnsicht ? '' :
+          '<ul class="bk-wahl" id="bkWahl"></ul>'+
+          '<input type="file" id="bkDatei" multiple'+(accept ? ' accept="'+esc(accept)+'"' : '')+' hidden>'+
+          '<div class="bk-knoepfe"><button class="btn btn-ghost btn-sm" id="bkWaehlen" type="button">📄 Dateien wählen</button>'+
+          '<button class="btn btn-primary btn-sm" id="bkEinwerfen" type="button" disabled>📮 Einwerfen</button></div>'+
+          '<p class="bk-zeile bk-klein">Oder zieh die Dateien auf den Briefkasten. Nach dem Einwurf kannst du sie hier nicht mehr öffnen. Bis zur Leerung darfst du neu einwerfen, dann zählt die neue Abgabe.</p>'+
+          '<div class="bk-balken" id="bkBalken"><div></div></div>')+
+        (nurAnsicht ? '<p class="bk-zeile bk-klein">Vorschau: So sieht die Klasse den Briefkasten.</p>' : '')+
+        '<div class="login-err" id="bkErr"></div>'+
+      '</div></div>'+
+    '<div class="modal-actions"><button class="btn btn-ghost btn-sm" id="modalCancel" type="button">Schliessen</button></div>',
+    'modal-wide'
+  );
+  document.getElementById('modalCancel').addEventListener('click', closeModal);
+  var quittungEl = document.getElementById('bkQuittung');
+  function quittungLaden(){
+    if(nurAnsicht) return;
+    getDocs(query(bkAbgabenCol(klasse, bk.id), where('uid','==',uid))).then(function(snap){
+      var liste = [];
+      snap.forEach(function(d){ liste.push(d.data({serverTimestamps:'estimate'})); });
+      liste.sort(function(a, b){ return bkMs(b.am) - bkMs(a.am); });
+      if(!quittungEl.isConnected) return;
+      if(!liste.length){ quittungEl.innerHTML = ''; return; }
+      var a = liste[0];
+      quittungEl.innerHTML = '<div class="bk-quittung"><b>✓ Eingeworfen am '+esc(bkZeitText(bkMs(a.am)))+'</b><br>'+
+        (a.dateien || []).map(function(f){ return esc(f.n); }).join(', ')+
+        (liste.length > 1 ? '<br>'+liste.length+'. Fassung, die früheren sind ersetzt.' : '')+'</div>';
+    }).catch(function(err){ console.warn('Briefkasten-Quittung', err); });
+  }
+  quittungLaden();
+  if(zustand === 'zu' || nurAnsicht) return;
+
+  var gewaehlt = [], laeuft = false;
+  var wahlEl = document.getElementById('bkWahl'), dateiEl = document.getElementById('bkDatei');
+  var okBtn = document.getElementById('bkEinwerfen'), errEl = document.getElementById('bkErr');
+  var kasten = document.getElementById('bkKasten');
+  function fehler(t){ errEl.textContent = t || ''; errEl.classList.toggle('show', !!t); }
+  function pruefen(f){
+    if(!f.size) return 'leer';
+    if(erlaubt && erlaubt.indexOf(bkExt(f.name)) < 0) return 'nicht erlaubt';
+    return '';
+  }
+  function zeichnen(){
+    var summe = 0, falsch = false;
+    wahlEl.innerHTML = gewaehlt.map(function(f, i){
+      var p = pruefen(f); summe += f.size; if(p) falsch = true;
+      return '<li'+(p ? ' class="falsch"' : '')+'><span>'+esc(f.name)+'</span><small>'+(p ? esc(p) : esc(bkGroesse(f.size)))+'</small>'+
+        '<button type="button" data-i="'+i+'" title="Entfernen" aria-label="Entfernen">✕</button></li>';
+    }).join('');
+    Array.prototype.forEach.call(wahlEl.querySelectorAll('button'), function(b){
+      b.addEventListener('click', function(){ if(laeuft) return; gewaehlt.splice(Number(b.getAttribute('data-i')), 1); zeichnen(); });
+    });
+    var zuGross = summe > BK_MAX_BYTES, zuViele = gewaehlt.length > BK_MAX_DATEIEN;
+    fehler(falsch ? 'Rot markierte Dateien passen nicht (erlaubt: '+bkTypenText(bk)+'). Entferne sie mit ✕.'
+      : zuGross ? 'Zusammen zu gross (höchstens '+Math.round(BK_MAX_BYTES/1024/1024)+' MB).'
+      : zuViele ? 'Höchstens '+BK_MAX_DATEIEN+' Dateien auf einmal.' : '');
+    okBtn.disabled = laeuft || !gewaehlt.length || falsch || zuGross || zuViele;
+  }
+  function dazu(files){
+    if(laeuft) return;
+    Array.prototype.forEach.call(files || [], function(f){
+      if(!gewaehlt.some(function(g){ return g.name === f.name && g.size === f.size; })) gewaehlt.push(f);
+    });
+    zeichnen();
+  }
+  document.getElementById('bkWaehlen').addEventListener('click', function(){ dateiEl.click(); });
+  kasten.addEventListener('click', function(){ if(!laeuft) dateiEl.click(); });
+  dateiEl.addEventListener('change', function(){ dazu(dateiEl.files); dateiEl.value = ''; });
+  var modalBox = kasten.closest('.modal');
+  modalBox.addEventListener('dragover', function(e){ e.preventDefault(); kasten.classList.add('drag'); });
+  modalBox.addEventListener('dragleave', function(e){ if(e.target === modalBox) kasten.classList.remove('drag'); });
+  modalBox.addEventListener('drop', function(e){ e.preventDefault(); kasten.classList.remove('drag'); dazu(e.dataTransfer && e.dataTransfer.files); });
+
+  okBtn.addEventListener('click', async function(){
+    if(laeuft || !gewaehlt.length) return;
+    if(navigator.onLine === false){ fehler('Du bist gerade offline. Verbinde dich mit dem Internet und versuch es nochmals.'); return; }
+    laeuft = true; zeichnen(); fehler('');
+    var balken = document.getElementById('bkBalken');
+    balken.classList.add('an');
+    okBtn.textContent = 'Wird eingeworfen …';
+    try{
+      await bkEinwerfen(klasse, bk, gewaehlt, function(anteil){ balken.firstChild.style.width = Math.round(anteil*100)+'%'; });
+      delete bkStatusCache[bk.id];
+      kasten.classList.remove('einwurf'); void kasten.offsetWidth; kasten.classList.add('einwurf');
+      gewaehlt = [];
+      toast('Eingeworfen ✓');
+      if(bk.kalenderId && state.profile.role !== 'teacher'){ try{ erledigtSetzen(bk.kalenderId, true); }catch(e){} }
+      quittungLaden();
+      bkListeZeichnen();
+    }catch(err){
+      console.warn('Briefkasten-Einwurf', err);
+      fehler(err && err.code === 'permission-denied'
+        ? 'Der Einwurf wurde nicht angenommen. Vermutlich ist der Briefkasten inzwischen geschlossen.'
+        : 'Der Einwurf hat nicht geklappt. Prüf die Verbindung und versuch es nochmals.');
+    }
+    laeuft = false;
+    balken.classList.remove('an'); balken.firstChild.style.width = '0';
+    okBtn.textContent = '📮 Einwerfen';
+    zeichnen();
+  });
+}
+// Lädt die Dateien hoch: zuerst die chunks, zuletzt die Quittung — erst mit ihr gilt
+// der Einwurf (die Abholung sieht nur vollständige Einwürfe).
+async function bkEinwerfen(klasse, bk, files, fortschritt){
+  var uid = state.user.uid, aid = uid + '_' + bkZufall(12);
+  var gesamt = files.reduce(function(s, f){ return s + f.size; }, 0) || 1;
+  var dateien = [], idx = 0, fertig = 0;
+  for(var k = 0; k < files.length; k++){
+    var bytes = await readFileAsBytes(files[k]);
+    var n = Math.max(1, Math.ceil(bytes.length / MAX_CHUNK_BYTES));
+    for(var i = 0; i < n; i++){
+      var teil = bytes.subarray(i * MAX_CHUNK_BYTES, (i + 1) * MAX_CHUNK_BYTES);
+      await setDoc(bkChunkRef(klasse, bk.id, aid, idx), { bin: Bytes.fromUint8Array(teil) });
+      idx++; fertig += teil.length;
+      if(fortschritt) fortschritt(Math.min(1, fertig / gesamt));
+    }
+    dateien.push({ n: String(files[k].name || 'Datei').slice(0, 150), g: bytes.length, c: n });
+  }
+  await setDoc(bkAbgabeRef(klasse, bk.id, aid), {
+    uid: uid, am: serverTimestamp(), abgeholt: false, dateien: dateien, chunkCount: idx,
+    groesse: dateien.reduce(function(s, f){ return s + f.g; }, 0)
+  });
+}
+
+/* ---------- Aufstellen / Bearbeiten (Lehrperson) ---------- */
+function bkEditor(existing){
+  var subjectId = existing ? existing.subject : state.route.subject;
+  var s = subjectById(subjectId);
+  var hatFrist = existing ? !!existing.frist : true;
+  var fristD = existing && existing.frist ? new Date(existing.frist) : (function(){ var d = new Date(); d.setDate(d.getDate() + 7); d.setHours(17, 0, 0, 0); return d; })();
+  var typen = existing ? (existing.typen || []) : ['pdf'];
+  var ordnerVon = existing ? existing.ordner : '';
+  openModal(
+    '<h3>'+(existing ? '📮 Briefkasten bearbeiten' : '📮 Briefkasten aufstellen')+'</h3>'+
+    '<p>'+esc(s.name)+': Die Klasse wirft hier Dateien ein. Du holst sie ab, danach liegen sie nur noch bei dir.</p>'+
+    '<label class="modal-label">Titel</label><input type="text" id="bkTitel" maxlength="80" value="'+esc(existing ? existing.titel : '')+'" placeholder="z. B. Schienen Blatt 3">'+
+    '<label class="modal-label">Ordner auf deinem Computer</label><input type="text" id="bkOrdner" maxlength="80" value="'+esc(ordnerVon)+'" placeholder="So heisst der Ordner mit den Abgaben">'+
+    '<label class="modal-label">Für</label><select id="bkFuer"><option value="">Ganze Seite '+esc(klasseLabel())+'</option></select>'+
+    '<label class="modal-label">Erlaubte Dateien</label><div class="bk-typen" id="bkTypen">'+BK_TYPEN.map(function(t){
+      return '<label><input type="checkbox" value="'+t.id+'"'+(typen.indexOf(t.id) >= 0 ? ' checked' : '')+'> '+esc(t.label)+'</label>';
+    }).join('')+'</div>'+
+    '<label class="bk-haken"><input type="checkbox" id="bkHatFrist"'+(hatFrist ? ' checked' : '')+'> Mit Abgabefrist (Leerung)</label>'+
+    '<div id="bkFristBox">'+
+      '<div class="bk-reihe"><input type="date" id="bkDatum" value="'+esc(localDateStr(fristD))+'"><input type="time" id="bkUhr" value="'+pad2(fristD.getHours())+':'+pad2(fristD.getMinutes())+'"></div>'+
+      '<select id="bkFristArt"><option value="hart">Nach der Frist ist der Briefkasten zu</option>'+
+        '<option value="spaet"'+(existing && existing.fristArt === 'spaet' ? ' selected' : '')+'>Nach der Frist noch möglich, als «verspätet» markiert</option></select>'+
+      '<label class="bk-haken"><input type="checkbox" id="bkKalender"'+(existing ? (existing.kalenderId ? ' checked' : '') : ' checked')+'> 📅 Als Abgabe in den Kalender eintragen</label>'+
+    '</div>'+
+    (existing ? '<label class="bk-haken"><input type="checkbox" id="bkOffen"'+(existing.offen === false ? '' : ' checked')+'> Briefkasten ist offen</label>' : '')+
+    '<div class="login-err" id="bkErr"></div>'+
+    '<div class="modal-actions">'+
+      '<button class="btn btn-ghost btn-sm" id="modalCancel" type="button">Abbrechen</button>'+
+      '<button class="btn btn-primary btn-sm" id="modalOk" type="button">'+(existing ? 'Speichern' : 'Aufstellen')+'</button>'+
+    '</div>'
+  );
+  var titelEl = document.getElementById('bkTitel'), ordnerEl = document.getElementById('bkOrdner');
+  var fuerEl = document.getElementById('bkFuer'), errEl = document.getElementById('bkErr');
+  var hatFristEl = document.getElementById('bkHatFrist'), fristBox = document.getElementById('bkFristBox');
+  var ordnerFolgt = !existing;
+  titelEl.focus();
+  titelEl.addEventListener('input', function(){ if(ordnerFolgt) ordnerEl.value = bkSicher(titelEl.value); });
+  ordnerEl.addEventListener('input', function(){ ordnerFolgt = false; });
+  function fristZeigen(){ fristBox.style.display = hatFristEl.checked ? '' : 'none'; }
+  hatFristEl.addEventListener('change', fristZeigen); fristZeigen();
+  // «Alle Dateien» schliesst die einzelnen Arten aus und umgekehrt.
+  Array.prototype.forEach.call(document.querySelectorAll('#bkTypen input'), function(cb){
+    cb.addEventListener('change', function(){
+      if(!cb.checked) return;
+      Array.prototype.forEach.call(document.querySelectorAll('#bkTypen input'), function(o){
+        if(o !== cb && ((cb.value === 'alle') !== (o.value === 'alle'))) o.checked = false;
+      });
+    });
+  });
+  var meineGruppen = [];
+  loadMeineGruppen().then(function(list){
+    meineGruppen = list.filter(function(g){ return gruppeHatFach(g, subjectId); });
+    if(!fuerEl.isConnected) return;
+    fuerEl.innerHTML = '<option value="">Ganze Seite '+esc(klasseLabel())+'</option>'+meineGruppen.map(function(g){
+      return '<option value="'+esc(g.id)+'"'+(existing && existing.gruppeId === g.id ? ' selected' : '')+'>👥 '+esc(g.name)+' ('+(g.mitglieder || []).length+')</option>';
+    }).join('');
+  }).catch(function(err){ console.warn('Gruppen', err); });
+  document.getElementById('modalCancel').addEventListener('click', closeModal);
+  document.getElementById('modalOk').addEventListener('click', async function(){
+    function fehler(t, el){ errEl.textContent = t; errEl.classList.add('show'); if(el) el.focus(); }
+    errEl.classList.remove('show');
+    var titel = titelEl.value.trim(), ordner = bkSicher(ordnerEl.value || titel);
+    if(!titel) return fehler('Bitte einen Titel eingeben.', titelEl);
+    var gewaehlt = [];
+    Array.prototype.forEach.call(document.querySelectorAll('#bkTypen input:checked'), function(cb){ gewaehlt.push(cb.value); });
+    if(!gewaehlt.length) return fehler('Bitte mindestens eine Dateiart wählen.');
+    var frist = null;
+    if(hatFristEl.checked){
+      var dt = document.getElementById('bkDatum').value, uhr = document.getElementById('bkUhr').value || '23:59';
+      if(!dt) return fehler('Bitte ein Datum für die Leerung wählen.');
+      var p = dt.split('-').map(Number), u = uhr.split(':').map(Number);
+      frist = new Date(p[0], p[1]-1, p[2], u[0], u[1], 0, 0).getTime();
+    }
+    var gruppe = meineGruppen.filter(function(g){ return g.id === fuerEl.value; })[0] || null;
+    var id = existing ? existing.id : 'bk_'+Date.now()+'_'+bkZufall(6);
+    var mitKalender = !!frist && document.getElementById('bkKalender').checked;
+    var kalenderId = mitKalender ? ((existing && existing.kalenderId) || 'cal_'+Date.now()+'_'+bkZufall(6)) : null;
+    var data = {
+      titel: titel.slice(0, 80), ordner: ordner.slice(0, 80), subject: subjectId, fachName: s.name, typen: gewaehlt,
+      frist: frist, fristArt: frist ? document.getElementById('bkFristArt').value : 'hart',
+      offen: existing ? document.getElementById('bkOffen').checked : true,
+      gruppeId: gruppe ? gruppe.id : null, gruppeName: gruppe ? gruppe.name : '',
+      kalenderId: kalenderId, updatedAt: serverTimestamp()
+    };
+    if(!existing){
+      data.folderId = state.route.folderId || null;
+      data.ownerUid = state.user.uid;
+      data.ownerName = state.profile.nachname || state.profile.displayName || state.profile.username || '';
+      data.createdAt = serverTimestamp();
+    }
+    try{
+      if(existing) await setDoc(bkRef(state.klasse, id), data, {merge:true});
+      else await setDoc(bkRef(state.klasse, id), data);
+      await setDoc(doc(db, 'lehrer', existing ? existing.ownerUid : state.user.uid, 'briefkaesten', id), { klasse: state.klasse, titel: data.titel })
+        .catch(function(err){ console.warn('Briefkasten-Verzeichnis', err); });
+      if(mitKalender){
+        var eintrag = { type:'abgabe', subject:subjectId, title:data.titel, description:'📮 Abgabe über den Briefkasten in der Library', dueDate:localDateStr(new Date(frist)),
+          resourceId:'', resourceTitle:'', resources:[], briefkastenId:id };
+        if(gruppe){ eintrag.gruppeId = gruppe.id; eintrag.gruppeName = gruppe.name; eintrag.mitglieder = (gruppe.mitglieder || []).slice(); }
+        else if(existing && existing.gruppeId){ eintrag.gruppeId = deleteField(); eintrag.gruppeName = deleteField(); eintrag.mitglieder = deleteField(); }
+        if(!(existing && existing.kalenderId)){ eintrag.createdAt = serverTimestamp(); eintrag.createdBy = state.user.uid; }
+        await setDoc(kdoc('calendarEntries', kalenderId), eintrag, {merge:true});
+      } else if(existing && existing.kalenderId){
+        await deleteDoc(kdoc('calendarEntries', existing.kalenderId)).catch(function(err){ console.warn('Kalendereintrag', err); });
+      }
+      closeModal();
+      toast(existing ? 'Briefkasten gespeichert.' : 'Briefkasten aufgestellt.');
+    }catch(err){
+      if(err && err.code === 'klasse/abgebrochen') return;
+      console.error(err);
+      fehler('Konnte nicht gespeichert werden.');
+    }
+  });
+}
+function bkLoeschenFragen(klasse, bk){
+  uiConfirm('Briefkasten «'+bk.titel+'» abbauen?',
+    'Was noch nicht abgeholt ist, geht verloren. Bereits abgeholte Dateien auf deinem Computer bleiben.',
+    'Abbauen', async function(){
+      try{
+        var snap = await getDocs(bkAbgabenCol(klasse, bk.id));
+        var ops = [];
+        snap.forEach(function(d){
+          var a = d.data();
+          if(!a.abgeholt) for(var i = 0; i < (a.chunkCount || 0); i++) ops.push(bkChunkRef(klasse, bk.id, d.id, i));
+          ops.push(d.ref);
+        });
+        for(var i = 0; i < ops.length; i += 300){
+          var batch = fsWriteBatch(db);
+          ops.slice(i, i + 300).forEach(function(r){ batch.delete(r); });
+          await batch.commit();
+        }
+        await deleteDoc(bkRef(klasse, bk.id));
+        fsDeleteDoc(doc(db, 'lehrer', bk.ownerUid, 'briefkaesten', bk.id)).catch(function(){});
+        if(bk.kalenderId) fsDeleteDoc(kdocFor(klasse, 'calendarEntries', bk.kalenderId)).catch(function(){});
+        delete bkStatusCache[bk.id];
+        toast('Briefkasten abgebaut.');
+      }catch(err){
+        if(err && err.code === 'klasse/abgebrochen') return;
+        console.error(err); toast('Konnte nicht abgebaut werden.');
+      }
+    }, true);
+}
+
+/* ---------- Abgaben-Übersicht (Lehrperson des Briefkastens) ---------- */
+async function bkPersonen(klasse, bk){
+  if(bk.gruppeId){
+    try{
+      var g = await getDoc(doc(db, 'gruppen', bk.gruppeId));
+      if(g.exists()){
+        var gd = g.data(), namen = gd.namen || {};
+        return (gd.mitglieder || []).map(function(u){
+          var n = namen[u] || {};
+          return { uid:u, displayName:(n.n || '?')+(n.k ? ' ('+n.k+')' : '') };
+        });
+      }
+    }catch(err){ console.warn('Gruppe', err); }
+  }
+  if(klasse !== state.klasse) return [];
+  var roster = await loadStudentRoster();
+  return rosterFuerEintrag(roster, {subject:bk.subject});
+}
+function bkAbgabenDialog(klasse, bk){
+  openModal('<h3>📮 '+esc(bk.titel)+'</h3><div id="bkAbgBox"><div class="empty-state">Wird geladen …</div></div>'+
+    '<div class="modal-actions">'+
+      (bkKannLokal() ? '<button class="btn btn-primary btn-sm" id="bkAbgLeeren" type="button">📬 Briefkasten leeren</button>' : '')+
+      '<button class="btn btn-ghost btn-sm" id="modalCancel" type="button">Schliessen</button></div>', 'modal-wide');
+  document.getElementById('modalCancel').addEventListener('click', closeModal);
+  var leerBtn = document.getElementById('bkAbgLeeren');
+  if(leerBtn) leerBtn.addEventListener('click', function(){ bkLeerenStart(klasse, bk); });
+  Promise.all([getDocs(bkAbgabenCol(klasse, bk.id)), bkPersonen(klasse, bk)]).then(function(res){
+    var box = document.getElementById('bkAbgBox');
+    if(!box) return;
+    var proUid = {}, neu = 0;
+    res[0].forEach(function(d){
+      var a = Object.assign({id:d.id}, d.data());
+      (proUid[a.uid] = proUid[a.uid] || []).push(a);
+      if(!a.abgeholt) neu++;
+    });
+    var personen = res[1].slice(), bekannt = {};
+    personen.forEach(function(p){ bekannt[p.uid] = true; });
+    Object.keys(proUid).forEach(function(u){ if(!bekannt[u]) personen.push({uid:u, displayName:'(nicht auf der Liste)', fremd:true}); });
+    personen.sort(function(a, b){ return (a.displayName || '').localeCompare(b.displayName || '', 'de'); });
+    var da = personen.filter(function(p){ return proUid[p.uid]; }).length;
+    var h = '<p>'+(bk.frist ? 'Leerung: '+esc(bkZeitText(bk.frist))+(bk.fristArt === 'spaet' ? ' (danach verspätet)' : '') : 'Ohne Frist')+
+      ' · '+da+' von '+personen.length+' eingeworfen'+(neu ? ' · <span class="bk-warn">📬 '+neu+' noch nicht abgeholt</span>' : '')+'</p>'+
+      (bkKannLokal() ? '' : '<p class="bk-klein">Zum Abholen auf den Computer brauchst du Chrome oder Edge.</p>')+
+      '<table class="bk-tab">';
+    personen.forEach(function(p){
+      var l = (proUid[p.uid] || []).sort(function(a, b){ return bkMs(b.am) - bkMs(a.am); });
+      var a = l[0], txt;
+      if(a){
+        txt = '<span class="bk-ok">✓ '+esc(bkZeitText(bkMs(a.am)))+'</span> · '+(a.dateien || []).length+' Datei'+((a.dateien || []).length === 1 ? '' : 'en')+
+          (l.length > 1 ? ' · '+l.length+'. Fassung' : '')+
+          ((a.spaet != null ? a.spaet : bkIstSpaet(bk, a)) ? ' · <span class="bk-warn">verspätet</span>' : '')+
+          (a.abgeholt ? ' · 📁 abgeholt' : ' · 📬 im Briefkasten');
+      } else txt = '<span class="muted">noch nichts</span>';
+      var verl = bk.verlaengert && bk.verlaengert[p.uid] > Date.now() ? ' <span class="cal-gruppe-tag">bis '+esc(bkZeitText(bk.verlaengert[p.uid]))+'</span>' : '';
+      h += '<tr><td><b>'+esc(p.displayName || '?')+'</b>'+verl+'</td><td>'+txt+'</td><td style="text-align:right;">'+
+        (bk.frist ? '<button class="btn btn-ghost btn-sm bk-verl" type="button" data-uid="'+esc(p.uid)+'" data-name="'+esc(p.displayName || '')+'" title="Frist nur für diese Person verlängern">⏰</button>' : '')+'</td></tr>';
+    });
+    box.innerHTML = h + '</table>';
+    Array.prototype.forEach.call(box.querySelectorAll('.bk-verl'), function(b){
+      b.addEventListener('click', function(){ bkVerlaengern(klasse, bk, b.getAttribute('data-uid'), b.getAttribute('data-name')); });
+    });
+  }).catch(function(err){
+    console.error(err);
+    var box = document.getElementById('bkAbgBox');
+    if(box) box.innerHTML = '<div class="empty-state">Abgaben konnten nicht geladen werden.</div>';
+  });
+}
+function bkVerlaengern(klasse, bk, uid, name){
+  var d = new Date(Math.max(Date.now(), bk.frist || 0) + 24*3600*1000);
+  openModal('<h3>⏰ Frist für '+esc(name)+'</h3><p>Nur diese Person darf bis dann noch einwerfen (nicht als verspätet).</p>'+
+    '<div class="bk-reihe"><input type="date" id="bkVDatum" value="'+esc(localDateStr(d))+'"><input type="time" id="bkVUhr" value="'+pad2(d.getHours())+':'+pad2(d.getMinutes())+'"></div>'+
+    '<div class="modal-actions"><button class="btn btn-ghost btn-sm" id="modalCancel" type="button">Abbrechen</button>'+
+    '<button class="btn btn-primary btn-sm" id="modalOk" type="button">Verlängern</button></div>');
+  var zurueck = function(){ bkAbgabenDialog(klasse, bk); };
+  document.getElementById('modalCancel').addEventListener('click', zurueck);
+  document.getElementById('modalOk').addEventListener('click', async function(){
+    var p = (document.getElementById('bkVDatum').value || '').split('-').map(Number), u = (document.getElementById('bkVUhr').value || '23:59').split(':').map(Number);
+    if(p.length !== 3) return;
+    var ms = new Date(p[0], p[1]-1, p[2], u[0], u[1], 0, 0).getTime();
+    try{
+      await updateDoc(bkRef(klasse, bk.id), 'verlaengert.'+uid, ms);
+      bk.verlaengert = Object.assign({}, bk.verlaengert); bk.verlaengert[uid] = ms;
+      toast('Frist verlängert.');
+    }catch(err){ if(!(err && err.code === 'klasse/abgebrochen')){ console.error(err); toast('Konnte nicht gespeichert werden.'); } }
+    zurueck();
+  });
+}
+
+/* ---------- Abholen im Browser («📬 Leeren», Chrome/Edge) ---------- */
+// Dateiname ohne Zeichen, die Windows oder macOS nicht mögen.
+function bkSicher(name){
+  var s = String(name || '').replace(/[\\\/:*?"<>|\u0000-\u001f]/g, '-').replace(/\s+/g, ' ').replace(/^[\s.]+|[\s.]+$/g, '');
+  return s.slice(0, 80);
+}
+function bkTeilen(name){ var i = name.lastIndexOf('.'); return i > 0 && name.length - i <= 9 ? [name.slice(0, i), name.slice(i)] : [name, '']; }
+function bkLokalName(label, original, spaet){
+  var t = bkTeilen(bkSicher(original) || 'Datei');
+  return label + '_' + t[0] + (spaet ? ' (verspätet)' : '') + t[1];
+}
+function bkStempel(ms){ var d = new Date(ms || Date.now()); return localDateStr(d)+'_'+pad2(d.getHours())+pad2(d.getMinutes()); }
+function bkIdb(){
+  return new Promise(function(resolve, reject){
+    var r = indexedDB.open('library_briefkasten', 1);
+    r.onupgradeneeded = function(){ r.result.createObjectStore('kv'); };
+    r.onsuccess = function(){ resolve(r.result); };
+    r.onerror = function(){ reject(r.error); };
+  });
+}
+function bkIdbGet(key){
+  return bkIdb().then(function(d){ return new Promise(function(resolve, reject){
+    var q = d.transaction('kv').objectStore('kv').get(key);
+    q.onsuccess = function(){ resolve(q.result); }; q.onerror = function(){ reject(q.error); };
+  }); });
+}
+function bkIdbSet(key, val){
+  return bkIdb().then(function(d){ return new Promise(function(resolve, reject){
+    var tx = d.transaction('kv', 'readwrite'); tx.objectStore('kv').put(val, key);
+    tx.oncomplete = function(){ resolve(); }; tx.onerror = function(){ reject(tx.error); };
+  }); });
+}
+async function bkGibtEs(dir, name){ try{ await dir.getFileHandle(name); return true; }catch(e){ return false; } }
+async function bkFreierName(dir, name){
+  var t = bkTeilen(name), n = name, i = 2;
+  while(await bkGibtEs(dir, n)) n = t[0]+' ('+(i++)+')'+t[1];
+  return n;
+}
+async function bkDateiSchreiben(dir, name, teile){
+  var fh = await dir.getFileHandle(name, {create:true});
+  var w = await fh.createWritable();
+  for(var i = 0; i < teile.length; i++) await w.write(teile[i]);
+  await w.close();
+}
+async function bkStandLesen(backup){
+  try{
+    var fh = await backup.getFileHandle('briefkasten-stand.json');
+    var j = JSON.parse(await (await fh.getFile()).text());
+    if(j && j.personen) return j;
+  }catch(e){}
+  return { version:1, personen:{} };
+}
+function bkLeerenStart(klasse, bk){
+  if(!bkKannLokal()){ uiInfo('Abholen geht hier nicht', 'Zum Abholen auf den Computer brauchst du Chrome oder Edge an einem Computer.'); return; }
+  bkIdbGet('basis_'+state.user.uid).catch(function(){ return null; }).then(function(h){
+    if(h){ bkLeeren(klasse, bk, h); return; }
+    uiConfirm('Wohin mit den Abgaben?',
+      'Wähle einmal den Ordner auf deinem Computer, in dem deine Abgaben liegen sollen. Darin entsteht pro Fach und Briefkasten ein eigener Ordner. Die Library merkt sich die Wahl auf diesem Gerät.',
+      'Ordner wählen', function(){ bkLeeren(klasse, bk, null); });
+  });
+}
+async function bkLeeren(klasse, bk, basis){
+  try{
+    if(basis){
+      var recht = await basis.queryPermission({mode:'readwrite'});
+      if(recht !== 'granted') recht = await basis.requestPermission({mode:'readwrite'});
+      if(recht !== 'granted') basis = null;
+    }
+    if(!basis){
+      basis = await window.showDirectoryPicker({mode:'readwrite', id:'briefkasten'});
+      await bkIdbSet('basis_'+state.user.uid, basis).catch(function(){});
+    }
+  }catch(err){
+    if(err && err.name === 'AbortError') return;
+    console.warn('Briefkasten-Ordner', err);
+    uiInfo('Kein Zugriff auf den Ordner', 'Die Library durfte nicht in den Ordner schreiben. Versuch es nochmals und erlaube den Zugriff.');
+    return;
+  }
+  openModal('<h3>📬 '+esc(bk.titel)+' wird geleert</h3><p id="bkLeerText">Schaue nach …</p>');
+  var melde = function(t){ var e = document.getElementById('bkLeerText'); if(e) e.textContent = t; };
+  try{
+    var r = await bkLeerenLauf(klasse, bk, basis, melde);
+    delete bkStatusCache[bk.id];
+    openModal('<h3>📬 '+(r.n ? r.n+' '+(r.n === 1 ? 'Abgabe' : 'Abgaben')+' abgeholt' : 'Der Briefkasten ist leer')+'</h3>'+
+      '<p>'+(r.n ? 'Die Dateien liegen jetzt in' : 'Abgaben landen in')+' <b>'+esc(r.pfad)+'</b>.'+
+      (r.ersetzt ? ' '+r.ersetzt+' frühere Fassung'+(r.ersetzt === 1 ? ' liegt' : 'en liegen')+' im Ordner «_Backup».' : '')+
+      (r.fehler ? ' <span class="bk-warn">'+r.fehler+' Einwurf war unvollständig und bleibt im Briefkasten.</span>' : '')+'</p>'+
+      '<div class="modal-actions"><button class="btn btn-ghost btn-sm" id="bkAndererOrdner" type="button">Anderen Ordner wählen</button>'+
+      '<button class="btn btn-primary btn-sm" id="modalOk" type="button">Fertig</button></div>');
+    document.getElementById('modalOk').addEventListener('click', closeModal);
+    document.getElementById('bkAndererOrdner').addEventListener('click', function(){ closeModal(); bkLeeren(klasse, bk, null); });
+    bkListeZeichnen();
+  }catch(err){
+    console.error('Briefkasten leeren', err);
+    uiInfo('Abholen hat nicht geklappt', 'Es ist ein Fehler aufgetreten. Was schon abgeholt wurde, liegt im Ordner; der Rest bleibt im Briefkasten. Versuch es nochmals.');
+  }
+}
+// Eigentliche Abholung. Reihenfolge pro Einwurf: Dateien lokal schreiben, Stand-Datei
+// nachführen, erst dann in der Cloud löschen — bricht es ab, geht nichts verloren.
+async function bkLeerenLauf(klasse, bk, basis, melde){
+  var fachDir = await basis.getDirectoryHandle(bkSicher(bk.fachName || subjectName(bk.subject)) || 'Fach', {create:true});
+  var dir = await fachDir.getDirectoryHandle(bkSicher(bk.ordner || bk.titel) || 'Briefkasten', {create:true});
+  var backup = await dir.getDirectoryHandle('_Backup', {create:true});
+  var stand = await bkStandLesen(backup);
+  var snap = await getDocs(bkAbgabenCol(klasse, bk.id));
+  var neu = [];
+  snap.forEach(function(d){ var a = Object.assign({id:d.id}, d.data()); if(!a.abgeholt) neu.push(a); });
+  neu.sort(function(a, b){ return bkMs(a.am) - bkMs(b.am); });
+  var res = { n:0, ersetzt:0, fehler:0, pfad: basis.name+' / '+fachDir.name+' / '+dir.name };
+  for(var k = 0; k < neu.length; k++){
+    var a = neu[k];
+    melde('Abgabe '+(k+1)+' von '+neu.length+' …');
+    var teile = [], ganz = true;
+    for(var i = 0; i < a.chunkCount; i++){
+      var c = await getDoc(bkChunkRef(klasse, bk.id, a.id, i));
+      if(!c.exists()){ ganz = false; break; }
+      teile.push(c.data().bin.toUint8Array());
+    }
+    if(!ganz){ res.fehler++; continue; }
+    var label = await bkLabel(stand, a.uid);
+    var spaet = bkIstSpaet(bk, a);
+    var alt = stand.personen[a.uid];
+    if(alt && (alt.dateien || []).length){
+      var st = bkStempel(alt.am), verschoben = false;
+      for(var j = 0; j < alt.dateien.length; j++){
+        var altName = alt.dateien[j], fh;
+        try{ fh = await dir.getFileHandle(altName); }catch(e){ continue; }
+        var t = bkTeilen(altName);
+        var ziel = await bkFreierName(backup, t[0]+'_'+st+t[1]);
+        await bkDateiSchreiben(backup, ziel, [await fh.getFile()]);
+        await dir.removeEntry(altName);
+        verschoben = true;
+      }
+      if(verschoben) res.ersetzt++;
+    }
+    var namen = [], pos = 0;
+    for(var f = 0; f < (a.dateien || []).length; f++){
+      var df = a.dateien[f];
+      var name = await bkFreierName(dir, bkLokalName(label, df.n, spaet));
+      await bkDateiSchreiben(dir, name, teile.slice(pos, pos + df.c));
+      pos += df.c;
+      namen.push(name);
+    }
+    stand.personen[a.uid] = { label:label, aid:a.id, am:bkMs(a.am), dateien:namen, spaet:spaet };
+    stand.briefkasten = bk.id; stand.titel = bk.titel;
+    await bkDateiSchreiben(backup, 'briefkasten-stand.json', [JSON.stringify(stand, null, 2)]);
+    var batch = fsWriteBatch(db);
+    for(var x = 0; x < a.chunkCount; x++) batch.delete(bkChunkRef(klasse, bk.id, a.id, x));
+    batch.update(bkAbgabeRef(klasse, bk.id, a.id), { abgeholt:true, abgeholtAm:serverTimestamp(), spaet:spaet });
+    await batch.commit();
+    if(bk.kalenderId) fsUpdateDoc(kdocFor(klasse, 'calendarEntries', bk.kalenderId), 'submitted.'+a.uid, true).catch(function(){});
+    res.n++;
+  }
+  return res;
+}
+// Name vor dem Dateinamen: Vorname; bei zwei gleichen Vornamen im selben Briefkasten
+// kommt der Anfangsbuchstabe des Nachnamens (oder die Klasse) dazu.
+async function bkLabel(stand, uid){
+  if(stand.personen[uid] && stand.personen[uid].label) return stand.personen[uid].label;
+  var s = null;
+  try{ var d = await getDoc(doc(db, 'students', uid)); if(d.exists()) s = d.data(); }catch(e){}
+  var basis = bkSicher((s && (s.displayName || s.username)) || uid.slice(0, 6)) || 'Unbekannt';
+  var belegt = {};
+  Object.keys(stand.personen).forEach(function(u){ belegt[stand.personen[u].label] = true; });
+  var label = basis;
+  if(belegt[label]){
+    var zus = s && s.nachname ? String(s.nachname).charAt(0).toUpperCase() : (s && s.klasse) || '';
+    if(zus) label = basis+' '+bkSicher(zus);
+    for(var i = 2; belegt[label]; i++) label = basis+' '+i;
+  }
+  return label;
+}
+
 function renderSubject(subjectId, folderId){
   clearOverviewWatchers();
   clearSubjectWatchers();
@@ -11470,10 +12290,12 @@ function renderSubject(subjectId, folderId){
     html += '<div>HTML-Datei hierher ziehen oder <label for="fileInputLp" style="color:var(--brand);text-decoration:underline;cursor:pointer;">Datei auswählen</label> – z. B. Unterrichtsplanung oder Präp. Liegt neben den Übungen, nur Lehrpersonen sehen sie.</div>';
     html += '<input type="file" id="fileInputLp" accept=".html,.htm,text/html">';
     html += '</div>';
-    html += '<div class="back-row"><button class="btn btn-ghost btn-sm" id="newFolderBtn" type="button">+ Neuer Ordner</button>'+
-      '<button class="btn btn-ghost btn-sm" id="kzmHolenBtn" type="button" title="Quiz, Karteikarten, Wortwolke oder Blitzumfrage hier ablegen">🏫 Aus dem Klassenzimmer</button></div>';
+    html += '<div class="back-row" style="flex-wrap:wrap;"><button class="btn btn-ghost btn-sm" id="newFolderBtn" type="button">+ Neuer Ordner</button>'+
+      '<button class="btn btn-ghost btn-sm" id="kzmHolenBtn" type="button" title="Quiz, Karteikarten, Wortwolke oder Blitzumfrage hier ablegen">🏫 Aus dem Klassenzimmer</button>'+
+      (isLeitung() ? '' : '<button class="btn btn-ghost btn-sm" id="bkNeuBtn" type="button" title="Die Klasse gibt hier Dateien ab, du holst sie auf deinen Computer">📮 Briefkasten aufstellen</button>')+'</div>';
   }
 
+  html += '<div id="bkListe" class="resource-list bk-liste"></div>';
   html += '<div id="resourceList" class="resource-list"><div class="empty-state">Wird geladen …</div></div>';
   if(!isTeacher) html += '<div id="gruppenFach" class="resource-list"></div>';
 
@@ -11489,6 +12311,8 @@ function renderSubject(subjectId, folderId){
   if(isTeacher){
     wireDropzone(subjectId);
     document.getElementById('kzmHolenBtn').addEventListener('click', function(){ kzmHolenDialog(subjectId, state.route.folderId || null); });
+    var bkNeuBtn = document.getElementById('bkNeuBtn');
+    if(bkNeuBtn) bkNeuBtn.addEventListener('click', function(){ bkEditor(null); });
     document.getElementById('newFolderBtn').addEventListener('click', function(){
       var here = state.route.folderId || null;
       if(folderDepth(here) >= MAX_FOLDER_DEPTH){
@@ -11536,6 +12360,8 @@ function renderSubject(subjectId, folderId){
     }).catch(function(err){ console.error('LMVZ-Katalog nicht ladbar', err); })
       .then(function(){ loaded.lmvz = true; maybeRender(); });
   }
+
+  bkFachLaden(subjectId);
 
   var qf = query(kcol('folders'), where('subject','==',subjectId));
   state.folderUnsub = onSnapshot(qf, function(snap){
@@ -11605,6 +12431,7 @@ function renderFolderContents(){
 
   var grFachEl = document.getElementById('gruppenFach');
   if(grFachEl) grFachEl.hidden = !!here;   // Gruppen-Übungen nur auf der Fach-Hauptebene
+  bkListeZeichnen();
 
   var folders = foldersIn(here);
   // imHub: SIKORE und Tipptrainer stehen im ⚡ Übungstrainer, nicht noch einmal im Fach.
@@ -18316,6 +19143,8 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-10-05-briefkasten-sus', datum:'2026-10-05', fuer:'alle', text:'📮 Neu: der Briefkasten. Musst du eine Datei abgeben, steht im Fach ein gelber Briefkasten. Tipp auf «Einwerfen», wähl deine Dateien (oder zieh sie auf den Briefkasten) und wirf sie ein. Du siehst danach, wann du abgegeben hast – öffnen kannst du die Datei dort nicht mehr. Bis zur Leerung darfst du neu einwerfen, dann zählt die neue Abgabe.'},
+  {id:'2026-10-05-briefkasten-lp', datum:'2026-10-05', fuer:'lehrer', text:'📮 Neu: Briefkasten für Datei-Abgaben (statt Teams). Im Fach auf «📮 Briefkasten aufstellen»: Titel, Ordnername auf deinem Computer, erlaubte Dateien (PDF, AutoCAD, Bilder …), auf Wunsch eine Frist – danach ist er zu oder Einwürfe werden als «verspätet» markiert – und ein Eintrag im Kalender. Mit «📬 Leeren» (Chrome oder Edge am Computer) landen die Abgaben in einem Ordner auf deinem Computer, als «Vorname_Dateiname»; wirft jemand neu ein, wandert die alte Fassung in den Ordner «_Backup». In der Library bleibt nach dem Leeren nur, wer wann abgegeben hat. Unter «👥 Abgaben» siehst du, wer fehlt, und verlängerst mit ⏰ die Frist für einzelne.'},
   {id:'2026-10-05-termin-parallel', datum:'2026-10-05', fuer:'lehrer', text:'↔️ Termin parallel zur Lektion: Müssen nur einige Schüler:innen weg (z. B. Zahnarzt-Kontrolle, Berufsberatung, Probe), hakst du beim «📌 Termin» neu «Parallel zur Lektion» an. Das Lektionsfeld ist dann zweigeteilt: eine Hälfte das Fach, die andere der Termin – auch im Stundenplan der Klasse.'},
   {id:'2026-10-05-handy-symbole', datum:'2026-10-05', fuer:'alle', text:'📱 Handy: Hast du viele Symbole in der Leiste oder «Mehr» offen, gehen sie jetzt auf eine weitere Zeile, statt abgeschnitten zu werden.'},
   {id:'2026-10-05-hilfe-bot', datum:'2026-10-05', fuer:'alle', text:'💬 Neu: die Library-Hilfe. Tipp in der Leiste auf das Logo der Sekundarschule Altnau – das blaue Männchen steht auf und beantwortet deine Fragen zur Bedienung (z. B. «Wo sehe ich meine Hausaufgaben?»). Zur Startseite kommst du weiterhin über «Start» oder den Titel «Helfenberger\'s Library».'},

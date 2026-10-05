@@ -328,3 +328,94 @@ test('Gruppen-Prüfung: wer in keiner Gruppe der Seite ist, liest nichts', async
   await assertFails(getDoc(doc(db.susA(), 'klassen/G3b/pruefungen/p1')));
   await assertFails(setDoc(doc(db.susA(), 'klassen/G3b/pruefungen/p1/teilnahmen/susA'), { status: 'laeuft' }));
 });
+
+// ---------- 📮 Briefkasten ----------
+const { serverTimestamp, Bytes } = require('firebase/firestore');
+const bk = (extra) => Object.assign({ titel: 'Schienen', ordner: 'Schienen Blatt 3', subject: 'gtz', fachName: 'GTZ', typen: ['pdf', 'dwg'],
+  fristArt: 'hart', frist: null, ownerUid: 'jan', ownerName: 'Helfenberger', offen: true }, extra || {});
+const abg = (uid) => ({ uid: uid, am: serverTimestamp(), abgeholt: false, dateien: [{ n: 'a.pdf', g: 3, c: 1 }], chunkCount: 1, groesse: 3 });
+const BKP = 'klassen/G3b/briefkaesten/b1';
+
+test('Briefkasten: Lehrperson stellt eigenen auf, nicht im Namen anderer; Schüler:innen nicht', async () => {
+  await assertSucceeds(setDoc(doc(db.jan(), BKP), bk()));
+  await assertFails(setDoc(doc(db.lp(), 'klassen/G3a/briefkaesten/b2'), bk()));
+  await assertSucceeds(setDoc(doc(db.lp(), 'klassen/G3a/briefkaesten/b2'), bk({ ownerUid: 'lp' })));
+  await assertFails(setDoc(doc(db.sus(), 'klassen/G3b/briefkaesten/b3'), bk({ ownerUid: 'sus' })));
+  await assertFails(setDoc(doc(db.jan(), 'klassen/G3b/briefkaesten/b4'), bk({ fristArt: 'egal' })));
+  await assertSucceeds(setDoc(doc(db.jan(), 'lehrer/jan/briefkaesten/b1'), { klasse: 'G3b' }));
+  await assertFails(setDoc(doc(db.lp(), 'lehrer/jan/briefkaesten/b1'), { klasse: 'G3b' }));
+});
+test('Briefkasten: nur Besitzer:in (und Jan) ändert und löscht', async () => {
+  await seed('klassen/G3a/briefkaesten/b2', bk({ ownerUid: 'lp' }));
+  await seed(BKP, bk());
+  await assertFails(updateDoc(doc(db.lp(), BKP), { titel: 'Neu' }));
+  await assertFails(deleteDoc(doc(db.lp(), BKP)));
+  await assertSucceeds(updateDoc(doc(db.lp(), 'klassen/G3a/briefkaesten/b2'), { titel: 'Neu' }));
+  await assertFails(updateDoc(doc(db.lp(), 'klassen/G3a/briefkaesten/b2'), { ownerUid: 'jan' }));
+  await assertSucceeds(deleteDoc(doc(db.jan(), 'klassen/G3a/briefkaesten/b2')));
+  await assertSucceeds(deleteDoc(doc(db.jan(), BKP)));
+});
+test('Briefkasten: Klasse sieht ihn und wirft ein, liest den Inhalt aber nie', async () => {
+  await seed(BKP, bk());
+  await assertSucceeds(getDoc(doc(db.sus(), BKP)));
+  await assertFails(getDoc(doc(db.susA(), BKP)));
+  await assertSucceeds(setDoc(doc(db.sus(), BKP + '/abgaben/sus_abc123/chunks/0'), { bin: Bytes.fromUint8Array(new Uint8Array([1, 2, 3])) }));
+  await assertSucceeds(setDoc(doc(db.sus(), BKP + '/abgaben/sus_abc123'), abg('sus')));
+  // eigene Quittung ja, Inhalt nein, nichts mehr ändern oder löschen
+  await assertSucceeds(getDocs(query(collection(db.sus(), BKP + '/abgaben'), where('uid', '==', 'sus'))));
+  await assertFails(getDoc(doc(db.sus(), BKP + '/abgaben/sus_abc123/chunks/0')));
+  await assertFails(getDocs(collection(db.sus(), BKP + '/abgaben/sus_abc123/chunks')));
+  await assertFails(setDoc(doc(db.sus(), BKP + '/abgaben/sus_abc123/chunks/0'), { bin: Bytes.fromUint8Array(new Uint8Array([9])) }));
+  await assertFails(updateDoc(doc(db.sus(), BKP + '/abgaben/sus_abc123'), { abgeholt: true }));
+  await assertFails(deleteDoc(doc(db.sus(), BKP + '/abgaben/sus_abc123')));
+  await assertFails(getDocs(collection(db.sus(), BKP + '/abgaben')));
+});
+test('Briefkasten: nicht für andere einwerfen, keine fremde Klasse, keine falschen Felder', async () => {
+  await seed(BKP, bk());
+  await assertFails(setDoc(doc(db.sus(), BKP + '/abgaben/andere_abc123'), abg('andere')));
+  await assertFails(setDoc(doc(db.sus(), BKP + '/abgaben/andere_abc123'), abg('sus')));
+  await assertFails(setDoc(doc(db.sus(), BKP + '/abgaben/andere_abc123/chunks/0'), { bin: Bytes.fromUint8Array(new Uint8Array([1])) }));
+  await assertFails(setDoc(doc(db.susA(), BKP + '/abgaben/susA_abc123'), abg('susA')));
+  await assertFails(setDoc(doc(db.sus(), BKP + '/abgaben/sus_abc124'), Object.assign(abg('sus'), { abgeholt: true })));
+  await assertFails(setDoc(doc(db.sus(), BKP + '/abgaben/sus_abc125'), Object.assign(abg('sus'), { am: new Date(2020, 0, 1) })));
+  await assertFails(setDoc(doc(db.sus(), BKP + '/abgaben/sus_abc126/chunks/x'), { bin: Bytes.fromUint8Array(new Uint8Array([1])) }));
+  await assertFails(setDoc(doc(db.sus(), BKP + '/abgaben/sus_abc126/chunks/0'), { html: 'x' }));
+});
+test('Briefkasten: Gruppenmitglied aus anderer Klasse wirft ein', async () => {
+  await seed('klassen/G3b/appMeta/gruppenMitglieder', { uids: ['susA'] });
+  await seed(BKP, bk());
+  await assertSucceeds(getDoc(doc(db.susA(), BKP)));
+  await assertSucceeds(setDoc(doc(db.susA(), BKP + '/abgaben/susA_abc123/chunks/0'), { bin: Bytes.fromUint8Array(new Uint8Array([1])) }));
+  await assertSucceeds(setDoc(doc(db.susA(), BKP + '/abgaben/susA_abc123'), abg('susA')));
+});
+test('Briefkasten: harte Frist schliesst, «verspätet» und Verlängerung lassen zu', async () => {
+  const gestern = Date.now() - 24 * 3600 * 1000, morgen = Date.now() + 24 * 3600 * 1000;
+  await seed(BKP, bk({ frist: gestern }));
+  await assertFails(setDoc(doc(db.sus(), BKP + '/abgaben/sus_abc123'), abg('sus')));
+  await assertFails(setDoc(doc(db.sus(), BKP + '/abgaben/sus_abc123/chunks/0'), { bin: Bytes.fromUint8Array(new Uint8Array([1])) }));
+  await seed(BKP, bk({ frist: gestern, fristArt: 'spaet' }));
+  await assertSucceeds(setDoc(doc(db.sus(), BKP + '/abgaben/sus_abc123'), abg('sus')));
+  await seed(BKP, bk({ frist: gestern, verlaengert: { sus: morgen } }));
+  await assertSucceeds(setDoc(doc(db.sus(), BKP + '/abgaben/sus_abc124'), abg('sus')));
+  await seed(BKP, bk({ frist: gestern, verlaengert: { andere: morgen } }));
+  await assertFails(setDoc(doc(db.sus(), BKP + '/abgaben/sus_abc125'), abg('sus')));
+  await seed(BKP, bk({ frist: morgen }));
+  await assertSucceeds(setDoc(doc(db.sus(), BKP + '/abgaben/sus_abc126'), abg('sus')));
+  await seed(BKP, bk({ offen: false }));
+  await assertFails(setDoc(doc(db.sus(), BKP + '/abgaben/sus_abc127'), abg('sus')));
+});
+test('Briefkasten: nur die Lehrperson des Briefkastens holt ab (liest, markiert, löscht)', async () => {
+  await seed(BKP, bk());
+  await seed(BKP + '/abgaben/sus_abc123', { uid: 'sus', am: new Date(), abgeholt: false, dateien: [{ n: 'a.pdf', g: 3, c: 1 }], chunkCount: 1, groesse: 3 });
+  await seed(BKP + '/abgaben/sus_abc123/chunks/0', { bin: Bytes.fromUint8Array(new Uint8Array([1, 2, 3])) });
+  await assertFails(getDocs(collection(db.lp(), BKP + '/abgaben')));
+  await assertFails(getDoc(doc(db.lp(), BKP + '/abgaben/sus_abc123/chunks/0')));
+  await assertFails(deleteDoc(doc(db.lp(), BKP + '/abgaben/sus_abc123/chunks/0')));
+  await assertFails(getDoc(doc(db.leitung(), BKP + '/abgaben/sus_abc123/chunks/0')));
+  await assertSucceeds(getDocs(collection(db.jan(), BKP + '/abgaben')));
+  await assertSucceeds(getDocs(collection(db.jan(), BKP + '/abgaben/sus_abc123/chunks')));
+  await assertSucceeds(deleteDoc(doc(db.jan(), BKP + '/abgaben/sus_abc123/chunks/0')));
+  await assertSucceeds(updateDoc(doc(db.jan(), BKP + '/abgaben/sus_abc123'), { abgeholt: true, abgeholtAm: serverTimestamp() }));
+  await assertFails(updateDoc(doc(db.jan(), BKP + '/abgaben/sus_abc123'), { uid: 'andere' }));
+  await assertSucceeds(deleteDoc(doc(db.jan(), BKP + '/abgaben/sus_abc123')));
+});
