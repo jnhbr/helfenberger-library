@@ -11,8 +11,11 @@
  *
  * Ziel: Fach aus dem Paket (oder --fach), Ordner = Ordner mit dem Namen aus dem Paket
  * (oder --ordner "Name"); gibt es ihn nicht, wird er auf der Fach-Hauptebene angelegt
- * (oder unter --in "Name des übergeordneten Ordners"). Vorhandenes (gleicher Typ + Titel
- * am selben Ort) wird übersprungen. Schreibt nur mit --ja.
+ * (oder unter --in "Name des übergeordneten Ordners"). In Mathematik zählen auch die
+ * Lehrmittel-Ordner (Mathematik 1–3 › Kapitel › Unterkapitel) – sie werden nie neu angelegt.
+ * Vorhandenes wird übersprungen: gleicher Typ + Titel am selben Ort, oder dasselbe Stück
+ * (Titel + Inhalt) irgendwo im Fach (z. B. nach dem Verschieben in einen Unterordner).
+ * Schreibt nur mit --ja.
  */
 const fs = require('fs');
 const path = require('path');
@@ -39,7 +42,7 @@ function appFunktionen(){
   const ctx = {};
   vm.createContext(ctx);
   vm.runInContext([vari('UMFRAGE_MODI'), vari('UMFRAGE_MAX_FRAGEN'), vari('KK_MAX_KARTEN'), vari('KK_MAX_SETS'),
-    fn('quizAusText'), fn('kkParse'), fn('kzmPaketNorm'), fn('umfrageFragen')].join('\n'), ctx);
+    vari('LMVZ_SUBJECT'), fn('quizAusText'), fn('kkParse'), fn('kzmPaketNorm'), fn('umfrageFragen'), fn('kzmInhaltSig'), fn('lmvzBuild'), fn('kzmLmvzAblage')].join('\n'), ctx);
   return ctx;
 }
 
@@ -63,6 +66,14 @@ function appFunktionen(){
   // Ordner des Fachs
   const fsnap = await kref.collection('folders').where('subject', '==', fach).get();
   const ordner = fsnap.docs.map(d => Object.assign({ id:d.id }, d.data()));
+  // Mathematik: die Lehrmittel-Ordner gibt es nur in der App (aus assets/lmvz-mathe.json) – als Ziel
+  // erkennen, statt einen gleichnamigen echten Ordner daneben anzulegen. Echte Ordner haben Vorrang.
+  if(fach === APP.LMVZ_SUBJECT){
+    try{
+      const cat = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'assets', 'lmvz-mathe.json'), 'utf8'));
+      APP.lmvzBuild(cat, true).folders.filter(APP.kzmLmvzAblage).forEach(f => ordner.push({ id:f.id, subject:fach, parentId:f.parentId || null, name:f.name, virtuell:true }));
+    }catch(e){ console.log('⚠️  Lehrmittel-Ordner nicht gelesen (' + e.message + ')'); }
+  }
   const finde = (name, parent) => ordner.find(f => String(f.name).trim().toLowerCase() === name.trim().toLowerCase() && (parent === undefined || (f.parentId || null) === (parent || null)));
   let parentId = null;
   if(arg('in')){ const p = finde(arg('in')); if(!p) throw new Error('Ordner «' + arg('in') + '» gibt es in ' + fach + ' nicht.'); parentId = p.id; }
@@ -84,21 +95,23 @@ function appFunktionen(){
   const wolken = Array.isArray(vorl.wolken) ? vorl.wolken.slice() : [], umfragen = Array.isArray(vorl.umfragen) ? vorl.umfragen.slice() : [];
   const norm = s => String(s || '').trim().toLowerCase();
   const da = [];
-  qsnap.forEach(d => { const x = d.data(); da.push({ typ:'quiz', titel:x.title, fach:x.subject || '', ordner:x.folderId || null }); });
-  sets.forEach(x => da.push({ typ:'kk', titel:x.titel, fach:x.fach || '', ordner:x.ordner || null }));
-  wolken.forEach(x => da.push({ typ:'wolke', titel:x.frage, fach:x.fach || '', ordner:x.ordner || null }));
-  umfragen.forEach(x => da.push({ typ:'umfrage', titel:x.titel || APP.umfrageFragen(x)[0].frage, fach:x.fach || '', ordner:x.ordner || null }));
+  const sig = APP.kzmInhaltSig;
+  qsnap.forEach(d => { const x = d.data(); da.push({ typ:'quiz', titel:x.title, fach:x.subject || '', ordner:x.folderId || null, sig:sig('quiz', x.questions) }); });
+  sets.forEach(x => da.push({ typ:'kk', titel:x.titel, fach:x.fach || '', ordner:x.ordner || null, sig:sig('kk', x.karten) }));
+  wolken.forEach(x => da.push({ typ:'wolke', titel:x.frage, fach:x.fach || '', ordner:x.ordner || null, sig:sig('wolke', x.frage) }));
+  umfragen.forEach(x => da.push({ typ:'umfrage', titel:x.titel || APP.umfrageFragen(x)[0].frage, fach:x.fach || '', ordner:x.ordner || null, sig:sig('umfrage', APP.umfrageFragen(x)) }));
 
   const plan = [];
   for(const st of pk.stuecke){
     let ort = zielId;
     if(st.unter){ const u = finde(st.unter, zielId) || ordnerAnlegen(st.unter, zielId); ort = u.id; }
-    const doppelt = da.some(x => x.typ === st.typ && x.fach === fach && (x.ordner || null) === (ort || null) && norm(x.titel) === norm(st.titel));
+    const stSig = sig(st.typ, st.typ === 'quiz' ? st.daten : st.typ === 'umfrage' ? st.daten.fragen : st.typ === 'kk' ? st.daten.karten : st.daten.frage);
+    const doppelt = da.some(x => x.typ === st.typ && x.fach === fach && norm(x.titel) === norm(st.titel) && ((x.ordner || null) === (ort || null) || x.sig === stSig));
     plan.push(Object.assign({ ort, doppelt }, st));
   }
   const ICON = { quiz:'🎮', kk:'🗂️', wolke:'☁️', umfrage:'⚡' };
   const ortName = id => { const f = ordner.find(x => x.id === id); return f ? f.name : '(Fach-Hauptebene)'; };
-  console.log('Klasse ' + klasse + ' · Fach ' + fach + ' · Ordner: ' + (ziel ? ziel.name + (neueOrdner.includes(ziel) ? ' (wird neu angelegt)' : '') : '(Fach-Hauptebene)'));
+  console.log('Klasse ' + klasse + ' · Fach ' + fach + ' · Ordner: ' + (ziel ? ziel.name + (neueOrdner.includes(ziel) ? ' (wird neu angelegt)' : ziel.virtuell ? ' (Lehrmittel-Ordner)' : '') : '(Fach-Hauptebene)'));
   plan.forEach(p => console.log('  ' + (p.doppelt ? '↷ schon da  ' : '＋ neu      ') + ICON[p.typ] + ' ' + p.titel + (p.unter ? '   → ' + ortName(p.ort) : '')));
   const neu = plan.filter(p => !p.doppelt);
   if(sets.length + neu.filter(p => p.typ === 'kk').length > APP.KK_MAX_SETS) throw new Error('Mehr als ' + APP.KK_MAX_SETS + ' Karteikarten-Sets in der Klasse – zuerst alte löschen.');

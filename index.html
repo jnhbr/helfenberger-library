@@ -2407,6 +2407,16 @@
   .stp-jetzt-tag{position:absolute;top:-8px;right:6px;background:var(--c);color:#fff;font-size:9.5px;font-weight:800;letter-spacing:.06em;border-radius:999px;padding:2px 7px;}
   .stp-eigen-tag{position:absolute;bottom:3px;right:6px;font-size:11px;color:var(--c);font-weight:800;}
   .stp-tagwahl{display:flex;gap:6px;margin-bottom:12px;}
+  .stp-tagchip small{display:block;font-size:10px;font-weight:700;opacity:.85;}
+  .stp-modus{margin-bottom:12px;}
+  .stp-woche{display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;margin-bottom:12px;}
+  .stp-woche-txt{display:flex;flex-direction:column;align-items:center;min-width:150px;line-height:1.25;}
+  .stp-woche-txt b{font-size:15px;}
+  .stp-woche-txt span{font-size:12px;color:var(--text-muted);}
+  .stp-ferien-banner{display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;text-align:center;background:color-mix(in srgb, #F59E0B 15%, var(--surface));border-radius:12px;padding:10px 12px;font-size:14px;margin-bottom:12px;}
+  .stp-tag.ferien{opacity:.75;}
+  .stp-cell.ferien{min-height:44px;border:1px dashed var(--border);background:repeating-linear-gradient(135deg, var(--surface-2) 0 6px, transparent 6px 12px);}
+  .stp-cell.termin{outline:2px dashed color-mix(in srgb, var(--c) 70%, transparent);outline-offset:-3px;}
   .stp-tagchip{flex:1;border:none;border-radius:12px;padding:9px 0;font-weight:800;font-size:14px;cursor:pointer;color:var(--tc);background:color-mix(in srgb, var(--tc) 12%, var(--surface));position:relative;}
   .stp-tagchip.on{background:var(--tc);color:#fff;box-shadow:0 8px 16px -10px var(--tc);}
   .stp-tagchip.heute::after{content:'';position:absolute;top:5px;right:7px;width:6px;height:6px;border-radius:50%;background:currentColor;}
@@ -11176,19 +11186,26 @@ function maxDepthBelow(folderId){
 // versehentlich eine ganze Übungssammlung mitverschwinden.
 function askDeleteFolder(f){
   var c = subtreeCounts(f.id);
-  if(c.folders || c.resources){
-    var was = [];
-    if(c.folders) was.push(c.folders+' Unterordner');
-    if(c.resources) was.push(c.resources+' Übung'+(c.resources===1?'':'en'));
-    uiInfo('Ordner ist nicht leer',
-      '«'+f.name+'» enthält noch '+was.join(' und ')+'. Verschiebe den Inhalt zuerst woandershin (Knopf «Verschieben»), dann lässt sich der Ordner löschen.');
-    return;
-  }
-  uiConfirm('Ordner löschen?', '«'+f.name+'» ist leer und wird entfernt.', 'Löschen', function(){
-    deleteDoc(kdoc('folders', f.id))
-      .then(function(){ toast('Ordner gelöscht.'); })
-      .catch(function(err){ console.error(err); toast('Löschen fehlgeschlagen.'); });
-  }, true);
+  // Zusatzmaterial (Quiz, Umfragen, Wortwolken, Karteikarten, Prüfungen) zählt auch zum Inhalt:
+  // Ohne seinen Ordner fiele es auf die Fach-Hauptebene.
+  kzmLoad(true).then(function(){
+    var ids = subtreeIds(f.id);
+    var zusatz = kzmItems().filter(function(it){ return it.ordner && ids.indexOf(it.ordner) >= 0; }).length;
+    if(c.folders || c.resources || zusatz){
+      var was = [];
+      if(c.folders) was.push(c.folders+' Unterordner');
+      if(c.resources) was.push(c.resources+' Übung'+(c.resources===1?'':'en'));
+      if(zusatz) was.push(zusatz+' Stück Zusatzmaterial (Quiz, Umfragen, Wortwolken, Karteikarten oder Prüfungen)');
+      uiInfo('Ordner ist nicht leer',
+        '«'+f.name+'» enthält noch '+was.join(' und ')+'. Verschiebe den Inhalt zuerst woandershin (Knopf «Verschieben» bzw. «📁 Ablegen») oder lösche ihn, dann lässt sich der Ordner löschen.');
+      return;
+    }
+    uiConfirm('Ordner löschen?', '«'+f.name+'» ist leer und wird entfernt.', 'Löschen', function(){
+      deleteDoc(kdoc('folders', f.id))
+        .then(function(){ toast('Ordner gelöscht.'); })
+        .catch(function(err){ console.error(err); toast('Löschen fehlgeschlagen.'); });
+    }, true);
+  });
 }
 
 /* ===================== ÜBUNGEN: SORTIEREN, VERSCHIEBEN, MARKIEREN ===================== */
@@ -17629,6 +17646,11 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-10-05-stundenplan-wochen', datum:'2026-10-05', fuer:'alle', text:'🗓️ Stundenplan mit Wochen: Mit ◀ ▶ blätterst du durch die Wochen, in den Ferien ist der Plan leer. Mit «📌 Termin» trägst du etwas nur für eine bestimmte Woche ein (z. B. Zahnarzt oder Training) – der normale Plan bleibt. Termine der Lehrperson (Sporttag, Exkursion, Ausfall) erscheinen von selbst mit 📌.'},
+  {id:'2026-10-05-stundenplan-termine-lp', datum:'2026-10-05', fuer:'lehrer', text:'📌 Ausserordentliche Termine im Stundenplan: «📌 Termin» › Lektion antippen › eintragen (eine Lektion, Halbtag oder ganzer Tag, auch «fällt aus»). In «Mein Stundenplan» wählst du, ob nur du ihn siehst oder auch eine Klasse in ihrem Stundenplan; in der Ansicht «Klasse» sieht ihn die ganze Klasse. «Jetzt / Als Nächstes» auf der Startseite beachtet Ferien und Termine.'},
+  {id:'2026-10-05-seb-doppelfenster', datum:'2026-10-05', fuer:'lehrer', text:'🛡️ Safe Exam Browser: Blieb das normale Browserfenster offen, aus dem der SEB gestartet wurde, sperrte es die Prüfung («Seite neu geladen oder verlassen») – im SEB liess sich weiterschreiben, gespeichert wurde aber nichts mehr. Behoben: Das normale Fenster sperrt eine SEB-Prüfung nicht mehr, und wer von aussen gesperrt wird, sieht sofort den Sperrbildschirm.'},
+  {id:'2026-10-05-kreisziffern', datum:'2026-10-05', fuer:'lehrer', text:'🔢 Prüfungen «selbst hinschreiben»: Ist die Lösung ein Abschnitt wie ③ (z. B. bei den Weg-Zeit-Diagrammen), zählt jetzt auch die getippte «3» als richtig.'},
+  {id:'2026-10-05-zusatzmaterial-ordner', datum:'2026-10-05', fuer:'lehrer', text:'📁 Zusatzmaterial bleibt in seinem Ordner: Ein Ordner mit Quizzen, Umfragen, Wortwolken, Karteikarten oder Prüfungen lässt sich nicht mehr «leer» löschen (bisher fiel das Material dann auf die Fach-Hauptebene). «📥 Paket importieren» legt nichts mehr doppelt an, auch wenn du ein Stück inzwischen in einen Unterordner verschoben hast. Neu in den 🔒 Unterrichtsplanungen: Programmpunkte mit ⠿ verschieben und ⚡ Zufalls-Energizer aus dem Klassenzimmer.'},
   {id:'2026-10-04-schueleransicht', datum:'2026-10-04', fuer:'lehrer', text:'🎒 Neu unter ⚙️ Einstellungen › «Schüleransicht»: die Library so sehen wie eine Schülerin oder ein Schüler (einmal aus der Klassenliste wählen, danach ein Klick). Gespeichert wird dabei nichts; der private Notenrechner und eigene Kalendereinträge bleiben verborgen. Zurück geht es über das gelbe Band.'},
   {id:'2026-10-04-widgets-neben-anordnen', datum:'2026-10-04', fuer:'alle', text:'🧩 Beim Anordnen steht der Knopf «Widgets» jetzt direkt rechts neben «✏️ Anordnen» statt unten. Hörst du mit dem Anordnen auf, verschwindet er wieder.'},
   {id:'2026-10-04-sprache-original', datum:'2026-10-04', fuer:'alle', text:'🇩🇪 Im Sprach-Modus (🌐): Tippe auf einen übersetzten Text, und du siehst ihn auf Deutsch – bei Knöpfen lange drücken. Im Sprach-Fenster kannst du neu «🔊 Vorlesen» einschalten: Dann liest dir die Library den deutschen Text vor. Deine Sprache gehört jetzt zu deinem Konto und kommt auf jedes Gerät mit.'},
@@ -20442,6 +20464,31 @@ function enZufall(ausser){
   enOeffnen(pool[zufallInt(pool.length)]);
 }
 
+/* Für eingebettete Seiten im Viewer (🔒 Unterrichtsplanung, gleicher Origin): Katalog lesen
+   (inkl. eigener Spiele und «zuletzt gespielt» der Klasse) und ein Spiel in der Beamer-Ansicht
+   öffnen. Nur für Lehrpersonen. */
+window.hlEnergizer = {
+  liste: function(){
+    if(!state.profile || state.profile.role !== 'teacher') return Promise.resolve([]);
+    return enLaden().then(function(){
+      return enAlle().map(function(s){
+        return {id:s.id, kat:s.kat, icon:s.icon || '', titel:s.titel, min:s.min, platz:!!s.platz, sozial:s.sozial || '',
+          kurz:s.kurz || '', schritte:s.schritte || [], tipp:s.tipp || '', gespielt:enGespieltAm(s.id)};
+      });
+    });
+  },
+  oeffnen: function(id){
+    if(!state.profile || state.profile.role !== 'teacher') return Promise.resolve(false);
+    return enLaden().then(function(){
+      var s = enFinde(id);
+      if(!s) return false;
+      enOeffnen(s);
+      if(en.overlay && en.overlay.el) en.overlay.el.style.zIndex = '1500';   // über dem (Pseudo-)Vollbild des Viewers
+      return true;
+    });
+  }
+};
+
 /* ---------- Beamer-Ansicht ---------- */
 function enOeffnen(s){
   if(!en.overlay){
@@ -22012,7 +22059,7 @@ function kzmPaketZeigen(pk, fach, ordner){
     (unter.length ? '<br><small>Unterordner: '+esc(unter.join(', '))+'</small>' : '')+'</p>';
   h += kzmAblageHtml(zielFach, zielOrdner, true);
   if(pk.ordner && !gleich) h += '<label class="gr-opt"><input type="checkbox" id="kzmPkNeu" checked> Darin den Ordner «'+esc(pk.ordner)+'» neu anlegen</label>';
-  h += '<p class="kk-ed-info">Was es am selben Ort mit gleichem Titel schon gibt, wird übersprungen.</p>';
+  h += '<p class="kk-ed-info">Was es schon gibt (gleicher Titel am selben Ort oder dasselbe Stück in einem anderen Ordner des Fachs), wird übersprungen.</p>';
   h += '<div class="modal-actions"><button class="btn btn-ghost btn-sm" id="modalCancel" type="button">Abbrechen</button>'+
     '<button class="btn btn-primary btn-sm" id="modalOk" type="button">📥 Importieren</button></div>';
   openModal(h, 'modal-wide');
@@ -22028,6 +22075,18 @@ function kzmPaketZeigen(pk, fach, ordner){
       if(document.getElementById('kzmBox')) kzmNachAenderung(); else render();
     }).catch(function(err){ console.error(err); toast('Import hat nicht geklappt'+(err && err.code ? ' ('+err.code+')' : '')+'.'); closeModal(); });
   });
+}
+// Inhalt eines Stücks als Text – zum Erkennen von Doppelten (App und admin/material-import.js).
+function kzmInhaltSig(typ, d){
+  var j = function(a){ return (Array.isArray(a) ? a : []).join('|'); };
+  if(typ === 'quiz') return (Array.isArray(d) ? d : []).map(function(f){ return [f.q, j(f.a), f.c].join('#'); }).join('~');
+  if(typ === 'umfrage') return (Array.isArray(d) ? d : []).map(function(f){ return [f.frage, j(f.optionen)].join('#'); }).join('~');
+  if(typ === 'kk') return (Array.isArray(d) ? d : []).map(function(k){ return k.v + '#' + k.r; }).join('~');
+  return String(d || '');
+}
+function kzmItemSig(it){
+  var r = it.raw || {};
+  return kzmInhaltSig(it.typ, it.typ === 'quiz' ? r.questions : it.typ === 'umfrage' ? umfrageFragen(r) : it.typ === 'kk' ? r.karten : r.frage);
 }
 async function kzmPaketImport(pk, fach, ordner, neuerOrdner){
   var ordnerNeu = async function(parent, name){
@@ -22047,7 +22106,13 @@ async function kzmPaketImport(pk, fach, ordner, neuerOrdner){
   for(var i = 0; i < pk.stuecke.length; i++){
     var st = pk.stuecke[i];
     var ziel = st.unter ? await ordnerNeu(ordner, st.unter) : ordner;
-    if(vorhanden.some(function(it){ return it.typ === st.typ && it.fach === fach && (it.ordner || null) === (ziel || null) && String(it.titel).trim().toLowerCase() === st.titel.toLowerCase(); })){ r.doppelt++; continue; }
+    // Schon da = gleicher Titel am selben Ort, oder dasselbe Stück (Titel + Inhalt) irgendwo im Fach –
+    // sonst käme nach dem Verschieben in einen Unterordner bei jedem Import eine zweite Kopie dazu.
+    var sig = kzmInhaltSig(st.typ, st.typ === 'quiz' ? st.daten : st.typ === 'umfrage' ? st.daten.fragen : st.typ === 'kk' ? st.daten.karten : st.daten.frage);
+    if(vorhanden.some(function(it){
+      return it.typ === st.typ && it.fach === fach && String(it.titel).trim().toLowerCase() === st.titel.toLowerCase() &&
+        ((it.ordner || null) === (ziel || null) || kzmItemSig(it) === sig);
+    })){ r.doppelt++; continue; }
     if(st.typ === 'quiz'){
       await setDoc(doc(kcol('quizzes')), {title:st.titel, subject:fach, folderId:ziel || null, questions:st.daten,
         createdBy:state.profile.displayName, createdAt:serverTimestamp()});
@@ -25344,6 +25409,15 @@ function pruefStudentUpdate(){
     // Lehrperson hat die Teilnahme zurückgesetzt oder die Prüfung gelöscht
     if(!p0 || (s.gesehen && !t0)){ pruefSessionStopp(); pruefFullscreenAus(); pruefLockHide(); return; }
     if(!t0) return;
+    // Die Teilnahme wurde von aussen gesperrt (zweites Gerät/Fenster): hier
+    // nicht weiterschreiben lassen — ab jetzt würde nichts mehr gespeichert.
+    if(t0.status === 'gesperrt' && !s.ending){
+      var v0 = (t0.verstoesse || []).slice(-1)[0];
+      s.ending = true;
+      pruefSessionStopp(); pruefFullscreenAus();
+      pruefZeigeGesperrt(p0, v0 ? v0.grund : '');
+      return;
+    }
     if(p0.status === 'beendet') pruefErzwingeAbgabe();
     return;
   }
@@ -25351,6 +25425,14 @@ function pruefStudentUpdate(){
   if(!aktiv && pruefWarteraumUpdate()) return;
   if(!aktiv){ if(pruef.lockSig) pruefLockHide(); return; }
   var p = aktiv.p, t = aktiv.t;
+  // SEB-Prüfung, die gerade im Safe Exam Browser läuft: Dieses normale
+  // Browserfenster (von hier wurde der SEB geöffnet) darf sie nicht sperren —
+  // sonst schreibt die Person im SEB weiter, ohne dass etwas gespeichert wird
+  // (Alisia, 05.10.2026). Wer den SEB verlässt, wird beim Wiederöffnen im SEB gesperrt.
+  if(p.seb && !sebAktiv() && t.status === 'laeuft' && t.aktiv){
+    if(pruef.lockSig && pruef.lockSig !== 'seb:' + p.id) pruefLockHide();
+    return;
+  }
   if(t.status === 'laeuft' && t.aktiv && t.geladen === false){
     // Die Prüfung war noch gar nicht fertig geladen (langsame Verbindung) —
     // dafür wird niemand gesperrt: einfach nochmals versuchen lassen.
@@ -25969,7 +26051,8 @@ function pruefLoesungLaden(pid){
   });
 }
 function pruefNorm(s){
-  return (s || '').toString().trim().toLowerCase()
+  // ①…⑳ zählen wie 1…20 (Abschnitte in Diagrammen: «3» statt «③» ist richtig).
+  return (s || '').toString().replace(/[①-⑳]/g, function(c){ return ' ' + (c.charCodeAt(0) - 0x245F) + ' '; }).trim().toLowerCase()
     .replace(/ä/g,'ae').replace(/ö/g,'oe').replace(/ü/g,'ue').replace(/ß/g,'ss')
     .replace(/[.,!?;:]/g,'').replace(/\s+/g,' ');
 }
@@ -35498,7 +35581,14 @@ function paintWidgetDrawer(){
      für alle Schüler:innen (inkl. Gruppen/Wahlfächer) und Lehrpersonen. Er liegt unter den
      eigenen Änderungen: SuS eigen > Schulplan > Klassenplan; LP eigen > Schulplan.
      Eine gelöschte Schulplan-Lektion wird als {frei:true} im eigenen Plan gemerkt.
-   Immer ganzes Dokument per setDoc ohne merge (gelöschte Zellen sollen verschwinden). */
+   Immer ganzes Dokument per setDoc ohne merge (gelöschte Zellen sollen verschwinden).
+   Wochen, Ferien, ausserordentliche Termine (seit 05.10.2026): Der Plan zeigt eine
+     bestimmte Woche (stp.woche = Montag, ◀ ▶). Tage in den Ferien (FERIEN_TG) sind leer.
+     Termine gelten nur an einem Datum und liegen über allem (Termin > Ferien > Wochenplan):
+       progress/{uid}/einstellungen/stundenplanTermine -> {termine:{'YYYY-MM-DD':{slot:{t,zi,frei,kl}}}} eigene
+       klassen/{k}/klasseninfo/stundenplanTermine      -> {termine:{…:{slot:{t,zi,frei,lp}}}} für die ganze Klasse
+     (slot = Zeilen-ID wie im Zellen-Key; kl im eigenen Termin = auch in diese Klasse geschrieben).
+     Eigene Dokumente, per setDoc mit merge — der Wochenplan überschreibt sie so nie. */
 
 var STP_TAGE = ['Mo','Di','Mi','Do','Fr'];
 var STP_TAGE_LANG = ['Montag','Dienstag','Mittwoch','Donnerstag','Freitag'];
@@ -35544,7 +35634,7 @@ function stpKochSlots(zeiten, k){
 var STP_KLASSEN = ['E1a','E1b','E1c','G1a','G1b','E2a','E2b','E2c','G2a','G2b','E3a','E3b','G3a','G3b'];
 var STP_FREI_FARBEN = ['#0EA5E9','#F43F5E','#14B8A6','#F59E0B','#6366F1','#84CC16','#EC4899','#64748B'];
 var stp = { klasse:null, eigen:null, schule:null, klPlaene:{}, geladen:false, klasseName:null, ansicht:null, bearbeiten:false, tag:null,
-            lpListe:null, lpUid:null, lp:null };
+            lpListe:null, lpUid:null, lp:null, woche:null, modus:'immer', termine:{eigen:{}, klasse:{}} };
 function stpHat(o, k){ return !!o && Object.prototype.hasOwnProperty.call(o, k); }
 function stpSchuleDa(){ return !!(stp.schule && Object.keys(stp.schule.zellen).length); }
 // Untis-Lektionen, hinter denen verschiedene Fächer stecken können. Welches es ist, legt die
@@ -35606,7 +35696,11 @@ function stpLaden(){
   var k = getDoc(stpKlasseRef()).then(function(s){ return s.exists() ? s.data() : null; }).catch(function(err){ console.error('Stundenplan Klasse', err); return null; });
   var e = getDoc(stpEigenRef()).then(function(s){ return s.exists() ? s.data() : null; }).catch(function(err){ console.error('Stundenplan eigen', err); return null; });
   var sch = getDoc(doc(db, 'progress', state.user.uid, 'einstellungen', 'stundenplanSchule')).then(function(s){ return s.exists() ? s.data() : null; }).catch(function(err){ console.error('Stundenplan Schule', err); return null; });
-  return Promise.all([k, e, sch]).then(function(r){
+  var leer = function(){ return null; };
+  var te = getDoc(stpTermineRef()).then(function(s){ return s.exists() ? s.data() : null; }).catch(leer);
+  var tk = getDoc(stpTermineRef(state.klasse)).then(function(s){ return s.exists() ? s.data() : null; }).catch(leer);
+  return Promise.all([k, e, sch, te, tk]).then(function(r){
+    stp.termine = { eigen:(r[3] && r[3].termine) || {}, klasse:(r[4] && r[4].termine) || {} };
     stp.klasse = { zeiten:stpZeitenAktuell(r[0] && r[0].zeiten), zellen:(r[0] && r[0].zellen) || {} };
     stp.eigen = { zeiten:stpZeitenAktuell(r[1] && r[1].zeiten), zellen:(r[1] && r[1].zellen) || {} };
     stp.schule = { zeiten:(r[2] && r[2].zeiten) || null, zellen:(r[2] && r[2].zellen) || {}, semester:r[2] && r[2].semester };
@@ -35667,6 +35761,134 @@ function stpInfo(c){
 function stpJetztMin(){ var d = new Date(); return d.getHours()*60 + d.getMinutes(); }
 function stpHeute(){ var t = new Date().getDay(); return t >= 1 && t <= 5 ? t - 1 : -1; }
 
+/* ---------- Wochen, Ferien, ausserordentliche Termine ---------- */
+// Am Wochenende zeigt der Plan schon die kommende Woche.
+function stpWocheJetzt(){ var h = todayStr(), t = rbuTag(h); return t >= 5 ? rbuPlusTage(h, 7 - t) : rbuMontag(h); }
+function stpWoche(){ return stp.woche || stpWocheJetzt(); }
+function stpDatum(tag){ return rbuPlusTage(stpWoche(), tag); }
+function stpDatumKurz(s){ return (+s.slice(8, 10)) + '.' + (+s.slice(5, 7)) + '.'; }
+function stpKW(s){
+  var d = rbuDate(s); d.setDate(d.getDate() + 3 - (d.getDay() + 6) % 7);   // Donnerstag derselben Woche
+  var j = new Date(d.getFullYear(), 0, 4);
+  return 1 + Math.round(((d - j) / 86400000 - 3 + (j.getDay() + 6) % 7) / 7);
+}
+function stpTermineRef(kl){ return kl ? kdocFor(kl, 'klasseninfo', 'stundenplanTermine') : doc(db, 'progress', state.user.uid, 'einstellungen', 'stundenplanTermine'); }
+// Termin an diesem Datum in dieser Zeile: eigene gehen vor; die der Klasse sehen
+// Schüler:innen in ihrem Plan und Lehrpersonen in der Ansicht «Klasse».
+function stpTermin(ansicht, datum, slot){
+  slot = String(slot);
+  var e = ansicht === 'mein' ? (stp.termine.eigen[datum] || {})[slot] : null;
+  if(e) return {c:e, eigen:true};
+  if(ansicht === 'klasse' || (ansicht === 'mein' && state.profile.role !== 'teacher')){
+    var k = (stp.termine.klasse[datum] || {})[slot];
+    if(k) return {c:k, eigen:false};
+  }
+  return null;
+}
+// Was an diesem Datum wirklich stattfindet: Termin > Ferien > Wochenplan.
+function stpAm(plan, ansicht, datum, slot){
+  var tm = stpTermin(ansicht, datum, slot);
+  if(tm) return {c:tm.c, termin:tm};
+  var f = rbuFerien(datum);
+  if(f) return {c:null, ferien:f};
+  return {c:plan.zelle(stpKey(rbuTag(datum), slot))};
+}
+// wert = null entfernt. kl = Klasse (sonst eigene Termine). Räumt nebenbei Termine weg, die älter als 30 Tage sind.
+function stpTermineSchreiben(kl, datum, slots, wert){
+  var lokal = !kl ? stp.termine.eigen : (kl === state.klasse ? stp.termine.klasse : null);
+  var feld = {}, tag = {}, alt = rbuPlusTage(todayStr(), -30);
+  if(lokal){
+    Object.keys(lokal).forEach(function(d){ if(d < alt){ feld[d] = deleteField(); delete lokal[d]; } });
+    var l = lokal[datum] || (lokal[datum] = {});
+    slots.forEach(function(s){ if(wert) l[s] = JSON.parse(JSON.stringify(wert)); else delete l[s]; });
+    if(!Object.keys(l).length) delete lokal[datum];
+  }
+  slots.forEach(function(s){ tag[s] = wert ? JSON.parse(JSON.stringify(wert)) : deleteField(); });
+  feld[datum] = tag;
+  return setDoc(stpTermineRef(kl), {termine:feld, updatedAt:serverTimestamp()}, {merge:true});
+}
+function stpTerminTitel(c){ return c.frei ? '🌴 Fällt aus' + (c.t ? ': ' + c.t : '') : '📌 ' + (c.t || 'Termin'); }
+function stpTerminBearbeiten(key){
+  var lehrer = state.profile.role === 'teacher', ansicht = stp.ansicht, fuerKlasse = ansicht === 'klasse';
+  var plan = stpPlan(ansicht), zeilen = stpZeilen(plan);
+  var tag = parseInt(key, 10), slot = key.slice(key.indexOf('-') + 1);
+  var zi = zeilen.findIndex(function(x){ return String(x.s) === slot; });
+  if(zi < 0) return;
+  var z = zeilen[zi], datum = stpDatum(tag);
+  var liste = fuerKlasse ? stp.termine.klasse : stp.termine.eigen;
+  var cur = (liste[datum] || {})[slot] || null, c = cur || {};
+  var vonLp = !lehrer ? (stp.termine.klasse[datum] || {})[slot] : null;
+  var normal = stpInfo(plan.zelle(key)), fer = rbuFerien(datum);
+  // Halbtage: getrennt durch die Mittagspause (40 Min. und mehr).
+  var halb = [[]];
+  zeilen.forEach(function(x, j){
+    if(j > 0 && stpMin(x.von) - stpMin(zeilen[j-1].bis) >= 40) halb.push([]);
+    halb[halb.length - 1].push(String(x.s));
+  });
+  var hi = halb.findIndex(function(g){ return g.indexOf(slot) >= 0; });
+  var q = function(v){ return esc(v || '').replace(/"/g, '&quot;'); };
+  var h = '<h3>📌 '+STP_TAGE_LANG[tag]+', '+stpDatumKurz(datum)+' · '+(z.extra ? 'Zusatzlektion' : esc(z.nr)+'. Lektion')+'</h3>';
+  h += '<p style="margin:-4px 0 12px;color:var(--text-muted);font-size:13px;">'+esc(z.von)+' – '+esc(z.bis)+' · gilt <b>nur an diesem Tag</b>'+
+       (fer ? ' · '+fer.icon+' '+esc(fer.label) : normal ? ' · sonst: <b>'+esc(normal.name)+'</b>' : '')+'</p>';
+  if(vonLp) h += '<div class="stp-hinweis">Von der Lehrperson eingetragen: <b>'+esc(stpTerminTitel(vonLp))+'</b>'+(vonLp.zi ? ' · 📍 '+esc(vonLp.zi) : '')+'. Dein eigener Termin steht bei dir darüber.</div>';
+  h += '<label class="modal-label">Was findet statt?</label><input type="text" id="stpTmText" maxlength="40" placeholder="z. B. Sporttag, Exkursion, Elterngespräch" value="'+q(c.t)+'">';
+  h += '<label class="stp-frei-check" style="margin-top:10px;"><input type="checkbox" id="stpTmFrei"'+(c.frei ? ' checked' : '')+'> 🌴 Die Lektion fällt aus (frei)</label>';
+  h += '<div class="stp-felder2" style="margin-top:0;"><div><label class="modal-label">Ort / Zimmer</label><input type="text" id="stpTmZi" maxlength="30" placeholder="z. B. Turnhalle" value="'+q(c.zi)+'"></div>'+
+       '<div><label class="modal-label">Dauer</label><select id="stpTmDauer"><option value="nur">Nur diese Lektion</option>'+
+       (halb.length > 1 ? '<option value="halb">Ganzer '+(hi === 0 ? 'Vormittag' : 'Nachmittag')+'</option>' : '')+'<option value="tag">Ganzer Tag</option></select></div></div>';
+  if(lehrer && !fuerKlasse){
+    h += '<label class="modal-label" style="margin-top:12px;">Wer sieht den Termin?</label><select id="stpTmKl"><option value="">👤 Nur ich (in meinem Stundenplan)</option>'+
+      STP_KLASSEN.map(function(k){ return '<option value="'+q(k)+'"'+(c.kl === k ? ' selected' : '')+'>🏫 Auch die Klasse '+esc(k)+' in ihrem Stundenplan</option>'; }).join('')+'</select>';
+  } else if(lehrer){
+    h += '<p class="kk-ed-info" style="margin-top:12px;">🏫 Die ganze Klasse '+esc(state.klasse)+' sieht den Termin in ihrem Stundenplan.</p>';
+  }
+  h += '<div class="modal-actions">';
+  if(cur) h += '<button class="btn btn-ghost btn-sm" id="stpTmWeg" type="button" title="Wieder wie im normalen Stundenplan">🗑️ Termin entfernen</button>';
+  h += '<button class="btn btn-ghost btn-sm" id="modalCancel" type="button">Abbrechen</button>'+
+       '<button class="btn btn-primary btn-sm" id="modalOk" type="button">Speichern</button></div>';
+  openModal(h);
+  var text = document.getElementById('stpTmText'), freiEl = document.getElementById('stpTmFrei');
+  function slots(){
+    var d = document.getElementById('stpTmDauer').value;
+    return d === 'tag' ? zeilen.map(function(x){ return String(x.s); }) : d === 'halb' ? halb[hi].slice() : [slot];
+  }
+  function speichern(wert){
+    var sl = slots(), klEl = document.getElementById('stpTmKl'), kl = wert && klEl ? klEl.value : '', ps = [];
+    var ich = (state.profile && (state.profile.nachname || state.profile.displayName)) || '';
+    var fuerKl = wert ? Object.assign({}, wert, ich ? {lp:ich} : {}) : null;
+    closeModal();
+    if(fuerKlasse) ps.push(stpTermineSchreiben(state.klasse, datum, sl, fuerKl));
+    else {
+      // Vorher mit einer (anderen) Klasse geteilt: dort wieder herausnehmen.
+      var weg = {};
+      sl.forEach(function(s){ var a = (stp.termine.eigen[datum] || {})[s]; if(a && a.kl && a.kl !== kl) (weg[a.kl] = weg[a.kl] || []).push(s); });
+      ps.push(stpTermineSchreiben(null, datum, sl, wert && kl ? Object.assign({}, wert, {kl:kl}) : wert));
+      Object.keys(weg).forEach(function(k){ ps.push(stpTermineSchreiben(k, datum, weg[k], null)); });
+      if(kl) ps.push(stpTermineSchreiben(kl, datum, sl, fuerKl));
+    }
+    stpZeichnen();
+    Promise.all(ps).then(function(){
+      toast(!wert ? 'Termin entfernt.' : fuerKlasse ? '📌 Termin gespeichert – die Klasse '+state.klasse+' sieht ihn.' : kl ? '📌 Termin gespeichert – auch im Stundenplan der Klasse '+kl+'.' : '📌 Termin gespeichert.');
+      renderStpJetzt();
+    }).catch(function(err){
+      console.error('Termin speichern', err);
+      if(!err || err.code !== 'klasse/abgebrochen') toast('Termin konnte nicht gespeichert werden.');
+      stpLaden().then(stpZeichnen);
+    });
+  }
+  document.getElementById('modalCancel').addEventListener('click', closeModal);
+  var weg = document.getElementById('stpTmWeg');
+  if(weg) weg.addEventListener('click', function(){ speichern(null); });
+  document.getElementById('modalOk').addEventListener('click', function(){
+    var t = text.value.trim(), ort = document.getElementById('stpTmZi').value.trim();
+    if(!freiEl.checked && !t){ text.focus(); return; }
+    var wert = freiEl.checked ? {frei:true} : {};
+    if(t) wert.t = t;
+    if(ort) wert.zi = ort;
+    speichern(wert);
+  });
+}
+
 function renderStundenplan(){
   clearSubjectWatchers(); clearOverviewWatchers(); unwatchAllProgress();
   var lehrer = state.profile.role === 'teacher';
@@ -35692,9 +35914,15 @@ function stpZeichnen(){
   if(fremd) stp.bearbeiten = false;
   var plan = stpPlan(stp.ansicht);
   var zeiten = plan.zeiten;
-  var heute = stpHeute(), jetzt = stpJetztMin();
+  if(!darf) stp.bearbeiten = false;
+  // «Jede Woche» bearbeiten = die Vorlage, ohne Ferien und Termine einer bestimmten Woche.
+  var vorlage = stp.bearbeiten && stp.modus !== 'woche';
+  var woche = stpWoche(), dieseWoche = woche === rbuMontag(todayStr());
+  var heute = vorlage || dieseWoche ? stpHeute() : -1, jetzt = stpJetztMin();
   var schmal = window.innerWidth < 720;
   if(stp.tag === null) stp.tag = heute >= 0 ? heute : 0;
+  var ferien = [0,1,2,3,4].map(function(d){ return vorlage ? null : rbuFerien(stpDatum(d)); });
+  function am(tag, z){ return vorlage ? {c:plan.zelle(stpKey(tag, z.s))} : stpAm(plan, stp.ansicht, stpDatum(tag), z.s); }
 
   var h = '<div class="stp-board">';
   h += '<div class="stp-tools">';
@@ -35716,10 +35944,31 @@ function stpZeichnen(){
   if(darf && lehrer && stp.bearbeiten && stp.ansicht === 'mein') h += '<button class="btn btn-ghost btn-sm" type="button" id="stpKopieBtn" title="Klassenplan als Vorlage übernehmen">📋 Aus Klassenplan</button>';
   if(darf && lehrer && stp.bearbeiten && stp.ansicht === 'klasse') h += '<button class="btn btn-ghost btn-sm" type="button" id="stpVonMirBtn" title="Deine Lektionen mit dieser Klasse in den Klassenplan übernehmen">📋 Aus meinem Plan</button>';
   if(lehrer && !stp.bearbeiten) h += '<button class="btn btn-ghost btn-sm" type="button" id="stpRaeumeBtn" title="Freie Räume finden und reservieren">🚪 Räume</button>';
+  if(darf && !stp.bearbeiten) h += '<button class="btn btn-ghost btn-sm" type="button" id="stpTerminBtn" title="Etwas nur für diese Woche eintragen: Sporttag, Exkursion, Ausfall …">📌 Termin</button>';
   if(darf) h += '<button class="btn '+(stp.bearbeiten?'btn-primary':'btn-ghost')+' btn-sm" type="button" id="stpEditBtn">'+(stp.bearbeiten?'✅ Fertig':'✏️ Bearbeiten')+'</button>';
   h += '</div></div>';
 
   if(stp.bearbeiten){
+    h += '<div class="stp-tabs stp-modus">'+
+      '<button type="button" class="stp-tab'+(vorlage?' on':'')+'" data-modus="immer">🔁 Jede Woche</button>'+
+      '<button type="button" class="stp-tab'+(vorlage?'':' on')+'" data-modus="woche">📌 Nur diese Woche</button></div>';
+  }
+  if(!vorlage){
+    var fr = stpDatum(4);
+    h += '<div class="stp-woche"><button class="btn btn-ghost btn-sm" type="button" id="stpWZurueck" title="Vorherige Woche">◀</button>'+
+      '<div class="stp-woche-txt"><b>Woche '+stpKW(woche)+(dieseWoche ? ' · diese Woche' : '')+'</b><span>'+stpDatumKurz(woche)+' – '+stpDatumKurz(fr)+fr.slice(0, 4)+'</span></div>'+
+      '<button class="btn btn-ghost btn-sm" type="button" id="stpWVor" title="Nächste Woche">▶</button>'+
+      (woche !== stpWocheJetzt() ? '<button class="btn btn-ghost btn-sm" type="button" id="stpWHeute">Heute</button>' : '')+'</div>';
+    if(ferien.every(Boolean)){
+      var f0 = ferien[0];
+      h += '<div class="stp-ferien-banner"><span>'+f0.icon+' <b>'+esc(f0.label)+'</b> bis '+stpDatumKurz(f0.end)+' – keine Schule.</span>'+
+        '<button class="btn btn-ghost btn-sm" type="button" id="stpWSchule">Zur nächsten Schulwoche ▶</button></div>';
+    }
+  }
+  if(stp.bearbeiten && !vorlage){
+    h += '<div class="stp-hinweis">Tippe auf eine Lektion, um <b>nur für diese Woche</b> etwas einzutragen – z. B. Sporttag, Exkursion, Elterngespräch oder einen Ausfall. '+
+      (!lehrer ? 'Nur du siehst deine Termine.' : stp.ansicht === 'klasse' ? 'Die ganze Klasse '+esc(state.klasse)+' sieht sie in ihrem Stundenplan.' : 'Du wählst, ob nur du den Termin siehst oder auch eine Klasse.')+'</div>';
+  } else if(stp.bearbeiten){
     h += '<div class="stp-hinweis">'+(lehrer
       ? (stp.ansicht === 'klasse' ? 'Tippe auf eine Lektion, um den Grobstundenplan der Klasse '+esc(state.klasse)+' zu füllen. Die Schüler:innen können danach ihre eigenen Freilektionen eintragen.' : 'Tippe auf eine Lektion, um deinen persönlichen Stundenplan zu füllen. Andere Lehrpersonen können ihn ansehen, Schüler:innen nicht.')
       : 'Tippe auf eine Lektion, um sie für dich zu ändern (z. B. 🌴 Freilektion). Nur du siehst deine Änderungen.')+'</div>';
@@ -35736,10 +35985,10 @@ function stpZeichnen(){
   }
 
   function zelle(tag, z){
-    var key = stpKey(tag, z.s), c = plan.zelle(key), info = stpInfo(c);
+    var key = stpKey(tag, z.s), a = am(tag, z), c = a.c, info = stpInfo(c);
     var istJetzt = tag === heute && jetzt >= stpMin(z.von) && jetzt < stpMin(z.bis) && !stpLeer(c) && !c.frei;
-    var eigen = plan.eigen && plan.eigen(key);
-    var cls = 'stp-cell' + (info ? '' : (c && c.frei ? ' frei' : ' leer')) + (istJetzt ? ' jetzt' : '') + (eigen ? ' eigen' : '') + (stp.bearbeiten ? ' edit' : '') + (info && info.fachId && !stp.bearbeiten ? ' link' : '');
+    var eigen = !a.termin && !a.ferien && plan.eigen && plan.eigen(key);
+    var cls = 'stp-cell' + (info ? '' : (c && c.frei ? ' frei' : ' leer')) + (a.ferien ? ' ferien' : '') + (a.termin ? ' termin' : '') + (istJetzt ? ' jetzt' : '') + (eigen ? ' eigen' : '') + (stp.bearbeiten ? ' edit' : '') + ((a.termin || (info && info.fachId)) && !stp.bearbeiten ? ' link' : '');
     var st = info ? ' style="--c:'+info.color+'"' : '';
     var inner = '';
     if(info){
@@ -35749,10 +35998,13 @@ function stpZeichnen(){
       if(sub) inner += '<span class="stp-sub">'+esc(sub)+'</span>';
       inner += '</span>';
     } else if(c && c.frei){
-      inner += '<span class="stp-txt"><span class="stp-name">🌴 Frei</span></span>';
+      inner += '<span class="stp-txt"><span class="stp-name">🌴 '+(a.termin ? 'Fällt aus' : 'Frei')+'</span>'+(a.termin && c.t ? '<span class="stp-sub">'+esc(c.t)+'</span>' : '')+'</span>';
     } else if(stp.bearbeiten){
       inner += '<span class="stp-plus">＋</span>';
+    } else if(a.ferien){
+      inner += '<span class="stp-plus" title="'+esc(a.ferien.label)+'">'+a.ferien.icon+'</span>';
     }
+    if(a.termin) inner += '<span class="stp-eigen-tag" title="Nur diese Woche">📌</span>';
     if(istJetzt) inner += '<span class="stp-jetzt-tag">JETZT</span>';
     if(eigen) inner += '<span class="stp-eigen-tag" title="Von dir geändert">✎</span>';
     return '<button type="button" class="'+cls+'"'+st+' data-k="'+key+'">'+inner+'</button>';
@@ -35768,7 +36020,7 @@ function stpZeichnen(){
 
   if(schmal){
     h += '<div class="stp-tagwahl">'+STP_TAGE.map(function(t, d){
-      return '<button type="button" class="stp-tagchip'+(d===stp.tag?' on':'')+(d===heute?' heute':'')+'" style="--tc:'+STP_TAG_FARBEN[d]+'" data-tag="'+d+'">'+t+'</button>';
+      return '<button type="button" class="stp-tagchip'+(d===stp.tag?' on':'')+(d===heute?' heute':'')+'" style="--tc:'+STP_TAG_FARBEN[d]+'" data-tag="'+d+'">'+t+(vorlage ? '' : '<small>'+(ferien[d] ? ferien[d].icon+' ' : '')+stpDatumKurz(stpDatum(d))+'</small>')+'</button>';
     }).join('')+'</div>';
     h += '<div class="stp-tagliste">';
     zeilen.forEach(function(z, j){ h += pause(j) + '<div class="stp-zeile">'+zeit(z)+zelle(stp.tag, z)+'</div>'; });
@@ -35776,7 +36028,10 @@ function stpZeichnen(){
   } else {
     h += '<div class="stp-grid">';
     h += '<div class="stp-ecke"></div>';
-    STP_TAGE_LANG.forEach(function(t, d){ h += '<div class="stp-tag'+(d===heute?' heute':'')+'" style="--tc:'+STP_TAG_FARBEN[d]+'">'+t+(d===heute?' <small>heute</small>':'')+'</div>'; });
+    STP_TAGE_LANG.forEach(function(t, d){
+      var zus = [d===heute ? 'heute' : '', vorlage ? '' : stpDatumKurz(stpDatum(d)), ferien[d] ? ferien[d].icon : ''].filter(Boolean).join(' · ');
+      h += '<div class="stp-tag'+(d===heute?' heute':'')+(ferien[d]?' ferien':'')+'" style="--tc:'+STP_TAG_FARBEN[d]+'"'+(ferien[d] ? ' title="'+esc(ferien[d].label)+'"' : '')+'>'+t+(zus ? ' <small>'+zus+'</small>' : '')+'</div>';
+    });
     zeilen.forEach(function(z, j){
       h += pause(j);
       h += zeit(z);
@@ -35802,7 +36057,18 @@ function stpZeichnen(){
     b.addEventListener('click', function(){ stp.tag = parseInt(b.getAttribute('data-tag'), 10); stpZeichnen(); });
   });
   var eb = document.getElementById('stpEditBtn');
-  if(eb) eb.addEventListener('click', function(){ stp.bearbeiten = !stp.bearbeiten; stpZeichnen(); });
+  if(eb) eb.addEventListener('click', function(){ stp.bearbeiten = !stp.bearbeiten; stp.modus = 'immer'; stpZeichnen(); });
+  var tb = document.getElementById('stpTerminBtn');
+  if(tb) tb.addEventListener('click', function(){ stp.bearbeiten = true; stp.modus = 'woche'; stpZeichnen(); });
+  Array.prototype.forEach.call(body.querySelectorAll('[data-modus]'), function(b){
+    b.addEventListener('click', function(){ stp.modus = b.getAttribute('data-modus'); stpZeichnen(); });
+  });
+  function zuWoche(w){ stp.woche = w === stpWocheJetzt() ? null : w; stpZeichnen(); }
+  var wz = document.getElementById('stpWZurueck'), wv = document.getElementById('stpWVor'), wh = document.getElementById('stpWHeute'), ws = document.getElementById('stpWSchule');
+  if(wz) wz.addEventListener('click', function(){ zuWoche(rbuPlusTage(woche, -7)); });
+  if(wv) wv.addEventListener('click', function(){ zuWoche(rbuPlusTage(woche, 7)); });
+  if(wh) wh.addEventListener('click', function(){ stp.tag = null; zuWoche(stpWocheJetzt()); });
+  if(ws) ws.addEventListener('click', function(){ zuWoche(rbuMontag(rbuNaechsterSchultag(woche))); });
   var zb = document.getElementById('stpZeitenBtn');
   if(zb) zb.addEventListener('click', stpZeitenBearbeiten);
   var kb = document.getElementById('stpKopieBtn');
@@ -35835,8 +36101,16 @@ function stpZeichnen(){
   Array.prototype.forEach.call(body.querySelectorAll('.stp-cell'), function(b){
     b.addEventListener('click', function(){
       var key = b.getAttribute('data-k');
-      if(stp.bearbeiten){ stpZelleBearbeiten(key); return; }
-      var info = stpInfo(plan.zelle(key));
+      if(stp.bearbeiten){ if(vorlage) stpZelleBearbeiten(key); else stpTerminBearbeiten(key); return; }
+      var tg = parseInt(key, 10), zl = zeilen.find(function(x){ return stpKey(tg, x.s) === key; });
+      if(!zl) return;
+      var a = am(tg, zl);
+      if(a.termin){
+        var tc = a.termin.c;
+        uiInfo(stpTerminTitel(tc), [STP_TAGE_LANG[tg]+', '+stpDatumKurz(stpDatum(tg)), zl.von+' – '+zl.bis, tc.zi ? '📍 '+tc.zi : '', tc.kl ? 'auch für die Klasse '+tc.kl : '', !a.termin.eigen && tc.lp ? 'eingetragen von '+tc.lp : ''].filter(Boolean).join(' · '));
+        return;
+      }
+      var info = stpInfo(a.c);
       if(info && info.fachId) goSubject(info.fachId);
     });
   });
@@ -36059,12 +36333,13 @@ function stpZeitenBearbeiten(){
 
 // Startseiten-Widget «Jetzt / Als Nächstes».
 function stpNaechste(){
-  var plan = stpPlan('mein'), zeiten = stpZeilen(plan), heute = stpHeute(), jetzt = stpJetztMin();
-  function lektion(tag, i){ var z = zeiten[i], c = plan.zelle(stpKey(tag, z.s)); var info = stpInfo(c); return info ? {tag:tag, i:i, c:c, info:info, z:z} : null; }
+  var plan = stpPlan('mein'), zeiten = stpZeilen(plan), heute = stpHeute(), jetzt = stpJetztMin(), heuteStr = todayStr();
+  // Mit Datum: in den Ferien gibt es keine Lektionen, ausserordentliche Termine gehen vor.
+  function lektion(datum, i){ var z = zeiten[i], c = stpAm(plan, 'mein', datum, z.s).c; var info = stpInfo(c); return info ? {tag:rbuTag(datum), i:i, c:c, info:info, z:z} : null; }
   var aktuell = null, danach = null;
   if(heute >= 0){
     for(var i = 0; i < zeiten.length; i++){
-      var l = lektion(heute, i);
+      var l = lektion(heuteStr, i);
       if(!l) continue;
       var von = stpMin(l.z.von), bis = stpMin(l.z.bis);
       if(jetzt >= von && jetzt < bis && !aktuell){ aktuell = l; continue; }
@@ -36073,11 +36348,10 @@ function stpNaechste(){
   }
   if(!danach){
     // Nächster Schultag mit Lektionen.
-    var start = new Date().getDay(); // 0 = So
-    for(var s = 1; s <= 7 && !danach; s++){
-      var wt = (start + s) % 7;
-      if(wt < 1 || wt > 5) continue;
-      for(var j = 0; j < zeiten.length; j++){ var n = lektion(wt - 1, j); if(n){ danach = n; danach.spaeter = s === 1 ? 'Morgen' : STP_TAGE_LANG[wt-1]; break; } }
+    for(var s = 1; s <= 24 && !danach; s++){
+      var dat = rbuPlusTage(heuteStr, s), wt = rbuTag(dat);
+      if(wt > 4) continue;
+      for(var j = 0; j < zeiten.length; j++){ var n = lektion(dat, j); if(n){ danach = n; danach.spaeter = s === 1 ? 'Morgen' : s < 7 ? STP_TAGE_LANG[wt] : STP_TAGE[wt]+' '+stpDatumKurz(dat); break; } }
     }
   }
   return {aktuell:aktuell, danach:danach};
