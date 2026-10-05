@@ -96,7 +96,7 @@ function appFunktionen(){
   const norm = s => String(s || '').trim().toLowerCase();
   const da = [];
   const sig = APP.kzmInhaltSig;
-  qsnap.forEach(d => { const x = d.data(); da.push({ typ:'quiz', titel:x.title, fach:x.subject || '', ordner:x.folderId || null, sig:sig('quiz', x.questions) }); });
+  qsnap.forEach(d => { const x = d.data(); da.push({ typ:x.art === 'million' ? 'million' : 'quiz', titel:x.title, fach:x.subject || '', ordner:x.folderId || null, sig:sig('quiz', x.questions) }); });   // Millionär-Sets: gleiche Signatur wie Quiz
   sets.forEach(x => da.push({ typ:'kk', titel:x.titel, fach:x.fach || '', ordner:x.ordner || null, sig:sig('kk', x.karten) }));
   wolken.forEach(x => da.push({ typ:'wolke', titel:x.frage, fach:x.fach || '', ordner:x.ordner || null, sig:sig('wolke', x.frage) }));
   umfragen.forEach(x => da.push({ typ:'umfrage', titel:x.titel || APP.umfrageFragen(x)[0].frage, fach:x.fach || '', ordner:x.ordner || null, sig:sig('umfrage', APP.umfrageFragen(x)) }));
@@ -105,11 +105,11 @@ function appFunktionen(){
   for(const st of pk.stuecke){
     let ort = zielId;
     if(st.unter){ const u = finde(st.unter, zielId) || ordnerAnlegen(st.unter, zielId); ort = u.id; }
-    const stSig = sig(st.typ, st.typ === 'quiz' ? st.daten : st.typ === 'umfrage' ? st.daten.fragen : st.typ === 'kk' ? st.daten.karten : st.daten.frage);
+    const stSig = sig(st.typ, st.typ === 'quiz' || st.typ === 'million' ? st.daten : st.typ === 'umfrage' ? st.daten.fragen : st.typ === 'kk' ? st.daten.karten : st.daten.frage);
     const doppelt = da.some(x => x.typ === st.typ && x.fach === fach && norm(x.titel) === norm(st.titel) && ((x.ordner || null) === (ort || null) || x.sig === stSig));
     plan.push(Object.assign({ ort, doppelt }, st));
   }
-  const ICON = { quiz:'🎮', kk:'🗂️', wolke:'☁️', umfrage:'⚡' };
+  const ICON = { quiz:'🎮', million:'💰', kk:'🗂️', wolke:'☁️', umfrage:'⚡' };
   const ortName = id => { const f = ordner.find(x => x.id === id); return f ? f.name : '(Fach-Hauptebene)'; };
   console.log('Klasse ' + klasse + ' · Fach ' + fach + ' · Ordner: ' + (ziel ? ziel.name + (neueOrdner.includes(ziel) ? ' (wird neu angelegt)' : ziel.virtuell ? ' (Lehrmittel-Ordner)' : '') : '(Fach-Hauptebene)'));
   plan.forEach(p => console.log('  ' + (p.doppelt ? '↷ schon da  ' : '＋ neu      ') + ICON[p.typ] + ' ' + p.titel + (p.unter ? '   → ' + ortName(p.ort) : '')));
@@ -123,6 +123,7 @@ function appFunktionen(){
   neu.forEach(p => {
     const nid = p.typ[0] + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
     if(p.typ === 'quiz') batch.set(kref.collection('quizzes').doc(), { title:p.titel, subject:fach, folderId:p.ort || null, questions:p.daten, createdBy:jan.name, createdAt:TS });
+    else if(p.typ === 'million') batch.set(kref.collection('quizzes').doc(), { art:'million', title:p.titel, subject:fach, folderId:p.ort || null, questions:p.daten, createdBy:jan.name, createdAt:TS });
     else if(p.typ === 'kk'){ sets.push({ id:'kk' + nid, fach, titel:p.titel, kopf:p.daten.kopf, karten:p.daten.karten, ordner:p.ort || '', von:jan.name, vonUid:jan.uid, geaendert:Date.now() }); kkNeu = true; }
     else { (p.typ === 'wolke' ? wolken : umfragen).push(Object.assign({ id:nid, fach, ordner:p.ort || null }, p.daten)); vorlNeu = true; }
   });
