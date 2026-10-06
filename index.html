@@ -408,6 +408,7 @@
   /* 📮 Briefkasten */
   .bk-card{background:var(--surface);border:1px solid var(--border);border-left:5px solid #FFCC00;border-radius:var(--radius-sm);padding:12px 18px;box-shadow:var(--shadow);display:flex;align-items:center;gap:16px;flex-wrap:wrap;}
   .bk-card.bk-zu{border-left-color:var(--border);}
+  .bk-card.bk-abgegeben{background:var(--good-soft);border-color:var(--good);border-left-color:var(--good);}
   .bk-mini{width:44px;flex-shrink:0;}
   .bk-mini svg{display:block;width:100%;height:auto;}
   .bk-sub{font-size:13px;color:var(--text-muted);}
@@ -3667,7 +3668,8 @@ async function loadMyCalendarEntries(ab){
   var jobs = [loadCalendarEntries(ab)];
   var schueler = state.profile.role !== 'teacher';
   if(schueler){
-    jobs.push(getDocs(ab ? query(eigeneEintraegeCol(), where('dueDate','>=',ab)) : eigeneEintraegeCol()).then(function(snap){
+    // 🎒 In der Ansicht als Schüler:in darf die Lehrperson die privaten Einträge nicht lesen (Regeln) – gar nicht erst fragen.
+    jobs.push(alsSchueler() ? Promise.resolve([]) : getDocs(ab ? query(eigeneEintraegeCol(), where('dueDate','>=',ab)) : eigeneEintraegeCol()).then(function(snap){
       var out = [];
       snap.forEach(function(d){ out.push(Object.assign({id:d.id}, d.data(), {private:true})); });
       return out;
@@ -11771,21 +11773,23 @@ function bkKarteHtml(x){
 function bkKarteStatus(x, meiner){
   var b = x.bk, el = document.getElementById('bkstat-'+b.id);
   if(!el) return;
+  // Grün hinterlegt, sobald etwas eingeworfen ist (Schüler:in: die eigene Abgabe, Lehrperson: mindestens eine).
+  var gruen = function(an){ var k = document.getElementById('bk-'+b.id); if(k) k.classList.toggle('bk-abgegeben', !!an); };
   var c = bkStatusCache[b.id];
-  if(c && Date.now() - c.t < 30000){ el.innerHTML = c.html; return; }
-  var setzen = function(html){ bkStatusCache[b.id] = {t:Date.now(), html:html}; var e2 = document.getElementById('bkstat-'+b.id); if(e2) e2.innerHTML = html; };
+  if(c && Date.now() - c.t < 30000){ el.innerHTML = c.html; gruen(c.da); return; }
+  var setzen = function(html, da){ bkStatusCache[b.id] = {t:Date.now(), html:html, da:!!da}; var e2 = document.getElementById('bkstat-'+b.id); if(e2) e2.innerHTML = html; gruen(da); };
   if(meiner){
     getDocs(bkAbgabenCol(x.klasse, b.id)).then(function(snap){
       var neu = 0, personen = {};
       snap.forEach(function(d){ var a = d.data(); personen[a.uid] = true; if(!a.abgeholt) neu++; });
       var n = Object.keys(personen).length;
-      setzen((neu ? '<span class="bk-warn">📬 '+neu+' neu im Briefkasten</span> · ' : '')+(n ? n+' '+(n === 1 ? 'Person hat' : 'Personen haben')+' eingeworfen' : 'Noch nichts eingeworfen'));
+      setzen((neu ? '<span class="bk-warn">📬 '+neu+' neu im Briefkasten</span> · ' : '')+(n ? n+' '+(n === 1 ? 'Person hat' : 'Personen haben')+' eingeworfen' : 'Noch nichts eingeworfen'), n > 0);
     }).catch(function(err){ console.warn('Briefkasten-Stand', err); });
   } else if(state.profile.role !== 'teacher' && !isLeitung()){
     getDocs(query(bkAbgabenCol(x.klasse, b.id), where('uid','==',state.user.uid))).then(function(snap){
       var letzte = null;
       snap.forEach(function(d){ var a = d.data({serverTimestamps:'estimate'}); if(!letzte || bkMs(a.am) > bkMs(letzte.am)) letzte = a; });
-      setzen(letzte ? '<span class="bk-ok">✓ Eingeworfen am '+esc(bkZeitText(bkMs(letzte.am)))+'</span>' : 'Noch nichts eingeworfen');
+      setzen(letzte ? '<span class="bk-ok">✓ Eingeworfen am '+esc(bkZeitText(bkMs(letzte.am)))+'</span>' : 'Noch nichts eingeworfen', !!letzte);
     }).catch(function(err){ console.warn('Briefkasten-Quittung', err); });
   }
 }
@@ -11907,7 +11911,7 @@ function bkEinwurfDialog(klasse, bk){
       kasten.classList.remove('einwurf'); void kasten.offsetWidth; kasten.classList.add('einwurf');
       gewaehlt = [];
       toast('Eingeworfen ✓');
-      if(bk.kalenderId && state.profile.role !== 'teacher'){ try{ erledigtSetzen(bk.kalenderId, true); }catch(e){} }
+      if(bk.kalenderId && state.profile.role !== 'teacher') erledigtLoad().then(function(){ erledigtSetzen(bk.kalenderId, true); }).catch(function(){});
       quittungLaden();
       bkListeZeichnen();
     }catch(err){
@@ -12667,8 +12671,8 @@ var SVA_PROJ_ID = 'sva_projekt';
 var SVA_GK_FELDER = [['thema','Thema'],['inhalt','Inhalt / Ideen'],['fragen','Fragestellungen, Bemerkungen, Probleme'],['schritte','Arbeitsschritte'],['zielSach','Ziel zur Sache'],['zielSelbst','Ziel zu dir'],['produkt','Art des Produktes'],['praes','Präsentation des Produktes'],['quellen','Quellen, Material, Arbeitsorte'],['stolper','Stolpersteine']];
 var SVA_ZEIGT = ['Produkt','Plakat','PowerPoint','gedruckte Arbeit','Esswaren/Getränke','Tiere','heikle Ware'];
 var SVA_BEDARF = ['Tisch','Strom','Stellwand','Wandtafel','Beamer','Musikanlage','Propangas'];
-var SVA_BK = {grob:{ordner:'SVA_1_Grobkonzept', typen:['pdf','word','bild']}, geruest:{ordner:'SVA_2_Dossier-Geruest', typen:['word']}, stand1:{ordner:'SVA_3_Zwischenstand_Dezember', typen:['word','pdf']},
-  stand2:{ordner:'SVA_4_Zwischenstand_Januar', typen:['word','pdf']}, schluss:{ordner:'SVA_5_Schlussabgabe', typen:['word','pdf']}};
+var SVA_BK = {grob:{ordner:'SVA_1_Grobkonzept', typen:['pdf','word','bild']}, geruest:{ordner:'SVA_2_Dossier-Geruest', typen:['word']}, stand1:{ordner:'SVA_3_Zwischenstand_Dezember', typen:['word','pdf'], pro:true},
+  stand2:{ordner:'SVA_4_Zwischenstand_Januar', typen:['word','pdf'], pro:true}, schluss:{ordner:'SVA_5_Schlussabgabe', typen:['word','pdf']}};
 var SVA_RASTER = [
   {t:'Arbeitsprozess', k:[
     ['1','Planung / Organisation / Zuverlässigkeit','Du bist während der Projekttage immer gut organisiert gewesen und hast zuverlässig gearbeitet.',2],
@@ -12795,8 +12799,11 @@ function svaProjZeichnen(){
   if(!el) return;
   var sichten = [['themen','Themen und Grobkonzept'],['journal','Arbeitsjournal'],['rapport','Rapporte'],['ausstellung','Ausstellung']];
   sichtEl.innerHTML = sichten.map(function(s){ return '<button class="btn btn-sm '+(s[0] === svaProj.sicht ? 'btn-primary' : 'btn-ghost')+'" type="button" data-sicht="'+s[0]+'">'+s[1]+'</button>'; }).join('');
-  druckEl.innerHTML = svaProj.sicht === 'themen' ? '<button class="btn btn-ghost btn-sm" type="button" data-druck="themen">🖨️ Themenliste</button>'
-    : svaProj.sicht === 'ausstellung' ? '<button class="btn btn-ghost btn-sm" type="button" data-druck="karten">🖨️ Tischkarten</button><button class="btn btn-ghost btn-sm" type="button" data-druck="bedarf">🖨️ Bedarfsliste</button>' : '';
+  druckEl.innerHTML = (svaProj.sicht === 'themen' ? '<button class="btn btn-ghost btn-sm" type="button" data-druck="themen">🖨️ Themenliste</button>'
+    : svaProj.sicht === 'ausstellung' ? '<button class="btn btn-ghost btn-sm" type="button" data-druck="karten">🖨️ Tischkarten</button><button class="btn btn-ghost btn-sm" type="button" data-druck="bedarf">🖨️ Bedarfsliste</button>'
+    : svaProj.sicht === 'journal' ? '<button class="btn btn-ghost btn-sm" type="button" data-druck="journal">🖨️ Stundenliste</button>'
+    : '<button class="btn btn-ghost btn-sm" type="button" data-druck="rapport">🖨️ Rapporte</button>')+
+    '<button class="btn btn-ghost btn-sm" type="button" data-druck="csv" title="Diese Ansicht als Tabelle für Excel">⬇️ CSV</button>';
   var liste = svaProj.liste;
   if(!liste){ el.textContent = 'Daten konnten nicht geladen werden.'; return; }
   if(!liste.length){ el.textContent = 'In der Klasse '+svaProj.klasse+' sind keine Schüler:innen erfasst.'; return; }
@@ -12874,6 +12881,46 @@ function svaProjKlick(e){
 function svaProjDrucken(art){
   var liste = svaProj.liste || [], kl = svaProj.klasse, name = function(x){ return esc(x.s.displayName || x.s.username || '?'); };
   var w = function(x){ return svaWerte(x, svaProj.papier); };
+  var roh = function(x){ return x.s.displayName || x.s.username || '?'; };
+  var stand = '<p class="klein">Stand: '+new Date().toLocaleDateString('de-CH')+'</p>';
+  if(art === 'csv'){
+    // ⬇️ CSV der gerade offenen Ansicht (wie die übrigen CSV-Exporte der Library, für Excel).
+    var sicht = svaProj.sicht, rows, rap = function(r){ r = r || {}; return [r.stand == null ? '' : r.stand, r.am ? svaDatCH(r.am) : '', r.fertig || '', r.muehe || '', r.weiter || '', r.hilfe ? 'ja' : '']; };
+    if(sicht === 'themen'){
+      rows = [['Name', 'Thema', 'Produkt', 'Grobkonzept Felder', 'bereit', 'Rückmeldung', 'Kommentar', 'erfasst'].concat(SVA_GK_FELDER.map(function(f){ return f[1]; }))];
+      liste.forEach(function(x){ var v = w(x), g = (x.p && x.p.g) || {}, r = svaProj.rueck[x.s.uid] || {};
+        rows.push([roh(x), v.thema, v.produkt, x.p ? SVA_GK_FELDER.filter(function(f){ return (g[f[0]] || '').trim(); }).length : '', g.bereit ? 'ja' : '',
+          r.status === 'ok' ? 'besprochen' : r.status === 'ueber' ? 'überarbeiten' : '', r.text || '', x.p ? 'Library' : v.papier ? 'Papier' : ''].concat(SVA_GK_FELDER.map(function(f){ return g[f[0]] || ''; }))); });
+    } else if(sicht === 'journal'){
+      rows = [['Name', 'Datum', 'von', 'bis', 'Minuten', 'Ort', 'Was gemacht', 'Kommentar', 'Stunden total']];
+      liste.forEach(function(x){ var v = w(x), j = x.p ? x.p.j.slice().sort(function(a, b){ return (a.d || '') < (b.d || '') ? -1 : 1; }) : [];
+        if(!j.length) rows.push([roh(x), '', '', '', '', '', v.papier ? 'Journal auf Papier' : '', '', v.stunden == null ? '' : v.stunden]);
+        j.forEach(function(e){ rows.push([roh(x), svaDatCH(e.d), e.von || '', e.bis || '', svaMinuten(e) || '', e.ort || '', e.was || '', e.kom || '', v.stunden]); }); });
+    } else if(sicht === 'rapport'){
+      var kopf = function(m){ return [m+': Stand %', m+': abgeschlossen', m+': fertig', m+': macht Mühe', m+': nächste Schritte', m+': Gespräch gewünscht']; };
+      rows = [['Name'].concat(kopf('Dezember'), kopf('Januar'))];
+      liste.forEach(function(x){ rows.push([roh(x)].concat(rap(x.p && x.p.r.dez), rap(x.p && x.p.r.jan))); });
+    } else {
+      rows = [['Name', 'Titel Tischkarte', 'Thema', 'stellt aus', 'braucht', 'Checkliste (von 8)', 'Platz']];
+      liste.forEach(function(x){ var v = w(x), ch = 0; if(x.p) Object.keys(x.p.a.check).forEach(function(k){ if(x.p.a.check[k]) ch++; });
+        rows.push([roh(x), v.titel, v.thema, v.zeigt, v.bedarf, x.p ? ch : '', '']); });
+    }
+    downloadTextFile('sva-'+sicht+'-'+kl+'-'+todayStr()+'.csv', rows.map(function(r){ return r.map(csvField).join(','); }).join('\r\n'), 'text/csv');
+    return;
+  }
+  if(art === 'journal'){
+    svaDruck('Arbeitsstunden SVA '+kl, '<h1>Arbeitsjournal SVA 2026/27 · Klasse '+esc(kl)+'</h1>'+stand+'<table><tr><th>Name</th><th>Stunden</th><th>Einträge</th><th>letzter Eintrag</th></tr>'+
+      liste.map(function(x){ var v = w(x), j = x.p ? x.p.j : [], letzter = ''; j.forEach(function(e){ if((e.d || '') > letzter) letzter = e.d; });
+        return '<tr><td>'+name(x)+'</td><td>'+(v.stunden == null ? '' : esc(String(v.stunden).replace('.', ',')))+'</td><td>'+(x.p ? j.length : v.papier ? 'Papier' : '')+'</td><td>'+(letzter ? esc(svaDatCH(letzter)) : '')+'</td></tr>'; }).join('')+'</table>');
+    return;
+  }
+  if(art === 'rapport'){
+    var rz = function(r){ if(!r || (!r.am && !r.stand && !r.fertig && !r.muehe && !r.weiter)) return ''; return '<b>'+(r.stand || 0)+' %'+(r.am ? ' · abgeschlossen '+esc(svaDatCH(r.am)) : ' · offen')+(r.hilfe ? ' · Gespräch gewünscht' : '')+'</b>'+
+      (r.fertig ? '<br><span class="klein">Fertig:</span> '+svaZeilen(r.fertig) : '')+(r.muehe ? '<br><span class="klein">Macht Mühe:</span> '+svaZeilen(r.muehe) : '')+(r.weiter ? '<br><span class="klein">Nächste Schritte:</span> '+svaZeilen(r.weiter) : ''); };
+    svaDruck('Rapporte SVA '+kl, '<h1>Rapporte SVA 2026/27 · Klasse '+esc(kl)+'</h1>'+stand+'<table><tr><th>Name</th><th>Rapport Dezember</th><th>Rapport Januar</th></tr>'+
+      liste.map(function(x){ return '<tr><td>'+name(x)+'</td><td>'+rz(x.p && x.p.r.dez)+'</td><td>'+rz(x.p && x.p.r.jan)+'</td></tr>'; }).join('')+'</table>');
+    return;
+  }
   if(art === 'themen'){
     svaDruck('Themenwahl SVA '+kl, '<h1>Themenwahl SVA 2026/27 · Klasse '+esc(kl)+'</h1><p class="klein">Stand: '+new Date().toLocaleDateString('de-CH')+'</p><table><tr><th>Name</th><th>Thema</th><th>Produkt</th></tr>'+
       liste.map(function(x){ var v = w(x); return '<tr><td>'+name(x)+'</td><td>'+esc(v.thema)+'</td><td>'+esc(v.produkt)+'</td></tr>'; }).join('')+'</table>');
@@ -12929,7 +12976,24 @@ function svaAchtungZeigen(){
   if(c && Date.now() - c.at < 5*60*1000){ zeichnen(c.daten); return; }
   svaKlasseDaten(klasse).then(function(d){ svaAchtung.cache[klasse] = {at:Date.now(), daten:d}; zeichnen(d); }).catch(function(err){ console.error(err); });
 }
-/* 📮 Briefkästen für die fünf Abgaben (in der offenen Klasse), verknüpft mit den Kalendereinträgen sva2627_* */
+/* 📮 Briefkästen für die fünf Abgaben (in der offenen Klasse), verknüpft mit den Kalendereinträgen sva2627_*
+   Die zwei Zwischenstand-Briefkästen (pro:true) haben «Ordner pro Person»: Dort landen das Dossier (Word) UND der Rapport
+   (PDF aus «Mein SVA-Projekt») nebeneinander, statt dass der spätere Einwurf den früheren ersetzt.
+   svaBkNachfuehren() stellt Briefkästen, die vor dem 06.10.2026 aufgestellt wurden, einmal darauf um (Merker svaPP –
+   wer den Haken danach im Editor wieder entfernt, behält seine Wahl). */
+function svaBkNachfuehren(){
+  if(!svaIstLehrer() || isLeitung() || alsSchueler() || !state.user) return;
+  var klasse = state.klasse;
+  Object.keys(SVA_BK).filter(function(k){ return SVA_BK[k].pro; }).forEach(function(k){
+    var ref = bkRef(klasse, 'bk_sva2627_'+k);
+    getDoc(ref).then(function(d){
+      if(!d.exists()) return;
+      var x = d.data();
+      if(x.ownerUid !== state.user.uid || x.svaPP || x.proPerson === true) return;
+      return fsUpdateDoc(ref, {proPerson:true, svaPP:true});
+    }).catch(function(err){ console.warn('SVA-Briefkasten nachführen', err); });
+  });
+}
 async function svaBriefkaestenAufstellen(){
   var neu = 0;
   try{
@@ -12940,7 +13004,7 @@ async function svaBriefkaestenAufstellen(){
       var p = t.d.split('-').map(Number), frist = new Date(p[0], p[1]-1, p[2], 23, 59, 0, 0).getTime();
       if(!da.exists()){
         await setDoc(bkRef(state.klasse, id), {titel:t.t.replace(/^SVA: /, 'SVA – '), ordner:bk.ordner, subject:'sva', fachName:'SVA', typen:bk.typen, frist:frist, fristArt:'spaet', offen:true,
-          gruppeId:null, gruppeName:'', proPerson:false, kalenderId:kalId, folderId:null, ownerUid:state.user.uid,
+          gruppeId:null, gruppeName:'', proPerson:!!bk.pro, svaPP:true, kalenderId:kalId, folderId:null, ownerUid:state.user.uid,
           ownerName:state.profile.nachname || state.profile.displayName || state.profile.username || '', createdAt:serverTimestamp(), updatedAt:serverTimestamp()});
         await setDoc(doc(db, 'lehrer', state.user.uid, 'briefkaesten', id), {klasse:state.klasse, titel:t.t.replace(/^SVA: /, 'SVA – ')}, {merge:true}).catch(function(err){ console.warn('Briefkasten-Verzeichnis', err); });
         neu++;
@@ -12954,6 +13018,204 @@ async function svaBriefkaestenAufstellen(){
     render();
   }catch(err){ console.error(err); toast('Briefkästen konnten nicht aufgestellt werden.'); }
 }
+
+/* ---------- 📄 SVA: Blatt aus «Mein SVA-Projekt» als PDF direkt in den Briefkasten ----------
+   Die Seite sva/mein-projekt.html ruft im Viewer window.parent.__svaEinwurf(art, blatt) auf. blatt ist dasselbe Modell,
+   aus dem sie ihre Druckansicht baut: {titel, name, klasse, zusatz, felder:[{l, t, h (cm)}], unterschriften:[[links, rechts], …]}.
+   svaPdf() setzt daraus ein A4-PDF im Stil der Druckansicht (11 pt, Zeilenabstand 1,5, graue Titelbalken). Schrift: «Mappe Sans»
+   (sva/schrift-*.ttf) = Teilmenge der Calibri-gleichen Schrift Carlito (SIL OFL), als TrueType mit WinAnsi-Kodierung eingebettet –
+   kein Fremd-Skript. Zeichen ausserhalb von WinAnsi (z. B. Emojis) werden zu «?».
+   svaEinwurf() wirft das PDF mit bkEinwerfen() in den SVA-Briefkasten der Klasse (bk_sva2627_<id>, siehe SVA_BK). */
+var SVA_EINWURF = {grob:{bk:'grob', datei:'Grobkonzept.pdf', erledigt:true}, rapDez:{bk:'stand1', datei:'Rapport_Dezember.pdf'}, rapJan:{bk:'stand2', datei:'Rapport_Januar.pdf'}};
+var SVA_WIN = {0x20AC:128,0x201A:130,0x0192:131,0x201E:132,0x2026:133,0x2020:134,0x2021:135,0x02C6:136,0x2030:137,0x0160:138,0x2039:139,0x0152:140,0x017D:142,
+  0x2018:145,0x2019:146,0x201C:147,0x201D:148,0x2022:149,0x2013:150,0x2014:151,0x02DC:152,0x2122:153,0x0161:154,0x203A:155,0x0153:156,0x017E:158,0x0178:159};
+var svaSchriften = null;
+// Liest aus einer TrueType-Datei, was das PDF braucht: Breiten der WinAnsi-Zeichen (in 1/1000), Ober-/Unterlänge, Rahmen.
+function svaTtf(buf){
+  var dv = new DataView(buf), n = dv.getUint16(4), tab = {}, i;
+  for(i = 0; i < n; i++){ var o = 12 + 16*i; tab[String.fromCharCode(dv.getUint8(o), dv.getUint8(o+1), dv.getUint8(o+2), dv.getUint8(o+3))] = dv.getUint32(o + 8); }
+  var k = 1000 / dv.getUint16(tab.head + 18), nH = dv.getUint16(tab.hhea + 34), sub = 0, nt = dv.getUint16(tab.cmap + 2);
+  for(i = 0; i < nt; i++){ var e = tab.cmap + 4 + 8*i; if(dv.getUint16(e) === 3 && dv.getUint16(e + 2) === 1) sub = tab.cmap + dv.getUint32(e + 4); }
+  if(!sub || dv.getUint16(sub) !== 4) throw new Error('Schrift ohne passende Zeichentabelle');
+  var seg = dv.getUint16(sub + 6) / 2, endO = sub + 14, startO = endO + 2*seg + 2, deltaO = startO + 2*seg, rangeO = deltaO + 2*seg;
+  var gid = function(cp){
+    for(var s = 0; s < seg; s++){
+      if(cp > dv.getUint16(endO + 2*s)) continue;
+      var st = dv.getUint16(startO + 2*s);
+      if(cp < st) return 0;
+      var ro = dv.getUint16(rangeO + 2*s), d = dv.getUint16(deltaO + 2*s);
+      if(!ro) return (cp + d) & 0xFFFF;
+      var g = dv.getUint16(rangeO + 2*s + ro + 2*(cp - st));
+      return g ? (g + d) & 0xFFFF : 0;
+    }
+    return 0;
+  };
+  var zurueck = {}, w = [];
+  Object.keys(SVA_WIN).forEach(function(u){ zurueck[SVA_WIN[u]] = +u; });
+  for(var c = 32; c < 256; c++){ var g = gid(zurueck[c] || c); w.push(g ? Math.round(dv.getUint16(tab.hmtx + 4*Math.min(g, nH - 1)) * k) : 0); }
+  var r = function(off){ return Math.round(dv.getInt16(off) * k); };
+  return {bytes:new Uint8Array(buf), w:w, asc:r(tab.hhea + 4), desc:r(tab.hhea + 6), bbox:[r(tab.head + 36), r(tab.head + 38), r(tab.head + 40), r(tab.head + 42)],
+    cap:tab['OS/2'] && dv.getUint16(tab['OS/2']) >= 2 ? r(tab['OS/2'] + 88) : Math.round(r(tab.hhea + 4) * 0.7)};
+}
+function svaSchriftenLaden(){
+  if(!svaSchriften){
+    svaSchriften = Promise.all(['sva/schrift-normal.ttf', 'sva/schrift-fett.ttf'].map(function(u){
+      return fetch(u).then(function(res){ if(!res.ok) throw new Error('Schrift '+res.status); return res.arrayBuffer(); }).then(svaTtf);
+    })).catch(function(err){ svaSchriften = null; throw err; });
+  }
+  return svaSchriften;
+}
+// Text → Zeichenkette aus WinAnsi-Codes (ein Zeichen = ein Byte im PDF).
+function svaWinText(t){
+  var s = String(t == null ? '' : t), out = '';
+  if(s.normalize) s = s.normalize('NFC');
+  Array.from(s).forEach(function(ch){
+    var cp = ch.codePointAt(0);
+    if(cp === 9) cp = 32;
+    if(cp === 0xFE0F || cp === 0x200D || cp === 0x200B || cp === 0xAD || cp < 32) return;
+    out += String.fromCharCode((cp >= 32 && cp <= 126) || (cp >= 160 && cp <= 255) ? cp : (SVA_WIN[cp] || 63));
+  });
+  return out;
+}
+function svaPdfBreite(s, f, size){ var b = 0; for(var i = 0; i < s.length; i++) b += f.w[s.charCodeAt(i) - 32] || 0; return b * size / 1000; }
+function svaPdfStr(s){
+  var out = '';
+  for(var i = 0; i < s.length; i++){ var c = s.charCodeAt(i); out += c === 40 || c === 41 || c === 92 ? '\\' + s.charAt(i) : c > 126 ? '\\' + c.toString(8) : s.charAt(i); }
+  return out;
+}
+// Zeilenumbruch nach Breite; zu lange Wörter werden getrennt. Liefert WinAnsi-Zeilen.
+function svaUmbruch(text, f, size, max){
+  var zeilen = [], br = function(s){ return svaPdfBreite(s, f, size); };
+  String(text == null ? '' : text).split(/\r?\n/).forEach(function(abs){
+    var z = '';
+    svaWinText(abs).split(' ').forEach(function(wort){
+      var test = z ? z + ' ' + wort : wort;
+      if(br(test) <= max){ z = test; return; }
+      if(z) zeilen.push(z);
+      while(br(wort) > max){ var n = wort.length; while(n > 1 && br(wort.slice(0, n)) > max) n--; zeilen.push(wort.slice(0, n)); wort = wort.slice(n); }
+      z = wort;
+    });
+    zeilen.push(z);
+  });
+  return zeilen;
+}
+async function svaDeflate(bytes){
+  if(typeof CompressionStream !== 'function') return null;
+  try{ return new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(new CompressionStream('deflate'))).arrayBuffer()); }catch(e){ return null; }
+}
+async function svaPdf(blatt, fuss){
+  var F = await svaSchriftenLaden(), N = F[0], B = F[1];
+  var W = 595.28, H = 841.89, M = 56.7, CW = W - 2*M, G = 11, ZA = G * 1.5, PAD = 6, LH = ZA + 3, UNTEN = H - M - 12, CM = 28.35;
+  var seiten = [], ops = null, y = 0;
+  var num = function(v){ return String(Math.round(v * 100) / 100); };
+  var neu = function(){ ops = ['0.75 w']; seiten.push(ops); y = M; };
+  // oben = Oberkante der Zeile (von oben gemessen), hoehe = Zeilenhöhe; die Grossbuchstaben stehen mittig darin.
+  var text = function(s, f, size, x, oben, hoehe){ ops.push('BT /'+(f === B ? 'F2' : 'F1')+' '+size+' Tf '+num(x)+' '+num(H - oben - hoehe/2 - f.cap*size/2000)+' Td ('+svaPdfStr(s)+') Tj ET'); };
+  var rahmen = function(oben, hoehe, grau){ ops.push((grau ? '0.9 g ' : '')+num(M)+' '+num(H - oben - hoehe)+' '+num(CW)+' '+num(hoehe)+' re '+(grau ? 'B 0 g' : 'S')); };
+  var kasten = function(titel, zeilen, hoehe){
+    rahmen(y, LH, true); text(svaWinText(titel), B, G, M + PAD, y, LH); y += LH;
+    rahmen(y, hoehe, false);
+    zeilen.forEach(function(z, i){ if(z) text(z, N, G, M + PAD, y + 4 + i*ZA, ZA); });
+    y += hoehe;
+  };
+  neu();
+  text(svaWinText(blatt.titel), B, 18, M, y, 27); y += 27;
+  text(svaWinText('von '+(blatt.name || '________________________')+(blatt.klasse ? ', '+blatt.klasse : '')+(blatt.zusatz ? ' · '+blatt.zusatz : '')), N, G, M, y, ZA); y += ZA + 8;
+  (blatt.felder || []).forEach(function(f){
+    var zeilen = svaUmbruch(f.t, N, G, CW - 2*PAD), minH = (f.h || 1.6) * CM, hoehe = Math.max(minH, zeilen.length*ZA + 8), titel = f.l;
+    if(y + LH + hoehe <= UNTEN){ kasten(titel, zeilen, hoehe); return; }
+    if(LH + hoehe <= UNTEN - M){ neu(); kasten(titel, zeilen, hoehe); return; }
+    // Höher als eine Seite: über mehrere Seiten verteilen.
+    while(zeilen.length){
+      var platz = Math.floor((UNTEN - y - LH - 8) / ZA);
+      if(platz < 3){ neu(); platz = Math.floor((UNTEN - y - LH - 8) / ZA); }
+      var teil = zeilen.splice(0, platz);
+      kasten(titel, teil, zeilen.length ? teil.length*ZA + 8 : Math.max(Math.min(minH, UNTEN - y - LH), teil.length*ZA + 8));
+      titel = f.l + ' (Fortsetzung)';
+    }
+  });
+  (blatt.unterschriften || []).forEach(function(reihe, i){
+    if(y + 44 > UNTEN) neu(); else if(!i) y += 6;
+    y += 24;
+    reihe.forEach(function(t, k){
+      var x = M + k * (CW/2 + 8), b = CW/2 - 8;
+      text(svaWinText(t), N, 9, x, y, 12);
+      ops.push(num(x)+' '+num(H - y - 14)+' m '+num(x + b)+' '+num(H - y - 14)+' l S');
+    });
+    y += 16;
+  });
+  seiten.forEach(function(o, i){
+    ops = o;
+    ops.push('0.45 g'); text(svaWinText((fuss ? fuss + ' · ' : '')+'Seite '+(i + 1)+' von '+seiten.length), N, 8, M, H - M + 2, 12);
+  });
+
+  // ---- PDF schreiben ----
+  var teile = [], pos = 0, offs = [];
+  var raus = function(x){
+    if(typeof x === 'string'){ var u = new Uint8Array(x.length); for(var i = 0; i < x.length; i++) u[i] = x.charCodeAt(i) & 255; x = u; }
+    teile.push(x); pos += x.length;
+  };
+  var obj = function(nr, dict, strom){
+    offs[nr] = pos;
+    if(strom){ raus(nr+' 0 obj\n<< '+dict+' /Length '+strom.length+' >>\nstream\n'); raus(strom); raus('\nendstream\nendobj\n'); }
+    else raus(nr+' 0 obj\n'+dict+'\nendobj\n');
+  };
+  var strom = async function(nr, bytes, extra){
+    var z = await svaDeflate(bytes);
+    obj(nr, (extra || '')+(z ? ' /Filter /FlateDecode' : ''), z || bytes);
+  };
+  var bytesAus = function(s){ var u = new Uint8Array(s.length); for(var i = 0; i < s.length; i++) u[i] = s.charCodeAt(i) & 255; return u; };
+  raus('%PDF-1.4\n%âãÏÓ\n');
+  var kids = seiten.map(function(o, i){ return (9 + 2*i)+' 0 R'; }).join(' ');
+  obj(1, '<< /Type /Catalog /Pages 2 0 R >>');
+  obj(2, '<< /Type /Pages /Kids ['+kids+'] /Count '+seiten.length+' >>');
+  var schrift = async function(nr, f, name, stem){
+    obj(nr, '<< /Type /Font /Subtype /TrueType /BaseFont /'+name+' /FirstChar 32 /LastChar 255 /Widths ['+f.w.join(' ')+'] /FontDescriptor '+(nr + 1)+' 0 R /Encoding /WinAnsiEncoding >>');
+    obj(nr + 1, '<< /Type /FontDescriptor /FontName /'+name+' /Flags 32 /FontBBox ['+f.bbox.join(' ')+'] /ItalicAngle 0 /Ascent '+f.asc+' /Descent '+f.desc+' /CapHeight '+f.cap+' /StemV '+stem+' /FontFile2 '+(nr + 2)+' 0 R >>');
+    await strom(nr + 2, f.bytes, '/Length1 '+f.bytes.length);
+  };
+  await schrift(3, N, 'MappeSans-Regular', 80);
+  await schrift(6, B, 'MappeSans-Bold', 130);
+  for(var i = 0; i < seiten.length; i++){
+    obj(9 + 2*i, '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 '+W+' '+H+'] /Resources << /Font << /F1 3 0 R /F2 6 0 R >> >> /Contents '+(10 + 2*i)+' 0 R >>');
+    await strom(10 + 2*i, bytesAus(seiten[i].join('\n')));
+  }
+  var anzahl = 9 + 2*seiten.length, xref = pos, zehn = function(v){ return ('0000000000' + v).slice(-10); };
+  raus('xref\n0 '+anzahl+'\n0000000000 65535 f \n');
+  for(var nr = 1; nr < anzahl; nr++) raus(zehn(offs[nr])+' 00000 n \n');
+  raus('trailer\n<< /Size '+anzahl+' /Root 1 0 R >>\nstartxref\n'+xref+'\n%%EOF\n');
+  var aus = new Uint8Array(pos), p = 0;
+  teile.forEach(function(t){ aus.set(t, p); p += t.length; });
+  return aus;
+}
+// Aufruf aus «Mein SVA-Projekt». Antwort: {ok, text, am} – die Seite zeigt den Text an.
+async function svaEinwurf(art, blatt){
+  var ziel = SVA_EINWURF[art];
+  if(!ziel || !blatt) return {ok:false, text:'Diese Abgabe kennt die Library nicht.'};
+  if(svaIstLehrer() || isLeitung() || alsSchueler()) return {ok:false, text:'Vorschau: Einwerfen können nur Schüler:innen. Bei ihnen landet das Blatt als PDF im SVA-Briefkasten ihrer Klasse.'};
+  if(navigator.onLine === false) return {ok:false, text:'Du bist gerade offline. Verbinde dich mit dem Internet und versuch es nochmals.'};
+  var klasse = state.klasse, id = 'bk_sva2627_'+ziel.bk, uid = state.user.uid, snap;
+  try{ snap = await getDoc(bkRef(klasse, id)); }
+  catch(err){ console.warn('SVA-Einwurf', err); return {ok:false, text:'Der Briefkasten ist gerade nicht erreichbar. Versuch es nochmals.'}; }
+  if(!snap.exists()) return {ok:false, text:'Für diese Abgabe steht in deiner Klasse noch kein Briefkasten. Drucke das Blatt aus oder frag deine Lehrperson.'};
+  var bk = Object.assign({id:id}, snap.data()), zustand = bkZustand(bk, uid), erlaubt = bkErlaubt(bk);
+  if(zustand === 'zu') return {ok:false, text:'Der Briefkasten ist geschlossen. Melde dich bei deiner Lehrperson, wenn du noch abgeben musst.'};
+  if(erlaubt && erlaubt.indexOf('pdf') < 0) return {ok:false, text:'Dieser Briefkasten nimmt keine PDF an. Drucke das Blatt aus oder frag deine Lehrperson.'};
+  try{
+    var p = state.profile || {}, jetzt = new Date();
+    var b = Object.assign({}, blatt, {name:((p.displayName || '')+' '+(p.nachname || '')).trim() || blatt.name || p.username || '', klasse:p.klasse || blatt.klasse || ''});
+    var bytes = await svaPdf(b, 'Aus «Mein SVA-Projekt» eingeworfen am '+jetzt.getDate()+'.'+(jetzt.getMonth() + 1)+'.'+jetzt.getFullYear()+', '+pad2(jetzt.getHours())+':'+pad2(jetzt.getMinutes())+' Uhr');
+    await bkEinwerfen(klasse, bk, [new File([bytes], ziel.datei, {type:'application/pdf'})]);
+    delete bkStatusCache[id];
+    // Erst laden: erledigtSetzen schreibt die ganze Liste – ohne geladene Liste gingen die übrigen Häkchen verloren.
+    if(ziel.erledigt && bk.kalenderId) erledigtLoad().then(function(){ erledigtSetzen(bk.kalenderId, true); }).catch(function(){});
+    return {ok:true, am:jetzt.getTime(), text:'Eingeworfen ✓'+(zustand === 'spaet' ? ' (nach der Frist, wird als verspätet markiert)' : '')};
+  }catch(err){
+    console.warn('SVA-Einwurf', err);
+    return {ok:false, text:err && err.code === 'permission-denied' ? 'Der Einwurf wurde nicht angenommen. Vermutlich ist der Briefkasten inzwischen geschlossen.' : 'Der Einwurf hat nicht geklappt. Prüf die Verbindung und versuch es nochmals.'};
+  }
+}
+window.__svaEinwurf = function(art, blatt){ return svaEinwurf(art, blatt); };
 
 /* 📝 Beurteilungsraster (41 Punkte) für die offene Klasse */
 var svaBeurt = {daten:{}, roster:[], uid:null};
@@ -13087,7 +13349,7 @@ function renderSubject(subjectId, folderId){
 
   renderChrome(html);
   document.getElementById('backBtn').addEventListener('click', goHome);
-  if(subjectId === 'sva'){ svaKopfVerdrahten(); svaPrivatZeigen(); svaAchtungZeigen(); }
+  if(subjectId === 'sva'){ svaKopfVerdrahten(); svaPrivatZeigen(); svaAchtungZeigen(); svaBkNachfuehren(); }
   var diktatAnalyseBtn = document.getElementById('diktatAnalyseBtn');
   if(diktatAnalyseBtn){
     diktatAnalyseBtn.addEventListener('click', function(){
@@ -19947,6 +20209,8 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-10-06-sva-einwurf', datum:'2026-10-06', fuer:'alle', text:'🎓 SVA, «Mein SVA-Projekt»: Dein Grobkonzept und deine Rapporte wirfst du neu mit einem Knopf direkt in den Briefkasten – die Library macht selbst ein PDF daraus. Jeder Reiter hat einen Knopf «Drucken». Und ein Briefkasten, in den du schon eingeworfen hast, ist grün.'},
+  {id:'2026-10-06-sva-lp5', datum:'2026-10-06', fuer:'lehrer', text:'🎓 SVA: In «Mein SVA-Projekt» gibt es für jeden Reiter (auch Journal, Rapport, Ausstellung) eine Druckfassung und – nur für dich – ein leeres Blatt als Papier-Variante sowie «Einträge dieses Reiters löschen» (deine Test-Einträge). «📋 Projekte der Klasse» hat pro Ansicht «⬇️ CSV». Die beiden Zwischenstand-Briefkästen sammeln neu pro Person einen Ordner (Dossier + Rapport nebeneinander).'},
   {id:'2026-10-05-bk-unten', datum:'2026-10-05', fuer:'alle', text:'📮 Die Briefkästen stehen im Fach neu ganz unten – oben kommt zuerst das Material.'},
   {id:'2026-10-05-sva-lp4', datum:'2026-10-05', fuer:'lehrer', text:'🎓 SVA: Oben im Fach SVA steht für deine 3. Klasse neu «🔔 Braucht Aufmerksamkeit» (Gespräch gewünscht, Grobkonzept fehlt, Rapport überfällig, lange kein Journaleintrag). Unter «📋 Projekte der Klasse» gibst du zum Grobkonzept eine Rückmeldung (besprochen / überarbeiten + Kommentar), die das Kind im Fach SVA sieht, und trägst für Schüler:innen, die auf Papier arbeiten, Thema, Stunden und Ausstellungsbedarf nach.'},
   {id:'2026-10-05-sva-alle', datum:'2026-10-05', fuer:'alle', text:'🎓 Neu: die Kachel «SVA» für die Abschlussarbeit der 3. Klassen. Dort findest du den Fahrplan mit allen Terminen, die «Dossier-Werkstatt» (Schritt für Schritt zum Arbeitsdossier in Word, mit Erklärvideo) und «Mein SVA-Projekt» (Grobkonzept, Arbeitsjournal, Rapport, Ausstellung). Bist du in der 1. oder 2. Klasse und brauchst die Kachel noch nicht? Lange auf die Kachel drücken und mit «−» ausblenden.'},
@@ -38669,6 +38933,7 @@ function layoutAusCache(){
 }
 function layoutLoad(){
   layoutAusCache();
+  if(alsSchueler()) return;   // 🎒 die Anordnung darf nur die Schüler:in selbst lesen (Regeln)
   getDoc(layoutRef()).then(function(snap){
     if(!snap.exists()) return;
     var d = snap.data();
