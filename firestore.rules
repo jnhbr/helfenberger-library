@@ -231,6 +231,22 @@ service cloud.firestore {
         allow write: if isTeacher();
       }
 
+      // 🎓 SVA: pro Schüler:in privat – Rückmeldung der Lehrperson zum
+      // Grobkonzept (rueck) und Zuweisung der Rettungsvorlage (vorlage).
+      // Lesen dürfen nur die Person selbst, Lehrpersonen und die Schulleitung,
+      // nicht die übrige Klasse. Schreiben nur Lehrpersonen.
+      match /svaPrivat/{uid} {
+        allow read: if canReadAll() || isOwner(uid);
+        allow create, update: if isTeacher()
+          && request.resource.data.keys().hasOnly(['rueck', 'vorlage', 'am'])
+          && request.resource.data.get('vorlage', false) is bool
+          && request.resource.data.get('rueck', {}) is map
+          && request.resource.data.get('rueck', {}).get('text', '') is string
+          && request.resource.data.get('rueck', {}).get('text', '').size() <= 800;
+        // Separat von create/update: bei einem delete ist request.resource null.
+        allow delete: if isTeacher();
+      }
+
       match /klasseninfo/{toolId} {
         allow read: if inKlasseLesen(klasse);
         allow write: if isTeacher();

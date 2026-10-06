@@ -203,16 +203,26 @@ function zKonzept(el){
   };
 }
 
+/* Text fürs Arbeitsprotokoll in Word: nur reiner Text (so übernimmt er die Schrift des Dossiers) und genau ZWEI Absätze –
+   1. Datum, Zeit, Dauer in Minuten, Ort   2. Was gemacht + Kommentar. Innerhalb des zweiten Absatzes stehen weiche
+   Zeilenumbrüche (Zeichen 11, in Word = Umschalt+Enter). Sind in der Protokoll-Tabelle die zwei rechten Zellen markiert,
+   füllt Word mit jedem Absatz eine Zelle; mit drei Absätzen ging früher der Kommentar verloren. */
+function protokollText(e){
+  var m = minuten(e), weich = function(t){ return String(t || '').replace(/\r?\n+/g, '\u000B'); };
+  var kopf = datCH(e.d)+(e.von ? ', '+e.von+(e.bis ? '–'+e.bis : '')+' Uhr' : '')+(m ? ' ('+m+' Minuten)' : '')+(e.ort ? ', '+e.ort : '');
+  return kopf+'\n'+weich(e.was)+(e.kom ? '\u000BKommentar: '+weich(e.kom) : '');
+}
 function zJournal(el, offenKopie){
   var liste = S.j.map(function(e, i){ return {e:e, i:i}; }).sort(function(a, b){ return (a.e.d + (a.e.von || '')) < (b.e.d + (b.e.von || '')) ? 1 : -1; });
   var h = stunden();
   el.innerHTML = '<h2>Arbeitsjournal</h2><div class="hinweis">Nach jeder Arbeitsphase ein kurzer Eintrag. Die Stunden werden gezählt (Richtwert: <b>'+ZIEL_MIN+' bis '+ZIEL_MAX+' Stunden</b>). Fotos kommen direkt ins Word-Dossier – hier schreibst du nur den Text.</div>'+
+    '<div class="hinweis"><b>So kommt ein Eintrag ins Arbeitsprotokoll:</b> «Text fürs Protokoll kopieren» antippen. In Word in der Protokoll-Tabelle die <b>zwei rechten Zellen markieren</b> und einfügen (<kbd>Strg</kbd> + <kbd>V</kbd>): Oben stehen Datum, Zeit, Dauer und Ort, unten dein Text mit dem Kommentar – in der Schrift deines Dossiers.</div>'+
     '<div class="karte"><label class="fl">Neuer Eintrag</label><div class="vier"><label>Datum<input type="date" id="jD" value="'+heute()+'"></label><label>von<input type="time" id="jV"></label><label>bis<input type="time" id="jB"></label><label>Arbeitsort<input type="text" id="jO" placeholder="zu Hause, Werkstatt …"></label></div>'+
     '<label>Was habe ich gemacht?<textarea id="jW" rows="3" placeholder="Arbeitsschritt kurz beschreiben"></textarea></label>'+
     '<label>Kommentar<textarea id="jK" rows="2" placeholder="Was hat gut geklappt? Was war schwierig? Was nehme ich mit?"></textarea></label>'+
     '<div class="reihe"><button class="btn" type="button" id="jAdd">Eintrag speichern</button><span id="jErr" class="fehlertext"></span></div></div>'+
     '<h2 style="margin-top:24px">'+S.j.length+(S.j.length === 1 ? ' Eintrag' : ' Einträge')+' · '+hText(h)+' Stunden</h2>'+
-    (liste.length ? liste.map(function(x){ var e = x.e, m = minuten(e); return '<div class="karte eintrag"><div class="zeile"><b>'+datCH(e.d)+'</b><span>'+esc(e.von || '')+(e.bis ? '–'+esc(e.bis) : '')+(e.ort ? ' · '+esc(e.ort) : '')+'</span><span class="leiter"></span><span>'+(m ? hText(m/60)+' h' : 'ohne Zeit')+'</span></div>'+
+    (liste.length ? liste.map(function(x){ var e = x.e, m = minuten(e); return '<div class="karte eintrag"><div class="zeile"><b>'+datCH(e.d)+'</b><span>'+esc(e.von || '')+(e.bis ? '–'+esc(e.bis) : '')+(e.ort ? ' · '+esc(e.ort) : '')+'</span><span class="leiter"></span><span>'+(m ? m+' Minuten ('+hText(m/60)+' h)' : 'ohne Zeit')+'</span></div>'+
       '<p>'+esc(e.was).replace(/\n/g,'<br>')+'</p>'+(e.kom ? '<p class="kom">'+esc(e.kom).replace(/\n/g,'<br>')+'</p>' : '')+
       '<div class="reihe"><button class="btn leise klein" type="button" data-kop="'+x.i+'">📋 Text fürs Protokoll kopieren</button><button class="btn leise klein" type="button" data-del="'+x.i+'">Löschen</button></div></div>'; }).join('') : '<div class="karte">Noch kein Eintrag.</div>');
   document.getElementById('jAdd').onclick = function(){
@@ -224,7 +234,7 @@ function zJournal(el, offenKopie){
   el.onclick = function(ev){
     var d = ev.target.closest('[data-del]'), k = ev.target.closest('[data-kop]');
     if(d){ if(d.getAttribute('data-sicher')){ S.j.splice(+d.getAttribute('data-del'), 1); sichern(true); zJournal(el); } else { d.setAttribute('data-sicher', '1'); d.textContent = 'Wirklich löschen?'; } }
-    if(k){ var e = S.j[+k.getAttribute('data-kop')], txt = datCH(e.d)+(e.von ? ', '+e.von+(e.bis ? '–'+e.bis : '')+' Uhr' : '')+(e.ort ? ', '+e.ort : '')+'\n'+e.was+(e.kom ? '\nKommentar: '+e.kom : '');
+    if(k){ var e = S.j[+k.getAttribute('data-kop')], txt = protokollText(e);
       var fertig = function(){ k.textContent = '✓ Kopiert'; };
       if(navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(fertig, function(){ k.textContent = 'Kopieren nicht möglich'; }); else k.textContent = 'Kopieren nicht möglich'; }
   };

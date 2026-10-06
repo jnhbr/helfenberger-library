@@ -419,3 +419,28 @@ test('Briefkasten: nur die Lehrperson des Briefkastens holt ab (liest, markiert,
   await assertFails(updateDoc(doc(db.jan(), BKP + '/abgaben/sus_abc123'), { uid: 'andere' }));
   await assertSucceeds(deleteDoc(doc(db.jan(), BKP + '/abgaben/sus_abc123')));
 });
+
+// ---------- 🎓 SVA: private Rückmeldung / Rettungsvorlage pro Schüler:in ----------
+const SVP = 'klassen/G3b/svaPrivat/';
+test('SVA privat: nur Lehrpersonen schreiben, mit gültigen Feldern; Löschen geht', async () => {
+  await assertSucceeds(setDoc(doc(db.jan(), SVP + 'sus'), { rueck: { status: 'ueber', text: 'Ziele genauer', am: '2026-11-20', von: 'Helfenberger' }, vorlage: true, am: '2026-11-20' }));
+  await assertSucceeds(setDoc(doc(db.lp(), SVP + 'sus'), { vorlage: false }, { merge: true }));
+  await assertFails(setDoc(doc(db.jan(), SVP + 'sus'), { vorlage: 'ja' }));
+  await assertFails(setDoc(doc(db.jan(), SVP + 'sus'), { rueck: { text: 'x'.repeat(801) } }));
+  await assertFails(setDoc(doc(db.jan(), SVP + 'sus'), { fremd: 1 }));
+  await assertFails(setDoc(doc(db.sus(), SVP + 'sus'), { vorlage: true }));
+  await assertFails(deleteDoc(doc(db.sus(), SVP + 'sus')));
+  await assertSucceeds(deleteDoc(doc(db.jan(), SVP + 'sus')));
+});
+test('SVA privat: die Person liest nur das eigene Dokument, die Klasse nichts', async () => {
+  await seed(SVP + 'sus', { rueck: { status: 'ok', text: '' }, vorlage: true });
+  await seed(SVP + 'andere', { rueck: { status: 'ueber', text: 'geheim' } });
+  await assertSucceeds(getDoc(doc(db.sus(), SVP + 'sus')));
+  await assertFails(getDoc(doc(db.sus(), SVP + 'andere')));
+  await assertFails(getDocs(collection(db.sus(), 'klassen/G3b/svaPrivat')));
+  await assertFails(getDoc(doc(db.susA(), SVP + 'sus')));
+  await assertFails(getDoc(doc(db.gast(), SVP + 'sus')));
+  await assertSucceeds(getDocs(collection(db.jan(), 'klassen/G3b/svaPrivat')));
+  await assertSucceeds(getDocs(collection(db.lp(), 'klassen/G3b/svaPrivat')));
+  await assertSucceeds(getDoc(doc(db.leitung(), SVP + 'andere')));
+});
