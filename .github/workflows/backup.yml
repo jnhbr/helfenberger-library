@@ -1,0 +1,97 @@
+name: Wöchentliches Backup
+
+# Sichert jeden Sonntag die ganze Firestore-Datenbank (admin/backup.js: eine
+# .jsonl-Datei pro Collection, inkl. Übungsinhalte und noch nicht aufgeräumter
+# Briefkasten-Dateien) und legt sie VERSCHLÜSSELT als Artefakt ab (90 Tage).
+# Dieses Repo ist öffentlich – darum die Verschlüsselung: AES-256 mit einem
+# Zufallsschlüssel, der mit dem öffentlichen RSA-Schlüssel unten (Schritt «Verschlüsseln»)
+# verschlüsselt wird. Der öffentliche Schlüssel darf hier stehen: Mit ihm kann man nur
+# verschlüsseln. Öffnen kann das nur, wer den privaten Schlüssel hat
+# (Jans Mac: ~/Desktop/Claude/Library-Unterlagen/Backups/Schluessel/backup-privat.pem).
+#
+# Zurückholen: Actions -> «Wöchentliches Backup» -> Lauf -> Artefakt herunterladen,
+#   bash admin/backup-entschluesseln.sh <library-backup-DATUM.zip>
+#   node admin/restore.js <ordner> <pfad-präfix>        (zeigt nur an; mit --ja schreiben)
+#
+# Danach räumt der Lauf die Briefkasten-Reserve auf (admin/briefkasten-aufraeumen.js):
+# Dateien, die vor über 30 Tagen abgeholt wurden, verschwinden aus der Datenbank –
+# sie stecken dann noch 90 Tage in den Backups.
+# Von Hand: Actions -> «Wöchentliches Backup» -> «Run workflow».
+
+on:
+  schedule:
+    - cron: '0 2 * * 0'   # Sonntag 04:00 / 03:00 Schweizer Zeit, nach Live-Schaltung und Spiegeln
+  workflow_dispatch:
+    inputs:
+      aufraeumen:
+        description: 'Briefkasten-Reserve aufräumen (false = nur anzeigen, nichts löschen)'
+        required: false
+        default: 'true'
+
+concurrency:
+  group: backup
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install dependencies
+        working-directory: admin
+        run: npm install --omit=dev
+      - name: Datenbank sichern
+        working-directory: admin
+        env:
+          FIREBASE_SERVICE_ACCOUNT_KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_KEY }}
+        run: node backup.js "$RUNNER_TEMP/sicherung"
+      - name: Verschlüsseln
+        id: paket
+        run: |
+          set -euo pipefail
+          name="library-backup-$(date -u +%F)"
+          mkdir -p "$RUNNER_TEMP/artefakt"
+          tar czf "$RUNNER_TEMP/backup.tar.gz" -C "$RUNNER_TEMP/sicherung" .
+          openssl rand -hex 32 > "$RUNNER_TEMP/key.bin"
+          openssl enc -aes-256-cbc -pbkdf2 -md sha256 -iter 100000 -in "$RUNNER_TEMP/backup.tar.gz" -out "$RUNNER_TEMP/artefakt/$name.tar.gz.enc" -pass "file:$RUNNER_TEMP/key.bin"
+          cat > "$RUNNER_TEMP/public.pem" <<'SCHLUESSEL'
+          -----BEGIN PUBLIC KEY-----
+          MIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEAw9b6ynNw7PY2GDvPVYGM
+          Cq7vGB3/2wkK8IKJXX4GAam5IIg03ru1xc/NypT06GuqVMFg6Cj+dBJwWayHeP5h
+          3JcdhjHsJr8DewLmtrUSHQb3vsIHoZ67j9X7zEUWcjizzvg6jx+1GlCitG292fzV
+          9hR+kda5+ceVP0VkcL/dzsC/DzHlkGI8TxkmuSs24CmQg8qLg/vp7tFgSfKIzbEi
+          FZSybVvDY778g5HsnfKqtEr4lQdp0lbKNkCVbpplXjpOHdkZcVUY2WzSSXMcWBys
+          qhgaRRgwnCczsXS8tV2ByxX4fMfrkRdMOUJjBl3RB68fs2tuuCCwn/E/78SLLPpF
+          +bPC7alwzxLfJPE0uHiHGOLFYHNYzSHmTBtYGf/xzvnk3qYS0nYde2i1Zn3MmbZ9
+          vT4SD7l1+AthSmWM/J/S6JG9VuJ7rz0ml6rmZwWcI/huUP671P3/EH+kxlvZU0xy
+          FE3gXOI+1CJ9habp1ur6UKlhEUU6FH6CkDEa1pe+ZQu5+z/ET9hLwOB5Rd+v34Q2
+          xSeVm6Ak3S2lwwKPVKElEnvTHW3aTL1zWon7Dqblzy5vm9WBCLXlU3ZTFM7EdVOm
+          6/KMiEonnwh12ez2Me8QpgqIAY2ny3/hkgJthcyDGlJcQlKasWwdaa0aHosF80kX
+          UEnKwDBq5pZSgJ+49IIA4+MCAwEAAQ==
+          -----END PUBLIC KEY-----
+          SCHLUESSEL
+          openssl pkeyutl -encrypt -pubin -inkey "$RUNNER_TEMP/public.pem" -pkeyopt rsa_padding_mode:oaep -in "$RUNNER_TEMP/key.bin" -out "$RUNNER_TEMP/artefakt/$name.key.enc"
+          rm -rf "$RUNNER_TEMP/sicherung" "$RUNNER_TEMP/backup.tar.gz" "$RUNNER_TEMP/key.bin"
+          ls -la "$RUNNER_TEMP/artefakt"
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.paket.outputs.name }}
+          path: ${{ runner.temp }}/artefakt/
+          retention-days: 90
+          compression-level: 0
+          if-no-files-found: error
+      - name: Briefkasten-Reserve aufräumen
+        working-directory: admin
+        env:
+          FIREBASE_SERVICE_ACCOUNT_KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_KEY }}
+        run: |
+          if [ ! -f briefkasten-aufraeumen.js ]; then echo "briefkasten-aufraeumen.js fehlt noch – übersprungen"; exit 0; fi
+          if [ "${{ github.event.inputs.aufraeumen }}" = "false" ]; then node briefkasten-aufraeumen.js --probe; else node briefkasten-aufraeumen.js; fi
