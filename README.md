@@ -229,7 +229,8 @@ Fallback dienen, falls du z. B. offline testen willst.
 
 ## Admin-Skripte (Ordner `admin/`, lokal mit `serviceAccountKey.json`)
 
-- `node backup.js [--ohne-inhalte]` — ganze Datenbank als JSONL nach `~/Desktop/Claude/Library-Unterlagen/Backups/<Datum>/` (wöchentlich empfohlen).
+- `node backup.js [--ohne-inhalte]` — ganze Datenbank als JSONL nach `~/Desktop/Claude/Library-Unterlagen/Backups/<Datum>/`. Automatisch jeden Sonntag: Workflow «Wöchentliches Backup» im Live-Repo (`.github/workflows/backup.yml`, verschlüsseltes Artefakt, 90 Tage; öffnen mit `bash admin/backup-entschluesseln.sh <artefakt.zip>`).
+- `node briefkasten-aufraeumen.js [--probe]` — löscht den Inhalt von Briefkasten-Abgaben, die vor über 30 Tagen abgeholt wurden (läuft im selben Workflow nach dem Backup).
 - `node restore.js <backup-ordner> <pfad-präfix> [--ja]` — einzelne Dokumente/Sammlungen aus einer Sicherung zurückspielen (ohne `--ja` nur anzeigen).
 - `node passwort-reset.js [--ja]` — Passwort-Anfragen der Lehrpersonen (⚙️ in der App) abarbeiten. Automatisch: `admin/workflows-vorlage/passwort-anfragen.yml` ins Live-Repo nach `.github/workflows/` legen.
 - `node admin/uebung-ersetzen.js --klasse G3b --suche "Text"` bzw. `--id <id> --datei neu.html [--ja]` — Übung/Lehrer-HTML ersetzen wie «Datei ersetzen» in der App (Kopien in allen Klassen mit, vorherige Fassung wiederherstellbar; ohne `--ja` nur Vorschau).
@@ -238,8 +239,9 @@ Fallback dienen, falls du z. B. offline testen willst.
 
 ## 📮 Briefkasten (Datei-Abgabe)
 
-Lehrpersonen stellen im Fach einen Briefkasten auf, Schüler:innen werfen Dateien ein. Die Dateien liegen nur als
-Zwischenlager in Firestore (`klassen/{k}/briefkaesten/{id}/abgaben/{aid}/chunks`), bis die Lehrperson sie abholt:
+Lehrpersonen stellen im Fach einen Briefkasten auf, Schüler:innen werfen Dateien ein. Die Dateien liegen als
+Zwischenlager in Firestore (`klassen/{k}/briefkaesten/{id}/abgaben/{aid}/chunks`), bis die Lehrperson sie abholt, und
+danach noch 30 Tage als Reserve (Einzel-Download unter «👥 Abgaben», aufgeräumt von `admin/briefkasten-aufraeumen.js`):
 
 - **Alle Lehrpersonen:** Knopf «📬 Leeren» in Chrome/Edge (schreibt in einen einmal gewählten Ordner).
 - **Jans Mac, automatisch alle 5 Minuten:** `bash admin/briefkasten-dienst.sh install` (launchd-Dienst mit

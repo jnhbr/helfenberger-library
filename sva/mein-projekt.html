@@ -263,15 +263,20 @@ function leeren(id){
   else { S.name = ''; S.klasse = ''; S.g = {}; S.j = []; S.r = {}; S.a = a; S.bk = {}; }
   sichern(true); neuZeichnen();
 }
-function einwerfen(t, meld){
+// Einwerfen immer erst nach der Rückfrage «Bist du sicher?» (bestaetigt), damit niemand aus Versehen abgibt.
+function einwerfen(t, meld, bestaetigt){
   var art = t.getAttribute('data-einwurf'), k = art === 'rapDez' ? 'dez' : art === 'rapJan' ? 'jan' : null;
   if(!LIB){ meld('Einwerfen geht nur in der Library. Drucke das Blatt aus.', 'rot'); return; }
-  if(art === 'grob' && konzeptStand() < FELDER.length && !t.getAttribute('data-sicher')){
-    t.setAttribute('data-sicher', '1'); meld('Es fehlen noch '+(FELDER.length - konzeptStand())+' von '+FELDER.length+' Feldern. Tipp nochmals auf den Knopf, wenn du trotzdem einwerfen willst.', 'rot'); return;
+  if(!bestaetigt){
+    var fehlt = art === 'grob' ? FELDER.length - konzeptStand() : 0;
+    meld('', '', '<b>Bist du sicher?</b> '+(k ? 'Dein Rapport' : 'Dein Grobkonzept')+' geht so als PDF an deine Lehrperson.'+
+      (fehlt ? ' <span class="fehlertext"><b>Es fehlen noch '+fehlt+' von '+FELDER.length+' Feldern.</b></span>' : '')+
+      ' <button class="btn klein" type="button" data-einwurf-ja="'+art+'">Ja, einwerfen</button> <button class="btn leise klein" type="button" data-leeren-nein="1">Abbrechen</button>');
+    return;
   }
   sichern(true);
   var alt = t.textContent; t.disabled = true; t.textContent = 'Wird eingeworfen …'; meld('');
-  var zurueck = function(){ t.disabled = false; t.textContent = alt; t.removeAttribute('data-sicher'); };
+  var zurueck = function(){ t.disabled = false; t.textContent = alt; };
   Promise.resolve().then(function(){ return LIB.__svaEinwurf(art, k ? blattRapport(k) : blattKonzept()); }).then(function(r){
     if(!r || !r.ok){ zurueck(); meld((r && r.text) || 'Der Einwurf hat nicht geklappt.', 'rot'); return; }
     S.bk[art] = r.am || Date.now();
@@ -284,6 +289,7 @@ document.querySelector('main').addEventListener('click', function(ev){
   var meld = function(text, art, html){ var karte = t.closest('.karte'), m = karte && karte.querySelector('.meldung'); if(!m) return; m.className = 'meldung'+(art ? ' '+art : ''); if(html) m.innerHTML = html; else m.textContent = text || ''; };
   if(t.hasAttribute('data-druck')) drucken(druckHtml(t.getAttribute('data-druck'), t.hasAttribute('data-leer'), t.getAttribute('data-r')));
   else if(t.hasAttribute('data-einwurf')) einwerfen(t, meld);
+  else if(t.hasAttribute('data-einwurf-ja')){ var knopf = t.closest('.karte').querySelector('[data-einwurf="'+t.getAttribute('data-einwurf-ja')+'"]'); if(knopf) einwerfen(knopf, meld, true); }
   else if(t.hasAttribute('data-leeren')){
     var id = t.getAttribute('data-leeren');
     meld('', 'rot', (id === 'start' ? 'Wirklich ALLE deine Einträge in «Mein SVA-Projekt» löschen?' : 'Wirklich alle deine Einträge im Reiter «'+esc(ansichtName(id))+'» löschen?')+' Das lässt sich nicht rückgängig machen. '+

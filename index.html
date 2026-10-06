@@ -443,6 +443,9 @@
   .bk-balken div{height:100%;width:0;background:#FFCC00;transition:width .2s ease;}
   .bk-tab{width:100%;border-collapse:collapse;font-size:13.5px;margin:8px 0 14px;}
   .bk-tab td{padding:7px 6px;border-bottom:1px solid var(--border);vertical-align:middle;}
+  .bk-dls{display:flex;flex-wrap:wrap;gap:6px;margin-top:5px;}
+  .bk-dl{font:inherit;font-size:12.5px;border:1px solid var(--border);background:var(--surface);color:inherit;border-radius:6px;padding:2px 8px;cursor:pointer;max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .bk-dl:disabled{opacity:.5;cursor:default;}
   .bk-typen{display:flex;flex-wrap:wrap;gap:6px 14px;margin:0 0 16px;font-size:13.5px;}
   .bk-typen label,.bk-haken{display:flex;align-items:center;gap:6px;font-size:13.5px;}
   .bk-haken{margin:0 0 12px;}
@@ -11578,8 +11581,12 @@ function openTodoEditor(t){
 
 /* ===================== 📮 BRIEFKASTEN (Datei-Abgabe, seit 05.10.2026) =====================
    Lehrpersonen stellen in einem Fach (auch in einem Ordner) einen Briefkasten auf,
-   Schüler:innen werfen Dateien ein. Die Dateien liegen nur als ZWISCHENLAGER in
-   Firestore, bis die Lehrperson sie abholt — danach gibt es sie nur noch lokal:
+   Schüler:innen werfen Dateien ein. Die Dateien liegen als ZWISCHENLAGER in
+   Firestore, bis die Lehrperson sie abholt. Seit 06.10.2026 bleibt der Inhalt nach dem
+   Abholen noch 30 Tage als RESERVE liegen (BK_RESERVE_TAGE; Laptop kaputt, Datei
+   nochmals nötig, Safari ohne «Leeren»): In «👥 Abgaben» lässt sich jede Datei einzeln
+   herunterladen (bkDateiHolen). Aufgeräumt wird wöchentlich nach dem Backup von
+   admin/briefkasten-aufraeumen.js (löscht die chunks, setzt inhaltWeg:true).
      klassen/{k}/briefkaesten/{bid}                       {titel, ordner, subject, fachName, folderId, typen:[...],
                                                            frist (ms|null), fristArt 'hart'|'spaet', offen, verlaengert:{uid:ms},
                                                            ownerUid, ownerName, gruppeId, gruppeName, kalenderId}
@@ -11595,7 +11602,7 @@ function openTodoEditor(t){
    frühere Fassung derselben Person nach _Backup/ (mit Zeitstempel) — bzw. mit
    proPerson:true unter <ordner>/<Vorname>/<Originalname>, wo sich die Dateien
    sammeln und nur gleiche Dateinamen ersetzt werden (<Vorname>/_Backup/) —, führen
-   _Backup/briefkasten-stand.json nach, löschen die chunks und setzen abgeholt.
+   _Backup/briefkasten-stand.json nach und setzen abgeholt (die chunks bleiben als Reserve).
    Die Ablage-Logik (Namen, Backup, Stand-Datei) muss in beiden gleich bleiben. */
 const BK_TYPEN = [
   {id:'pdf',   label:'PDF', ext:['pdf']},
@@ -11608,6 +11615,8 @@ const BK_TYPEN = [
 ];
 const BK_MAX_BYTES = 40 * 1024 * 1024;   // pro Einwurf, alle Dateien zusammen (Regel: höchstens 60 chunks)
 const BK_MAX_DATEIEN = 10;
+const BK_RESERVE_TAGE = 30;                                      // so lange bleibt Abgeholtes noch in der Library
+const BK_RESERVE_AB = new Date(2026, 9, 6, 10, 0).getTime();     // was vorher abgeholt wurde, ist schon gelöscht
 var bkStatusCache = {};                  // bid -> {t, html, neu}
 
 function bkCol(klasse){ return collection(db, 'klassen', klasse, 'briefkaesten'); }
@@ -11773,17 +11782,21 @@ function bkKarteHtml(x){
 function bkKarteStatus(x, meiner){
   var b = x.bk, el = document.getElementById('bkstat-'+b.id);
   if(!el) return;
-  // Grün hinterlegt, sobald etwas eingeworfen ist (Schüler:in: die eigene Abgabe, Lehrperson: mindestens eine).
+  // Grün hinterlegt: bei Schüler:innen, sobald sie selbst eingeworfen haben; bei der Lehrperson des Briefkastens erst,
+  // wenn ALLE auf der Liste (ihre Klasse bzw. die Gruppe) eingeworfen haben.
   var gruen = function(an){ var k = document.getElementById('bk-'+b.id); if(k) k.classList.toggle('bk-abgegeben', !!an); };
   var c = bkStatusCache[b.id];
   if(c && Date.now() - c.t < 30000){ el.innerHTML = c.html; gruen(c.da); return; }
   var setzen = function(html, da){ bkStatusCache[b.id] = {t:Date.now(), html:html, da:!!da}; var e2 = document.getElementById('bkstat-'+b.id); if(e2) e2.innerHTML = html; gruen(da); };
   if(meiner){
-    getDocs(bkAbgabenCol(x.klasse, b.id)).then(function(snap){
+    Promise.all([getDocs(bkAbgabenCol(x.klasse, b.id)), bkPersonen(x.klasse, b).catch(function(){ return []; })]).then(function(res){
       var neu = 0, personen = {};
-      snap.forEach(function(d){ var a = d.data(); personen[a.uid] = true; if(!a.abgeholt) neu++; });
-      var n = Object.keys(personen).length;
-      setzen((neu ? '<span class="bk-warn">📬 '+neu+' neu im Briefkasten</span> · ' : '')+(n ? n+' '+(n === 1 ? 'Person hat' : 'Personen haben')+' eingeworfen' : 'Noch nichts eingeworfen'), n > 0);
+      res[0].forEach(function(d){ var a = d.data(); personen[a.uid] = true; if(!a.abgeholt) neu++; });
+      var n = Object.keys(personen).length, alle = res[1] || [], da = alle.filter(function(p){ return personen[p.uid]; }).length;
+      var komplett = alle.length > 0 && da === alle.length;
+      setzen((neu ? '<span class="bk-warn">📬 '+neu+' neu im Briefkasten</span> · ' : '')+
+        (komplett ? '<span class="bk-ok">✓ Alle '+alle.length+' haben eingeworfen</span>' : alle.length ? da+' von '+alle.length+' haben eingeworfen'
+          : n ? n+' '+(n === 1 ? 'Person hat' : 'Personen haben')+' eingeworfen' : 'Noch nichts eingeworfen'), komplett);
     }).catch(function(err){ console.warn('Briefkasten-Stand', err); });
   } else if(state.profile.role !== 'teacher' && !isLeitung()){
     getDocs(query(bkAbgabenCol(x.klasse, b.id), where('uid','==',state.user.uid))).then(function(snap){
@@ -11968,7 +11981,7 @@ function bkEditor(existing){
   var ordnerVon = existing ? existing.ordner : '';
   openModal(
     '<h3>'+(existing ? '📮 Briefkasten bearbeiten' : '📮 Briefkasten aufstellen')+'</h3>'+
-    '<p>'+esc(s.name)+': Die Klasse wirft hier Dateien ein. Du holst sie ab, danach liegen sie nur noch bei dir.</p>'+
+    '<p>'+esc(s.name)+': Die Klasse wirft hier Dateien ein. Du holst sie auf deinen Computer ab; als Reserve bleiben sie danach noch '+BK_RESERVE_TAGE+' Tage in der Library.</p>'+
     '<label class="modal-label">Titel</label><input type="text" id="bkTitel" maxlength="80" value="'+esc(existing ? existing.titel : '')+'" placeholder="z. B. Schienen Blatt 3">'+
     '<label class="modal-label">Ordner auf deinem Computer</label><input type="text" id="bkOrdner" maxlength="80" value="'+esc(ordnerVon)+'" placeholder="So heisst der Ordner mit den Abgaben">'+
     '<div id="bkPfadBox" style="display:none;"><label class="modal-label">Genauer Pfad auf deinem Mac (Abhol-Dienst)</label>'+
@@ -12108,14 +12121,14 @@ function bkEditor(existing){
 }
 function bkLoeschenFragen(klasse, bk){
   uiConfirm('Briefkasten «'+bk.titel+'» abbauen?',
-    'Was noch nicht abgeholt ist, geht verloren. Bereits abgeholte Dateien auf deinem Computer bleiben.',
+    'Was noch nicht abgeholt ist, geht verloren – auch die Reserve in der Library wird gelöscht. Bereits abgeholte Dateien auf deinem Computer bleiben.',
     'Abbauen', async function(){
       try{
         var snap = await getDocs(bkAbgabenCol(klasse, bk.id));
         var ops = [];
         snap.forEach(function(d){
           var a = d.data();
-          if(!a.abgeholt) for(var i = 0; i < (a.chunkCount || 0); i++) ops.push(bkChunkRef(klasse, bk.id, d.id, i));
+          if(!a.inhaltWeg) for(var i = 0; i < (a.chunkCount || 0); i++) ops.push(bkChunkRef(klasse, bk.id, d.id, i));   // auch die Reserve
           ops.push(d.ref);
         });
         for(var i = 0; i < ops.length; i += 300){
@@ -12177,7 +12190,8 @@ function bkAbgabenDialog(klasse, bk){
     var da = personen.filter(function(p){ return proUid[p.uid]; }).length;
     var h = '<p>'+(bk.frist ? 'Leerung: '+esc(bkZeitText(bk.frist))+(bk.fristArt === 'spaet' ? ' (danach verspätet)' : '') : 'Ohne Frist')+
       ' · '+da+' von '+personen.length+' eingeworfen'+(neu ? ' · <span class="bk-warn">📬 '+neu+' noch nicht abgeholt</span>' : '')+'</p>'+
-      (bkKannLokal() ? '' : '<p class="bk-klein">Zum Abholen auf den Computer brauchst du Chrome oder Edge.</p>')+
+      '<p class="bk-klein">⬇️ lädt eine Datei einzeln herunter. Abgeholte Dateien bleiben noch '+BK_RESERVE_TAGE+' Tage als Reserve in der Library.'+
+        (bkKannLokal() ? '' : ' Den ganzen Briefkasten in einen Ordner leeren kannst du nur mit Chrome oder Edge an einem Computer.')+'</p>'+
       '<table class="bk-tab">';
     personen.forEach(function(p){
       var l = (proUid[p.uid] || []).sort(function(a, b){ return bkMs(b.am) - bkMs(a.am); });
@@ -12189,6 +12203,10 @@ function bkAbgabenDialog(klasse, bk){
           ((a.spaet != null ? a.spaet : bkIstSpaet(bk, a)) ? ' · <span class="bk-warn">verspätet</span>' : '')+
           (a.abgeholt ? ' · 📁 abgeholt' : ' · 📬 im Briefkasten');
       } else txt = '<span class="muted">noch nichts</span>';
+      var dl = bkReserveDateien(bk, l).map(function(f){
+        return '<button class="bk-dl" type="button" data-aid="'+esc(f.aid)+'" data-i="'+f.i+'" data-wer="'+esc(p.fremd ? '' : (p.displayName || ''))+'" title="Diese Datei herunterladen">⬇️ '+esc(f.n)+'</button>';
+      }).join('');
+      if(dl) txt += '<div class="bk-dls">'+dl+'</div>';
       var verl = bk.verlaengert && bk.verlaengert[p.uid] > Date.now() ? ' <span class="cal-gruppe-tag">bis '+esc(bkZeitText(bk.verlaengert[p.uid]))+'</span>' : '';
       h += '<tr><td><b>'+esc(p.displayName || '?')+'</b>'+verl+'</td><td>'+txt+'</td><td style="text-align:right;">'+
         (bk.frist ? '<button class="btn btn-ghost btn-sm bk-verl" type="button" data-uid="'+esc(p.uid)+'" data-name="'+esc(p.displayName || '')+'" title="Frist nur für diese Person verlängern">⏰</button>' : '')+'</td></tr>';
@@ -12197,11 +12215,58 @@ function bkAbgabenDialog(klasse, bk){
     Array.prototype.forEach.call(box.querySelectorAll('.bk-verl'), function(b){
       b.addEventListener('click', function(){ bkVerlaengern(klasse, bk, b.getAttribute('data-uid'), b.getAttribute('data-name')); });
     });
+    Array.prototype.forEach.call(box.querySelectorAll('.bk-dl'), function(b){
+      b.addEventListener('click', function(){
+        if(b.disabled) return;
+        b.disabled = true;
+        bkDateiHolen(klasse, bk, b.getAttribute('data-aid'), Number(b.getAttribute('data-i')), b.getAttribute('data-wer'))
+          .catch(function(err){ console.warn('Briefkasten-Datei', err); toast(err && err.message === 'weg' ? 'Diese Datei liegt nicht mehr in der Library.' : 'Herunterladen hat nicht geklappt. Versuch es nochmals.'); })
+          .then(function(){ b.disabled = false; });
+      });
+    });
   }).catch(function(err){
     console.error(err);
     var box = document.getElementById('bkAbgBox');
     if(box) box.innerHTML = '<div class="empty-state">Abgaben konnten nicht geladen werden.</div>';
   });
+}
+// Liegt der Inhalt einer Abgabe noch in der Library? Nicht abgeholt: ja. Abgeholt: BK_RESERVE_TAGE Tage lang.
+function bkInhaltDa(a){
+  if(a.inhaltWeg) return false;
+  if(!a.abgeholt) return true;
+  var am = bkMs(a.abgeholtAm);
+  return am >= BK_RESERVE_AB && Date.now() - am < BK_RESERVE_TAGE * 24 * 3600 * 1000;
+}
+// Dateien einer Person zum Einzel-Download: die neuste Abgabe (bei «Ordner pro Person» jede Datei in der neusten Fassung).
+// abgaben: neuste zuerst.
+function bkReserveDateien(bk, abgaben){
+  var out = [], da = {};
+  (bk.proPerson ? abgaben : abgaben.slice(0, 1)).forEach(function(a){
+    if(!bkInhaltDa(a)) return;
+    (a.dateien || []).forEach(function(f, i){
+      var k = (bkSicher(f.n) || 'Datei').toLowerCase();
+      if(da[k]) return;
+      da[k] = true;
+      out.push({aid:a.id, i:i, n:f.n});
+    });
+  });
+  return out;
+}
+// Eine Datei aus einer Abgabe zusammensetzen und herunterladen (geht in jedem Browser, auch Safari/iPad).
+async function bkDateiHolen(klasse, bk, aid, i, wer){
+  var snap = await getDoc(bkAbgabeRef(klasse, bk.id, aid));
+  var a = snap.exists() ? snap.data() : null, f = a && (a.dateien || [])[i], pos = 0, teile = [];
+  if(!f) throw new Error('weg');
+  for(var k = 0; k < i; k++) pos += a.dateien[k].c;
+  for(var c = 0; c < f.c; c++){
+    var ch = await getDoc(bkChunkRef(klasse, bk.id, aid, pos + c));
+    if(!ch.exists()) throw new Error('weg');
+    teile.push(ch.data().bin.toUint8Array());
+  }
+  var url = URL.createObjectURL(new Blob(teile, {type:'application/octet-stream'})), link = document.createElement('a');
+  link.href = url; link.download = wer ? bkLokalName(bkSicher(wer) || 'Abgabe', f.n, false) : (bkSicher(f.n) || 'Datei');
+  document.body.appendChild(link); link.click(); document.body.removeChild(link);
+  setTimeout(function(){ URL.revokeObjectURL(url); }, 2000);
 }
 function bkVerlaengern(klasse, bk, uid, name){
   var d = new Date(Math.max(Date.now(), bk.frist || 0) + 24*3600*1000);
@@ -12394,10 +12459,8 @@ async function bkLeerenLauf(klasse, bk, basis, melde){
     if(verschoben) res.ersetzt++;
     stand.briefkasten = bk.id; stand.titel = bk.titel;
     await bkDateiSchreiben(backup, 'briefkasten-stand.json', [JSON.stringify(stand, null, 2)]);
-    var batch = fsWriteBatch(db);
-    for(var x = 0; x < a.chunkCount; x++) batch.delete(bkChunkRef(klasse, bk.id, a.id, x));
-    batch.update(bkAbgabeRef(klasse, bk.id, a.id), { abgeholt:true, abgeholtAm:serverTimestamp(), spaet:spaet });
-    await batch.commit();
+    // Nur als abgeholt markieren: Die chunks bleiben BK_RESERVE_TAGE Tage als Reserve (admin/briefkasten-aufraeumen.js löscht sie).
+    await fsUpdateDoc(bkAbgabeRef(klasse, bk.id, a.id), { abgeholt:true, abgeholtAm:serverTimestamp(), spaet:spaet });
     if(bk.kalenderId) fsUpdateDoc(kdocFor(klasse, 'calendarEntries', bk.kalenderId), 'submitted.'+a.uid, true).catch(function(){});
     res.n++;
   }
@@ -20209,6 +20272,8 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-10-06-bk-reserve', datum:'2026-10-06', fuer:'lehrer', text:'📮 Briefkasten: Abgeholte Dateien bleiben neu noch 30 Tage als Reserve in der Library. Unter «👥 Abgaben» lädst du jede Datei einzeln mit ⬇️ herunter – das geht auch in Safari und auf dem iPad. Und dein Briefkasten wird erst grün, wenn alle auf der Liste eingeworfen haben.'},
+  {id:'2026-10-06-sva-sicher', datum:'2026-10-06', fuer:'alle', text:'🎓 SVA: Vor dem Einwerfen in den Briefkasten fragt «Mein SVA-Projekt» neu nach «Bist du sicher?» – so gibst du nichts aus Versehen ab. Die Kachel SVA hat ein neues Bild.'},
   {id:'2026-10-06-sva-einwurf', datum:'2026-10-06', fuer:'alle', text:'🎓 SVA, «Mein SVA-Projekt»: Dein Grobkonzept und deine Rapporte wirfst du neu mit einem Knopf direkt in den Briefkasten – die Library macht selbst ein PDF daraus. Jeder Reiter hat einen Knopf «Drucken». Und ein Briefkasten, in den du schon eingeworfen hast, ist grün.'},
   {id:'2026-10-06-sva-lp5', datum:'2026-10-06', fuer:'lehrer', text:'🎓 SVA: In «Mein SVA-Projekt» gibt es für jeden Reiter (auch Journal, Rapport, Ausstellung) eine Druckfassung und – nur für dich – ein leeres Blatt als Papier-Variante sowie «Einträge dieses Reiters löschen» (deine Test-Einträge). «📋 Projekte der Klasse» hat pro Ansicht «⬇️ CSV». Die beiden Zwischenstand-Briefkästen sammeln neu pro Person einen Ordner (Dossier + Rapport nebeneinander).'},
   {id:'2026-10-05-bk-unten', datum:'2026-10-05', fuer:'alle', text:'📮 Die Briefkästen stehen im Fach neu ganz unten – oben kommt zuerst das Material.'},

@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 /**
  * 📮 Briefkasten abholen — holt die Abgaben aus den Briefkästen EINER Lehrperson
- * aus dem Zwischenlager (Firestore) in einen lokalen Ordner und löscht sie dort.
+ * aus dem Zwischenlager (Firestore) in einen lokalen Ordner. Der Inhalt bleibt danach
+ * noch 30 Tage als Reserve in Firestore (aufgeräumt von briefkasten-aufraeumen.js).
  *
  *   node briefkasten-abholen.js [--config <config.json>] [--laut]
  *
@@ -19,7 +20,7 @@
  *      <ordner>/<Vorname>/<Originalname>: die Dateien sammeln sich, nur gleiche
  *      Dateinamen werden ersetzt (frühere Fassung nach <Vorname>/_Backup/)
  *   4. _Backup/briefkasten-stand.json nachführen (wer hat welche Dateien)
- *   5. erst dann in Firestore die chunks löschen und abgeholt = true setzen;
+ *   5. erst dann in Firestore abgeholt = true setzen (die chunks bleiben als Reserve);
  *      ist der Briefkasten mit einem Kalendereintrag verknüpft, die Abgabe abhaken
  * Bricht ein Lauf ab, bleibt der Einwurf im Briefkasten und wird beim nächsten
  * Lauf nochmals geholt (die halb geschriebene Fassung landet dann im Backup).
@@ -258,11 +259,9 @@ async function lauf(cfg, laut) {
         personen[a.uid] = p.exists ? p.data() : null;
       }
       const r = ablegen(dir, bk, { id: a.id, uid: a.uid, am: ms(a.am) }, dateien, personen[a.uid]);
-      // Erst jetzt in der Cloud aufräumen.
-      const batch = db.batch();
-      for (let i = 0; i < a.chunkCount; i++) batch.delete(a.ref.collection('chunks').doc(String(i)));
-      batch.update(a.ref, { abgeholt: true, abgeholtAm: FieldValue.serverTimestamp(), spaet: r.spaet });
-      await batch.commit();
+      // Erst jetzt als abgeholt markieren. Die chunks bleiben 30 Tage als Reserve liegen
+      // (seit 06.10.2026; briefkasten-aufraeumen.js löscht sie danach).
+      await a.ref.update({ abgeholt: true, abgeholtAm: FieldValue.serverTimestamp(), spaet: r.spaet });
       if (bk.kalenderId) {
         await db.doc('klassen/' + klasse + '/calendarEntries/' + bk.kalenderId)
           .update(new FieldPath('submitted', a.uid), true).catch(() => {});
