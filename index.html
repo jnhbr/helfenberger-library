@@ -828,6 +828,13 @@
   .sk-clear{align-self:center;}
   .sk-bulk{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;}
   .sk-wahl-row{display:flex;justify-content:center;}
+  .mit-wahl{display:flex;flex-wrap:wrap;gap:6px;}
+  .mit-treffer,.mit-dabei{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;max-height:190px;overflow:auto;}
+  .mit-chip{background:var(--surface-2);border:1px solid var(--border);color:var(--text);border-radius:999px;padding:5px 11px;font:inherit;font-size:13px;cursor:pointer;}
+  .mit-chip-plus{border-color:var(--brand);}
+  .mit-chip-aus{opacity:.55;text-decoration:line-through;}
+  .mit-leer{color:var(--text-muted);font-size:13px;}
+  .mit-knopf span{max-width:32ch;display:inline-block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:bottom;}
   .sk-wahl{font:inherit;font-size:13px;padding:5px 10px;border-radius:999px;border:1px solid var(--border);background:var(--surface-2);color:var(--text);max-width:100%;cursor:pointer;}
 
   /* ---------- Lärmampel ---------- */
@@ -934,7 +941,23 @@
   .ls-spezial-text b{display:block;font-size:15px;}
   .ls-spezial-text span{display:block;font-size:12.5px;color:var(--text-muted);margin-top:2px;}
   .ls-spezial-pfeil{font-size:18px;color:var(--text-muted);}
-  @media print{ .ls-spezial,.ls-fach-tag{display:none !important;} }
+  .ls-ordner{border:1px solid var(--border);border-radius:12px;background:var(--surface);margin:8px 0 0;overflow:hidden;}
+  .ls-ordner > summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:8px;padding:9px 12px;font-weight:700;font-size:14.5px;flex-wrap:wrap;}
+  .ls-ordner > summary::-webkit-details-marker{display:none;}
+  .ls-ordner > summary:hover{background:var(--surface-2);}
+  .ls-ordner > summary::before{content:'▸';font-size:11px;color:var(--text-muted);transition:transform .15s ease;}
+  .ls-ordner[open] > summary::before{transform:rotate(90deg);}
+  .ls-ordner > summary .ls-fach-count{margin-left:auto;font-size:12px;font-weight:500;color:var(--text-muted);}
+  .ls-ordner > summary .ls-fach-tag{font-size:11.5px;font-weight:600;color:var(--text-muted);background:var(--surface-2);border-radius:999px;padding:2px 9px;}
+  .ls-ordner-body{padding:2px 12px 12px;border-top:1px solid var(--border);}
+  .ls-ordner-body > .ls-spezial,.ls-fach-body > .ls-spezial{margin:10px 0 0;padding:9px 14px;}
+  .ls-ordner-body > .ls-spezial .ls-spezial-icon{font-size:20px;}
+  .ls-tab{margin-top:12px;}
+  .ls-laedt{padding:14px;}
+  .ls-suche{display:block;width:100%;max-width:520px;margin:0 0 10px;}
+  .ls-reset{margin-top:10px;font-size:13.5px;}
+  .ls-reset > summary{cursor:pointer;color:var(--text-muted);font-weight:700;}
+  @media print{ .ls-spezial,.ls-fach-tag,.ls-suche,#lsAufBtn{display:none !important;} .ls-ordner{break-inside:auto;} }
 
 
   /* ---------- Stadt Land Fluss ---------- */
@@ -1020,13 +1043,10 @@
   .en-card{position:relative;background:var(--surface);border:1px solid var(--border);border-top:4px solid var(--en-c);border-radius:var(--radius-sm);box-shadow:var(--shadow);overflow:hidden;cursor:pointer;display:flex;flex-direction:column;transition:transform .12s ease, box-shadow .12s ease;text-align:left;}
   .en-card:hover,.en-card:focus-visible{transform:translateY(-2px);box-shadow:0 14px 30px -14px rgba(20,20,40,.35);outline:none;}
   .en-card:focus-visible{outline:2px solid var(--brand);outline-offset:2px;}
-  .en-card-img{aspect-ratio:16/8;background:color-mix(in srgb, var(--en-c) 14%, var(--surface-2));overflow:hidden;}
-  .en-card-img img{width:100%;height:100%;object-fit:cover;display:block;}
-  .en-card-icon{display:flex;align-items:center;justify-content:center;font-size:54px;}
   .en-star{position:absolute;top:8px;right:8px;width:36px;height:36px;border-radius:999px;border:none;background:color-mix(in srgb, var(--surface) 88%, transparent);color:var(--text-muted);font-size:20px;line-height:1;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.15);}
   .en-star-on{color:#E9A800;}
   .en-card-body{padding:12px 14px 14px;display:flex;flex-direction:column;gap:6px;flex:1;}
-  .en-card-kat{font-size:12px;font-weight:700;color:var(--en-c);}
+  .en-card-kat{font-size:12px;font-weight:700;color:var(--en-c);padding-right:40px;min-height:22px;}
   .en-card h3{margin:0;font-family:'Baloo 2',system-ui,sans-serif;font-size:18px;line-height:1.2;}
   .en-card p{margin:0;font-size:13.5px;color:var(--text-muted);line-height:1.4;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;}
   .en-meta{display:flex;flex-wrap:wrap;gap:4px 6px;margin-top:auto;padding-top:4px;}
@@ -1042,14 +1062,9 @@
   .en-titel-icon{display:inline-block;}
   .en-meta-gross span{font-size:14px;padding:5px 12px;}
   .en-kurz{font-size:clamp(18px,1.6vw,22px);font-weight:600;margin:14px 0;line-height:1.4;}
-  .en-info-body.en-mit-foto{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,300px);gap:20px;align-items:start;}
   .en-schritte{margin:0;padding-left:0;list-style:none;counter-reset:en;display:flex;flex-direction:column;gap:10px;}
   .en-schritte li{counter-increment:en;position:relative;padding:10px 14px 10px 52px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);font-size:clamp(16px,1.4vw,20px);line-height:1.4;}
   .en-schritte li::before{content:counter(en);position:absolute;left:12px;top:9px;width:28px;height:28px;border-radius:999px;background:var(--en-c);color:#fff;font-weight:800;font-size:15px;display:flex;align-items:center;justify-content:center;}
-  .en-foto{margin:0;}
-  .en-foto img{width:100%;border-radius:var(--radius-sm);display:block;box-shadow:var(--shadow);background:var(--surface-2);}
-  .en-foto figcaption{font-size:11.5px;color:var(--text-muted);margin-top:6px;line-height:1.35;}
-  .en-foto a{color:inherit;}
   .en-tipp{margin-top:16px;background:color-mix(in srgb, var(--en-c) 12%, var(--surface));border-left:5px solid var(--en-c);border-radius:var(--radius-sm);padding:12px 16px;font-size:16px;line-height:1.45;}
   .en-var{margin-top:12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 14px;}
   .en-var summary{cursor:pointer;font-weight:700;}
@@ -1170,7 +1185,6 @@
     .en-side{position:static;}
   }
   @media (max-width:640px){
-    .en-info-body.en-mit-foto{grid-template-columns:1fr;}
     .en-grid-inner{grid-template-columns:1fr;}
     .en-stroop{grid-template-columns:repeat(3,1fr);}
     .en-abc{grid-template-columns:repeat(5,1fr);}
@@ -2476,6 +2490,8 @@
   /* ---------- Anordnen (Wackelmodus) + Widgets ---------- */
   .topbar-icons{display:flex;align-items:center;flex-wrap:wrap;gap:10px;}
   .layout-aus{display:none !important;}
+  .fach-aus-hinweis{margin:14px 0 0;text-align:center;}
+  body.wackeln .fach-aus-hinweis{display:none;}
   .subject-card,.topbar-icons > *{-webkit-touch-callout:none;}
   .subject-card{position:relative;}
   .topbar-ferien,#stpJetzt{position:relative;}
@@ -4215,7 +4231,7 @@ async function ladeStudentRoster(){
    aber students/{uid}.nurFach = 'mathe' (gesetzt vom Admin-Skript).
    - Abgabe-Checkliste/Vergessen: nur bei Einträgen dieses Fachs.
    - Kalender der Gäste: nur Klassen-Einträge dieses Fachs.
-   - Spiele mit Namen: nur wenn "👭 Gäste" eingeschaltet ist (gerätelokal).
+   - Spiele mit Namen: nur wenn sie unter «👥 Wer macht mit?» angehakt sind (gerätelokal).
    - Sitzplan: nie beim zufälligen Setzen, aber von Hand platzierbar (auch
      als zweite Person auf einem besetzten Platz).
    loadStudentRoster() liefert sie mit; wer sie nicht will, filtert. */
@@ -4230,26 +4246,239 @@ function gastImFach(s, subject){
 function rosterFuerFach(list, subject){
   return (list||[]).filter(function(s){ return gastImFach(s, subject); });
 }
-// Fach-Gäste in Namen-Spielen (Ruhephase, Wer ist dran?, Glücksrad, Gruppen):
-// standardmässig ohne, per Knopf «👭 Gäste» (gerätelokal gemerkt) mit.
-function gaesteDabei(){ return lsGet(LIB_PREFIX+'gaeste_an') === '1'; }
+// Fach-Gäste in Namen-Spielen und Live-Zählern: dabei, wenn sie in der Auswahl
+// «👥 Wer macht mit?» angehakt sind (früher der Knopf «👭 Gäste»).
+function gaesteDabei(){ return mitWahl().quellen.indexOf('x:gaeste') >= 0; }
 function gaesteOptional(list){ return gaesteDabei() ? (list||[]) : ohneGaeste(list); }
-function gaesteToggleHtml(id){
-  var an = gaesteDabei();
-  return '<button class="kz-tab'+(an?' kz-tab-on':'')+'" id="'+id+'" type="button" hidden title="Fach-Gäste (z.B. Mathe) in Namen-Spielen mitnehmen">👭 Gäste '+(an?'dabei':'aus')+'</button>';
+/* ===================== 👥 WER MACHT MIT? =====================
+   Eine gemeinsame Auswahl für alle Namen-Werkzeuge am Beamer (Glücksrad,
+   Wer ist dran?, Gruppen & Partner, Flüsterliste der Ruhephase): ganze
+   Klassen aus der ganzen Schule, eigene 👥 Gruppen, die Fach-Gäste dieser
+   Seite und einzelne Schüler:innen dazu – z. B. die G2b plus drei aus der E3a.
+   Gerätelokal gemerkt, pro Seite (hl_mit_<klasse>):
+     {quellen:['', 'k:E3a', 'g:<id>', 'x:gaeste'], plus:[{uid,n,k}], minus:[uid]}
+   '' = die offene Seite ohne Fach-Gäste (Standard), 'x:gaeste' = deren Fach-Gäste
+   (ersetzt den früheren Knopf «👭 Gäste»), minus = heute nicht dabei. */
+var mit = { wahl:null, klasse:null, gruppen:null };
+function mitWahlNorm(w){
+  w = (w && typeof w === 'object') ? w : {};
+  return {
+    quellen: (Array.isArray(w.quellen) ? w.quellen : ['']).filter(function(q, i, a){ return typeof q === 'string' && a.indexOf(q) === i; }),
+    plus: (Array.isArray(w.plus) ? w.plus : []).filter(function(p){ return p && p.uid; }).map(function(p){ return {uid:String(p.uid), n:String(p.n || '?'), k:String(p.k || '')}; }),
+    minus: (Array.isArray(w.minus) ? w.minus : []).filter(function(u){ return typeof u === 'string'; })
+  };
 }
-// Knopf erst zeigen, wenn die Klasse überhaupt Gäste hat.
-function wireGaesteToggle(btn, onChange){
-  if(!btn) return;
-  klasseRosterLoad().then(function(list){ btn.hidden = !hatGaeste(list); }).catch(function(){});
-  btn.addEventListener('click', function(){
-    var an = !gaesteDabei();
-    lsSet(LIB_PREFIX+'gaeste_an', an ? '1' : '0');
-    btn.classList.toggle('kz-tab-on', an);
-    btn.textContent = '👭 Gäste '+(an ? 'dabei' : 'aus');
-    onChange();
+function mitWahl(){
+  if(mit.wahl && mit.klasse === state.klasse) return mit.wahl;
+  var w = null;
+  try{ w = JSON.parse(lsGet(LIB_PREFIX+'mit_'+state.klasse) || 'null'); }catch(e){}
+  // Erste Benutzung: den früheren Schalter «👭 Gäste» übernehmen.
+  if(!w) w = { quellen: lsGet(LIB_PREFIX+'gaeste_an') === '1' ? ['', 'x:gaeste'] : [''] };
+  mit.wahl = mitWahlNorm(w); mit.klasse = state.klasse;
+  return mit.wahl;
+}
+function mitWahlSetzen(w){
+  mit.wahl = mitWahlNorm(w); mit.klasse = state.klasse;
+  lsSet(LIB_PREFIX+'mit_'+state.klasse, JSON.stringify(mit.wahl));
+}
+function mitGruppenLaden(){
+  if(mit.gruppen) return Promise.resolve(mit.gruppen);
+  return loadMeineGruppen().then(function(list){ mit.gruppen = list || []; return mit.gruppen; })
+    .catch(function(err){ console.error('Gruppen nicht lesbar', err); return []; });
+}
+// Eine Quelle → [{uid, displayName, klasse, …}]
+function mitQuelleLaden(q){
+  if(q === '' || q === 'x:gaeste'){
+    return loadStudentRoster().then(function(list){
+      return (q === '' ? ohneGaeste(list) : list.filter(function(s){ return !!gastFach(s); }))
+        .map(function(s){ return Object.assign({}, s, {klasse: s.klasse || state.klasse}); });
+    });
+  }
+  if(q.indexOf('k:') === 0){
+    return klassenListeFuerGruppe(q.slice(2)).then(function(list){
+      return list.map(function(x){ return { uid:x.uid, displayName:x.n, nachname:x.nn, klasse:x.k, fremd:true }; });
+    });
+  }
+  if(q.indexOf('g:') === 0){
+    return mitGruppenLaden().then(function(list){
+      var g = list.filter(function(x){ return 'g:'+x.id === q; })[0];
+      if(!g) return [];
+      return (g.mitglieder || []).map(function(u){
+        var n = (g.namen || {})[u] || {};
+        return { uid:u, displayName:n.n || '?', nachname:n.nn || '', klasse:n.k || '', fremd:true };
+      });
+    });
+  }
+  return Promise.resolve([]);
+}
+// Alle, die laut Auswahl mitmachen. mitMinus:true lässt die «heute nicht dabei»
+// drin (für den Dialog), markiert mit .mitAus.
+function mitRoster(wahl, mitMinus){
+  var w = wahl || mitWahl();
+  return Promise.all(w.quellen.map(function(q){
+    return mitQuelleLaden(q).catch(function(err){ console.error('Quelle '+q+' nicht lesbar', err); return []; });
+  })).then(function(teile){
+    var da = {}, out = [];
+    [].concat.apply([], teile).forEach(function(s){ if(!da[s.uid]){ da[s.uid] = true; out.push(Object.assign({}, s)); } });
+    w.plus.forEach(function(p){ if(!da[p.uid]){ da[p.uid] = true; out.push({ uid:p.uid, displayName:p.n, klasse:p.k, fremd:true, mitPlus:true }); } });
+    // Klasse nur dazuschreiben, wenn mehrere Klassen gemischt sind.
+    var kl = {};
+    out.forEach(function(s){ if(s.klasse) kl[s.klasse] = 1; });
+    var gemischt = Object.keys(kl).length > 1;
+    // Gleiche Vornamen: Anfangsbuchstabe des Nachnamens dazu (wo bekannt).
+    var vor = {};
+    out.forEach(function(s){ var v = String(s.displayName || s.username || '?'); s.displayName = v; vor[v + '|' + (gemischt ? s.klasse : '')] = (vor[v + '|' + (gemischt ? s.klasse : '')] || 0) + 1; });
+    out.forEach(function(s){
+      var dopp = vor[s.displayName + '|' + (gemischt ? s.klasse : '')] > 1;
+      var name = s.displayName + (dopp && s.nachname ? ' ' + String(s.nachname).charAt(0) + '.' : '');
+      if(gemischt && s.klasse && s.klasse !== state.klasse && name.indexOf('(' + s.klasse + ')') < 0) name += ' (' + s.klasse + ')';
+      s.displayName = name;
+    });
+    out.forEach(function(s){ s.mitAus = w.minus.indexOf(s.uid) >= 0; });
+    if(!mitMinus) out = out.filter(function(s){ return !s.mitAus; });
+    out.sort(function(a, b){ return a.displayName.localeCompare(b.displayName, 'de'); });
+    return out;
   });
 }
+function mitQuelleName(q){
+  if(q === '') return klasseLabel();
+  if(q === 'x:gaeste') return 'Gäste';
+  if(q.indexOf('k:') === 0) return q.slice(2);
+  if(q.indexOf('g:') === 0){
+    var g = (mit.gruppen || []).filter(function(x){ return 'g:'+x.id === q; })[0];
+    return g ? g.name : 'Gruppe';
+  }
+  return q;
+}
+function mitKurz(){
+  var w = mitWahl();
+  var t = w.quellen.map(mitQuelleName).join(' + ') || 'niemand';
+  if(t.length > 26) t = w.quellen.length + ' Listen';
+  if(w.plus.length) t += ' + ' + w.plus.length;
+  if(w.minus.length) t += ' − ' + w.minus.length;
+  return t;
+}
+function mitKnopfHtml(id){
+  return '<button class="kz-tab mit-knopf" id="'+id+'" type="button" title="Wer macht mit? Klassen, Gruppen und einzelne Schüler:innen aus der ganzen Schule wählen">👥 <span>'+esc(mitKurz())+'</span></button>';
+}
+function mitKnopfVerdrahten(btn, onChange){
+  if(!btn) return;
+  mitGruppenLaden().then(function(){ if(btn.isConnected) btn.querySelector('span').textContent = mitKurz(); });
+  btn.addEventListener('click', function(){
+    mitDialog(function(){
+      Array.prototype.forEach.call(document.querySelectorAll('.mit-knopf span'), function(el){ el.textContent = mitKurz(); });
+      onChange();
+    });
+  });
+}
+function mitDialog(onChange){
+  var w = mitWahlNorm(JSON.parse(JSON.stringify(mitWahl())));
+  var alleLaden = null, lauf = 0;
+  function alleSchueler(){
+    if(!alleLaden) alleLaden = Promise.all(abstAlleKlassen().map(function(k){
+      return klassenListeFuerGruppe(k).catch(function(err){ console.error(err); return []; });
+    })).then(function(r){ return [].concat.apply([], r); });
+    return alleLaden;
+  }
+  var h = '<h3>👥 Wer macht mit?</h3>';
+  h += '<p style="margin:0 0 10px;color:var(--text-muted);font-size:13.5px;">Gilt für 🎡 Glücksrad, 🎲 Wer ist dran?, 👥 Gruppen &amp; Partner und die Flüsterliste der ⏱ Ruhephase – auf diesem Gerät, solange du auf der Seite '+esc(klasseLabel())+' bist.</p>';
+  h += '<div class="section-label" style="margin:0 0 6px;">Ganze Klassen</div><div class="mit-wahl" id="mitKlassen"></div>';
+  h += '<div id="mitGruppenTeil" hidden><div class="section-label" style="margin:14px 0 6px;">👥 Meine Gruppen</div><div class="mit-wahl" id="mitGruppen"></div></div>';
+  h += '<div class="section-label" style="margin:14px 0 6px;">Einzelne dazunehmen</div>';
+  h += '<input type="search" id="mitSuche" style="width:100%;" placeholder="🔍 Name oder Klasse, z. B. «Lena» oder «E3a» …" autocomplete="off">';
+  h += '<div class="mit-treffer" id="mitTreffer" hidden></div>';
+  h += '<div class="section-label" style="margin:14px 0 6px;" id="mitDabeiTitel">Dabei</div>';
+  h += '<div class="mit-dabei" id="mitDabei"><span class="mit-leer">Wird geladen …</span></div>';
+  h += '<p style="margin:6px 0 0;color:var(--text-muted);font-size:12.5px;">Antippen = heute nicht dabei (nochmals antippen holt sie zurück).</p>';
+  h += '<div class="modal-actions"><button class="btn btn-ghost btn-sm" id="mitReset" type="button">↺ Nur '+esc(klasseLabel())+'</button>'+
+       '<button class="btn btn-ghost btn-sm" id="mitAbbr" type="button">Abbrechen</button><button class="btn btn-primary btn-sm" id="mitOk" type="button">Übernehmen</button></div>';
+  openModal(h, 'modal-wide');
+  var klEl = document.getElementById('mitKlassen'), grEl = document.getElementById('mitGruppen'), dabeiEl = document.getElementById('mitDabei');
+  var sucheEl = document.getElementById('mitSuche'), trefferEl = document.getElementById('mitTreffer');
+  function knopf(q, text){
+    var an = w.quellen.indexOf(q) >= 0;
+    return '<button class="btn btn-sm '+(an ? 'btn-primary' : 'btn-ghost')+'" type="button" data-mitq="'+esc(q)+'" aria-pressed="'+an+'">'+esc(text)+(an ? ' ✓' : '')+'</button>';
+  }
+  function malen(){
+    var kh = knopf('', klasseLabel()+' (diese Seite)');
+    abstAlleKlassen().forEach(function(k){ if(k !== state.klasse) kh += knopf('k:'+k, k); });
+    klEl.innerHTML = kh;
+    loadStudentRoster().then(function(list){
+      var g = list.filter(function(s){ return !!gastFach(s); });
+      if(!g.length || !klEl.isConnected || klEl.querySelector('[data-mitq="x:gaeste"]')) return;
+      klEl.querySelector('[data-mitq=""]').insertAdjacentHTML('afterend', knopf('x:gaeste', '👭 Gäste dieser Seite ('+g.length+')'));
+    }).catch(function(){});
+    var gr = mit.gruppen || [];
+    document.getElementById('mitGruppenTeil').hidden = !gr.length;
+    grEl.innerHTML = gr.map(function(g){ return knopf('g:'+g.id, g.name+' ('+(g.mitglieder || []).length+')'); }).join('');
+    var nr = ++lauf;
+    mitRoster(w, true).then(function(list){
+      if(nr !== lauf || !dabeiEl.isConnected) return;
+      var n = list.filter(function(s){ return !s.mitAus; }).length;
+      document.getElementById('mitDabeiTitel').textContent = 'Dabei: ' + n + (list.length - n ? ' · heute nicht dabei: ' + (list.length - n) : '');
+      dabeiEl.innerHTML = list.length ? list.map(function(s){
+        return '<button class="mit-chip'+(s.mitAus ? ' mit-chip-aus' : '')+(s.mitPlus ? ' mit-chip-plus' : '')+'" type="button" data-mitu="'+esc(s.uid)+'"'+(s.mitPlus ? ' title="Einzeln dazugenommen"' : '')+'>'+esc(s.displayName)+'</button>';
+      }).join('') : '<span class="mit-leer">Noch niemand – wähle oben eine Klasse oder Gruppe.</span>';
+    });
+  }
+  function suchen(){
+    var t = sucheEl.value.trim().toLowerCase();
+    if(t.length < 2){ trefferEl.hidden = true; trefferEl.innerHTML = ''; return; }
+    trefferEl.hidden = false;
+    if(!trefferEl.innerHTML) trefferEl.innerHTML = '<span class="mit-leer">Wird geladen …</span>';
+    var woerter = t.split(/\s+/);
+    alleSchueler().then(function(alle){
+      if(sucheEl.value.trim().toLowerCase() !== t) return;
+      var hits = alle.filter(function(x){
+        var text = (x.n+' '+x.nn+' '+x.u+' '+x.k).toLowerCase();
+        return woerter.every(function(wo){ return text.indexOf(wo) >= 0; });
+      }).slice(0, 40);
+      trefferEl.innerHTML = hits.length ? hits.map(function(x){
+        var drin = w.plus.some(function(p){ return p.uid === x.uid; });
+        return '<button class="mit-chip'+(drin ? ' mit-chip-plus' : '')+'" type="button" data-mitplus="'+esc(x.uid)+'" data-n="'+enAttr(x.n + (x.nn ? ' ' + x.nn.charAt(0) + '.' : ''))+'" data-k="'+enAttr(x.k)+'">'+(drin ? '✓ ' : '＋ ')+esc(x.n)+(x.nn ? ' '+esc(x.nn.charAt(0))+'.' : '')+' ('+esc(x.k)+')</button>';
+      }).join('') : '<span class="mit-leer">Niemand gefunden.</span>';
+    });
+  }
+  modalEl.addEventListener('click', function klick(e){
+    if(!dabeiEl.isConnected){ modalEl.removeEventListener('click', klick); return; }
+    var b = e.target.closest('[data-mitq]');
+    if(b){
+      var q = b.getAttribute('data-mitq'), i = w.quellen.indexOf(q);
+      if(i >= 0) w.quellen.splice(i, 1); else w.quellen.push(q);
+      malen(); return;
+    }
+    b = e.target.closest('[data-mitu]');
+    if(b){
+      var u = b.getAttribute('data-mitu'), j = w.minus.indexOf(u);
+      if(j >= 0) w.minus.splice(j, 1); else w.minus.push(u);
+      malen(); return;
+    }
+    b = e.target.closest('[data-mitplus]');
+    if(b){
+      var pu = b.getAttribute('data-mitplus');
+      if(w.plus.some(function(p){ return p.uid === pu; })) w.plus = w.plus.filter(function(p){ return p.uid !== pu; });
+      else { w.plus.push({ uid:pu, n:b.getAttribute('data-n'), k:b.getAttribute('data-k') }); w.minus = w.minus.filter(function(x){ return x !== pu; }); }
+      suchen(); malen();
+    }
+  });
+  sucheEl.addEventListener('input', suchen);
+  document.getElementById('mitAbbr').addEventListener('click', closeModal);
+  document.getElementById('mitReset').addEventListener('click', function(){ w = mitWahlNorm({quellen:['']}); sucheEl.value = ''; suchen(); malen(); });
+  document.getElementById('mitOk').addEventListener('click', function(){
+    // «Heute nicht dabei» nur für Leute behalten, die überhaupt in der Auswahl sind.
+    mitRoster(w, true).then(function(list){
+      var da = {};
+      list.forEach(function(s){ da[s.uid] = true; });
+      w.minus = w.minus.filter(function(u){ return da[u]; });
+      mitWahlSetzen(w);
+      closeModal();
+      onChange();
+    });
+  });
+  malen();
+  mitGruppenLaden().then(function(){ if(grEl.isConnected) malen(); });
+}
+
 // 📊 Klassenübersichten/Lernstand: standardmässig nur die eigene Klasse (inkl.
 // Fach-Gäste wie Mathe, ohne 👥 Gruppen-Mitglieder anderer Klassen). Über die
 // Auswahl «Klasse» (gerätelokal gemerkt) eine andere Klasse ansehen oder
@@ -6064,56 +6293,6 @@ function fmtHours(sec){
 // Tools, keine Schüler:innen-Übungen).
 var LERNSTAND_EXCLUDED_SUBJECTS = ['berufswahl', 'lehrerbereich'];
 
-async function loadLernstandUebersicht(){
-  var resSnap = await getDocs(kcol('resources'));
-  var resources = [];
-  resSnap.forEach(function(d){
-    var data = d.data();
-    if(LERNSTAND_EXCLUDED_SUBJECTS.indexOf(data.subject) !== -1 || istLehrerHtml(data)) return;
-    resources.push(Object.assign({id:d.id}, data));
-  });
-  resources.sort(function(a,b){
-    var sa = subjectById(a.subject), sb = subjectById(b.subject);
-    var sn = (sa?sa.name:a.subject).localeCompare(sb?sb.name:b.subject, 'de');
-    if(sn!==0) return sn;
-    // Als "aktuelles Thema" markierte Übungen zuvorderst, sonst alphabetisch.
-    var ac = a.current ? 0 : 1, bc = b.current ? 0 : 1;
-    if(ac!==bc) return ac-bc;
-    return (a.title||a.fileName||'').localeCompare(b.title||b.fileName||'', 'de');
-  });
-
-  var students = await uebRoster(null, true);
-
-  var reads = [];
-  students.forEach(function(stu){
-    resources.forEach(function(res){
-      if(!gastImFach(stu, res.subject)) return;   // Fach-Gast
-      reads.push(
-        getDoc(doc(db,'progress', stu.uid, 'resources', res.id)).then(function(snap){
-          return {uid:stu.uid, resId:res.id, data: snap.exists() ? snap.data() : null};
-        }).catch(function(){ return {uid:stu.uid, resId:res.id, data:null}; })
-      );
-    });
-  });
-  var settled = await Promise.all(reads);
-
-  var bySubject = {};
-  resources.forEach(function(res){
-    if(!bySubject[res.subject]) bySubject[res.subject] = {resources:[], cell:{}};
-    bySubject[res.subject].resources.push(res);
-  });
-  settled.forEach(function(r){
-    var subj = resources.find(function(x){ return x.id===r.resId; }).subject;
-    bySubject[subj].cell[r.uid+'|'+r.resId] = {
-      current: learnedSummary(r.data),
-      history: (r.data && Array.isArray(r.data.history)) ? r.data.history : [],
-      timeSpentSec: (r.data && typeof r.data.timeSpentSec === 'number') ? r.data.timeSpentSec : 0
-    };
-  });
-
-  return {students:students, bySubject:bySubject};
-}
-
 // Offen/zu-Zustand der Fach-Klappboxen. Default: ZU — die Seite startet als
 // kompakte Fächerliste, aufgeklappt wird, was gerade interessiert.
 function lsFachOffen(subjId){
@@ -6900,131 +7079,325 @@ function lrCsv(){
   downloadTextFile('lesereise-'+todayStr()+'.csv', rows.map(function(r){ return r.map(csvField).join(','); }).join('\r\n'), 'text/csv');
 }
 
-// Fächer mit einer eigenen, ausführlicheren Übersicht: erscheinen als Karte
-// zuoberst im jeweiligen Klappfach der Lernstand-Übersicht.
-var LS_SPEZIAL = {
-  mathe: {icon:'📊', kurz:'SIKORE', titel:'SIKORE-Übersicht', text:'Level mit Auf-/Abstieg, Üben diese Woche, Wochenziel und Bestzeiten pro Schüler:in',
-    oeffnen:function(){ sikoreUebersicht(); }},
-  // Mehrere Übersichten pro Fach: als Liste angeben.
-  deutsch: [{icon:'🧩', kurz:'Werkstatt', titel:'Werkstatt-Übersicht', text:'Rechtschreib-Werkstatt: wer bei welchem Posten wie weit ist, Stempel und offene Fehlerwörter',
-    oeffnen:function(){ wsState.detailUid = null; state.route = {name:'werkstatt'}; render(); }},
-    {icon:'📖', kurz:'Lesereise', titel:'Lesereise-Übersicht', text:'Lektüre-Lesereisen: wer bei welchem Kapitel steht, Kapitel-Checks und das ganze Lesetagebuch pro Person',
-    oeffnen:function(){ lrState.detailUid = null; state.route = {name:'lesereise'}; render(); }}],
-  englisch: {icon:'🗣️', kurz:'Voci', titel:'Voci-Übersicht', text:'Voci-Trainer Open World: 🔥 Serie, wer wie viele Wörter kann und die schwierigsten Wörter der Klasse',
-    oeffnen:function(){ vociUebersicht('englisch'); }},
-  franzoesisch: {icon:'🗣️', kurz:'Voci', titel:'Voci-Übersicht', text:'Voci-Trainer dis donc!: 🔥 Serie, wer wie viele Wörter kann und die schwierigsten Wörter der Klasse',
-    oeffnen:function(){ vociUebersicht('franzoesisch'); }}
-};
+/* ===================== 📈 LERNSTAND-ÜBERSICHT =====================
+   Seit 08.10.2026 nach Fach › Ordner (wie in der Fachansicht) › Übung
+   verschachtelt, mit Suchfeld. Der Stand wird erst gelesen, wenn ein Ordner
+   aufgeklappt wird (vorher: alle Schüler:innen × alle Übungen bei jedem Öffnen).
+   Alle besonderen Übersichten hängen dort, wo die Übung liegt – erkannt an der
+   Übung selbst, nicht an einer festen Klasse, also für jede Seite gleich:
+   🧩 Werkstatt, 📖 Lesereise, 🗣️ Voci, 📊 Diktate im Ordner der jeweiligen
+   Datei; 🧮 SIKORE, ⌨️ Tipptrainer und die ⚡ Übungstrainer unter «⚡ Übungstrainer»
+   im Fach; 🗂️ Karteikarten-Sets in ihrem Ordner bzw. unter «🗂️ Karteikarten». */
+var ls = { daten:null, zellen:{}, offen:{}, such:'', lauf:0 };
+
+async function loadLernstandGrund(){
+  var r = await Promise.all([
+    getDocs(kcol('resources')), getDocs(kcol('folders')), uebRoster(null, true),
+    kkLoad().catch(function(err){ console.error('Karteikarten', err); return []; })
+  ]);
+  var resources = [], folders = {};
+  r[0].forEach(function(d){
+    var data = d.data();
+    if(LERNSTAND_EXCLUDED_SUBJECTS.indexOf(data.subject) !== -1 || istLehrerHtml(data)) return;
+    resources.push(Object.assign({id:d.id}, data));
+  });
+  r[1].forEach(function(d){ folders[d.id] = Object.assign({id:d.id}, d.data()); });
+  // Übungen in den (virtuellen) Lehrmittel-Ordnern von Mathe: deren Namen aus dem Katalog.
+  var lmvz = function(id){ return typeof id === 'string' && id.indexOf('lmvz_') === 0; };
+  if(resources.some(function(x){ return lmvz(x.folderId); }) || Object.keys(folders).some(function(k){ return lmvz(folders[k].parentId); })){
+    try{ lmvzBuild(await lmvzLoadCatalog(), true).folders.forEach(function(f){ if(!folders[f.id]) folders[f.id] = f; }); }
+    catch(err){ console.error('LMVZ-Katalog', err); }
+  }
+  return { resources:resources, folders:folders, students:r[2], sets:(kkDaten.sets || []).filter(function(s){ return s.karten && s.karten.length; }) };
+}
+
+// Besondere Übersichten, die an einer Übung hängen.
+function lsSpezialVon(res){
+  var name = (res.fileName || '') + ' ' + (res.title || ''), out = [];
+  if(WS_DATEI_RE.test(res.fileName || '')) out.push({art:'ws', icon:'🧩', kurz:'Werkstatt', titel:'Werkstatt-Übersicht',
+    text:'Wer bei welchem Posten wie weit ist, Stempel und offene Fehlerwörter'});
+  if(LR_DATEI_RE.test(name)) out.push({art:'lr', icon:'📖', kurz:'Lesereise', titel:'Lesereise-Übersicht',
+    text:'Wer bei welchem Kapitel steht, Kapitel-Checks und das ganze Lesetagebuch pro Person'});
+  if(VOCI_PRE[res.subject] && !res.linkUrl && !res.externalUrl && !res.pdf && VOCI_RE.test(name)) out.push({art:'voci', fach:res.subject, icon:'🗣️', kurz:'Voci', titel:'Voci-Übersicht',
+    text:'🔥 Serie, wer wie viele Wörter kann und die schwierigsten Wörter der Klasse'});
+  if(res.subject === 'deutsch' && /diktat/i.test(res.title || res.fileName || '')) out.push({art:'diktat', icon:'📊', kurz:'Diktate', titel:'Fehleranalyse Diktate',
+    text:'Pro Schüler:in der letzte Versuch aller Diktate, nach Fehlerarten'});
+  return out;
+}
+function lsSpezialOeffnen(sp){
+  if(sp.art === 'ws'){ wsState.detailUid = null; state.route = {name:'werkstatt'}; render(); }
+  else if(sp.art === 'lr'){ lrState.detailUid = null; state.route = {name:'lesereise'}; render(); }
+  else if(sp.art === 'voci') vociUebersicht(sp.fach);
+  else if(sp.art === 'diktat'){ state.route = {name:'diktatauswertung'}; render(); }
+  else if(sp.art === 'sikore') sikoreUebersicht();
+  else if(sp.art === 'tippen') tippUebersicht();
+  else if(sp.art === 'mt'){ var def = MT_TRAINER.filter(function(t){ return t.id === sp.id; })[0]; if(def) mtUebersicht(def); }
+  else if(sp.art === 'kk'){ var set = kkSetById(sp.id); if(set) kkUebersicht(set); }
+}
+
+// Baum eines Fachs: {ordner:[knoten], res:[…], spezial:[…], trainer:[…], sets:[…], n}
+function lsBaum(d, subjId){
+  var res = d.resources.filter(function(x){ return x.subject === subjId; });
+  var ordnerOk = function(id){ var f = id && d.folders[id]; return f && f.subject === subjId ? f : null; };
+  var sets = d.sets.filter(function(s){ return s.fach === subjId; });
+  function resSort(a, b){
+    var ac = a.current ? 0 : 1, bc = b.current ? 0 : 1;
+    return ac - bc || (a.order || 0) - (b.order || 0) || (a.title || a.fileName || '').localeCompare(b.title || b.fileName || '', 'de');
+  }
+  function knoten(f, tiefe){
+    var k = { id:f.id, name:f.name || 'Ordner', ordner:[], res:res.filter(function(x){ return x.folderId === f.id; }).sort(resSort),
+              sets:sets.filter(function(s){ return s.ordner === f.id; }), spezial:[] };
+    if(tiefe < 12) Object.keys(d.folders).map(function(id){ return d.folders[id]; })
+      .filter(function(x){ return x.subject === subjId && (x.parentId || null) === f.id; })
+      .sort(function(a, b){ return (a.order || 0) - (b.order || 0) || String(a.name).localeCompare(String(b.name), 'de'); })
+      .forEach(function(x){ var kind = knoten(x, tiefe + 1); if(kind.n || kind.sets.length || kind.nSets) k.ordner.push(kind); });
+    lsSpezialSammeln(k);
+    k.n = k.res.length + k.ordner.reduce(function(s, x){ return s + x.n; }, 0);
+    k.nSets = k.sets.length + k.ordner.reduce(function(s, x){ return s + x.nSets; }, 0);
+    return k;
+  }
+  var wurzel = { id:'', name:'', ordner:[], res:res.filter(function(x){ return !ordnerOk(x.folderId); }).sort(resSort),
+                 sets:sets.filter(function(s){ return !ordnerOk(s.ordner); }), spezial:[] };
+  Object.keys(d.folders).map(function(id){ return d.folders[id]; })
+    .filter(function(x){ return x.subject === subjId && !ordnerOk(x.parentId); })
+    .sort(function(a, b){ return (a.order || 0) - (b.order || 0) || String(a.name).localeCompare(String(b.name), 'de'); })
+    .forEach(function(x){ var kind = knoten(x, 1); if(kind.n || kind.nSets) wurzel.ordner.push(kind); });
+  lsSpezialSammeln(wurzel);
+  wurzel.n = res.length;
+  wurzel.trainer = [];
+  if(subjId === 'mathe') wurzel.trainer.push({art:'sikore', icon:'🧮', titel:'SIKORE – Sicher Kopfrechnen', text:'Level mit Auf-/Abstieg, Üben diese Woche, Wochenziel und Bestzeiten'});
+  if(subjId === TIPP_SUBJECT) wurzel.trainer.push({art:'tippen', icon:'⌨️', titel:'Tipptrainer – 10-Finger-System', text:'Lektion, Tempo und Genauigkeit pro Schüler:in'});
+  mtFachTrainer(subjId).forEach(function(t){ wurzel.trainer.push({art:'mt', id:t.id, icon:t.icon, titel:t.name, text:t.kurz || ''}); });
+  return wurzel;
+}
+// Eigene Spezial-Übersichten (jede Art nur einmal) + welche weiter unten liegen (für die Marken am Ordner).
+function lsSpezialSammeln(k){
+  var da = {};
+  k.res.forEach(function(x){ lsSpezialVon(x).forEach(function(sp){ var key = sp.art + (sp.fach || ''); if(!da[key]){ da[key] = true; k.spezial.push(sp); } }); });
+  k.marken = k.spezial.map(function(sp){ return sp.icon + ' ' + sp.kurz; });
+  k.ordner.forEach(function(x){ x.marken.forEach(function(m){ if(k.marken.indexOf(m) < 0) k.marken.push(m); }); });
+}
+
+function lsPasst(text){ return !ls.such || String(text || '').toLowerCase().indexOf(ls.such) >= 0; }
+// Beim Suchen: Ordner, deren Name passt, zeigen alles; sonst nur passende Übungen/Sets.
+function lsGefiltert(k, ganz){
+  if(!ls.such) return k;
+  var alles = ganz || (k.name && lsPasst(k.name));
+  var out = Object.assign({}, k, {
+    res: alles ? k.res : k.res.filter(function(x){ return lsPasst(x.title || x.fileName); }),
+    sets: alles ? k.sets : k.sets.filter(function(s){ return lsPasst(s.titel); }),
+    spezial: alles ? k.spezial : k.spezial.filter(function(sp){ return lsPasst(sp.titel) || k.res.some(function(x){ return lsPasst(x.title || x.fileName) && lsSpezialVon(x).some(function(y){ return y.art === sp.art; }); }); }),
+    ordner: k.ordner.map(function(x){ return lsGefiltert(x, alles); }).filter(Boolean)
+  });
+  if(k.trainer) out.trainer = alles ? k.trainer : k.trainer.filter(function(t){ return lsPasst(t.titel) || lsPasst('Übungstrainer'); });
+  return (out.res.length || out.sets.length || out.spezial.length || out.ordner.length || (out.trainer && out.trainer.length)) ? out : null;
+}
+
+function lsSpezialKnopf(sp){
+  return '<button class="ls-spezial" type="button" data-ls-sp="'+esc(sp.art)+'" data-ls-id="'+esc(sp.id || '')+'" data-ls-spfach="'+esc(sp.fach || '')+'"><span class="ls-spezial-icon">'+esc(sp.icon)+'</span>'+
+    '<span class="ls-spezial-text"><b>'+esc(sp.titel)+'</b>'+(sp.text ? '<span>'+esc(sp.text)+'</span>' : '')+'</span><span class="ls-spezial-pfeil">›</span></button>';
+}
+function lsAnzahl(n){ return n + (n === 1 ? ' Übung' : ' Übungen'); }
+function lsOrdnerHtml(k, subjId, pfad){
+  var key = 'o:' + k.id, offen = ls.such ? true : !!ls.offen[key];
+  var h = '<details class="ls-ordner" data-ls-key="'+esc(key)+'"'+(offen ? ' open' : '')+'><summary>📁 '+esc(k.name)+
+    k.marken.map(function(m){ return '<span class="ls-fach-tag">'+esc(m)+'</span>'; }).join('')+
+    '<span class="ls-fach-count">'+(k.n ? lsAnzahl(k.n) : '')+(k.nSets ? (k.n ? ' · ' : '')+'🗂️ '+k.nSets : '')+'</span></summary><div class="ls-ordner-body">';
+  h += lsInhaltHtml(k, subjId, pfad.concat(k.name));
+  return h + '</div></details>';
+}
+function lsInhaltHtml(k, subjId, pfad){
+  var h = '';
+  k.spezial.forEach(function(sp){ h += lsSpezialKnopf(sp); });
+  k.sets.forEach(function(s){ if(k.id) h += lsSpezialKnopf({art:'kk', id:s.id, icon:'🗂️', titel:'Karteikarten: '+s.titel, text:s.karten.length+' Karten – wer wie viele kann'}); });
+  k.ordner.forEach(function(x){ h += lsOrdnerHtml(x, subjId, pfad); });
+  if(k.res.length) h += '<div class="ls-tab" data-ls-fach="'+esc(subjId)+'" data-ls-res="'+esc(k.res.map(function(x){ return x.id; }).join(','))+'"><div class="empty-state ls-laedt">Wird geladen …</div></div>';
+  return h;
+}
+function lsPseudoHtml(key, titel, anzahl, inhalt){
+  var offen = ls.such ? true : !!ls.offen[key];
+  return '<details class="ls-ordner" data-ls-key="'+esc(key)+'"'+(offen ? ' open' : '')+'><summary>'+esc(titel)+'<span class="ls-fach-count">'+anzahl+'</span></summary><div class="ls-ordner-body">'+inhalt+'</div></details>';
+}
+
+// Stand für diese Übungen lesen (nur was noch fehlt) – gemerkt bis «Neu laden».
+function lsZellenLaden(resList){
+  var d = ls.daten, reads = [];
+  d.students.forEach(function(stu){
+    resList.forEach(function(res){
+      var key = stu.uid + '|' + res.id;
+      if(ls.zellen[key] || !gastImFach(stu, res.subject)) return;
+      var p = getDoc(doc(db, 'progress', stu.uid, 'resources', res.id)).then(function(snap){ return snap.exists() ? snap.data() : null; })
+        .catch(function(){ return null; }).then(function(data){
+          return {
+            current: learnedSummary(data),
+            history: (data && Array.isArray(data.history)) ? data.history : [],
+            timeSpentSec: (data && typeof data.timeSpentSec === 'number') ? data.timeSpentSec : 0
+          };
+        });
+      ls.zellen[key] = p;
+      reads.push(p.then(function(z){ ls.zellen[key] = z; }));
+    });
+  });
+  // Bereits laufende Abfragen derselben Zellen abwarten.
+  d.students.forEach(function(stu){ resList.forEach(function(res){ var z = ls.zellen[stu.uid + '|' + res.id]; if(z && typeof z.then === 'function') reads.push(z); }); });
+  return Promise.all(reads);
+}
+function lsZelle(uid, rid){ var z = ls.zellen[uid + '|' + rid]; return z && typeof z.then !== 'function' ? z : null; }
+function lsTabelleFuellen(el){
+  if(el.getAttribute('data-ls-da') === '1') return Promise.resolve();
+  var d = ls.daten, subjId = el.getAttribute('data-ls-fach'), lauf = ls.lauf;
+  var ids = el.getAttribute('data-ls-res').split(','), liste = d.resources.filter(function(x){ return ids.indexOf(x.id) >= 0; });
+  liste.sort(function(a, b){ return ids.indexOf(a.id) - ids.indexOf(b.id); });
+  el.setAttribute('data-ls-da', '1');
+  return lsZellenLaden(liste).then(function(){
+    if(lauf !== ls.lauf || !el.isConnected) return;
+    var roster = rosterFuerFach(d.students, subjId);
+    var h = '<div class="table-scroll"><table class="da-table"><thead><tr><th>Schüler:in</th>';
+    liste.forEach(function(res){ h += '<th>'+(res.current ? '🔴 ' : '')+esc(res.title || res.fileName)+'</th>'; });
+    h += '</tr></thead><tbody>';
+    var hist = [];
+    roster.forEach(function(stu){
+      h += '<tr><td>'+esc(stu.displayName)+'</td>';
+      liste.forEach(function(res){
+        var cell = lsZelle(stu.uid, res.id);
+        var n = cell ? cell.history.length : 0, hours = fmtHours(cell ? cell.timeSpentSec : 0);
+        h += '<td>'+esc(fmtLearnedSummary(cell ? cell.current : null))+(n ? ' <span class="da-reset-badge" title="'+esc(cell.history.map(fmtHistoryEntry).join(' · '))+'">↺'+n+'</span>' : '')+
+          (hours ? '<br><span class="tiny muted">⏱ '+esc(hours)+'</span>' : '')+'</td>';
+        if(n) hist.push({stu:stu, res:res, cell:cell});
+      });
+      h += '</tr>';
+    });
+    h += '</tbody></table></div>';
+    // Ausführliche Historie nur für Zellen mit mindestens einem Reset.
+    if(hist.length){
+      h += '<details class="ls-reset"><summary>↺ Reset-Verlauf ('+hist.length+')</summary>';
+      hist.forEach(function(l){
+        h += '<div class="reset-history-row"><strong>'+esc(l.stu.displayName)+'</strong> · '+esc(l.res.title || l.res.fileName)+
+          ' <select class="reset-history-select" title="Stand jeweils unmittelbar vor dem Reset">'+l.cell.history.map(fmtHistoryEntry).map(function(t){ return '<option>'+esc(t)+'</option>'; }).join('')+'</select></div>';
+      });
+      h += '</details>';
+    }
+    el.innerHTML = h;
+  });
+}
+// Tabellen füllen, deren Ordner (und alle darüber) offen sind.
+function lsSichtbaresFuellen(body){
+  var ps = [];
+  Array.prototype.forEach.call(body.querySelectorAll('.ls-tab'), function(el){
+    for(var p = el.parentNode; p && p !== body; p = p.parentNode){ if(p.tagName === 'DETAILS' && !p.open) return; }
+    ps.push(lsTabelleFuellen(el));
+  });
+  return Promise.all(ps);
+}
+
+function lsMalen(){
+  var body = document.getElementById('lernstandBaum'), d = ls.daten;
+  if(!body || !d) return;
+  var ids = [];
+  d.resources.forEach(function(x){ if(ids.indexOf(x.subject) < 0) ids.push(x.subject); });
+  d.sets.forEach(function(s){ if(ids.indexOf(s.fach) < 0 && subjectById(s.fach)) ids.push(s.fach); });
+  // Fächer mit eingebauten Trainern erscheinen auch ohne hochgeladene Übungen.
+  SUBJECTS.forEach(function(s){
+    if(ids.indexOf(s.id) < 0 && LERNSTAND_EXCLUDED_SUBJECTS.indexOf(s.id) < 0 && (s.id === 'mathe' || s.id === TIPP_SUBJECT || mtFachTrainer(s.id).length)) ids.push(s.id);
+  });
+  ids.sort(function(a, b){ var sa = subjectById(a), sb = subjectById(b); return (sa ? sa.name : a).localeCompare(sb ? sb.name : b, 'de'); });
+  var h = '';
+  ids.forEach(function(subjId){
+    var s = subjectById(subjId), name = s ? s.name : subjId;
+    var baum = lsGefiltert(lsBaum(d, subjId), lsPasst(name));
+    if(!baum) return;
+    var offen = ls.such ? true : lsFachOffen(subjId);
+    h += '<details class="ls-fach" data-subj="'+esc(subjId)+'"'+(offen ? ' open' : '')+'><summary>'+esc(name)+
+      baum.marken.map(function(m){ return '<span class="ls-fach-tag">'+esc(m)+'</span>'; }).join('')+
+      '<span class="ls-fach-count">'+[baum.n ? lsAnzahl(baum.n) : '', baum.ordner.length ? baum.ordner.length+' Ordner' : '', baum.trainer && baum.trainer.length ? baum.trainer.length+' Trainer' : ''].filter(Boolean).join(' · ')+'</span></summary><div class="ls-fach-body">';
+    if(baum.trainer && baum.trainer.length) h += lsPseudoHtml('t:'+subjId, '⚡ Übungstrainer', baum.trainer.length+' Trainer', baum.trainer.map(lsSpezialKnopf).join(''));
+    if(baum.sets.length) h += lsPseudoHtml('k:'+subjId, '🗂️ Karteikarten', baum.sets.length+' '+(baum.sets.length === 1 ? 'Set' : 'Sets'),
+      baum.sets.map(function(set){ return lsSpezialKnopf({art:'kk', id:set.id, icon:'🗂️', titel:set.titel, text:set.karten.length+' Karten – wer wie viele kann'}); }).join(''));
+    h += lsInhaltHtml(Object.assign({}, baum, {sets:[]}), subjId, [name]);
+    h += '</div></details>';
+  });
+  body.innerHTML = h || '<div class="empty-state">'+(ls.such ? 'Nichts gefunden für «'+esc(ls.such)+'».' : 'Noch keine Übungen vorhanden.')+'</div>';
+  lsSichtbaresFuellen(body);
+}
 
 function renderLernstandUebersicht(){
   clearSubjectWatchers(); clearOverviewWatchers(); unwatchAllProgress();
   var html = '<div class="back-row"><button class="btn btn-ghost btn-sm" id="backBtn">&larr; Start</button></div>';
   html += '<h2>📈 Lernstand-Übersicht</h2>';
-  html += '<p class="muted" style="margin:-6px 0 14px;">Aktueller Stand pro Schüler:in und Übung, über alle Fächer. „↺" = wie oft zurückgesetzt, mit dem jeweiligen Stand unmittelbar davor. „⏱" = wie lange die Übung schon offen war (nur aktive Zeit, kein Hintergrund-Tab). Nur für dich sichtbar.</p>';
+  html += '<p class="muted" style="margin:-6px 0 14px;">Nach Fach und Ordner, wie in der Fachansicht: aufklappen, bis du bei der Übung bist – oder oben suchen. „↺" = wie oft zurückgesetzt, mit dem jeweiligen Stand unmittelbar davor. „⏱" = wie lange die Übung schon offen war (nur aktive Zeit, kein Hintergrund-Tab). Nur für dich sichtbar.</p>';
   html += '<div id="lernstandBody"><div class="empty-state">Wird geladen …</div></div>';
   renderChrome(html);
   document.getElementById('backBtn').addEventListener('click', goHome);
+  var lauf = ++ls.lauf;
+  ls.daten = null; ls.zellen = {};
 
-  loadLernstandUebersicht().then(function(result){
+  loadLernstandGrund().then(function(d){
     var body = document.getElementById('lernstandBody');
-    if(!body) return;
-    var subjectIds = Object.keys(result.bySubject).filter(function(id){ return result.bySubject[id].resources.length>0; });
-    // Fächer mit eigener Übersicht erscheinen auch ohne gewöhnliche Übungen.
-    Object.keys(LS_SPEZIAL).forEach(function(id){
-      if(subjectIds.indexOf(id) === -1 && subjectById(id)) subjectIds.push(id);
-    });
-    subjectIds.sort(function(a,b){
-      var sa = subjectById(a), sb = subjectById(b);
-      return (sa?sa.name:a).localeCompare(sb?sb.name:b, 'de');
-    });
-    if(!subjectIds.length){ body.innerHTML = '<div class="empty-state">Noch keine Übungen vorhanden.</div>'; return; }
-
-    var h = '<div class="da-toolbar" style="gap:8px;"><button class="btn btn-ghost btn-sm" id="lsPrintBtn" type="button">🖨️ Drucken</button>'+
+    if(!body || lauf !== ls.lauf) return;
+    ls.daten = d;
+    body.innerHTML = '<input type="search" id="lsSuche" class="ls-suche" placeholder="🔍 Übung, Ordner oder Fach suchen …" autocomplete="off" value="'+esc(ls.such)+'">'+
+      '<div class="da-toolbar" style="gap:8px;"><button class="btn btn-ghost btn-sm" id="lsAufBtn" type="button">⇕ Alle auf / zu</button>'+
+      '<button class="btn btn-ghost btn-sm" id="lsPrintBtn" type="button">🖨️ Drucken</button>'+
       '<button class="btn btn-ghost btn-sm" id="lsCsvBtn" type="button">⬇️ CSV</button>'+
-      '<button class="btn btn-ghost btn-sm" id="lsReloadBtn" type="button">↻ Neu laden</button>'+uebKlassenFeld(true)+'</div>';
-    subjectIds.forEach(function(subjId){
-      var sub = result.bySubject[subjId] || {resources:[], cell:{}};
-      var s = subjectById(subjId);
-      var sps = [].concat(LS_SPEZIAL[subjId] || []);
-      h += '<details class="ls-fach" data-subj="'+esc(subjId)+'"'+(lsFachOffen(subjId)?' open':'')+'>';
-      h += '<summary>'+esc(s?s.name:subjId)+sps.map(function(sp){ return '<span class="ls-fach-tag">'+sp.icon+' '+esc(sp.kurz)+'</span>'; }).join('')+
-        '<span class="ls-fach-count">'+sub.resources.length+' '+(sub.resources.length===1?'Übung':'Übungen')+'</span></summary>';
-      h += '<div class="ls-fach-body">';
-      sps.forEach(function(sp, si){
-        h += '<button class="ls-spezial" type="button" data-ls-spezial="'+esc(subjId)+'" data-ls-nr="'+si+'"><span class="ls-spezial-icon">'+sp.icon+'</span>'+
-          '<span class="ls-spezial-text"><b>'+esc(sp.titel)+'</b><span>'+esc(sp.text)+'</span></span><span class="ls-spezial-pfeil">›</span></button>';
-      });
-      if(!sub.resources.length){ h += '</div></details>'; return; }
-      h += '<div class="table-scroll"><table class="da-table"><thead><tr><th>Schüler:in</th>';
-      sub.resources.forEach(function(res){ h += '<th>'+esc(res.title||res.fileName)+'</th>'; });
-      h += '</tr></thead><tbody>';
-      rosterFuerFach(result.students, subjId).forEach(function(stu){
-        h += '<tr><td>'+esc(stu.displayName)+'</td>';
-        sub.resources.forEach(function(res){
-          var cell = sub.cell[stu.uid+'|'+res.id];
-          var current = cell ? cell.current : null;
-          var histCount = cell ? cell.history.length : 0;
-          var hours = fmtHours(cell ? cell.timeSpentSec : 0);
-          h += '<td>'+esc(fmtLearnedSummary(current)) + (histCount ? ' <span class="da-reset-badge" title="'+esc(cell.history.map(fmtHistoryEntry).join(' · '))+'">↺'+histCount+'</span>' : '') +
-            (hours ? '<br><span class="tiny muted">⏱ '+esc(hours)+'</span>' : '') + '</td>';
-        });
-        h += '</tr>';
-      });
-      h += '</tbody></table></div>';
-
-      // Ausführliche Historie nur für Zellen mit mindestens einem Reset anzeigen.
-      var histLines = [];
-      rosterFuerFach(result.students, subjId).forEach(function(stu){
-        sub.resources.forEach(function(res){
-          var cell = sub.cell[stu.uid+'|'+res.id];
-          if(cell && cell.history.length){
-            histLines.push({stu:stu, res:res, cell:cell});
-          }
-        });
-      });
-      if(histLines.length){
-        h += '<div class="da-student-card"><h4 style="margin-top:0;">Reset-Verlauf</h4>';
-        histLines.forEach(function(l){
-          var opts = l.cell.history.map(fmtHistoryEntry).map(function(t){ return '<option>'+esc(t)+'</option>'; }).join('');
-          h += '<div class="reset-history-row"><strong>'+esc(l.stu.displayName)+'</strong> · '+esc(l.res.title||l.res.fileName)+
-            ' <select class="reset-history-select" title="Stand jeweils unmittelbar vor dem Reset">'+opts+'</select></div>';
-        });
-        h += '</div>';
-      }
-      h += '</div></details>';
+      '<button class="btn btn-ghost btn-sm" id="lsReloadBtn" type="button">↻ Neu laden</button>'+uebKlassenFeld(true)+'</div><div id="lernstandBaum"></div>';
+    var baum = document.getElementById('lernstandBaum');
+    lsMalen();
+    // Offen/zu merken (Fächer dauerhaft, Ordner bis zum Neuladen der Seite) und Tabellen erst beim Aufklappen füllen.
+    baum.addEventListener('toggle', function(e){
+      var dt = e.target;
+      if(!dt || dt.tagName !== 'DETAILS' || ls.such) { if(dt && dt.open) lsSichtbaresFuellen(baum); return; }
+      if(dt.classList.contains('ls-fach')) lsFachSetzen(dt.getAttribute('data-subj'), dt.open);
+      else if(dt.getAttribute('data-ls-key')) ls.offen[dt.getAttribute('data-ls-key')] = dt.open;
+      if(dt.open) lsSichtbaresFuellen(baum);
+    }, true);
+    baum.addEventListener('click', function(e){
+      var b = e.target.closest && e.target.closest('[data-ls-sp]');
+      if(b) lsSpezialOeffnen({art:b.getAttribute('data-ls-sp'), id:b.getAttribute('data-ls-id'), fach:b.getAttribute('data-ls-spfach')});
     });
-
-    body.innerHTML = h;
-    Array.prototype.forEach.call(body.querySelectorAll('[data-ls-spezial]'), function(b){
-      b.addEventListener('click', [].concat(LS_SPEZIAL[b.getAttribute('data-ls-spezial')])[+b.getAttribute('data-ls-nr') || 0].oeffnen);
+    var t = null;
+    document.getElementById('lsSuche').addEventListener('input', function(){
+      var el = this;
+      clearTimeout(t);
+      t = setTimeout(function(){ ls.such = el.value.trim().toLowerCase(); lsMalen(); }, 220);
     });
-    // Offen/zu je Fach merken.
-    Array.prototype.forEach.call(body.querySelectorAll('.ls-fach'), function(d){
-      d.addEventListener('toggle', function(){ lsFachSetzen(d.getAttribute('data-subj'), d.open); });
+    function alleAuf(){
+      Array.prototype.forEach.call(baum.querySelectorAll('details.ls-fach, details.ls-ordner'), function(x){ x.open = true; });
+      return lsSichtbaresFuellen(baum);
+    }
+    document.getElementById('lsAufBtn').addEventListener('click', function(){
+      var zu = baum.querySelector('details.ls-fach:not([open]), details.ls-ordner:not([open])');
+      if(zu) alleAuf();
+      else Array.prototype.forEach.call(baum.querySelectorAll('details.ls-fach, details.ls-ordner'), function(x){ x.open = false; });
     });
     document.getElementById('lsReloadBtn').addEventListener('click', renderLernstandUebersicht);
     uebKlassenVerdrahten(renderLernstandUebersicht);
     document.getElementById('lsPrintBtn').addEventListener('click', function(){
-      // Zugeklappte Fächer stehen nicht im Ausdruck — vorher alle öffnen.
-      Array.prototype.forEach.call(body.querySelectorAll('.ls-fach'), function(d){ d.open = true; });
-      window.print();
+      // Zugeklapptes steht nicht im Ausdruck — vorher alles öffnen und laden.
+      toast('Lernstand wird für den Ausdruck geladen …');
+      alleAuf().then(function(){ window.print(); });
     });
     document.getElementById('lsCsvBtn').addEventListener('click', function(){
-      var rows = [['Fach','Schüler:in','Übung','Stand','Anzahl Reset','Lernzeit (Std.)']];
-      subjectIds.forEach(function(subjId){
-        var sub = result.bySubject[subjId];
-        if(!sub) return;
-        var s = subjectById(subjId);
-        rosterFuerFach(result.students, subjId).forEach(function(stu){
-          sub.resources.forEach(function(res){
-            var cell = sub.cell[stu.uid+'|'+res.id];
-            var h = cell ? Math.round((cell.timeSpentSec||0)/360)/10 : 0;
-            rows.push([s?s.name:subjId, stu.displayName, res.title||res.fileName, fmtLearnedSummary(cell?cell.current:null), cell?cell.history.length:0, h.toString().replace('.',',')]);
+      toast('Lernstand wird geladen …');
+      lsZellenLaden(d.resources).then(function(){
+        var rows = [['Fach','Ordner','Schüler:in','Übung','Stand','Anzahl Reset','Lernzeit (Std.)']];
+        function pfad(res){
+          var teile = [], f = d.folders[res.folderId], guard = 0;
+          while(f && f.subject === res.subject && guard++ < 20){ teile.unshift(f.name); f = d.folders[f.parentId]; }
+          return teile.join(' › ');
+        }
+        d.resources.slice().sort(function(a, b){
+          var sa = subjectById(a.subject), sb = subjectById(b.subject);
+          return (sa ? sa.name : a.subject).localeCompare(sb ? sb.name : b.subject, 'de') || pfad(a).localeCompare(pfad(b), 'de') || (a.title || a.fileName || '').localeCompare(b.title || b.fileName || '', 'de');
+        }).forEach(function(res){
+          var s = subjectById(res.subject), p = pfad(res);
+          rosterFuerFach(d.students, res.subject).forEach(function(stu){
+            var cell = lsZelle(stu.uid, res.id);
+            var std = cell ? Math.round((cell.timeSpentSec || 0) / 360) / 10 : 0;
+            rows.push([s ? s.name : res.subject, p, stu.displayName, res.title || res.fileName, fmtLearnedSummary(cell ? cell.current : null), cell ? cell.history.length : 0, std.toString().replace('.', ',')]);
           });
         });
+        downloadTextFile('lernstand-'+todayStr()+'.csv', rows.map(function(r){ return r.map(csvField).join(','); }).join('\r\n'), 'text/csv');
       });
-      var csv = rows.map(function(r){ return r.map(csvField).join(','); }).join('\r\n');
-      downloadTextFile('lernstand-'+todayStr()+'.csv', csv, 'text/csv');
     });
   }).catch(function(err){
     console.error(err);
@@ -8889,7 +9262,7 @@ var KIB_WISSEN = [
   {id:'mehr', fuer:'alle', f:'Wo sind die Symbole in der Leiste hin?', w:'mehr knopf symbole icons leiste favoriten favorit verschwunden fehlt menü seitenleiste oben',
    a:'Die meisten Symbole stehen in der Leiste unter «Mehr». Mit «★ Favoriten wählen» bestimmst du, welche immer sichtbar bleiben.'},
   {id:'widgets', fuer:'alle', f:'Wie ordne ich Kacheln und Symbole neu an?', w:'verschieben anordnen ausblenden widgets kachel wackeln zurückholen einblenden reihenfolge fächer sortieren',
-   a:'Drück lange auf eine Kachel oder ein Symbol, bis alles wackelt. Dann kannst du ziehen. Mit «−» blendest du etwas aus.\nZurückholen: ⚙️ Einstellungen › 🧩 Widgets.', ziel:'einstellungen'},
+   a:'Drück lange auf eine Kachel oder ein Symbol, bis alles wackelt. Dann kannst du ziehen. Mit «−» blendest du etwas aus – auch ein Fach, das du nicht brauchst.\nZurückholen: unter den Kacheln «… ausgeblendet · anzeigen» oder ⚙️ Einstellungen › 🧩 Widgets.', ziel:'einstellungen'},
   {id:'erinnerungen', fuer:'alle', f:'Wie bekomme ich Erinnerungen?', w:'erinnerung push benachrichtigung glocke mitteilung nachricht vorabend einschalten ausschalten',
    a:'Tippe auf 🔔 (in der Leiste unter «Mehr») und schalte die Erinnerungen ein. Dann bekommst du am Vorabend um 18 Uhr eine Nachricht, was am nächsten Tag fällig ist. Dort schaltest du sie auch wieder aus.'},
   {id:'tools', fuer:'alle', f:'Was kann ich mit den Tools machen?', w:'pdf verkleinern komprimieren zusammenführen zusammenfügen foto bild qr-code qr seitenzahlen wasserzeichen ton aufnehmen aufnahme drehen löschen seiten', ziel:'tools',
@@ -8979,7 +9352,7 @@ var KIB_WISSEN = [
   {id:'lp-teilen', fuer:'lp', f:'Wie teile ich Übungen mit anderen Lehrpersonen?', w:'teilen empfehlen empfohlen duplizieren aktualisieren kopie kopieren übernehmen kollegen andere lehrpersonen stern', ziel:'einstellungen',
    a:'«☆ Empfehlen» bei einer Übung schlägt sie allen anderen Lehrpersonen vor.\nEmpfehlungen der anderen findest du unter ⚙️ Einstellungen › «⭐ Von Lehrern empfohlen». Mit 📥 Duplizieren kommt eine Kopie auf deine Seite, 🔄 Aktualisieren holt eine neue Fassung. Die gleichen Knöpfe erscheinen auch direkt auf einer fremden Seite.'},
   {id:'lp-klasse', fuer:'lp', f:'Wie wechsle ich in eine andere Klasse?', w:'klasse wechseln andere klasse seite fremde gelbes band richtige klasse meine seiten zurück eigene',
-   a:'Mit dem Knopf «🏫 Klasse ▾» in der Leiste. Zuoberst stehen ⭐ Meine Seiten, darüber kannst du nach Klasse oder Lehrperson suchen.\nEin gelbes Band zeigt, dass du nicht auf deiner eigenen Seite bist. Bevor dort etwas gespeichert wird, fragt die Library nach («Richtige Klasse?»).'},
+   a:'Mit dem Knopf «🏫 Klasse ▾» in der Leiste. Zuoberst steht deine eigene Seite, darunter alle Klassen; im Suchfeld findest du jede Klasse oder Lehrperson.\nEin gelbes Band zeigt, dass du nicht auf deiner eigenen Seite bist. Bevor dort etwas gespeichert wird, fragt die Library nach («Richtige Klasse?»).'},
   {id:'lp-falsch', fuer:'lp', f:'Ich habe in einer falschen Klasse etwas geändert.', w:'versehen falsch falsche klasse geändert rückgängig aus versehen',
    a:'Mach die Änderung rückgängig oder melde dich bei der betroffenen Lehrperson. Das gelbe Band und die Nachfrage «Richtige Klasse?» sollen genau das verhindern.'},
   {id:'lp-kalender', fuer:'lp', f:'Wie trage ich Hausaufgaben und Prüfungen ein?', w:'hausaufgabe hausaufgaben abgabe prüfung termin erinnerung eintragen kalender verlinken checkliste abgabe-checkliste abgegeben', ziel:'kalender',
@@ -9015,7 +9388,7 @@ var KIB_WISSEN = [
   {id:'lp-baukasten', fuer:'lp', f:'Wie stelle ich die Aufgaben einer Prüfung zusammen?', w:'baukasten aufgaben auswählen tauschen ersetzen eigene aufgaben musterlösung entwurf drucken papier pdf word docx lösungsblatt',
    a:'Im 🧩 Baukasten: Aufgaben mit Lösung ansehen, löschen, mit 🎲 gegen eine zufällige gleicher Art tauschen oder mit 🔁 durch eine selbst gewählte ersetzen. Im Entwurf kannst du Aufgaben aus mehreren Übungen zusammenstellen und eigene ergänzen.\nMit 🖨️ Drucken gibt es Prüfung und Lösungsblatt als PDF oder Word im Prüfungs-Design der Sek Altnau.'},
   {id:'lp-lernstand', fuer:'lp', f:'Wo sehe ich den Lernstand meiner Klasse?', w:'lernstand übersicht fortschritt klasse wer hat geübt auswertung sikore-übersicht werkstatt-übersicht voci-übersicht serie', ziel:'lernstand',
-   a:'Unter 📈 Lernstand: Fortschritt aller Schüler:innen in allen Fächern. Zuoberst im aufgeklappten Fach stehen die Spezial-Übersichten (📊 SIKORE, 🧩 Werkstatt, 🗣️ Voci). Die Lern-Serie 🔥 zeigt, wer regelmässig übt.'},
+   a:'Unter 📈 Lernstand: Fortschritt aller Schüler:innen, geordnet nach Fach und Ordner wie in der Fachansicht – aufklappen oder oben suchen. Die besonderen Übersichten stehen dort, wo die Übung liegt (🧩 Werkstatt, 📖 Lesereise, 🗣️ Voci, 📊 Diktate); 🧮 SIKORE, ⌨️ Tipptrainer und alle Trainer unter «⚡ Übungstrainer» im Fach, 🗂️ Karteikarten in ihrem Ordner. Die Lern-Serie 🔥 zeigt, wer regelmässig übt.'},
   {id:'lp-live', fuer:'lp', f:'Wie sehe ich, wo die Klasse gerade steht?', w:'live echtzeit gerade jetzt übung stand lernphase hand fragen wer ist da',
    a:'📡 Live (oben rechts in einer geöffneten Übung) zeigt in Echtzeit, wo die Klasse steht.\nIn der 📚 Lernphase siehst du, wer in der Library ist. Schüler:innen können mit «✋ Ich habe eine Frage» die Hand hochstrecken: Du hörst einen kurzen Ton und tippst ✓, wenn es erledigt ist.'},
   {id:'lp-fragebox', fuer:'lp', f:'Wie beantworte ich Fragen aus der Fragebox?', w:'fragebox fragen anonym beantworten antwort veröffentlichen', ziel:'fragebox',
@@ -9032,6 +9405,8 @@ var KIB_WISSEN = [
    a:'Im 🗓️ Stundenplan auf «📌 Termin», dann die Lektion antippen: eine Lektion, ein Halbtag oder ein ganzer Tag, auch «fällt aus». In «Mein Stundenplan» wählst du, ob nur du ihn siehst oder auch eine Klasse. In der Ansicht «Klasse» sieht ihn die ganze Klasse.\nMüssen nur einige weg, hakst du «↔️ Parallel zur Lektion» an.'},
   {id:'lp-material', fuer:'lp', f:'Wie lege ich ein Quiz oder eine Umfrage in einen Fach-Ordner?', w:'unterrichtsmaterial zusatzmaterial material ordner ablegen quiz umfrage wortwolke karteikarten paket importieren aus dem klassenzimmer lehrer-html planung', ziel:'klassenzimmer',
    a:'Im Fach auf «🏫 Aus dem Klassenzimmer»: Klassen-Quiz, Karteikarten, Wortwolke, Blitzumfrage, Millionär-Set oder Prüfung neu anlegen oder Vorhandenes in den offenen Ordner holen. Es steht dann unter den Übungen, mit «▶︎ Starten».\nGesammelt findest du alles unter 🏫 Klassenzimmer › «🗃️ Unterrichtsmaterial».'},
+  {id:'lp-wer-macht-mit', fuer:'lp', f:'Wie mische ich Klassen im Glücksrad oder bei den Gruppen?', w:'glücksrad wer ist dran gruppen partner ruhephase flüstern andere klasse mischen gäste einzelne schüler dazunehmen auswahl wer macht mit abwesend', ziel:'klassenzimmer',
+   a:'Im 🏫 Klassenzimmer oben rechts in 🎲 Zufall, ⏱ Ruhephase und 👥 Gruppen & Partner auf «👥 …» tippen. Dort wählst du ganze Klassen aus der ganzen Schule, deine 👥 Gruppen und einzelne Schüler:innen (Suchfeld) – z. B. die G2b und drei aus der E3a. Wer heute fehlt: Namen antippen.\nDie Auswahl gilt für Glücksrad, Wer ist dran?, Gruppen & Partner und die Flüsterliste und bleibt auf deinem Gerät gespeichert.'},
   {id:'lp-energizer', fuer:'lp', f:'Wo finde ich Energizer und Aktivierungsspiele?', w:'energizer aktivierung aktivierungsspiel bewegung pause spiel spiele auflockern konzentration ruhe atmung', ziel:'klassenzimmer',
    a:'🏫 Klassenzimmer › «⚡ Energizer»: über 60 Spiele in vier Gruppen (Bewegung, Kopf & Konzentration, Ruhe & Atmung, mit Unterrichtsinhalt). Antippen zeigt das Spiel gross am Beamer mit Anleitung und Timer. Dazu ⭐ Favoriten, 🎲 Zufalls-Energizer und ➕ eigene Spiele.'},
   {id:'lp-seb', fuer:'lp', f:'Wie schreibe ich eine Prüfung mit dem Safe Exam Browser?', w:'safe exam browser seb sicher prüfung sperren abschreiben spicken installiert',
@@ -9791,8 +10166,12 @@ function renderHome(){
     html += '</button>';
   });
   html += '</div>';
+  var fachAus = kachelnReihenfolge(isTeacher).length - visibleSubjects.length;
+  if(fachAus > 0) html += '<p class="fach-aus-hinweis"><button class="btn btn-ghost btn-sm" id="fachAusBtn" type="button">🧩 '+fachAus+' '+(fachAus === 1 ? 'Fach' : 'Fächer')+' ausgeblendet · anzeigen</button></p>';
   renderChrome(html);
 
+  var fachAusBtn = document.getElementById('fachAusBtn');
+  if(fachAusBtn) fachAusBtn.addEventListener('click', openWidgetDrawer);
   Array.prototype.forEach.call(document.querySelectorAll('.subject-card'), function(btn){
     btn.addEventListener('click', function(){ goSubject(btn.getAttribute('data-subject')); });
   });
@@ -10207,19 +10586,12 @@ function uiInfo(title, description){
    alten Klasse hängen bleiben. Die Wahl gilt nur für diesen Tab
    (sessionStorage) — nach einem neuen Login oder App-Start landet man wieder
    in der eigenen Klasse. */
-// «⭐ Meine Seiten» oben: eigene Seite, die Klassen aus dem persönlichen
-// 🗓️ Stundenplan (Lektionen mit Klasse) und die zuletzt besuchten Seiten.
-// Darüber ein Suchfeld (Klasse, Lehrperson) über alle ~33 Seiten.
-var KLASSEN_ZULETZT_KEY = LIB_PREFIX+'klassen_zuletzt';
-function klassenZuletzt(){ try{ return JSON.parse(lsGet(KLASSEN_ZULETZT_KEY) || '[]') || []; }catch(e){ return []; } }
-function meineSeiten(){
-  var ids = [];
-  function dazu(id){ if(id && ids.indexOf(id) < 0 && KLASSEN.some(function(k){ return k.id === id; })) ids.push(id); }
-  if(!isLeitung()) dazu(state.profile.klasse);
-  var zellen = (stp.geladen && stp.eigen && stp.eigen.zellen) || {};
-  Object.keys(zellen).map(function(k){ return zellen[k] && zellen[k].kl; }).filter(Boolean).sort().forEach(dazu);
-  klassenZuletzt().forEach(dazu);
-  return ids.map(function(id){ return klasseInfo(id); });
+// Zuoberst steht nur die eigene Seite, darunter alle Klassen; das Suchfeld
+// (Klasse, Lehrperson) geht über alle ~33 Seiten. «⭐ Meine Seiten» (Klassen aus
+// dem Stundenplan + zuletzt besuchte) gibt es seit 08.10.2026 nicht mehr.
+function eigeneSeite(){
+  if(isLeitung() || !state.profile) return [];
+  return KLASSEN.filter(function(k){ return k.id === state.profile.klasse; });
 }
 function openKlassenWahl(){
   function knopf(k){
@@ -10230,14 +10602,15 @@ function openKlassenWahl(){
     return '<button class="btn '+(aktiv?'btn-primary':'btn-ghost')+'" type="button" data-klasse="'+esc(k.id)+'" data-such="'+esc(such)+'">'+
          '<span>'+titel+(eigene?(k.art === 'klasse' ? ' (deine Klasse)' : ' (deine Seite)'):'')+(aktiv?' ✓':'')+'</span></button>';
   }
-  function art(a){ return KLASSEN.filter(function(k){ return k.art === a; }); }
-  // Offen, wenn man gerade dort ist (oder dort zuhause).
-  function offen(list){ return list.some(function(k){ return k.id === state.klasse || k.id === state.profile.klasse; }) ? ' open' : ''; }
-  var flpIsf = art('flp').concat(art('isf')), prakt = art('praktikum'), meine = meineSeiten();
+  var meine = eigeneSeite(), meineId = meine.length ? meine[0].id : '';
+  function art(a){ return KLASSEN.filter(function(k){ return k.art === a && k.id !== meineId; }); }
+  // Offen, wenn man gerade dort ist.
+  function offen(list){ return list.some(function(k){ return k.id === state.klasse; }) ? ' open' : ''; }
+  var flpIsf = art('flp').concat(art('isf')), prakt = art('praktikum');
   var h = '<h3>🏫 Klasse wechseln</h3>';
   h += '<input type="search" id="kwSuche" placeholder="🔍 Klasse oder Lehrperson suchen …" autocomplete="off" style="margin-bottom:10px;">';
   if(meine.length){
-    h += '<div class="kw-teil"><div class="section-label" style="margin:0 0 6px;">⭐ Meine Seiten</div><div class="klassen-wahl klassen-wahl-grid">';
+    h += '<div class="kw-teil"><div class="section-label" style="margin:0 0 6px;">🏠 '+(meine[0].art === 'klasse' ? 'Deine Klasse' : 'Deine Seite')+'</div><div class="klassen-wahl klassen-wahl-grid">';
     meine.forEach(function(k){ h += knopf(k); });
     h += '</div></div>';
   }
@@ -10263,7 +10636,6 @@ function openKlassenWahl(){
     var gesehen = {}, treffer = [];
     modalEl.querySelectorAll('[data-klasse]').forEach(function(btn){
       var id = btn.getAttribute('data-klasse');
-      // Bei der Suche jede Seite nur einmal zeigen (nicht in «Meine Seiten» und unten).
       var passt = !t || (btn.getAttribute('data-such').indexOf(t) >= 0 && !gesehen[id]);
       if(t && passt){ gesehen[id] = true; treffer.push(btn); }
       btn.hidden = !passt;
@@ -10287,11 +10659,6 @@ function openKlassenWahl(){
 function wechsleKlasse(id){
   if(!state.profile || (state.profile.role !== 'teacher' && !isLeitung())) return;
   if(id === state.klasse){ closeModal(); return; }
-  if(id !== state.profile.klasse){
-    var zuletzt = klassenZuletzt().filter(function(x){ return x !== id; });
-    zuletzt.unshift(id);
-    lsSet(KLASSEN_ZULETZT_KEY, JSON.stringify(zuletzt.slice(0, 4)));
-  }
   try{
     if(id === state.profile.klasse && !isLeitung()) sessionStorage.removeItem(KLASSE_ANSICHT_KEY);
     else sessionStorage.setItem(KLASSE_ANSICHT_KEY, id);
@@ -10505,7 +10872,7 @@ function openSettings(){
   if(darfSchulStatistik()){
     h += '<div class="settings-section"><h4>📊 Schule</h4><div class="settings-actions"><button class="btn btn-ghost btn-sm" id="setStatBtn" type="button">📊 Übersicht: Nutzung &amp; Speicher</button></div></div>';
   }
-  h += '<div class="settings-section"><h4>🧩 Widgets</h4><p style="margin:0 0 8px;color:var(--text-muted);font-size:12.5px;">Ausgeblendete '+(isTeacher?'Fächer und ':'')+'Symbole der oberen Leiste wieder hinzufügen. Verschieben und Ausblenden: «✏️ Anordnen» (oder lange auf eine Kachel drücken).</p><div class="settings-actions">'+
+  h += '<div class="settings-section"><h4>🧩 Widgets</h4><p style="margin:0 0 8px;color:var(--text-muted);font-size:12.5px;">Ausgeblendete Fächer und Symbole der oberen Leiste wieder hinzufügen. Verschieben und Ausblenden: «✏️ Anordnen» (oder lange auf eine Kachel drücken).</p><div class="settings-actions">'+
        '<button class="btn btn-primary btn-sm" id="setWidgetsBtn" type="button">🧩 Widgets'+(layoutAusAnzahl()?' ('+layoutAusAnzahl()+' ausgeblendet)':'')+'</button>'+
        '<button class="btn btn-ghost btn-sm" id="setAnordnenBtn" type="button">✏️ Anordnen</button></div></div>';
   h += '<div class="modal-actions"><button class="btn btn-primary btn-sm" id="modalOk" type="button">Schliessen</button></div>';
@@ -15986,7 +16353,7 @@ function openBeamerTools(initialTab){
   html += '<button class="kz-tab" data-tab="rad" type="button">🎡 Glücksrad</button>';
   html += '<button class="kz-tab" data-tab="slf" type="button">🌍 Stadt Land Fluss</button>';
   html += '<div class="kz-bar-spacer"></div>';
-  html += gaesteToggleHtml('kzGaeste');
+  html += mitKnopfHtml('kzMit');
   html += '<button class="kz-close" id="kzClose" type="button" title="Schliessen (Esc)">✕</button>';
   html += '</div>';
   html += '<div class="kz-stage" id="kzStage"></div>';
@@ -16001,7 +16368,7 @@ function openBeamerTools(initialTab){
   Array.prototype.forEach.call(root.querySelectorAll('.kz-tab[data-tab]'), function(btn){
     btn.addEventListener('click', function(){ switchBeamerTab(btn.getAttribute('data-tab')); });
   });
-  wireGaesteToggle(root.querySelector('#kzGaeste'), function(){ switchBeamerTab(beamer.tab); });
+  mitKnopfVerdrahten(root.querySelector('#kzMit'), function(){ glueck.klasse = null; glueck.weg = {}; glueck.letzter = null; switchBeamerTab(beamer.tab); });
   switchBeamerTab(beamer.tab);
 }
 
@@ -16305,11 +16672,8 @@ function saveSprecher(){
 
 // Woher kommen die Namen? '' = offene Klasse/Seite, 'k:G3a' = andere Klasse,
 // 'n:G3' = Niveau eines Jahrgangs (G3a + G3b), 'n:G' / 'n:E' = alle G- bzw.
-// E-Klassen, 'g:<id>' = eine eigene 👥 Gruppe. Gerätelokal gemerkt.
-function sprecherQuelle(){
-  if(sprecherState.quelle === null) sprecherState.quelle = lsGet(LIB_PREFIX+'speak_quelle') || '';
-  return sprecherState.quelle;
-}
+// E-Klassen, 'g:<id>' = eine eigene 👥 Gruppe (Werkstatt-/Lesereise-Übersicht;
+// die Flüsterliste der Ruhephase nimmt seit 08.10.2026 «👥 Wer macht mit?»).
 function sprecherKlassenVon(q){
   if(q.indexOf('k:') === 0) return [q.slice(2)];
   if(q.indexOf('n:') === 0){
@@ -16357,34 +16721,11 @@ function sprecherRosterLaden(q){
   }
   return p.then(function(list){ sprecherState.rosters[key] = list; return list; });
 }
-function sprecherWahlHtml(q){
-  var alle = abstAlleKlassen();
-  function opt(v, t){ return '<option value="'+esc(v)+'"'+(v === q ? ' selected' : '')+'>'+esc(t)+'</option>'; }
-  var h = '<select class="sk-wahl" id="skQuelle" title="Wessen Namen?">';
-  h += opt('', (istKlasse(state.klasse) ? 'Klasse ' : '') + klasseLabel());
-  h += '<optgroup label="Niveau">';
-  h += opt('n:G', 'Alle G-Klassen') + opt('n:E', 'Alle E-Klassen');
-  ['G1','G2','G3','E1','E2','E3'].forEach(function(n){
-    var ks = alle.filter(function(k){ return k.indexOf(n) === 0; });
-    if(ks.length) h += opt('n:'+n, n + ' (' + ks.join(', ') + ')');
-  });
-  h += '</optgroup><optgroup label="Klasse">';
-  alle.forEach(function(k){ if(k !== state.klasse) h += opt('k:'+k, k); });
-  h += '</optgroup>';
-  if(sprecherState.gruppen && sprecherState.gruppen.length){
-    h += '<optgroup label="👥 Meine Gruppen">';
-    sprecherState.gruppen.forEach(function(g){ h += opt('g:'+g.id, g.name); });
-    h += '</optgroup>';
-  }
-  return h + '</select>';
-}
-
 function mountSprecher(host){
   loadSprecher();
   var roster = null, laedt = false;
   function paint(){
-    var q = sprecherQuelle();
-    var liste = q ? (roster || []) : gaesteOptional(roster || []);
+    var liste = roster || [];
     var byUid = {};
     liste.forEach(function(s){ byUid[s.uid] = s; });
     var chosen = sprecherState.uids.filter(function(u){ return byUid[u]; });
@@ -16401,8 +16742,7 @@ function mountSprecher(host){
       }).join('');
     }
     h += '</div>';
-    h += '<div class="sk-add-label">Hinzufügen aus</div>';
-    h += '<div class="sk-wahl-row">' + sprecherWahlHtml(q) + '</div>';
+    h += '<div class="sk-add-label">Hinzufügen</div>';
     if(liste.length){
       h += '<div class="sk-pool">'+rest.map(function(s){
         return '<button class="sk-pool-item" type="button" data-add="'+esc(s.uid)+'">'+esc(s.displayName)+'</button>';
@@ -16416,11 +16756,6 @@ function mountSprecher(host){
     }
     host.innerHTML = h;
 
-    host.querySelector('#skQuelle').addEventListener('change', function(e){
-      sprecherState.quelle = e.target.value;
-      lsSet(LIB_PREFIX+'speak_quelle', sprecherState.quelle);
-      laden();
-    });
     Array.prototype.forEach.call(host.querySelectorAll('[data-add]'), function(b){
       b.addEventListener('click', function(){
         sprecherState.uids.push(b.getAttribute('data-add'));
@@ -16444,10 +16779,8 @@ function mountSprecher(host){
     });
   }
   function laden(){
-    var q = sprecherQuelle();
     laedt = true; roster = null; paint();
-    sprecherRosterLaden(q).then(function(list){
-      if(q !== sprecherQuelle()) return;
+    mitRoster().then(function(list){
       roster = list; laedt = false;
       if(beamer.overlay && beamer.tab === 'ruhe' && host.isConnected) paint();
     }).catch(function(err){
@@ -16458,19 +16791,11 @@ function mountSprecher(host){
   }
 
   laden();
-  if(!sprecherState.gruppen){
-    loadMeineGruppen().then(function(list){
-      sprecherState.gruppen = list || [];
-      if(sprecherState.gruppen.length && beamer.overlay && beamer.tab === 'ruhe' && host.isConnected) paint();
-    }).catch(function(err){ console.error(err); sprecherState.gruppen = []; });
-  }
 }
 
 /* ---------- 🎲 Wer ist dran? ----------
    Gewichtete Ziehung: wer schon oft dran war, kommt seltener. Die Zählung
    liegt lokal (hl_-Präfix) und gehört zum Gerät der Lehrperson. */
-
-var dranNames = null;
 
 function dranCounts(){
   try{ return JSON.parse(lsGet(LIB_PREFIX+'dran_counts') || '{}') || {}; }catch(e){ return {}; }
@@ -16485,7 +16810,7 @@ function mountWerIstDran(stage){
     var counts = dranCounts();
     var html = '';
     html += '<div class="wd-wrap">';
-    html += '<div class="wd-name" id="wdName">Bereit</div>';
+    html += '<div class="wd-name" id="wdName">'+(names.length ? 'Bereit' : 'Niemand ausgewählt – oben «👥» antippen.')+'</div>';
     html += '<div class="wd-actions">';
     html += '<button class="btn btn-primary tm-big" id="wdDraw" type="button">🎲 Ziehen</button>';
     html += '<label class="wd-check"><input type="checkbox" id="wdFair"'+(fair?' checked':'')+'> Jede:r zuerst einmal</label>';
@@ -16556,10 +16881,8 @@ function mountWerIstDran(stage){
     paintList();
   }
 
-  if(dranNames){ build(gaesteOptional(dranNames)); return; }
-  loadStudentRoster().then(function(list){
-    dranNames = list;
-    if(beamer.tab === 'dran' && beamer.overlay) build(gaesteOptional(list));
+  mitRoster().then(function(list){
+    if(beamer.tab === 'dran' && beamer.overlay && stage.isConnected) build(list);
   }).catch(function(err){
     console.error(err);
     stage.innerHTML = '<div class="wd-wrap"><div class="wd-name">Klassenliste konnte nicht geladen werden.</div></div>';
@@ -16720,8 +17043,8 @@ function mountWuerfel(stage){
 }
 
 /* ---------- 🎡 Glücksrad ----------
-   Quelle ist entweder die Klasse (ohne die im Sitzplan als abwesend
-   markierten Kinder) oder eine eigene Liste (lokal, hl_rad_eigene).
+   Quelle sind entweder die Namen aus «👥 Wer macht mit?» (ohne die im Sitzplan
+   als abwesend markierten Kinder) oder eine eigene Liste (lokal, hl_rad_eigene).
    „Gezogene rausnehmen" nimmt den Treffer erst beim NÄCHSTEN Drehen vom Rad —
    so bleibt er stehen, solange er am Beamer besprochen wird. Was schon
    gezogen wurde, merkt sich nur die laufende Sitzung. */
@@ -16750,7 +17073,7 @@ function glueckAlle(){
     return glueckEigene().map(function(t, i){ return { key:'e'+i+'|'+t, label:t }; });
   }
   if(!glueck.klasse) return null;
-  var list = gaesteOptional(glueck.klasse).filter(function(s){ return !glueck.abwesend[s.uid]; });
+  var list = glueck.klasse.filter(function(s){ return !glueck.abwesend[s.uid]; });
   var vornamen = {};
   function voll(s){ return s.displayName || s.username || '?'; }
   list.forEach(function(s){ var f = voll(s).split(' ')[0]; vornamen[f] = (vornamen[f] || 0) + 1; });
@@ -16784,7 +17107,7 @@ function mountGlueck(stage){
   html += '<div class="gl-side">';
   html += '<div class="gl-result" id="glResult">&nbsp;</div>';
   html += '<button class="btn btn-primary tm-big" id="glSpin" type="button">🎡 Drehen</button>';
-  html += '<span class="wu-seg"><button class="wu-opt" data-q="klasse" type="button">👥 Klasse</button>';
+  html += '<span class="wu-seg"><button class="wu-opt" data-q="klasse" type="button">👥 Namen</button>';
   html += '<button class="wu-opt" data-q="eigene" type="button">✏️ Eigene Liste</button></span>';
   html += '<button class="btn btn-ghost btn-sm" id="glEdit" type="button" style="display:none">Liste bearbeiten</button>';
   html += '<label class="wd-check"><input type="checkbox" id="glWeg"'+(wegNehmen?' checked':'')+'> Gezogene rausnehmen</label>';
@@ -16868,7 +17191,7 @@ function mountGlueck(stage){
     var info = wheel.length + (wheel.length === 1 ? ' Eintrag' : ' Einträge') + ' auf dem Rad';
     if(gezogen) info += ' · ' + gezogen + ' schon gezogen';
     if(glueck.quelle === 'klasse'){
-      var ab = gaesteOptional(glueck.klasse).filter(function(s){ return glueck.abwesend[s.uid]; }).length;
+      var ab = glueck.klasse.filter(function(s){ return glueck.abwesend[s.uid]; }).length;
       if(ab) info += ' · ' + ab + ' abwesend (laut Sitzplan)';
     }
     infoEl.textContent = info;
@@ -16923,7 +17246,7 @@ function mountGlueck(stage){
 
   function ladeKlasse(){
     Promise.all([
-      klasseRosterLoad(),
+      mitRoster(),
       getDoc(kdoc('klassenzimmer', 'sitzplan')).catch(function(){ return null; })
     ]).then(function(r){
       glueck.klasse = r[0];
@@ -20574,6 +20897,10 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-10-08-faecher-ausblenden', datum:'2026-10-08', fuer:'alle', text:'🧩 Du kannst jetzt auch Fächer ausblenden, die du nicht brauchst: «✏️ Anordnen» antippen (oder lange auf eine Kachel drücken) und beim Fach auf «−». Unter den Kacheln steht dann «… ausgeblendet · anzeigen» – so holst du sie jederzeit zurück.'},
+  {id:'2026-10-08-wer-macht-mit', datum:'2026-10-08', fuer:'lehrer', text:'👥 Neu im 🏫 Klassenzimmer: «Wer macht mit?» (Knopf oben rechts in 🎲 Zufall, ⏱ Ruhephase und 👥 Gruppen & Partner). Mische ganze Klassen aus der ganzen Schule, deine 👥 Gruppen und einzelne Schüler:innen – z. B. die G2b und drei aus der E3a. Die Auswahl gilt für Glücksrad, Wer ist dran?, Gruppen & Partner und die Flüsterliste und ersetzt den Knopf «👭 Gäste».'},
+  {id:'2026-10-08-lernstand-ordner', datum:'2026-10-08', fuer:'lehrer', text:'📈 Die Lernstand-Übersicht ist neu nach Fach und Ordner geordnet, wie in der Fachansicht – mit Suchfeld. SIKORE, alle Übungstrainer, Karteikarten, Werkstatt, Lesereise, Voci und die Diktat-Auswertung stehen dort, wo die Übung liegt. Der Stand wird erst beim Aufklappen geladen, darum öffnet die Seite viel schneller.'},
+  {id:'2026-10-08-klassenwahl-schlank', datum:'2026-10-08', fuer:'lehrer', text:'🏫 Klasse wechseln: Zuoberst steht nur noch deine eigene Seite, darunter alle Klassen. «⭐ Meine Seiten» gibt es nicht mehr. ⚡ Die Energizer kommen ohne Fotos aus – die Liste ist kürzer und lädt schneller.'},
   {id:'2026-10-08-schneller', datum:'2026-10-08', fuer:'alle', text:'⚡ Die Library startet schneller: Sie öffnet sich sofort aus dem Speicher deines Geräts und holt Neues im Hintergrund. Gibt es eine neue Version, lädt sie von selbst neu – oder unten erscheint kurz «🔄 Neue Version», wenn du gerade etwas machst.'},
   {id:'2026-10-08-spiele-sus', datum:'2026-10-08', fuer:'alle', text:'🎲 Neue Spiele im Unterricht: 🎯 Schätzmeister (eine Zahl schätzen – wer am nächsten liegt, gewinnt), 🎱 Bingo (jedes Gerät hat eine eigene Karte) und 🔔 Buzzer (wer zuerst drückt, darf antworten). Startet deine Lehrperson ein Spiel, erscheint es von selbst auf deinem Gerät – sonst oben auf «… läuft — mitmachen» tippen.'},
   {id:'2026-10-08-spiele-rubrik', datum:'2026-10-08', fuer:'lehrer', text:'🎮 Im Klassenzimmer gibt es neu die Rubrik «Spiele» mit allen Spielen an einem Ort. Neu sind sechs Spiele: 📱 auf den Geräten der Klasse 🎯 Schätzmeister, 🎱 Bingo und 🔔 Buzzer; 📽️ nur am Beamer in Teams 🏆 Der grosse Preis, ⭕ Drei gewinnt (auch Vier gewinnt) und 🚢 Schiffe versenken. Klassen-Quiz, Wer wird Millionär, Stadt Land Fluss und die Energizer stehen jetzt auch dort.'},
@@ -24766,26 +25093,27 @@ function openGruppen(){
   if(gruppen.overlay) return;
   var html = '';
   html += '<div class="kz-bar"><div class="kz-bar-title">👥 Gruppen & Partner</div><div class="kz-bar-spacer"></div>';
-  html += gaesteToggleHtml('grGaeste');
+  html += mitKnopfHtml('grMit');
   html += '<button class="kz-close" id="grClose" type="button" title="Schliessen (Esc)">✕</button></div>';
   html += '<div class="kz-stage" id="grStage"><div class="qh-sub">Wird geladen …</div></div>';
   gruppen.overlay = openOverlay(html, function(){ gruppen.overlay = null; }, 'kz-overlay-beamer');
   gruppen.overlay.el.querySelector('#grClose').addEventListener('click', function(){ gruppen.overlay.close(); });
-  wireGaesteToggle(gruppen.overlay.el.querySelector('#grGaeste'), function(){
-    if(!gruppen.rosterAll) return;
-    gruppen.roster = gaesteOptional(gruppen.rosterAll);
-    gruppen.result = null;
-    paintGruppen();
+  mitKnopfVerdrahten(gruppen.overlay.el.querySelector('#grMit'), function(){
+    mitRoster().then(function(list){
+      if(!gruppen.overlay) return;
+      gruppen.roster = list;
+      gruppen.result = null;
+      paintGruppen();
+    }).catch(function(err){ console.error(err); toast('Namen konnten nicht geladen werden.'); });
   });
 
   Promise.all([
-    klasseRosterLoad(),
+    mitRoster(),
     getDoc(kdoc('klassenzimmer', 'sitzplan')),
     getDoc(kdoc('klassenzimmer', 'gruppen')).catch(function(){ return { exists:function(){ return false; } }; })
   ]).then(function(r){
     if(!gruppen.overlay) return;
-    gruppen.rosterAll = r[0];
-    gruppen.roster = gaesteOptional(r[0]);
+    gruppen.roster = r[0];
     var eig = r[2].exists() ? r[2].data() : {};
     gruppen.rollenListe = (eig.rollen && eig.rollen.length) ? eig.rollen.slice() : GRUPPEN_ROLLEN.slice();
     var sitz = r[1].exists() ? r[1].data() : {};
@@ -24805,7 +25133,10 @@ function gruppenAnwesend(){
 }
 function gruppenName(uid){
   var s = gruppen.roster.filter(function(x){ return x.uid === uid; })[0];
-  return s ? (s.displayName||'').split(' ')[0] : '?';
+  if(!s) return '?';
+  // Vorname; bei gleichen Vornamen (z. B. gemischte Klassen) der ganze Name samt Klasse.
+  var v = (s.displayName||'').split(' ')[0];
+  return gruppen.roster.filter(function(x){ return (x.displayName||'').split(' ')[0] === v; }).length > 1 ? s.displayName : v;
 }
 function gruppenGender(uid){
   var m = gruppen.meta[uid];
@@ -25055,7 +25386,7 @@ function paintGruppen(){
   h += '<div class="uf-meta">'+anwesend+' von '+gruppen.roster.length+' anwesend — zum Abwählen antippen</div>';
   h += '<div class="gr-kids">';
   gruppen.roster.forEach(function(s){
-    h += '<button class="gr-kid'+(gruppen.aus[s.uid] ? ' gr-kid-off' : '')+'" data-kid="'+esc(s.uid)+'" type="button">'+esc((s.displayName||'').split(' ')[0])+'</button>';
+    h += '<button class="gr-kid'+(gruppen.aus[s.uid] ? ' gr-kid-off' : '')+'" data-kid="'+esc(s.uid)+'" type="button">'+esc(gruppenName(s.uid))+'</button>';
   });
   h += '</div>';
   h += '<div class="back-row" style="margin:6px 0 0;justify-content:center;">';
@@ -25248,10 +25579,9 @@ function vgCsv(rows){
 
 /* ===================== ⚡ ENERGIZER (Klassenzimmer) =====================
    Katalog mit Aktivierungsspielen für zwischendurch. Antippen öffnet das Spiel
-   als Vollbild-Overlay am Beamer: Anleitung, Foto, Timer und – wo es passt –
+   als Vollbild-Overlay am Beamer: Anleitung, Timer und – wo es passt –
    ein eingebauter Spielhelfer (Stroop-Wörter, Atem-Kreis, Kim-Spiel …).
-   - Fotos: Wikimedia Commons, verkleinert unter assets/energizer/<foto>.webp,
-     Urheber und Lizenz stehen in EN_FOTOS und werden unter jedem Bild genannt.
+   - Ohne Fotos (seit 08.10.2026, Jans Wunsch: schlanker).
    - ⭐ Favoriten: progress/{uid}/einstellungen/energizer {favs:[ids]} (pro Lehrperson).
    - 🕓 Zuletzt gespielt + eigene Listen (Aussagen, Begriffe, Fragen) pro Klasse:
      klassen/{klasse}/klassenzimmer/energizer {gespielt:{id:ms}, listen:{id:text}}
@@ -25266,23 +25596,9 @@ var EN_KATS = {
   inhalt:   { icon:'📚', name:'Mit Unterrichtsinhalt', kurz:'Mit Inhalt', farbe:'#8A4FE0' }
 };
 
-var EN_FOTOS = {
-  laola:      { von:'Ben Sutherland', lizenz:'CC BY 2.0', seite:'https://commons.wikimedia.org/wiki/File:Mexican_wave_in_the_volleyball_crowd_(7725425892).jpg' },
-  hampelmann: { von:'Lance Cpl. Ryan M. Joyner, USMC', lizenz:'gemeinfrei', seite:'https://commons.wikimedia.org/wiki/File:Elementary_school_students_conduct_jumping_jacks_to_warm_up_USMC-120214-M-MA421-288.jpg' },
-  baum:       { von:'Kennguru', lizenz:'CC BY 3.0', seite:'https://commons.wikimedia.org/wiki/File:Vriksasana_Yoga-Asana_Nina-Mel.jpg' },
-  daumen:     { von:'Jeff from Overland Park', lizenz:'CC BY-SA 2.0', seite:'https://commons.wikimedia.org/wiki/File:Thumb_Wrestling.jpg' },
-  stuhl:      { von:'Artaxerxes', lizenz:'CC BY-SA 3.0', seite:'https://commons.wikimedia.org/wiki/File:Musical_chairs_Lawn_Jam_Our_Community_Place_Harrisonburg_VA_June_2008.jpg' },
-  klangschale:{ von:'Praewjarat', lizenz:'CC0', seite:'https://commons.wikimedia.org/wiki/File:Tibetan_bowl_14_cm.jpg' },
-  pantomime:  { von:'Otto-muell', lizenz:'CC BY-SA 3.0 DE', seite:'https://commons.wikimedia.org/wiki/File:Pablo_Zibes_Pantomime.jpg' },
-  papierball: { von:'Army1987', lizenz:'CC BY-SA 3.0', seite:'https://commons.wikimedia.org/wiki/File:Paperball.png' },
-  balance:    { von:'Uthya Arun', lizenz:'CC BY-SA 4.0', seite:'https://commons.wikimedia.org/wiki/File:Balance_on_one_leg.jpg' },
-  ssp:        { von:'Aka Hige', lizenz:'CC BY-SA 2.0', seite:'https://commons.wikimedia.org/wiki/File:Playing_janken_-_school_in_Japan.jpg' },
-  statue:     { von:'Anneli Salo', lizenz:'CC BY-SA 3.0', seite:'https://commons.wikimedia.org/wiki/File:Living_Statue_in_Dublin_DS17.jpg' }
-};
-
 /* Felder: id, kat, icon, titel, min:[von,bis] Minuten, platz:true = geht am
    Platz / false = braucht Platz oder Kreis, sozial, kurz, schritte[], tipp,
-   varianten[], foto, helfer:{typ,…}, timer (Sekunden, Vorgabe des Timers). */
+   varianten[], helfer:{typ,…}, timer (Sekunden, Vorgabe des Timers). */
 var ENERGIZER = [
   /* ---------- 🏃 Bewegung ---------- */
   { id:'hampelmann', kat:'bewegung', icon:'🤸', titel:'Fitness-Countdown 10 bis 1', min:[2,3], platz:true, sozial:'Klasse',
@@ -25290,7 +25606,6 @@ var ENERGIZER = [
     schritte:['Alle stehen neben ihrem Platz auf, Stühle unter den Tisch.', 'Die Klasse zählt laut mit – jede Übung eine Zahl weniger.', 'Der Helfer zeigt die nächste Übung an und gibt den Takt vor.', 'Bei 1: alle jubeln laut und setzen sich.'],
     tipp:'Ein:e Schüler:in darf vorturnen – das motiviert mehr als die Lehrperson.',
     varianten:['Rückwärts: von 1 bis 10 hochzählen.', 'Leise Version: alle Übungen ohne Hüpfen.'],
-    foto:'hampelmann',
     helfer:{ typ:'ablauf', vorlesen:true, schritte:[
       {t:'10 Hampelmänner', s:15}, {t:'9 Kniebeugen', s:15}, {t:'8× Arme vorwärts kreisen', s:10}, {t:'7× auf die Zehenspitzen', s:10},
       {t:'6× Knie zur Brust', s:10}, {t:'5× in die Luft boxen', s:8}, {t:'4× hoch hüpfen', s:6}, {t:'3× bis zur Decke strecken', s:8},
@@ -25306,7 +25621,7 @@ var ENERGIZER = [
     schritte:['Reihenfolge festlegen (z. B. von der Tür zum Fenster, Reihe für Reihe).', 'Wer dran ist, springt auf, reisst die Arme hoch und setzt sich wieder.', 'Runde 2: schneller. Runde 3: rückwärts. Runde 4: zwei Wellen gleichzeitig.', 'Für eine Stoppuhr-Runde: Timer starten und die Zeit schlagen.'],
     tipp:'Mit Geräusch wird es noch lustiger: jede:r ruft «Huii!» beim Aufstehen.',
     varianten:['Klatschwelle: statt aufstehen einmal klatschen.', 'Gegen die Zeit: Klassenrekord aufstellen.'],
-    foto:'laola', timer:30 },
+    timer:30 },
   { id:'simon', kat:'bewegung', icon:'🗣️', titel:'Simon sagt …', min:[2,4], platz:true, sozial:'Klasse',
     kurz:'Nur wenn der Befehl mit «Simon sagt» beginnt, wird er ausgeführt.',
     schritte:['Alle stehen auf.', 'Der Helfer (oder die Lehrperson) gibt Befehle.', 'Beginnt der Befehl mit «Simon sagt», machen alle mit – sonst bleiben alle still.', 'Wer sich irrt, macht 3 Hampelmänner und spielt dann weiter (niemand scheidet aus).'],
@@ -25322,19 +25637,16 @@ var ENERGIZER = [
     kurz:'Wem der Satz zutrifft, steht auf und sucht sich schnell einen neuen Platz.',
     schritte:['Stuhlkreis (oder: alle stehen an ihrem Platz).', 'Der Helfer zieht einen Satz: «Der Wind weht für alle, die …».', 'Wer sich angesprochen fühlt, steht auf und wechselt den Platz – nicht zum Nachbarplatz.', 'Im Stuhlkreis mit einem Stuhl weniger: wer keinen Platz findet, liest den nächsten Satz vor.'],
     tipp:'Auch gut zum Kennenlernen am Schuljahresanfang.',
-    foto:'stuhl',
     helfer:{ typ:'karten', liste:'windweht', sprechen:true } },
   { id:'statuen', kat:'bewegung', icon:'🗿', titel:'Statuen (Freeze)', min:[2,4], platz:false, sozial:'Klasse',
     kurz:'Alle bewegen sich – beim Signal erstarren alle zur Statue.',
     schritte:['Alle bewegen sich frei im Zimmer (gehen, tanzen, schleichen).', 'Beim Signal «FREEZE!» erstarren alle sofort.', 'Wer wackelt, wird zur Jury und hilft beim nächsten Durchgang mit, Wackler zu finden.', 'Danach geht es weiter, bis nur noch wenige übrig sind.'],
     tipp:'Mit Aufgabe: «Friert als Tier ein!» oder «… als Figur aus dem Geschichtsbuch!»',
-    foto:'statue',
     helfer:{ typ:'freeze' } },
   { id:'ssp', kat:'bewegung', icon:'✊', titel:'Schere-Stein-Papier-Fanclub', min:[3,4], platz:false, sozial:'Klasse',
     kurz:'Wer verliert, wird Fan des Gewinners und feuert ihn lautstark an.',
     schritte:['Alle suchen sich ein Gegenüber und spielen Schere-Stein-Papier (eine Runde).', 'Wer verliert, wird Fan: stellt sich hinter die Gewinnerin und ruft ihren Namen.', 'Gewinner:innen suchen sich neue Gegner:innen – die Fans ziehen mit.', 'Am Ende spielen zwei riesige Fanclubs das grosse Finale.'],
-    tipp:'Funktioniert auch in engen Zimmern – die Fanclubs bewegen sich einfach durch die Gänge.',
-    foto:'ssp' },
+    tipp:'Funktioniert auch in engen Zimmern – die Fanclubs bewegen sich einfach durch die Gänge.' },
   { id:'evolution', kat:'bewegung', icon:'🥚', titel:'Evolution: Ei – Huhn – Dino – Mensch', min:[3,4], platz:false, sozial:'Klasse',
     kurz:'Schere-Stein-Papier gegen Gleiche – wer gewinnt, steigt eine Stufe auf.',
     schritte:['Alle starten als 🥚 Ei: in die Hocke gehen.', 'Eier spielen nur gegen Eier Schere-Stein-Papier. Wer gewinnt, wird 🐔 Huhn (gackern, Flügel schlagen).', 'Hühner gegen Hühner → 🦖 Dino (brüllen), Dinos gegen Dinos → 🧍 Mensch (setzt sich hin).', 'Wer verliert, fällt eine Stufe zurück. Wer zuerst Mensch ist, gewinnt.'],
@@ -25343,18 +25655,16 @@ var ENERGIZER = [
     kurz:'Die Hände verhaken, die Daumen kämpfen: Wer drückt den anderen Daumen 3 Sekunden runter?',
     schritte:['Zu zweit die rechten Hände verhaken (Finger ineinander, Daumen oben).', 'Gemeinsam sagen: «1, 2, 3, 4 – ich erklär dir den Krieg!»', 'Wer den Daumen des anderen 3 Sekunden festhält, gewinnt.', 'Beste aus drei Runden – dann mit der linken Hand.'],
     tipp:'Gut am Platz mit dem Banknachbarn – ohne Aufstehen.',
-    foto:'daumen', timer:60 },
+    timer:60 },
   { id:'baum', kat:'bewegung', icon:'🌳', titel:'Baum im Wind', min:[1,2], platz:true, sozial:'Klasse',
     kurz:'Auf einem Bein stehen, Arme hoch – und dann mit geschlossenen Augen.',
     schritte:['Alle stehen auf und suchen einen Punkt an der Wand, den sie fixieren.', 'Einen Fuss an den anderen Unterschenkel legen, Hände über dem Kopf zusammen.', 'Der «Wind» kommt: Arme langsam hin und her bewegen.', 'Bein wechseln – und zum Schluss mit geschlossenen Augen.'],
     tipp:'Wer umkippt, steigt einfach wieder ein – es geht ums Konzentrieren, nicht ums Gewinnen.',
-    foto:'baum',
     helfer:{ typ:'ablauf', vorlesen:true, schritte:[ {t:'Rechtes Bein – Arme hoch', s:30}, {t:'Der Wind kommt: Arme hin und her', s:20}, {t:'Bein wechseln: linkes Bein', s:30}, {t:'Augen zu – wer hält noch?', s:20} ] } },
   { id:'balance', kat:'bewegung', icon:'🦩', titel:'Kranich rechnet', min:[2,3], platz:true, sozial:'Klasse',
     kurz:'Auf einem Bein stehen und dabei Kopfrechnungen lösen.',
     schritte:['Alle stehen auf einem Bein.', 'Eine Rechnung erscheint – wer die Lösung weiss, streckt die Arme seitlich aus.', 'Die Lehrperson nimmt jemanden dran. Wer den Boden berührt, rechnet mit beiden Füssen am Boden weiter.', 'Nach jeder Rechnung: Bein wechseln.'],
     tipp:'Gleichgewicht und Denken gleichzeitig weckt das Gehirn besonders gut.',
-    foto:'balance',
     helfer:{ typ:'karten', gen:'einmaleins', loesung:true } },
   { id:'aufstellen', kat:'bewegung', icon:'📏', titel:'Aufstellen ohne Worte', min:[3,5], platz:false, sozial:'Klasse',
     kurz:'Die Klasse stellt sich in eine Reihe – ohne zu sprechen, nur mit Zeichen.',
@@ -25517,7 +25827,6 @@ var ENERGIZER = [
     kurz:'Ein Klang schwingt langsam aus – Hand hoch, sobald man nichts mehr hört.',
     schritte:['Alle schliessen die Augen und werden ganz ruhig.', 'Der Ton wird angeschlagen und klingt langsam aus.', 'Wer nichts mehr hört, hebt still die Hand.', 'Wenn alle Hände oben sind: Augen auf – jetzt ist die Klasse bereit.'],
     tipp:'Mit echter Klangschale noch schöner – der Helfer funktioniert aber auch am Beamer-Lautsprecher.',
-    foto:'klangschale',
     helfer:{ typ:'ton' } },
   { id:'sinne', kat:'ruhe', icon:'🖐️', titel:'5-4-3-2-1 Sinne', min:[2,3], platz:true, sozial:'Klasse',
     kurz:'5 Dinge sehen, 4 hören, 3 spüren, 2 riechen, 1 guter Gedanke.',
@@ -25570,13 +25879,12 @@ var ENERGIZER = [
     kurz:'Fachbegriffe ohne Worte vorspielen – die Klasse rät.',
     schritte:['Eine Person kommt nach vorne und schaut sich den Begriff an (Klasse schaut weg oder Text verdecken).', 'Sie spielt den Begriff ohne Worte und ohne Geräusche vor.', 'Wer es errät, darf als Nächstes spielen.', 'Pro Begriff höchstens 1 Minute.'],
     tipp:'Auch zu zweit möglich: zwei Personen spielen gemeinsam einen schwierigen Begriff.',
-    foto:'pantomime',
     helfer:{ typ:'eigene', format:'begriffe', verdeckbar:true }, timer:60 },
   { id:'begriffeball', kat:'inhalt', icon:'🏐', titel:'Begriffe-Ball', min:[2,4], platz:true, sozial:'Klasse',
     kurz:'Ein Papierball fliegt durchs Zimmer – wer fängt, nennt einen Begriff zum Thema.',
     schritte:['Ein Blatt Papier zu einem Ball knüllen.', 'Die Lehrperson nennt ein Thema und wirft den Ball.', 'Wer fängt, nennt einen Begriff zum Thema und wirft weiter. Kein Begriff zweimal!', 'Wem nichts mehr einfällt, darf einmal «Joker» sagen.'],
     tipp:'Varianten: Gegenteil nennen, Übersetzung nennen, Rechnung stellen und weiterwerfen.',
-    foto:'papierball', timer:120 },
+    timer:120 },
   { id:'abcsprint', kat:'inhalt', icon:'🔠', titel:'ABC-Sprint zum Thema', min:[3,4], platz:true, sozial:'Gruppen',
     kurz:'In 3 Minuten zu möglichst vielen Buchstaben einen Begriff zum Thema finden.',
     schritte:['Gruppen à 3–4, jede Gruppe schreibt A bis Z untereinander.', 'Thema nennen, Timer starten.', 'Zu möglichst vielen Buchstaben einen passenden Begriff finden.', 'Auswerten: Begriffe, die keine andere Gruppe hat, geben 2 Punkte.'],
@@ -25890,7 +26198,6 @@ function renderEnergizer(){
   html += '</span>';
   html += '</div>';
   html += '<div id="enListe" class="en-grid"></div>';
-  html += '<p class="kz-intro en-quellen">Fotos: Wikimedia Commons (Urheber und Lizenz stehen beim jeweiligen Spiel).</p>';
   renderChrome(html);
 
   document.getElementById('backBtn').addEventListener('click', function(){ state.route = {name:'klassenzimmer'}; render(); });
@@ -25928,12 +26235,10 @@ function renderEnergizer(){
 function enKarteHtml(s){
   var k = EN_KATS[s.kat], fav = enIstFav(s.id), zu = enZuletzt(enGespieltAm(s.id));
   var h = '<div class="en-card" role="button" tabindex="0" data-en="'+enAttr(s.id)+'" style="--en-c:'+k.farbe+'">';
-  if(s.foto) h += '<div class="en-card-img"><img src="assets/energizer/'+s.foto+'.webp" alt="" loading="lazy"></div>';
-  else h += '<div class="en-card-img en-card-icon"><span>'+esc(s.icon)+'</span></div>';
   h += '<button class="en-star'+(fav?' en-star-on':'')+'" data-enfav="'+enAttr(s.id)+'" type="button" aria-pressed="'+fav+'" title="'+(fav?'Favorit entfernen':'Als Favorit merken')+'">'+(fav?'★':'☆')+'</button>';
   h += '<div class="en-card-body">';
   h += '<div class="en-card-kat">'+k.icon+' '+esc(k.name)+(s.eigen ? ' · 🧩 eigenes' : '')+'</div>';
-  h += '<h3>'+(s.foto ? esc(s.icon)+' ' : '')+esc(s.titel)+'</h3>';
+  h += '<h3>'+esc(s.icon)+' '+esc(s.titel)+'</h3>';
   h += '<p>'+esc(s.kurz)+'</p>';
   h += '<div class="en-meta"><span>⏱ '+enDauer(s)+'</span><span>'+(s.platz ? '🪑 am Platz' : '🚶 braucht Platz')+'</span><span>👥 '+esc(s.sozial)+'</span>'+(s.helfer ? '<span>🛠 Helfer</span>' : '')+'</div>';
   if(zu) h += '<div class="en-zuletzt">🕓 '+esc(zu)+'</div>';
@@ -26067,7 +26372,7 @@ function enZeigen(s){
   enAufraeumen();
   en.aktuell = s;
   enOvFavZeigen();
-  var k = EN_KATS[s.kat], foto = s.foto ? EN_FOTOS[s.foto] : null;
+  var k = EN_KATS[s.kat];
   var h = '<div class="en-view" style="--en-c:'+k.farbe+'">';
   h += '<div class="en-info">';
   h += '<div class="en-kat">'+k.icon+' '+esc(k.name)+'</div>';
@@ -26077,12 +26382,8 @@ function enZeigen(s){
   if(zu) h += '<span>🕓 '+esc(zu)+'</span>';
   h += '</div>';
   if(s.kurz) h += '<p class="en-kurz">'+esc(s.kurz)+'</p>';
-  h += '<div class="en-info-body'+(foto ? ' en-mit-foto' : '')+'">';
+  h += '<div class="en-info-body">';
   h += '<ol class="en-schritte">'+s.schritte.map(function(z){ return '<li>'+esc(z)+'</li>'; }).join('')+'</ol>';
-  if(foto){
-    h += '<figure class="en-foto"><img src="assets/energizer/'+s.foto+'.webp" alt="'+enAttr(s.titel)+'">';
-    h += '<figcaption>Foto: '+esc(foto.von)+' · '+esc(foto.lizenz)+' · <a href="'+enAttr(foto.seite)+'" target="_blank" rel="noopener">Wikimedia Commons</a></figcaption></figure>';
-  }
   h += '</div>';
   if(s.tipp) h += '<div class="en-tipp">💡 '+esc(s.tipp)+'</div>';
   if(s.varianten && s.varianten.length) h += '<details class="en-var"><summary>🔀 Varianten</summary><ul>'+s.varianten.map(function(v){ return '<li>'+esc(v)+'</li>'; }).join('')+'</ul></details>';
@@ -27080,7 +27381,7 @@ var KZ_TILES = [
   { id:'beamer',  bereich:'beamer', icon:'⏱',  name:'Ruhephase',           desc:'Countdown, Lärmampel und wer gerade sprechen darf — in einem Bild.' },
   { id:'zufall',  bereich:'beamer', icon:'🎲', name:'Zufall',              desc:'Wer ist dran? (fair — wer oft dran war, kommt seltener), Würfel und Glücksrad.' },
   { id:'slf',     bereich:'spiele', icon:'🌍', name:'Stadt Land Fluss',    desc:'📽️ Buchstaben-Drehscheibe, Kategorien und Sanduhr (1–3 Min.) mit STOPP-Knopf.' },
-  { id:'energizer', bereich:'spiele', icon:'⚡', name:'Energizer',          desc:'📽️ Über 60 Aktivierungsspiele mit Fotos, Timer und Spielhelfern – Bewegung, Kopf, Ruhe und mit Unterrichtsinhalt.' },
+  { id:'energizer', bereich:'spiele', icon:'⚡', name:'Energizer',          desc:'📽️ Über 60 Aktivierungsspiele mit Timer und Spielhelfern – Bewegung, Kopf, Ruhe und mit Unterrichtsinhalt.' },
   { id:'gruppen', bereich:'beamer', icon:'👥', name:'Gruppen & Partner',    desc:'Paare und Gruppen ziehen, ohne dass immer dieselben zusammenkommen.' },
   { id:'material', bereich:'material', icon:'🗃️', name:'Unterrichtsmaterial', desc:'Quizze, Karteikarten, Wortwolken und Blitzumfragen – nach Fach und Ordner abgelegt, auch im Fach verlinkt.' },
   { id:'karten',  bereich:'material', icon:'🗂️', name:'Karteikarten',         desc:'Kartensets pro Fach anlegen — die Klasse übt sie mit fünf Leitner-Boxen.' },
@@ -32068,7 +32369,7 @@ function pruefKlasseWahlHtml(){
     return x + '</optgroup>';
   }
   function art(a){ return KLASSEN.filter(function(k){ return k.art === a; }); }
-  h += teil('⭐ Meine Seiten', meineSeiten());
+  h += teil('🏠 Deine Seite', eigeneSeite());
   h += teil('Alle Klassen', art('klasse'));
   h += teil('🎓 FLP & ISF', art('flp').concat(art('isf')));
   h += teil('🧑‍🎓 Praktikant:innen', art('praktikum'));
@@ -40849,7 +41150,8 @@ function neueVersionDa(){
    Gespeichert pro Person in progress/{uid}/einstellungen/layout
      {ordnung:{kacheln:[fachId...], leiste:[buttonId...]}, aus:['kacheln:mathe','leiste:neuBtn','start:stpJetzt'], updatedAt}
    immer als ganzes Dokument (setDoc ohne merge, sonst bleiben entfernte Einträge stehen).
-   Fach-Kacheln ausblenden dürfen nur Lehrpersonen — Schüler:innen sehen immer alle Fächer.
+   Fach-Kacheln ausblenden dürfen alle (seit 08.10.2026 auch Schüler:innen); unter den Kacheln
+   steht dann «N Fächer ausgeblendet · anzeigen», damit niemand ein Fach verliert.
    Zusätzlich eine Kopie im localStorage (Key ohne hl_-Präfix), damit die
    Anordnung schon beim Start ohne Warten auf Firestore stimmt. */
 
@@ -40881,12 +41183,10 @@ function layoutRef(){ return doc(db, 'progress', state.user.uid, 'einstellungen'
 // ganze Klasse (klassen/{k}/appMeta/schulden), nicht nur ein persönliches Ausblenden.
 function layoutIstAus(key){
   if(key === 'leiste:coinBtn') return !schulden.an;
-  if(key.indexOf('kacheln:') === 0 && !layoutIstLehrer() && !(key === 'kacheln:sva' && svaDarfAus())) return false;
   return (layout.aus || []).indexOf(key) >= 0;
 }
 function layoutAusAnzahl(){
-  var lehrer = layoutIstLehrer();
-  return (layout.aus || []).filter(function(k){ return lehrer || k.indexOf('kacheln:') !== 0; }).length;
+  return (layout.aus || []).length;
 }
 function layoutAusCache(){
   if(!state.user || layoutUid === state.user.uid) return;
@@ -40963,21 +41263,16 @@ function kachelnReihenfolge(isTeacher){
 }
 function kachelnSichtbar(isTeacher){
   return kachelnReihenfolge(isTeacher).map(subjectById).filter(function(s){
-    return s && !((isTeacher || (s.id === 'sva' && svaDarfAus())) && layoutIstAus('kacheln:'+s.id));
+    return s && !layoutIstAus('kacheln:'+s.id);
   });
 }
 function initKachelSort(){
   var grid = document.getElementById('subjectGrid');
   if(!grid) return;
   grid.setAttribute('data-sortgruppe', 'kacheln');
-  if(layoutIstLehrer()){
-    Array.prototype.forEach.call(grid.querySelectorAll('[data-sort]'), function(el){
-      el.setAttribute('data-ausblendbar', 'kacheln:'+el.getAttribute('data-sort'));
-    });
-  } else if(svaDarfAus()){
-    var svaEl = grid.querySelector('[data-sort="sva"]');
-    if(svaEl) svaEl.setAttribute('data-ausblendbar', 'kacheln:sva');
-  }
+  Array.prototype.forEach.call(grid.querySelectorAll('[data-sort]'), function(el){
+    el.setAttribute('data-ausblendbar', 'kacheln:'+el.getAttribute('data-sort'));
+  });
   wackelMarken();
 }
 
@@ -41177,11 +41472,11 @@ function paintWidgetDrawer(){
       var t = KZ_TILES.find(function(x){ return x.id === id; }), key = 'kz:'+id;
       return {aus:layoutIstAus(key), html:zeile(key, t.icon+' '+t.name)};
     }));
-    h += abschnitt('Fächer', kachelnReihenfolge(true).map(subjectById).filter(Boolean).map(function(s){
-      var key = 'kacheln:'+s.id;
-      return {aus:layoutIstAus(key), html:zeile(key, s.name, '<span class="wd-img" style="background:'+s.soft+'">'+s.icon+'</span>')};
-    }));
   }
+  h += abschnitt('Fächer', kachelnReihenfolge(lehrer).map(subjectById).filter(Boolean).map(function(s){
+    var key = 'kacheln:'+s.id;
+    return {aus:layoutIstAus(key), html:zeile(key, s.name, '<span class="wd-img" style="background:'+s.soft+'">'+s.icon+'</span>')};
+  }));
   h += '<div class="wd-foot"><button class="btn btn-ghost btn-sm" type="button" id="wdAnordnen">✏️ Anordnen</button>'+
        '<button class="btn btn-ghost btn-sm" type="button" id="wdReset">↺ Standard</button></div>';
   box.innerHTML = h;
