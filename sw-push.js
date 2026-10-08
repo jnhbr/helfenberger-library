@@ -9,12 +9,20 @@
 //      Firestore-Verkehr bewusst NICHT an.
 //
 // Beim Ändern dieser Datei CACHE hochzählen, sonst behalten bereits
-// installierte Geräte ihre alte Dateiliste.
+// installierte Geräte ihre alte Dateiliste. Der Name steht auch in index.html
+// (NEU_CACHE) — beide gleich halten.
+//
+// Ladezeit (seit 08.10.2026): Die App-Hülle index.html (über 2,5 MB) kommt
+// SOFORT aus dem Cache und wird im Hintergrund neu geholt. Ist die geholte
+// Fassung eine andere, erfährt die Seite das (postMessage + Eintrag
+// «hl-version» im Cache) und lädt sich neu, solange noch niemand etwas getan
+// hat — sonst erscheint ein kleiner Hinweis «Neue Version». Vorher wartete
+// jeder Start auf den ganzen Download.
 
-var CACHE = 'hl-app-v1';
+var CACHE = 'hl-app-v2';
+var SHELL = 'index.html';
 
 var PRECACHE = [
-  './',
   'index.html',
   'manifest.json',
   'assets/logo.png',
@@ -61,7 +69,37 @@ function networkFirst(request){
     return res;
   }).catch(function(){
     return caches.match(request).then(function(hit){
-      return hit || caches.match('index.html') || caches.match('./');
+      return hit || caches.match(SHELL);
+    });
+  });
+}
+
+// Woran eine neue Fassung erkannt wird (GitHub Pages liefert einen ETag).
+function stempel(res){
+  return res.headers.get('etag') || res.headers.get('last-modified') || res.headers.get('content-length') || '';
+}
+function meldeNeu(neu){
+  return caches.open(CACHE).then(function(c){
+    return c.put('hl-version', new Response(JSON.stringify({ stempel: neu, at: Date.now() }), { headers: { 'content-type': 'application/json' } }));
+  }).then(function(){
+    return self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+  }).then(function(list){
+    list.forEach(function(c){ c.postMessage({ hlNeueVersion: true, stempel: neu }); });
+  }).catch(function(){});
+}
+// App-Hülle: aus dem Cache antworten und im Hintergrund auffrischen.
+function shellAusCache(event){
+  return caches.open(CACHE).then(function(cache){
+    return cache.match(SHELL).then(function(hit){
+      var netz = fetch(SHELL, { cache: 'no-cache' }).then(function(res){
+        if(!res || !res.ok || res.redirected) return res;
+        var neu = stempel(res), alt = hit ? stempel(hit) : '';
+        return cache.put(SHELL, res.clone()).then(function(){
+          if(hit && neu && neu !== alt) return meldeNeu(neu);
+        }).then(function(){ return res; });
+      });
+      if(hit){ event.waitUntil(netz.catch(function(){})); return hit; }
+      return netz;
     });
   });
 }
@@ -97,9 +135,16 @@ self.addEventListener('fetch', function(event){
 
   var sameOrigin = url.origin === self.location.origin;
 
-  // Die Seite selbst immer zuerst aus dem Netz holen, damit eine neue Version
-  // sofort ankommt — und nur bei fehlendem Netz aus dem Cache.
-  if(req.mode === 'navigate' || (sameOrigin && /\/(index\.html)?$/.test(url.pathname))){
+  // Die App-Hülle (Startadresse bzw. index.html im eigenen Ordner): sofort aus
+  // dem Cache, im Hintergrund auffrischen — siehe oben.
+  var basis = new URL(self.registration.scope).pathname;
+  if(sameOrigin && (url.pathname === basis || url.pathname === basis + SHELL)){
+    event.respondWith(shellAusCache(event));
+    return;
+  }
+  // Andere Seiten (Anleitung, SVA-Werkstatt …) zuerst aus dem Netz, nur ohne
+  // Netz aus dem Cache.
+  if(req.mode === 'navigate'){
     event.respondWith(networkFirst(req));
     return;
   }

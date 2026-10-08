@@ -255,3 +255,17 @@ sich, nur gleiche Dateinamen werden ersetzt) und – wo der Dienst läuft – ei
 Ablage: `<Vorname>_<Originalname>`, frühere Fassungen derselben Person in `_Backup/` mit Zeitstempel,
 `_Backup/briefkasten-stand.json` merkt sich, wer welche Dateien hat. Beide Wege teilen diese Logik – bei Änderungen
 `bkLeerenLauf` (index.html) und `ablegen` (briefkasten-abholen.js) gleich halten.
+
+## Prüfungen vor dem Live-Schalten
+
+Bei jedem Push auf die Testseite läuft `.github/workflows/pruefen.yml` mit vier Prüfungen:
+
+- **Leitplanken** – `node admin/check-leitplanken.js .` (Syntax, keine nativen Dialoge, delete-Regeln separat …)
+- **Smoke-Test** – `admin/smoke-test.js`: die Seite lädt in Chromium, die Login-Maske erscheint.
+- **Regeln** – `admin/rules-test/`: `firestore.rules` im Emulator.
+- **Login-Test** – `admin/login-test/`: die echte Seite mit dem echten Firebase-SDK und echter Anmeldung gegen die
+  Emulatoren (Weiche `?emu=1`, nur auf localhost, Projekt `demo-library`). Ein Lehrergerät und drei Schülergeräte
+  spielen Schätzmeister, Buzzer, Bingo, Millionär und das Klassen-Quiz in Teams je einmal durch. Braucht Java 21;
+  lokal: `cd admin/login-test && npm install && npx playwright install chromium && npm test`.
+
+Keine dieser Prüfungen berührt die echte Datenbank.

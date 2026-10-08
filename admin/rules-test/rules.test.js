@@ -444,3 +444,24 @@ test('SVA privat: die Person liest nur das eigene Dokument, die Klasse nichts', 
   await assertSucceeds(getDocs(collection(db.lp(), 'klassen/G3b/svaPrivat')));
   await assertSucceeds(getDoc(doc(db.leitung(), SVP + 'andere')));
 });
+
+// ---------- 🎲 Live-Spiele: Schätzmeister, Bingo, Buzzer (quizSessions/spiel) ----------
+test('Live-Spiel: nur die Lehrperson schreibt und löscht die Session, die Klasse liest sie', async () => {
+  await assertSucceeds(setDoc(doc(db.jan(), 'klassen/G3b/quizSessions/spiel'), { aktiv: true, art: 'buzzer', spielId: 'x', phase: 'lobby', runde: 0 }));
+  await assertSucceeds(getDoc(doc(db.sus(), 'klassen/G3b/quizSessions/spiel')));
+  await assertFails(updateDoc(doc(db.sus(), 'klassen/G3b/quizSessions/spiel'), { phase: 'ende' }));
+  await assertFails(getDoc(doc(db.susA(), 'klassen/G3b/quizSessions/spiel')));
+  await assertSucceeds(deleteDoc(doc(db.jan(), 'klassen/G3b/quizSessions/spiel')));
+});
+test('Live-Spiel: eigene Antwort schreiben und lesen, fremde nicht; die Lehrperson liest und löscht alle', async () => {
+  await seed('klassen/G3b/quizSessions/spiel', { aktiv: true, art: 'schaetz', spielId: 'x', phase: 'frage', runde: 1 });
+  await assertSucceeds(setDoc(doc(db.sus(), 'klassen/G3b/quizSessions/spiel/antworten/sus'), { spiel: 'x', runde: 1, wert: 42, name: 'S' }));
+  await assertSucceeds(getDoc(doc(db.sus(), 'klassen/G3b/quizSessions/spiel/antworten/sus')));
+  await assertFails(setDoc(doc(db.sus(), 'klassen/G3b/quizSessions/spiel/antworten/anderes'), { spiel: 'x', runde: 1, wert: 1 }));
+  await seed('klassen/G3b/quizSessions/spiel/antworten/anderes', { spiel: 'x', runde: 1, wert: 7 });
+  await assertFails(getDoc(doc(db.sus(), 'klassen/G3b/quizSessions/spiel/antworten/anderes')));
+  await assertFails(getDocs(collection(db.sus(), 'klassen/G3b/quizSessions/spiel/antworten')));
+  await assertFails(setDoc(doc(db.susA(), 'klassen/G3b/quizSessions/spiel/antworten/susA'), { spiel: 'x', runde: 1, wert: 1 }));
+  await assertSucceeds(getDocs(collection(db.jan(), 'klassen/G3b/quizSessions/spiel/antworten')));
+  await assertSucceeds(deleteDoc(doc(db.jan(), 'klassen/G3b/quizSessions/spiel/antworten/sus')));
+});
