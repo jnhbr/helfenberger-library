@@ -35,9 +35,9 @@ var PRECACHE = [
 // Fremde Hosts, von denen gecacht werden darf. Alles andere (vor allem
 // firestore.googleapis.com und die Auth-Endpunkte) läuft unangetastet durch —
 // ein zwischengespeicherter Firestore-Aufruf wäre schlicht falsch.
+// Schriften und Bibliotheken liegen seit 08.10.2026 im eigenen Ordner
+// (assets/vendor/), fremd bleibt nur das Firebase-SDK.
 var CACHEABLE_HOSTS = [
-  'fonts.googleapis.com',
-  'fonts.gstatic.com',
   'www.gstatic.com'
 ];
 

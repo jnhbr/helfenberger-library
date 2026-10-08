@@ -1,26 +1,71 @@
-# Helfenberger's Library — Setup-Anleitung
+# Helfenberger's Library
 
-Eine echte, mehrbenutzerfähige Website (GitHub Pages + Firebase) für deine Übungsseiten.
-Anders als die frühere Claude-Artifact-Version speichert diese Version den Fortschritt
-jedes Schülers/jeder Schülerin in der Cloud (Firestore) und aktualisiert neue Übungen
-in Echtzeit auf allen Geräten — genau wie du es dir gewünscht hast.
+Lernplattform der Sekundarschule Altnau: Übungen, Trainer, Kalender, Stundenplan, Online-Prüfungen,
+Datei-Abgabe und Werkzeuge für den Unterricht. Läuft im Browser auf Laptop, iPad und Handy.
 
-**Wichtig, bevor du beginnst:** Ich (Claude) kann diese Schritte nicht für dich ausführen —
-mir fehlt in dieser Sitzung der Zugriff auf GitHub/Firebase. Alles unten ist aber
-vollständig vorbereitet: du musst nur noch Konten anlegen, Werte eintragen und
-Dateien hochladen. Rechne mit ca. 20–30 Minuten für die Ersteinrichtung.
+- **Live:** https://jnhbr.github.io/helfenberger-library/
+- **Anleitung für Lehrpersonen:** [`hilfe.html`](hilfe.html) (in der App unter ⚙️ Einstellungen → ❓ Hilfe)
+- **Stand:** alle 14 Klassen der Schule, dazu eigene Seiten für Fachlehrpersonen, ISF, Praktikum und Zivi
 
-**Kein Kreditkarte nötig:** Diese Version verzichtet bewusst auf Firebase Storage (Cloud Storage
-verlangt seit 2024 den kostenpflichtigen „Blaze"-Tarif inkl. hinterlegter Zahlungsmethode, auch
-wenn die Nutzung selbst meist gratis bleibt). Stattdessen werden hochgeladene Übungsseiten als Text
-in Firestore gespeichert — und Firestore läuft im kostenlosen „Spark"-Tarif **ganz ohne Kreditkarte**.
+Diese Datei beschreibt Aufbau und Betrieb. Sie ersetzt die Einrichtungs-Anleitung aus der Anfangszeit
+(eine Klasse, Gratis-Tarif, Passwort aus dem Namen abgeleitet) – davon gilt nichts mehr.
 
-Da ein einzelnes Firestore-Dokument auf ca. 1 MB begrenzt ist, teilt die Seite eine grössere
-Übungsdatei beim Hochladen automatisch in mehrere ~900-KB-Teile auf und setzt sie beim Öffnen wieder
-zusammen (bis zu 8 MB pro Übung insgesamt) — das passiert automatisch im Hintergrund, du musst dich
-darum nicht kümmern. Das reicht auch, falls du später einmal Bilder in eine Übung einbauen willst
-(als eingebettetes Base64-Bild; ein „normales" Foto ist damit zwar meist zu gross, ein Icon, ein
-Diagramm oder ein leicht komprimiertes Bild aber kein Problem).
+## Aufbau
+
+| Teil | Lösung |
+|---|---|
+| Seite | Eine Datei `index.html` ohne Build-Schritt, ausgeliefert über GitHub Pages |
+| Anmeldung | Firebase Authentication (E-Mail/Passwort, interne Adressen) |
+| Daten | Cloud Firestore, Region `eur3`, Tarif Blaze (bezahlt pro Zugriff, kein Tageslimit) |
+| Dateien | Kein Cloud Storage: Übungsseiten, PDFs und Briefkasten-Abgaben liegen gestückelt in Firestore (rund 900 KB pro Dokument, höchstens 8 MB pro Übung, 4 MB pro PDF) |
+| Erinnerungen | Web Push mit eigenem Schlüssel, verschickt von einer GitHub Action (`admin/send-reminders.js`) |
+| Schriften, Bibliotheken | Selbst gehostet in `assets/vendor/` (Liste und Lizenzen in `assets/vendor/LIZENZEN.txt`). Von fremden Servern kommt nur das Firebase-SDK; Google Translate wird nur angefragt, wenn jemand den Fremdsprachen-Modus einschaltet |
+| Offline | Service Worker `sw-push.js` (App-Hülle aus dem Cache) und der Offline-Cache von Firestore |
+
+```
+index.html          die ganze App
+hilfe.html          Anleitung für Lehrpersonen (statisch)
+sva/                statische Seiten zur Abschlussarbeit (Dossier-Werkstatt, Mein Projekt)
+seb/                Konfiguration für den Safe Exam Browser
+assets/             Bilder, Logo, assets/vendor/ (Bibliotheken und Schriften)
+firestore.rules     Zugriffsregeln der Datenbank
+sw-push.js          Service Worker (Offline-Start, Push)
+admin/              Skripte für den Betrieb und die Tests (laufen lokal oder als GitHub Action)
+```
+
+## Konten und Rollen
+
+- **Schüler:innen** melden sich mit Vorname oder Schul-Kürzel und ihrem persönlichen Passwort an. Sie sehen nur
+  ihre Klasse und die Gruppen, in denen sie Mitglied sind.
+- **Lehrpersonen** melden sich mit dem Nachnamen an. Sie haben eine eigene Seite (Klasse, FLP oder ISF) und
+  können in alle Seiten wechseln; vor Änderungen in einer fremden Seite fragt die App nach.
+- **Schulleitung** liest alles, was Lehrpersonen lesen, schreibt aber nirgends.
+- **Praktikum und Zivi** sind Konten für den Unterricht: Übungen, Material, Kalender, Stundenplan und
+  Klassenzimmer-Werkzeuge. Die Auswertung ist gesperrt (Lernstand, Online-Prüfungen und Noten, Earlybird,
+  Vergessen-Zähler, Schulden, Prüfungskorrekturen, Passwörter zurücksetzen).
+
+Die Rechte hängen an Custom Claims (`klasse`, `teacher`, `leitung`), die nur die Admin-Skripte setzen können, und
+werden in `firestore.rules` durchgesetzt – nicht im Browser. Konten und Passwörter legt `admin/schule-konten.js` aus
+einer Excel-Liste an; **Passwortlisten und der Service-Account-Schlüssel gehören nie ins Repo** (`.gitignore`).
+Passwörter ändert jede Person selbst unter ⚙️ Einstellungen; vergessene Passwörter von Schüler:innen setzt eine
+Lehrperson über eine Anfrage zurück (`admin/passwort-reset.js`).
+
+`firebaseConfig` in `index.html` ist kein Geheimnis. Die Absicherung läuft über die Anmeldung und die Regeln.
+
+## Datenschutz und Sicherheit
+
+- Klassen sind getrennt, private Noten liest nur die Person selbst, den Inhalt eines Briefkastens nur die
+  Lehrperson, die ihn aufgestellt hat. Die Regeln haben Emulator-Tests (`admin/rules-test/`).
+- Tägliche Sicherung der Datenbank (7 Tage), minutengenaue Wiederherstellung (7 Tage), Löschschutz und ein
+  wöchentliches verschlüsseltes Backup als GitHub-Artefakt (90 Tage).
+- Abgeholte Briefkasten-Dateien werden nach 30 Tagen gelöscht.
+- Offen ist die formelle Seite nach den Vorgaben des Kantons Thurgau (Trägerschaft durch die Schulgemeinde,
+  Vereinbarung mit dem Anbieter, Löschfristen pro Schuljahr). Das wird mit Schulleitung und Datenschutzbeauftragtem geklärt.
+
+## Kosten
+
+Firebase-Tarif Blaze: abgerechnet wird pro Lese- und Schreibzugriff und pro gespeichertem Gigabyte. Für die ganze
+Schule sind das einige Franken pro Monat. GitHub Pages und die GitHub Actions kosten nichts.
 
 ## Testseite & nächtliche Freigabe
 
@@ -39,124 +84,44 @@ nur wenn sich etwas geändert hat und die Syntaxprüfung besteht. Läuft komplet
 - `manifest.json` und `assets/icon-*.png` sind im Test-Repo absichtlich anders (Name „Library Test", Icon mit ⚙️) und werden nie live kopiert. Icon-/Manifest-Änderungen für die Live-Seite also direkt im Live-Repo machen.
 - Direkte Pushes aufs Live-Repo werden in der nächsten Nacht vom Stand der Testseite überschrieben (ausser `.github/`).
 
----
+## Regeln der Datenbank publizieren
 
-## Was du bekommst
-
-```
-helfenberger-library-firebase/
-├── index.html              → die ganze Website (1 Datei, kein Build-Schritt nötig)
-├── assets/logo.png         → Sek-Altnau-Logo
-├── firestore.rules         → Zugriffsregeln für die Datenbank
-├── admin/
-│   ├── create-accounts.js  → Skript zum Anlegen der 15 Logins
-│   └── package.json
-└── README.md                → diese Anleitung
+```bash
+firebase deploy --only firestore:rules --dry-run   # prüft nur, ob sie kompilieren
+firebase deploy --only firestore:rules
 ```
 
-## Wie es funktioniert
+Vorher prüfen, dass die lokale `firestore.rules` dem Stand im Repo entspricht. Regeln gelten sofort für Test- und
+Live-Seite.
 
-- **Login:** Jede Person tippt nur ihren Namen ein (z. B. „jan"). Im Hintergrund wird daraus
-  automatisch ein Firebase-Account (`jan@helfenberger-library.app`, Passwort `jan2024`) erstellt
-  bzw. beim Einloggen benutzt — die Schüler:innen sehen davon nichts.
-- **9 Fächer:** Mathe, Deutsch, Geschichte, Geografie, Biologie, Physik, Chemie, Informatik, Berufswahl.
-- **Übungen hochladen (nur du, `helfenberger`):** Auf einer Fach-Seite ziehst du eine HTML-Datei
-  (z. B. wie `industrialisierung_training.html`) in die Dropzone. Der Inhalt landet direkt als Text
-  in Firestore (`resourceContent/{id}`), eine schlanke Metadaten-Zeile in `resources/{id}` — und alle
-  Schüler:innen sehen die neue Übung sofort, ganz ohne Neu-Deployment der Seite.
-- **Fortschritt:** Übungsseiten, die den `postMessage`-Mechanismus nutzen (die beiden mitgelieferten
-  Beispiele „Industrialisierung" und „Nährstoffe" tun das bereits), melden ihren Fortschritt automatisch
-  an die Library, die ihn in Firestore speichert — geräteübergreifend abrufbar.
+## Grundsätze im Code
 
----
+1. Kein Cloud Storage – grosse Inhalte werden byte-sicher gestückelt in Firestore abgelegt.
+2. Möglichst keine zusammengesetzten Indizes: Abfragen mit einer `where()`-Bedingung, sortiert wird im Browser.
+3. `delete`-Regeln immer separat und ohne Datenprüfung (`request.resource` ist beim Löschen `null`).
+4. Keine nativen Dialoge (`alert`, `confirm`, `prompt`) – sie werfen Chrome aus dem Vollbild. Dafür gibt es
+   `uiConfirm`, `uiPrompt` und `uiInfo`.
+5. Übungsseiten laufen als `iframe srcdoc` im selben Ursprung und teilen sich `localStorage` mit der App: eigener
+   Schlüssel-Präfix pro Übung, nie `hl_` (gehört der App), nie `localStorage.clear()`.
+6. Neue Funktion → `hilfe.html`, die Library-Hilfe (`KIB_WISSEN`) und die Neuigkeiten (`NEUIGKEITEN`) nachführen.
 
-## Schritt 1 — Firebase-Projekt einrichten
+`admin/check-leitplanken.js` prüft die Punkte 2 bis 4 bei jedem Push.
 
-1. Gehe zu [console.firebase.google.com](https://console.firebase.google.com) und erstelle ein neues Projekt
-   (oder nutze ein bestehendes, das du schon einmal für GitHub+Firebase verwendet hast).
-2. **Authentication** aktivieren: im Menü (bei dir evtl. unter der Kategorie „Security") →
-   **Authentication** → **Get started** → Tab *Sign-in method* → **E-Mail/Passwort** aktivieren.
-3. **Firestore Database** aktivieren: im Menü unter „Databases and storage" → **Firestore Database**
-   → **Create database** → Produktionsmodus (die Regeln aus `firestore.rules` überschreiben das
-   gleich). Region z. B. `eur3` für Europa.
-4. **Web-App registrieren:** Projektübersicht → Button *„+ Add app"* → `</>`-Symbol (Web) → App
-   registrieren (kein Firebase Hosting nötig, das machen wir über GitHub Pages). Du bekommst ein
-   Konfigurationsobjekt (`firebaseConfig`) — das brauchst du in Schritt 3.
+## Übungsseiten und Fortschritt
 
-   **Firebase Storage brauchst du für diese Version nicht** — überspring den entsprechenden Menüpunkt
-   einfach (er würde einen kostenpflichtigen Tarif mit hinterlegter Kreditkarte voraussetzen).
-
-## Schritt 2 — Sicherheitsregeln einspielen
-
-Am einfachsten über die Konsole (kein CLI nötig): *Firestore Database → Rules* → Inhalt von
-`firestore.rules` einfügen und **Publish**.
-
-(Alternativ mit der Firebase CLI: `firebase deploy --only firestore:rules`, falls du bereits ein
-Firebase-CLI-Setup hast.)
-
-## Schritt 3 — `firebaseConfig` in `index.html` eintragen
-
-Öffne `index.html`, suche den Abschnitt `const firebaseConfig = { ... }` (ganz am Anfang des
-`<script type="module">`-Blocks) und ersetze die `REPLACE_ME`-Platzhalter mit den Werten aus
-Schritt 1.5:
+Lehrpersonen ziehen eine HTML-Datei oder ein PDF ins Fach; die Klasse sieht sie sofort. Damit die Library den
+Fortschritt anzeigen kann, meldet eine Übungsseite ihren Stand an die übergeordnete Seite:
 
 ```js
-const firebaseConfig = {
-  apiKey: "AIza...",
-  authDomain: "dein-projekt.firebaseapp.com",
-  projectId: "dein-projekt",
-  messagingSenderId: "123456789",
-  appId: "1:123456789:web:abcdef"
-};
+if (window.parent && window.parent !== window) {
+  window.parent.postMessage({ __libProgress: true, statsKey: 'irgendein_key', stats: stats, total: Q.length }, '*');
+}
 ```
 
-(Ein `storageBucket`-Wert kann im kopierten Snippet auftauchen — den brauchst du hier nicht, einfach
-weglassen.)
+- `stats` ist ein Objekt `{ [aufgabenId]: { status: 'correct' | 'wrong', ... } }`.
+- `total` (freiwillig) ist die Gesamtzahl der Aufgaben für den Balken «x von y».
 
-> Dieses Objekt ist **kein Geheimnis** — bei Firebase-Webapps ist es normal, dass es im
-> öffentlichen Quellcode steht. Die eigentliche Absicherung passiert über die
-> Firestore-Regeln (Schritt 2) und über Firebase Authentication, nicht durch Geheimhaltung
-> dieses Objekts.
-
-## Schritt 4 — Die 15 Logins anlegen
-
-1. Firebase Console → *Project settings → Service accounts → Generate new private key*.
-   Die heruntergeladene JSON-Datei speicherst du als `admin/serviceAccountKey.json`.
-   **Diese Datei niemals in ein öffentliches Repo committen** (sie ist bereits in `.gitignore`
-   eingetragen).
-2. Im Terminal:
-   ```bash
-   cd admin
-   npm install
-   node create-accounts.js
-   ```
-3. Das Skript legt alle 14 Schüler-Logins plus `helfenberger` (Lehrperson) an und gibt am Ende
-   eine Übersicht mit allen Namen/Passwörtern aus. Es ist **sicher mehrfach ausführbar** — z. B.
-   wenn nächstes Jahr neue Namen dazukommen (einfach in `admin/create-accounts.js` in der
-   `STUDENTS`-Liste ergänzen und erneut ausführen).
-
-**Login-Konvention:** Benutzername = Vorname, Passwort = Vorname + `2024` (z. B. `jan` / `jan2024`).
-Das war deine Wahl, um auch bei kurzen Namen die von Firebase geforderte Mindestlänge von 6 Zeichen
-zu erreichen.
-
-## Schritt 5 — Auf GitHub Pages veröffentlichen
-
-1. Erstelle ein neues GitHub-Repository (z. B. `helfenberger-library`).
-2. Lade den Ordnerinhalt hoch (`index.html`, `assets/`, `firestore.rules` — der `admin/`-Ordner
-   **ohne** `serviceAccountKey.json` kann mit hochgeladen werden, muss aber nicht; die `.gitignore`
-   schützt dich, falls du versehentlich `git add .` machst).
-3. Repository-Einstellungen → *Pages* → *Source*: „Deploy from a branch" → Branch `main`, Ordner `/root`.
-4. Nach ein bis zwei Minuten ist die Seite unter `https://<dein-benutzername>.github.io/helfenberger-library/`
-   erreichbar.
-
-## Schritt 6 — Erste Übung hochladen & testen
-
-1. Öffne die Seite, logge dich als `helfenberger` ein (Passwort `helfenberger2024`).
-2. Wähle ein Fach (z. B. Biologie), ziehe eine der beiden mitgelieferten Beispiel-HTML-Dateien
-   (`industrialisierung_training.html` oder `naehrstoffe_training.html`, die du bereits als
-   Claude-Artefakte hast) in die Dropzone.
-3. Logge dich in einem privaten/anderen Browserfenster als z. B. `jan` ein (Passwort `jan2024`) —
-   die Übung sollte sofort im entsprechenden Fach erscheinen.
+Seiten ohne diese Meldung funktionieren auch, zeigen aber keinen Fortschritt.
 
 ## Safe Exam Browser (Prüfungen)
 
@@ -167,75 +132,6 @@ direkt die Library; erzeugt werden beide mit `node admin/seb-config.js` (Einstel
 kommentiert). Schüler:innen im normalen Browser bekommen den Knopf «Im Safe Exam Browser öffnen»
 (`sebs://…`-Link). Nach der Abgabe beendet die App SEB über `seb/beenden.html` (quitURL).
 Erkannt wird SEB am User-Agent bzw. an `window.SafeExamBrowser` — kein Server-Check.
-
-## Kosten
-
-Mit diesem Aufbau (Firestore statt Storage) läuft alles auf dem kostenlosen Firebase-Spark-Tarif:
-kein Kreditkarten-Erfordernis, kein Risiko unerwarteter Kosten. Die Spark-Gratisgrenzen (1 GiB
-gespeicherte Daten, 50'000 Lesevorgänge und 20'000 Schreibvorgänge pro Tag) sind für eine einzelne
-Klasse mit 14 Schüler:innen nicht annähernd erreichbar.
-
----
-
-## Neue Übungen hinzufügen (laufender Betrieb)
-
-Als `helfenberger` eingeloggt: auf die passende Fach-Seite gehen, HTML-Datei per Drag-and-Drop
-in die Dropzone ziehen, Titel bestätigen — fertig. Erscheint sofort bei allen.
-
-**Damit die Fortschrittsanzeige funktioniert**, sollte eine neue Übungsseite beim Beantworten
-einer Aufgabe folgende Nachricht an die übergeordnete Seite senden (siehe die beiden Beispiel-Dateien
-für die vollständige Umsetzung):
-
-```js
-if (window.parent && window.parent !== window) {
-  window.parent.postMessage({ __libProgress: true, statsKey: 'irgendein_key', stats: stats, total: Q.length }, '*');
-}
-```
-
-- `stats` ist ein Objekt `{ [aufgabenId]: { status: 'correct' | 'wrong', ... } }`.
-- `total` (optional) ist die Gesamtzahl der Aufgaben, damit ein Fortschrittsbalken „x von y" angezeigt
-  werden kann. Fehlt es, zeigt die Library nur „x bearbeitet" plus Trefferquote an.
-
-Übungsseiten ohne diesen Mechanismus funktionieren trotzdem ganz normal — es wird dann einfach kein
-Fortschritt in der Library angezeigt.
-
----
-
-## Sicherheitshinweis (bitte lesen)
-
-Damit Schüler:innen sich nur mit ihrem Namen einloggen können, ist das Passwort nach einer festen,
-vorhersehbaren Regel aus dem Namen abgeleitet (`name` + `2024`) — und diese Regel steht zwangsläufig
-im öffentlich einsehbaren Quellcode von `index.html` (jede Schülerin kann sie im Browser nachlesen).
-
-Das bedeutet: **Ein technisch interessierter Schüler könnte theoretisch das Passwort einer
-Mitschülerin oder sogar des Lehrer-Logins erraten und sich damit einloggen.** Die Firestore-Regeln
-verhindern zwar, dass Schüler-Accounts fremde Übungen löschen oder hochladen können — aber wer das
-`helfenberger`-Passwort errät, bekommt echte Admin-Rechte (Uploads, Löschen).
-
-Das ist der bewusste Kompromiss deiner ursprünglichen Anforderung „Benutzername und Passwort sollen
-der Name sein" — einfach für 14-/15-Jährige, aber nicht wasserdicht. Falls dir das zu heikel ist,
-sind die gängigsten Verbesserungen:
-
-- Für den `helfenberger`-Login ein separates, nicht erratbares Passwort setzen (im Firebase-Konsole
-  einfach manuell ändern — das Skript-Passwort ist nur der Startwert).
-- Den Jahres-Suffix nicht öffentlich dokumentieren bzw. jährlich ändern.
-
-## Verhältnis zur bisherigen Claude-Artifact-Version
-
-Die vorher gebaute Version (Claude-Artefakt, `localStorage`-basiert) bleibt bestehen und funktioniert
-weiterhin pro Gerät, synchronisiert aber nicht zwischen Geräten und aktualisiert neue Übungen nicht
-automatisch. Diese neue Firebase-Version ersetzt sie für den produktiven Einsatz; die alte kann als
-Fallback dienen, falls du z. B. offline testen willst.
-
-## Admin-Skripte (Ordner `admin/`, lokal mit `serviceAccountKey.json`)
-
-- `node backup.js [--ohne-inhalte]` — ganze Datenbank als JSONL nach `~/Desktop/Claude/Library-Unterlagen/Backups/<Datum>/`. Automatisch jeden Sonntag: Workflow «Wöchentliches Backup» im Live-Repo (`.github/workflows/backup.yml`, verschlüsseltes Artefakt, 90 Tage; öffnen mit `bash admin/backup-entschluesseln.sh <artefakt.zip>`).
-- `node briefkasten-aufraeumen.js [--probe]` — löscht den Inhalt von Briefkasten-Abgaben, die vor über 30 Tagen abgeholt wurden (läuft im selben Workflow nach dem Backup).
-- `node restore.js <backup-ordner> <pfad-präfix> [--ja]` — einzelne Dokumente/Sammlungen aus einer Sicherung zurückspielen (ohne `--ja` nur anzeigen).
-- `node passwort-reset.js [--ja]` — Passwort-Anfragen der Lehrpersonen (⚙️ in der App) abarbeiten. Automatisch: `admin/workflows-vorlage/passwort-anfragen.yml` ins Live-Repo nach `.github/workflows/` legen.
-- `node admin/uebung-ersetzen.js --klasse G3b --suche "Text"` bzw. `--id <id> --datei neu.html [--ja]` — Übung/Lehrer-HTML ersetzen wie «Datei ersetzen» in der App (Kopien in allen Klassen mit, vorherige Fassung wiederherstellbar; ohne `--ja` nur Vorschau).
-- `node admin/material-import.js --klasse G3b --datei paket.json [--ordner "Name"] [--ja]` — Material-Paket (Quizze, Blitzumfragen, Wortwolken, Karteikarten) importieren wie «📥 Paket importieren»; nutzt dieselbe Aufbereitung wie die App (aus `index.html`).
-- `node schuljahr.js vorlage|plan|ausfuehren <datei.json> [--ja]` — Schuljahreswechsel (Klassen ziehen weiter, 3. Klassen schliessen ab; macht vorher eine Sicherung).
 
 ## 📮 Briefkasten (Datei-Abgabe)
 
@@ -255,6 +151,16 @@ sich, nur gleiche Dateinamen werden ersetzt) und – wo der Dienst läuft – ei
 Ablage: `<Vorname>_<Originalname>`, frühere Fassungen derselben Person in `_Backup/` mit Zeitstempel,
 `_Backup/briefkasten-stand.json` merkt sich, wer welche Dateien hat. Beide Wege teilen diese Logik – bei Änderungen
 `bkLeerenLauf` (index.html) und `ablegen` (briefkasten-abholen.js) gleich halten.
+
+## Admin-Skripte (Ordner `admin/`, lokal mit `serviceAccountKey.json`)
+
+- `node backup.js [--ohne-inhalte]` — ganze Datenbank als JSONL nach `~/Desktop/Claude/Library-Unterlagen/Backups/<Datum>/`. Automatisch jeden Sonntag: Workflow «Wöchentliches Backup» im Live-Repo (`.github/workflows/backup.yml`, verschlüsseltes Artefakt, 90 Tage; öffnen mit `bash admin/backup-entschluesseln.sh <artefakt.zip>`).
+- `node briefkasten-aufraeumen.js [--probe]` — löscht den Inhalt von Briefkasten-Abgaben, die vor über 30 Tagen abgeholt wurden (läuft im selben Workflow nach dem Backup).
+- `node restore.js <backup-ordner> <pfad-präfix> [--ja]` — einzelne Dokumente/Sammlungen aus einer Sicherung zurückspielen (ohne `--ja` nur anzeigen).
+- `node passwort-reset.js [--ja]` — Passwort-Anfragen der Lehrpersonen (⚙️ in der App) abarbeiten. Automatisch: `admin/workflows-vorlage/passwort-anfragen.yml` ins Live-Repo nach `.github/workflows/` legen.
+- `node admin/uebung-ersetzen.js --klasse G3b --suche "Text"` bzw. `--id <id> --datei neu.html [--ja]` — Übung/Lehrer-HTML ersetzen wie «Datei ersetzen» in der App (Kopien in allen Klassen mit, vorherige Fassung wiederherstellbar; ohne `--ja` nur Vorschau).
+- `node admin/material-import.js --klasse G3b --datei paket.json [--ordner "Name"] [--ja]` — Material-Paket (Quizze, Blitzumfragen, Wortwolken, Karteikarten) importieren wie «📥 Paket importieren»; nutzt dieselbe Aufbereitung wie die App (aus `index.html`).
+- `node schuljahr.js vorlage|plan|ausfuehren <datei.json> [--ja]` — Schuljahreswechsel (Klassen ziehen weiter, 3. Klassen schliessen ab; macht vorher eine Sicherung).
 
 ## Prüfungen vor dem Live-Schalten
 

@@ -30,9 +30,8 @@
 <link rel="modulepreload" href="https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js" crossorigin>
 <link rel="modulepreload" href="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js" crossorigin>
 <link rel="modulepreload" href="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js" crossorigin>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@700;800&family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&display=swap">
+<!-- Schriften und Bibliotheken liegen seit 08.10.2026 im eigenen Ordner assets/vendor/ (keine Abrufe mehr bei Google Fonts und jsdelivr). -->
+<link rel="stylesheet" href="assets/vendor/fonts/schriften.css">
 <style>
   :root{
     --bg:#F4F5FA;
@@ -3496,6 +3495,21 @@ const ALS_SCHUELER_FAV_KEY = 'hl_alsSchuelerFav';  // localStorage: {uid, name} 
 function alsSchueler(){ return !!(state.profile && state.profile.alsAnsicht); }
 function alsSchuelerName(){ var p = state.profile || {}; return ((p.displayName || p.username || 'Schüler:in') + (p.nachname ? ' ' + p.nachname : '')).trim(); }
 function istPraktikumKlasse(k){ return String(k || '').indexOf('praktikum') === 0; }
+// Praktikums- und Zivi-Konten: Unterricht ja, Auswertung nein (firestore.rules: darfAuswerten()
+// und lehrerVoll()). Gesperrt sind Lernstand und Klassenübersichten, Online-Prüfungen,
+// Earlybird, Vergessen-Zähler, Schulden und das Zurücksetzen von Passwörtern.
+function istPraktikum(){ return !!(state.profile && state.profile.role === 'teacher' && !state.profile.alsAnsicht && istPraktikumKlasse(state.profile.klasse)); }
+function darfAuswertenApp(){ return !!(state.profile && state.profile.role === 'teacher' && !istPraktikum()); }
+var PRAKTIKUM_GESPERRT = ['lernstand', 'werkstatt', 'lesereise', 'diktatauswertung', 'earlybird', 'vergessen', 'pruefungen', 'pruefung'];
+var PRAKTIKUM_KZ_AUS = ['vergessen', 'pruefung'];
+function renderPraktikumGesperrt(){
+  clearSubjectWatchers(); clearOverviewWatchers();
+  var html = '<div class="back-row"><button class="btn btn-ghost btn-sm" id="backBtn" type="button">&larr; Startseite</button></div>';
+  html += '<h2 class="page-welcome" style="margin-bottom:6px;">🔒 Nicht verfügbar</h2>';
+  html += '<div class="empty-state">Dieser Bereich ist für Praktikums- und Zivi-Konten gesperrt. Lernstand, Prüfungen, Earlybird und der Vergessen-Zähler sind den Lehrpersonen vorbehalten.</div>';
+  renderChrome(html);
+  document.getElementById('backBtn').addEventListener('click', function(){ goHome(); });
+}
 function darfSchuelerAnsicht(){
   return !!(state.profile && state.profile.role === 'teacher' && !isLeitung() && !alsSchueler() && !istPraktikumKlasse(state.profile.klasse));
 }
@@ -7774,8 +7788,8 @@ function updateCoinButton(){
   if(!btn) return;
   var badge = document.getElementById('coinBadge');
   var isTeacher = state.profile && state.profile.role === 'teacher';
-  btn.classList.toggle('layout-aus', !schulden.an);   // gleiche Logik wie das Widget (siehe layoutIstAus)
-  if(!schulden.an){
+  btn.classList.toggle('layout-aus', !schulden.an || istPraktikum());   // gleiche Logik wie das Widget (siehe layoutIstAus)
+  if(!schulden.an || istPraktikum()){
     btn.hidden = true;
     if(badge) badge.hidden = true;
   } else if(isTeacher){
@@ -9174,7 +9188,7 @@ function neuNavAktiv(){
 }
 function neuNavHtml(isTeacher){
   var eintraege = [['home','Start'], ['kalender','Kalender'], ['stundenplan','Stundenplan']];
-  if(isTeacher){ eintraege.push(['lernstand','Lernstand'], ['klassenzimmer','Klassenzimmer']); }
+  if(isTeacher){ if(!istPraktikum()) eintraege.push(['lernstand','Lernstand']); eintraege.push(['klassenzimmer','Klassenzimmer']); }
   eintraege.push(['tools','Tools']);
   var aktiv = neuNavAktiv();
   var h = '<nav class="neu-nav" id="neuNav" aria-label="Hauptnavigation">';
@@ -9801,7 +9815,7 @@ function renderChrome(innerHtml){
   if(!isTeacher){ html += '<button class="btn btn-ghost btn-sm topbar-bell" id="streakBtn" type="button">🔥 <b>0</b></button>'; }
   if(!isTeacher){ html += '<button class="btn btn-ghost btn-sm topbar-bell topbar-besen" id="aemtliBtn" type="button" title="Ämtli">🧹</button>'; }
   if(!isTeacher){ html += '<button class="btn btn-ghost btn-sm topbar-bell" id="notenBtn" type="button" title="Notenrechner">🎶</button>'; }
-  if(isTeacher){ html += '<button class="btn btn-ghost btn-sm topbar-bell" id="earlybirdBtn" type="button" title="Earlybird">🐦</button>'; }
+  if(isTeacher && !istPraktikum()){ html += '<button class="btn btn-ghost btn-sm topbar-bell" id="earlybirdBtn" type="button" title="Earlybird">🐦</button>'; }
   html += '<button class="btn btn-ghost btn-sm topbar-bell" id="neuBtn" type="button" title="Neuigkeiten">🆕</button>';
   html += '<button class="btn btn-ghost btn-sm topbar-bell" id="fragenBtn" type="button" title="Anonyme Fragebox">❓<span class="topbar-badge" id="fragenBadge" hidden>0</span></button>';
   html += '<button class="btn btn-ghost btn-sm topbar-bell" id="searchBtn" type="button" title="Suche">🔍</button>';
@@ -10854,7 +10868,7 @@ function openSettings(){
     h += '<div class="settings-section"><h4>💾 Mein Speicher</h4><div id="setQuota"><div class="empty-state" style="padding:10px;">Wird geladen …</div></div></div>';
     if(heimKlasse()) h += '<div class="settings-section"><h4>⭐ Von Lehrern empfohlen</h4><div class="settings-list" id="setVorschlaege"><div class="empty-state" style="padding:10px;">Wird geladen …</div></div></div>';
   }
-  if(isTeacher && !isLeitung()){
+  if(isTeacher && !isLeitung() && !istPraktikum()){
     h += '<div class="settings-section"><h4>🔑 Passwort vergessen?</h4><div class="settings-actions"><button class="btn btn-ghost btn-sm" id="setPwAnfBtn" type="button">'+(istJan() ? 'Passwort-Anfragen (alle)' : 'Passwort einer Schüler:in zurücksetzen')+'</button></div></div>';
   }
   if(isTeacher && !isLeitung()){
@@ -16000,7 +16014,7 @@ function renderResource(r){
   html += '<div class="back-row"><button class="btn btn-ghost btn-sm" id="backBtn">&larr; '+esc(s ? s.name : 'Fach')+'</button></div>';
   html += '<div class="viewer-head"><h2>'+esc(r.title || r.fileName)+'</h2><span class="viewer-progress" id="viewerProgress"></span>';
   if(r.vorschau){ html += '<span class="topbar-offline">Vorschau aus '+esc(r.quelle)+'</span>'; }
-  else if(state.profile.role === 'teacher'){ html += '<button class="btn btn-ghost btn-sm" id="liveBtn" type="button" title="Live sehen, wo die Klasse steht">📡 Live</button>'; }
+  else if(darfAuswertenApp()){ html += '<button class="btn btn-ghost btn-sm" id="liveBtn" type="button" title="Live sehen, wo die Klasse steht">📡 Live</button>'; }
   html += '<button class="btn btn-ghost btn-sm btn-fs" id="fsBtn" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3"/></svg> Vollbild</button>';
   html += '</div>';
   html += '<div class="viewer-frame-wrap" id="frameWrap">';
@@ -27398,7 +27412,7 @@ function kzReihenfolge(){
 }
 function kzSichtbar(){
   return kzReihenfolge().map(function(id){ return KZ_TILES.find(function(t){ return t.id === id; }); })
-    .filter(function(t){ return t && !layoutIstAus('kz:'+t.id); });
+    .filter(function(t){ return t && !layoutIstAus('kz:'+t.id) && !(istPraktikum() && PRAKTIKUM_KZ_AUS.indexOf(t.id) >= 0); });
 }
 
 function renderKlassenzimmer(){
@@ -28114,13 +28128,13 @@ function kzmHolenDialog(subject, here){
 /* ===================== 🧰 TOOLS (PDF & Bilder) =====================
    Kleine Datei-Werkzeuge für alle. Alles läuft im Browser: die Dateien werden
    nie hochgeladen, nichts landet in Firestore. pdf-lib (Schreiben) und pdf.js
-   (Seiten als Bild rendern) werden erst beim ersten Gebrauch von jsdelivr
+   (Seiten als Bild rendern) werden erst beim ersten Gebrauch aus assets/vendor/
    geladen — die Legacy-Fassung von pdf.js, damit auch ältere iPads mitmachen.
    PDF komprimieren = jede Seite als JPEG neu setzen: viel kleiner, aber der
    Text lässt sich danach nicht mehr markieren (steht im Dialog). */
-var PDFLIB_URL = 'https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js';
-var PDFJS_URL = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/legacy/build/pdf.min.mjs';
-var PDFJS_WORKER_URL = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/legacy/build/pdf.worker.min.mjs';
+var PDFLIB_URL = './assets/vendor/pdf-lib-1.17.1.min.js';   // selbst gehostet, siehe assets/vendor/LIZENZEN.txt
+var PDFJS_URL = './assets/vendor/pdfjs-4.10.38.min.mjs';
+var PDFJS_WORKER_URL = './assets/vendor/pdfjs-4.10.38.worker.min.mjs';
 var pdfLibLaden = null, pdfJsLaden = null;
 function ladePdfLib(){
   if(window.PDFLib) return Promise.resolve(window.PDFLib);
@@ -28584,7 +28598,7 @@ function tlBilder(){
 /* ---------- 🔳 QR-Code ----------
    qrcode-generator (klein, ohne Abhängigkeiten) rechnet nur die Module; gemalt
    wird selbst, damit der Code am Beamer beliebig gross und scharf bleibt. */
-var QRCODE_URL = 'https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js';
+var QRCODE_URL = './assets/vendor/qrcode-generator-1.4.4.js';
 var qrLaden = null;
 function ladeQrcode(){
   if(window.qrcode) return Promise.resolve(window.qrcode);
@@ -29401,7 +29415,7 @@ function openAbstDetail(a){
 
 /* ---------- Excel-Export ---------- */
 
-var EXCELJS_URL = 'https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js';
+var EXCELJS_URL = './assets/vendor/exceljs-4.4.0.min.js';
 var excelJsLaden = null;
 function ladeExcelJS(){
   if(window.ExcelJS) return Promise.resolve(window.ExcelJS);
@@ -33885,10 +33899,10 @@ async function nativBaukasten(p){
    kursiv rechts, Aufgabenstellung, Leerraum. Lösungsblatt: gleiche Seiten, Kopf
    «Lösungen: …», NUR die Lösungen rot (C00000).
    Word = echte .docx, gebaut mit derselben docx-Bibliothek wie das Skill (wird
-   erst beim ersten Word-Export von jsdelivr geladen). PDF = Druckansicht im
+   erst beim ersten Word-Export aus assets/vendor/ geladen). PDF = Druckansicht im
    gleichen Layout in einem neuen Tab («Drucken → Als PDF sichern»), also kein
    Druckdialog in der Library selbst. Reihenfolge = gespeicherte (Baukasten). */
-var DOCX_URL = 'https://cdn.jsdelivr.net/npm/docx@9.7.1/dist/index.mjs';
+var DOCX_URL = './assets/vendor/docx-9.7.1.mjs';
 var PRUEF_LOESUNG_FARBE = 'C00000';
 function pruefDruckDialog(p){
   openModal('<h3>🖨️ Prüfung drucken</h3>'+
@@ -34863,7 +34877,7 @@ function renderSikoreTrainer(r){
     '<div id="skTreppe"></div>'+
     '<div class="sk-optionen"><label id="skAnzBox">Reihen <select id="skAnz" class="modal-input">'+[1,2,3,4,5].map(function(n){ return '<option value="'+n+'"'+(n === sikoreT.reihen ? ' selected' : '')+'>'+n+'</option>'; }).join('')+'</select></label>'+
     '<button class="btn btn-ghost btn-sm sk-tempo" id="skTempo" type="button" title="Eine Reihe gegen die Uhr – nur fehlerfreie Reihen zählen für die Bestzeit">⏱ Tempo-Modus</button><span class="sk-best" id="skBest" hidden></span>'+
-    (pruefIstLehrer() ? '<button class="btn btn-ghost btn-sm" id="skUebersicht" type="button">📊 Klassenübersicht</button>' : '')+
+    (darfAuswertenApp() ? '<button class="btn btn-ghost btn-sm" id="skUebersicht" type="button">📊 Klassenübersicht</button>' : '')+
     '<span class="sk-uhr" id="skUhr" hidden>⏱ 0:00</span></div><div id="skZiel"></div></div>';
   html += '<div id="skBlatt"></div>';
   html += '<div class="sk-aktionen"><button class="btn btn-primary" id="skPruefen" type="button">✅ Kontrollieren</button><button class="btn btn-ghost" id="skNeu" type="button">🔄 Neue Reihen</button></div>';
@@ -35908,9 +35922,9 @@ function renderKkTrainer(r){
     '<label id="kkLimitWrap"'+(modus === 'tempo' ? ' hidden' : '')+'>Karten <select id="kkLimit" class="modal-input">'+KK_RUNDE.map(function(n){
       return '<option value="'+n+'"'+(n === limit ? ' selected' : '')+'>'+(n ? n : 'alle')+'</option>';
     }).join('')+'</select></label>'+
-    (pruefIstLehrer() ? '<button class="btn btn-ghost btn-sm" id="kkUeb" type="button">📊 Klassenübersicht</button>'+
-      '<button class="btn btn-ghost btn-sm" id="kkTest" type="button">📝 Voci-Test</button>'+
-      '<button class="btn btn-ghost btn-sm" id="kkBearb" type="button">✏️ Bearbeiten</button>' : '')+
+    (darfAuswertenApp() ? '<button class="btn btn-ghost btn-sm" id="kkUeb" type="button">📊 Klassenübersicht</button>'+
+      '<button class="btn btn-ghost btn-sm" id="kkTest" type="button">📝 Voci-Test</button>' : '')+
+    (pruefIstLehrer() ? '<button class="btn btn-ghost btn-sm" id="kkBearb" type="button">✏️ Bearbeiten</button>' : '')+
     '</div><div class="kk-stat" id="kkStat"></div></div>';
   html += '<div id="kkBlatt"><div class="empty-state">Wird geladen …</div></div>';
   html += '</div>';
@@ -38701,7 +38715,7 @@ function renderMtTrainer(r){
     '<div class="sk-optionen"><label id="mtAnzBox">Aufgaben <select id="mtAnz" class="modal-input">'+
       MT_ANZAHL.map(function(n){ return '<option value="'+n+'"'+(n === mtT.anzahl ? ' selected' : '')+'>'+n+'</option>'; }).join('')+'</select></label>'+
     '<button class="btn btn-ghost btn-sm sk-tempo" id="mtTempo" type="button" title="Die ganze Runde gegen die Uhr – nur fehlerfreie Runden zählen für die Bestzeit">⏱ Tempo-Modus</button><span class="sk-best" id="mtBest" hidden></span>'+
-    (pruefIstLehrer() ? '<button class="btn btn-ghost btn-sm" id="mtUebersicht" type="button">📊 Klassenübersicht</button>' : '')+
+    (darfAuswertenApp() ? '<button class="btn btn-ghost btn-sm" id="mtUebersicht" type="button">📊 Klassenübersicht</button>' : '')+
     '<span class="sk-uhr" id="mtUhr" hidden>⏱ 0:00</span></div><div id="mtZiel"></div></div>';
   html += '<div id="mtBlatt"></div>';
   html += '<div class="sk-aktionen"><button class="btn btn-primary" id="mtPruefen" type="button">✅ Kontrollieren</button><button class="btn btn-ghost" id="mtNeu" type="button">🔄 Neue Aufgaben</button></div>';
@@ -40612,7 +40626,7 @@ function renderTippTrainer(r){
   html += '<div class="sk-panel"><div class="tt-lek-kopf"><b>Lektionen</b><span class="tt-lek-legende">⭐ bestanden · ⭐⭐⭐ Profi</span></div><div class="tt-lektionen" id="ttLektionen"></div>'+
     '<div class="sk-optionen"><label>Tastatur <select id="ttAnzeige" class="modal-input"><option value="voll">mit Hilfe</option><option value="blind">blind (ohne Beschriftung)</option><option value="aus">ausblenden</option></select></label>'+
     '<button class="btn btn-ghost btn-sm" id="ttSchwach" type="button">🎯 Schwächen üben</button>'+
-    (pruefIstLehrer() ? '<button class="btn btn-ghost btn-sm" id="ttUebersicht" type="button">📊 Klassenübersicht</button>' : '')+
+    (darfAuswertenApp() ? '<button class="btn btn-ghost btn-sm" id="ttUebersicht" type="button">📊 Klassenübersicht</button>' : '')+
     '</div><div id="ttSchwachInfo" class="tt-schwach-info"></div><div id="ttZiel"></div></div>';
   html += '<div class="tt-karte" id="ttKarte"><div class="tt-karte-kopf"><div><div class="tt-titel" id="ttTitel"></div><div class="tt-info" id="ttInfo"></div></div>'+
     '<div class="tt-live"><span><b id="ttApm">–</b><small>Anschläge/Min.</small></span><span><b id="ttGen">–</b><small>Genauigkeit</small></span><span><b id="ttZielApm">–</b><small>Ziel</small></span></div></div>'+
@@ -41182,7 +41196,7 @@ function layoutRef(){ return doc(db, 'progress', state.user.uid, 'einstellungen'
 // Sonderfall 💸 Schulden-Liste: Das Widget ist der Ein/Aus-Schalter der Funktion für die
 // ganze Klasse (klassen/{k}/appMeta/schulden), nicht nur ein persönliches Ausblenden.
 function layoutIstAus(key){
-  if(key === 'leiste:coinBtn') return !schulden.an;
+  if(key === 'leiste:coinBtn') return !schulden.an || istPraktikum();
   return (layout.aus || []).indexOf(key) >= 0;
 }
 function layoutAusAnzahl(){
@@ -41223,7 +41237,7 @@ function layoutSave(){
 }
 function layoutSetAus(key, aus){
   if(key === 'leiste:coinBtn'){
-    if(!layoutIstLehrer()) return;
+    if(!layoutIstLehrer() || istPraktikum()) return;
     var schalten = function(){
       schuldenSchalten(!aus).then(function(){ layoutAnwenden(); paintWidgetDrawer(); },
         function(err){ console.error(err); if(!err || err.code !== 'klasse/abgebrochen') toast('Hat nicht geklappt.'); });
@@ -41462,7 +41476,7 @@ function paintWidgetDrawer(){
   }
   var h = '<div class="wd-head"><h3>🧩 Widgets</h3><button class="btn btn-ghost btn-sm" type="button" id="wdZu" title="Schliessen">✕</button></div>';
   h += '<p class="wd-hint">Hier holst du Ausgeblendetes zurück. Verschieben: lange drücken oder «✏️ Anordnen».</p>';
-  var leiste = LEISTE_ITEMS.filter(function(it){ return !it.rolle || it.rolle === (lehrer ? 'lehrer' : 'schueler'); }).map(function(it){
+  var leiste = LEISTE_ITEMS.filter(function(it){ return (!it.rolle || it.rolle === (lehrer ? 'lehrer' : 'schueler')) && !(it.id === 'coinBtn' && istPraktikum()); }).map(function(it){
     var key = 'leiste:'+it.id; return {aus:layoutIstAus(key), html:zeile(key, it.label)};
   });
   h += abschnitt('Obere Leiste', leiste);
@@ -42367,6 +42381,7 @@ function render(){
   }
   if(state.route.name === 'login'){ renderLogin(); return; }
   if(!state.profile){ app.innerHTML = '<div class="spinner-wrap">Lädt …</div>'; return; }
+  if(istPraktikum() && PRAKTIKUM_GESPERRT.indexOf(state.route.name) >= 0){ renderPraktikumGesperrt(); return; }
   if(state.route.name === 'home'){ renderHome(); return; }
   if(state.route.name === 'subject'){ renderSubject(state.route.subject, state.route.folderId || null); return; }
   if(state.route.name === 'gruppenfach'){ renderGruppenFach(); return; }

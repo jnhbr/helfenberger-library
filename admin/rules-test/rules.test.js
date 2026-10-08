@@ -208,6 +208,73 @@ test('Rotstift: Lehrpersonen ja, Praktikum/Zivi und Schüler:innen nicht', async
   await assertSucceeds(getDoc(doc(db.praktikum(), 'klassen/G3b/resources/fehlt')));
 });
 
+// ---------- 🔒 Praktikum/Zivi: Unterricht ja, Auswertung nein ----------
+test('Praktikum/Zivi: keine Auswertung (Lernstand, Serien, Prüfungsresultate, Earlybird, Schulden, SVA)', async () => {
+  await seed('progress/sus/resources/r1', { stats: {} });
+  await seed('progress/sus/erledigt/liste', { ids: {} });
+  await seed('streaks/sus', { tage: {} });
+  await seed('klassen/G3b/debts/sus', { entries: [] });
+  await seed('klassen/G3b/svaPrivat/sus', { rueck: { text: 'gut' } });
+  await seed('klassen/G3b/pruefungen/p1', { titel: 'P', status: 'offen' });
+  await seed('klassen/G3b/pruefungen/p1/teilnahmen/sus', { status: 'abgegeben' });
+  await seed('klassen/G3b/pruefungen/p1/intern/loesungen', { l: [] });
+  await seed('earlybird/2026-10-21_sus', { datum: '2026-10-21', uid: 'sus', klasse: 'G3b', anwesend: false });
+  const p = db.praktikum();
+  await assertFails(getDoc(doc(p, 'progress/sus/resources/r1')));
+  await assertFails(getDoc(doc(p, 'progress/sus/erledigt/liste')));
+  await assertFails(getDoc(doc(p, 'streaks/sus')));
+  await assertFails(getDoc(doc(p, 'klassen/G3b/debts/sus')));
+  await assertFails(getDoc(doc(p, 'klassen/G3b/svaPrivat/sus')));
+  await assertFails(getDoc(doc(p, 'klassen/G3b/pruefungen/p1/teilnahmen/sus')));
+  await assertFails(getDoc(doc(p, 'klassen/G3b/pruefungen/p1/intern/loesungen')));
+  await assertFails(getDoc(doc(p, 'earlybird/2026-10-21_sus')));
+  await assertFails(getDocs(collection(p, 'earlybird')));
+  // Lehrpersonen und Schulleitung lesen das weiterhin
+  await assertSucceeds(getDoc(doc(db.lp(), 'progress/sus/resources/r1')));
+  await assertSucceeds(getDoc(doc(db.lp(), 'streaks/sus')));
+  await assertSucceeds(getDoc(doc(db.lp(), 'klassen/G3b/debts/sus')));
+  await assertSucceeds(getDoc(doc(db.lp(), 'klassen/G3b/pruefungen/p1/teilnahmen/sus')));
+  await assertSucceeds(getDoc(doc(db.lp(), 'klassen/G3b/pruefungen/p1/intern/loesungen')));
+  await assertSucceeds(getDoc(doc(db.lp(), 'earlybird/2026-10-21_sus')));
+  await assertSucceeds(getDoc(doc(db.leitung(), 'progress/sus/resources/r1')));
+  await assertSucceeds(getDoc(doc(db.leitung(), 'earlybird/2026-10-21_sus')));
+  // die Person selbst ebenfalls
+  await assertSucceeds(getDoc(doc(db.sus(), 'progress/sus/resources/r1')));
+  await assertSucceeds(getDoc(doc(db.sus(), 'klassen/G3b/pruefungen/p1/teilnahmen/sus')));
+});
+test('Praktikum/Zivi: schreibt nichts in der Auswertung und setzt keine Passwörter zurück', async () => {
+  await seed('klassen/G3b/pruefungen/p1', { titel: 'P', status: 'offen' });
+  await seed('klassen/G3b/pruefungen/p1/teilnahmen/sus', { status: 'laeuft' });
+  await seed('streaks/sus', { tage: {} });
+  const p = db.praktikum();
+  await assertFails(setDoc(doc(p, 'klassen/G3b/pruefungen/p2'), { titel: 'Neu', status: 'entwurf' }));
+  await assertFails(deleteDoc(doc(p, 'klassen/G3b/pruefungen/p1')));
+  await assertFails(updateDoc(doc(p, 'klassen/G3b/pruefungen/p1/teilnahmen/sus'), { status: 'abgegeben' }));
+  await assertFails(setDoc(doc(p, 'klassen/G3b/pruefungen/p1/intern/loesungen'), { l: [] }));
+  await assertFails(setDoc(doc(p, 'progress/sus/pruefungsnoten/n1'), { note: 6, gewicht: 1 }));
+  await assertFails(setDoc(doc(p, 'klassen/G3b/debts/sus'), { entries: [] }));
+  await assertFails(setDoc(doc(p, 'earlybird/2026-10-21_sus'), { datum: '2026-10-21', uid: 'sus', klasse: 'G3b', anwesend: false }));
+  await assertFails(deleteDoc(doc(p, 'streaks/sus')));
+  await assertFails(setDoc(doc(p, 'passwortAnfragen/a1'), { uid: 'sus', vonUid: 'prak', status: 'offen' }));
+  // Lehrpersonen dürfen das weiterhin
+  await assertSucceeds(setDoc(doc(db.lp(), 'klassen/G3b/pruefungen/p2'), { titel: 'Neu', status: 'entwurf' }));
+  await assertSucceeds(setDoc(doc(db.lp(), 'progress/sus/pruefungsnoten/n1'), { note: 5, gewicht: 1 }));
+  await assertSucceeds(setDoc(doc(db.lp(), 'earlybird/2026-10-21_sus'), { datum: '2026-10-21', uid: 'sus', klasse: 'G3b', anwesend: false }));
+  await assertSucceeds(setDoc(doc(db.lp(), 'passwortAnfragen/a1'), { uid: 'sus', vonUid: 'lp', status: 'offen' }));
+});
+test('Praktikum/Zivi: Unterricht geht weiter (Übungen, Kalender, Werkzeuge, eigener Stand)', async () => {
+  await seed('klassen/G3b/pruefungen/p1', { titel: 'P', status: 'offen' });
+  const p = db.praktikum();
+  await assertSucceeds(setDoc(doc(p, 'klassen/G3b/resources/r9'), { title: 'Übung', subject: 'mathe' }));
+  await assertSucceeds(setDoc(doc(p, 'klassen/G3b/calendarEntries/e9'), { title: 'HA', dueDate: '2026-10-22' }));
+  await assertSucceeds(setDoc(doc(p, 'klassen/G3b/klassenzimmer/sitzplan'), { v: 1 }));
+  await assertSucceeds(setDoc(doc(p, 'klassen/G3b/quizzes/q9'), { titel: 'Quiz' }));
+  await assertSucceeds(getDoc(doc(p, 'klassen/G3b/pruefungen/p1')));
+  await assertSucceeds(setDoc(doc(p, 'progress/prak/resources/r9'), { stats: {} }));
+  await assertSucceeds(getDoc(doc(p, 'progress/prak/resources/r9')));
+  await assertSucceeds(setDoc(doc(p, 'streaks/prak'), { tage: {} }));
+});
+
 // ---------- ⚡ Energizer: eigene Spiele ----------
 const en = (von, extra) => Object.assign({ titel: 'Spiel', kat: 'bewegung', kurz: 'k', schritte: 'a\nb', tipp: '', vonUid: von, vonName: 'X' }, extra || {});
 test('Energizer: Lehrperson legt eigenes Spiel an, alle Lehrpersonen lesen, Schüler:innen nicht', async () => {

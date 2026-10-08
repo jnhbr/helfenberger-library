@@ -149,10 +149,23 @@ function inKlasseLesen(klasse) {
 }
 
 // Praktikums- und Zivi-Konten (Seite praktikum-*, admin/schule-konten.js) sind
-// Lehrer-Konten, sollen aber keine Prüfungskorrekturen/Scans der Schule sehen.
+// Lehrer-Konten für den Unterricht (Übungen, Material, Kalender, Stundenplan,
+// Klassenzimmer-Werkzeuge). Die Auswertung ist für sie gesperrt (seit 08.10.2026):
+// Lernstand und Serien, Online-Prüfungen samt Noten, Earlybird, Schulden,
+// SVA-Rückmeldungen, Prüfungskorrekturen/Scans und das Zurücksetzen von Passwörtern.
 function isPraktikum() {
   return isSignedIn() && request.auth.token.get('klasse', '') is string
     && request.auth.token.get('klasse', '').matches('praktikum-.*');
+}
+
+// Auswertung lesen: Lehrpersonen und Schulleitung, nicht Praktikum/Zivi.
+function darfAuswerten() {
+  return canReadAll() && !isPraktikum();
+}
+
+// Schreiben in der Auswertung: Lehrpersonen ohne Praktikum/Zivi.
+function lehrerVoll() {
+  return isTeacher() && !isPraktikum();
 }
 
 // 🔒 Inhalt eines Lehrer-HTMLs (nurLehrer:true auf resourceContent und Chunks,
@@ -212,12 +225,12 @@ service cloud.firestore {
       }
 
       match /debts/{uid} {
-        allow read: if canReadAll() || (isOwner(uid) && inKlasse(klasse));
-        allow create, update: if isTeacher()
+        allow read: if darfAuswerten() || (isOwner(uid) && inKlasse(klasse));
+        allow create, update: if lehrerVoll()
           && request.resource.data.entries is list
           && request.resource.data.entries.size() <= 100;
         // Separat von create/update: bei einem delete ist request.resource null.
-        allow delete: if isTeacher();
+        allow delete: if lehrerVoll();
       }
 
       // Keine Datenvalidierung, write darf kombiniert bleiben.
@@ -236,15 +249,15 @@ service cloud.firestore {
       // Lesen dürfen nur die Person selbst, Lehrpersonen und die Schulleitung,
       // nicht die übrige Klasse. Schreiben nur Lehrpersonen.
       match /svaPrivat/{uid} {
-        allow read: if canReadAll() || isOwner(uid);
-        allow create, update: if isTeacher()
+        allow read: if darfAuswerten() || isOwner(uid);
+        allow create, update: if lehrerVoll()
           && request.resource.data.keys().hasOnly(['rueck', 'vorlage', 'am'])
           && request.resource.data.get('vorlage', false) is bool
           && request.resource.data.get('rueck', {}) is map
           && request.resource.data.get('rueck', {}).get('text', '') is string
           && request.resource.data.get('rueck', {}).get('text', '').size() <= 800;
         // Separat von create/update: bei einem delete ist request.resource null.
-        allow delete: if isTeacher();
+        allow delete: if lehrerVoll();
       }
 
       match /klasseninfo/{toolId} {
@@ -296,29 +309,29 @@ service cloud.firestore {
       // Seite (die App zeigt ihnen nur die mit ihrer uid in mitglieder).
       match /pruefungen/{pruefungId} {
         allow read: if inKlasseLesen(klasse) || inGruppeVon(klasse);
-        allow create, update: if isTeacher();
-        allow delete: if isTeacher();
+        allow create, update: if lehrerVoll();
+        allow delete: if lehrerVoll();
 
         // Eigene Teilnahme: anlegen nur bei offener Prüfung und nur als
         // 'laeuft'; ändern nur, solange sie noch 'laeuft' (also nicht selbst
         // entsperren und nach der Abgabe nichts mehr ändern).
         match /teilnahmen/{uid} {
-          allow read: if (isOwner(uid) && (inKlasse(klasse) || inGruppeVon(klasse))) || canReadAll();
+          allow read: if (isOwner(uid) && (inKlasse(klasse) || inGruppeVon(klasse))) || darfAuswerten();
           allow create: if isOwner(uid) && (inKlasse(klasse) || inGruppeVon(klasse))
             && request.resource.data.status == 'laeuft'
             && get(/databases/$(database)/documents/klassen/$(klasse)/pruefungen/$(pruefungId)).data.status == 'offen';
-          allow update: if isTeacher() || (isOwner(uid) && (inKlasse(klasse) || inGruppeVon(klasse))
+          allow update: if lehrerVoll() || (isOwner(uid) && (inKlasse(klasse) || inGruppeVon(klasse))
             && resource.data.status == 'laeuft'
             && request.resource.data.status in ['laeuft', 'gesperrt', 'abgegeben']);
           // Separat, siehe oben: bei einem delete ist request.resource null.
-          allow delete: if isTeacher();
+          allow delete: if lehrerVoll();
         }
 
         // Lösungen der Bank-Prüfungen: nie für Schüler:innen lesbar.
         // Keine Datenvalidierung, write darf kombiniert bleiben.
         match /intern/{docId} {
-          allow read: if canReadAll();
-          allow write: if isTeacher();
+          allow read: if darfAuswerten();
+          allow write: if lehrerVoll();
         }
       }
     }
@@ -499,15 +512,15 @@ service cloud.firestore {
     // Passwort und trägt es ein). Lesen/Löschen: wer angefragt hat, und Jan.
     // Ändern nur das Admin-Skript (Admin-SDK).
     match /passwortAnfragen/{id} {
-      allow read: if isTeacher() && (resource.data.vonUid == request.auth.uid || isJan());
-      allow create: if isTeacher()
+      allow read: if lehrerVoll() && (resource.data.vonUid == request.auth.uid || isJan());
+      allow create: if lehrerVoll()
         && request.resource.data.vonUid == request.auth.uid
         && request.resource.data.status == 'offen'
         && request.resource.data.uid is string
         && !('neuesPasswort' in request.resource.data);
       allow update: if false;
       // Separat: bei einem delete ist request.resource null.
-      allow delete: if isTeacher() && (resource.data.vonUid == request.auth.uid || isJan());
+      allow delete: if lehrerVoll() && (resource.data.vonUid == request.auth.uid || isJan());
     }
 
     // Login mit Vorname oder Schul-Kürzel: loginAliases/{slug} = {konten:[...]}.
@@ -561,7 +574,7 @@ service cloud.firestore {
 
     // Each student's own progress, one doc per resource. Teacher can read (not write) for an overview.
     match /progress/{uid}/resources/{resourceId} {
-      allow read: if isOwner(uid) || canReadAll();
+      allow read: if isOwner(uid) || darfAuswerten();
       allow write: if isOwner(uid);
     }
 
@@ -572,7 +585,7 @@ service cloud.firestore {
     // schreibt. Keine Datenvalidierung angehaengt, darum kann write kombiniert
     // bleiben (bei einem delete waere request.resource null).
     match /progress/{uid}/erledigt/{docId} {
-      allow read: if isOwner(uid) || canReadAll();
+      allow read: if isOwner(uid) || darfAuswerten();
       allow write: if isOwner(uid);
     }
 
@@ -612,13 +625,13 @@ service cloud.firestore {
     // Ausnahme seit 04.10.2026: Jan in der 🎒 Schüleransicht (Notenrechner).
     match /progress/{uid}/pruefungsnoten/{notenId} {
       allow read: if isOwner(uid) || isJan();
-      allow create, update: if isTeacher()
+      allow create, update: if lehrerVoll()
         && request.resource.data.note is number
         && request.resource.data.note >= 1 && request.resource.data.note <= 6
         && request.resource.data.gewicht is number
         && request.resource.data.gewicht > 0 && request.resource.data.gewicht <= 10;
       // Separat: bei einem delete ist request.resource null.
-      allow delete: if isTeacher();
+      allow delete: if lehrerVoll();
     }
 
     // Each signed-in user's own push-notification device registrations.
@@ -640,10 +653,10 @@ service cloud.firestore {
     // Lern-Serie: geübte Minuten pro Tag. Jede:r schreibt nur die eigene,
     // die Lehrperson darf sie lesen (Überblick, wer regelmässig übt).
     match /streaks/{uid} {
-      allow read: if isOwner(uid) || canReadAll();
+      allow read: if isOwner(uid) || darfAuswerten();
       allow create, update: if isOwner(uid);
       // Separat, siehe oben.
-      allow delete: if isTeacher();
+      allow delete: if lehrerVoll();
     }
 
     // 🔗 Geteilte Links (obere Leiste, seit 19.09.2026). fuer = 'lehrer' (nur
@@ -724,8 +737,8 @@ service cloud.firestore {
     // Lehrpersonen tragen ein/aus und haken ab, Schüler:innen lesen nur den
     // eigenen Eintrag (where('uid','==', eigene uid)).
     match /earlybird/{eid} {
-      allow read: if canReadAll() || (isSignedIn() && resource.data.uid == request.auth.uid);
-      allow create, update: if isTeacher()
+      allow read: if darfAuswerten() || (isSignedIn() && resource.data.uid == request.auth.uid);
+      allow create, update: if lehrerVoll()
         && request.resource.data.datum is string && request.resource.data.datum.size() == 10
         && request.resource.data.uid is string
         && eid == request.resource.data.datum + '_' + request.resource.data.uid
@@ -733,7 +746,7 @@ service cloud.firestore {
         && request.resource.data.anwesend is bool
         && request.resource.data.keys().size() <= 12;
       // Separat: bei einem delete ist request.resource null.
-      allow delete: if isTeacher();
+      allow delete: if lehrerVoll();
     }
 
     // 🚪 Räume (seit 28.09.2026). raumBelegung/plan = feste Belegung aus Untis
