@@ -206,6 +206,7 @@ button:focus-visible{outline:2px solid var(--gold-soft); outline-offset:2px;}
 .tafel th{font-weight:400; border-bottom:2px solid #eef0e888; padding:2px 0 4px;} .tafel td{padding:2px 0; border-bottom:1px dashed #eef0e822; font-variant-numeric:tabular-nums;}
 .tafel td:first-child,.tafel th:first-child{width:24px; opacity:.55; font-size:13px;} .tafel th+th{border-left:2px solid #eef0e888;} .tafel td+td{border-left:2px solid #eef0e888;}
 .tafel tfoot td{border-top:2px solid #eef0e8; border-bottom:0; font-weight:700; font-size:20px; padding-top:4px;}
+.strichi{display:inline-flex; flex-wrap:wrap; gap:3px 4px; align-items:flex-end; justify-content:center; vertical-align:middle; line-height:0; color:var(--kreide);} .strichi svg{display:block; overflow:visible;} .tafel td .strichi{display:flex; margin-top:1px;} .tafel tfoot td .strichi{margin-top:3px;}
 .tafel .ziel{text-align:center; font-size:13px; opacity:.7; margin-top:6px;}
 .liveinfo{margin-top:10px; padding:10px 12px; border:1px solid var(--line); border-radius:10px; background:#0006; font-size:14px;}
 .liveinfo b{color:var(--gold-soft);}
@@ -518,6 +519,13 @@ function findWeis(hand, m){
 }
 function weisKey(w, t, mm, orderPos){ return w.pts * 100000 + (w.kind === 'run' ? 1 : 0) * 10000 + w.top * 100 + ((w.kind === 'run' && t < 4 && w.s === t) ? 10 : 0) + (3 - orderPos); }
 
+/* Molotow: liegen im Stich Reihen/Vierlinge (Tischwyss) oder König + Ober/Dame vom Trumpf (Stöck), bekommt die Person, die den Stich nimmt, die Punkte dazu */
+function trickBonus(cards, T){
+  var b = 0, names = [];
+  findWeis(cards, 4).forEach(function(w){ b += w.pts; names.push(w.name); });
+  if(T != null && cards.indexOf(T * 9 + 1) >= 0 && cards.indexOf(T * 9 + 2) >= 0){ b += 20; names.push('Stöck'); }
+  return {pts:b, txt:names.join(' + ')};
+}
 function newRound(seed, dealer, cfg){
   var rng = mulberry(seed), deck = [], i;
   for(i = 0; i < 36; i++) deck.push(i);
@@ -553,24 +561,22 @@ function playCore(rd, seat, card){
   var m = effMode(rd.t, rd.trickNo), wi = trickWinnerIdx(rd.trick, m), win = rd.trick[wi].seat, team = win % 2, p = 0;
   rd.trick.forEach(function(x){ p += cardPts(x.card, m); });
   if(rd.trickNo === 8) p += 5;
-  rd.pts[team] += p; rd.tricksWon[team]++; if(rd.spts) rd.spts[win] += p;
-  rd.tricks.push({m:m, led:suitOf(rd.trick[0].card), plays:rd.trick.slice(), win:win, pts:p});
-  rd.lastTrick = {plays:rd.trick.slice(), win:win, pts:p};
+  var bo = rd.cfg.kind === 'molotow' ? trickBonus(rd.trick.map(function(x){ return x.card; }), rd.t) : {pts:0, txt:''};
+  rd.pts[team] += p; rd.tricksWon[team]++; if(rd.spts) rd.spts[win] += p + bo.pts;
+  rd.tricks.push({m:m, led:suitOf(rd.trick[0].card), plays:rd.trick.slice(), win:win, pts:p, bonus:bo.pts});
+  rd.lastTrick = {plays:rd.trick.slice(), win:win, pts:p, bonus:bo.pts};
   rd.trick = []; rd.trickNo++; rd.turn = win;
-  return {done:true, win:win, pts:p, trump:tdet};
+  return {done:true, win:win, pts:p, bonus:bo.pts, btxt:bo.txt, trump:tdet};
 }
 function finishRound(rd){
   var kd = rd.cfg.kind;
   if(kd === 'handjass' || kd === 'molotow'){
-    if(kd === 'molotow'){ var fm = rd.t == null ? 4 : rd.t, fs = [0, 0, 0, 0]; rd.tricks.forEach(function(tr, i){ var pp = 0; tr.plays.forEach(function(x){ pp += cardPts(x.card, fm); }); if(i === 8) pp += 5; fs[tr.win] += pp; }); rd.spts = fs; }
+    var bn = [0, 0, 0, 0];
+    if(kd === 'molotow'){ var fm = rd.t == null ? 4 : rd.t, fs = [0, 0, 0, 0]; bn = [0, 0, 0, 0]; rd.tricks.forEach(function(tr, i){ var pp = 0; tr.plays.forEach(function(x){ pp += cardPts(x.card, fm); }); if(i === 8) pp += 5; fs[tr.win] += pp + (tr.bonus || 0); bn[tr.win] += tr.bonus || 0; }); rd.spts = fs; }
     var sp = rd.spts, d = [0, 0, 0, 0], ord = [0, 1, 2, 3].sort(function(x, y){ return (sp[y] - sp[x]) || (((x - rd.fore + 4) % 4) - ((y - rd.fore + 4) % 4)); });
     if(kd === 'handjass'){ d[ord[0]]++; d[ord[1]]++; for(var s = 0; s < 4; s++) if(sp[s] < 26) d[s]--; }
-    else {
-      var big = -1; for(var q = 0; q < 4; q++) if(sp[q] >= 100) big = q;
-      if(big >= 0){ if(sp[big] >= 157){ d = [-3, -3, -3, -3]; d[big] = 3; } else { d = [3, 3, 3, 3]; d[big] = -3; } }
-      else { d[ord[0]] = 1; d[ord[3]] = 1; d[ord[1]] = -1; d[ord[2]] = -1; }
-    }
-    rd.result = {ind:kd, spts:sp.slice(), final:d, cards:rd.pts.slice(), weis:[0, 0], stoeck:[0, 0], match:[0, 0], mult:1, tricksWon:rd.tricksWon.slice(), trump:rd.t}; rd.phase = 'done'; return;
+    else d = sp.slice();
+    rd.result = {ind:kd, bon:bn, spts:sp.slice(), final:d, cards:rd.pts.slice(), weis:[0, 0], stoeck:[0, 0], match:[0, 0], mult:1, tricksWon:rd.tricksWon.slice(), trump:rd.t}; rd.phase = 'done'; return;
   }
   if(rd.cfg.kind === 'differenzler'){
     var df = [0, 1, 2, 3].map(function(s){ return Math.abs(rd.ans[s] - rd.spts[s]); });
@@ -638,7 +644,7 @@ function applyAct(rd, seat, act){
   rd.cnt[seat]++;
   var r = playCore(rd, seat, card);
   if(r.trump) info.trump = rd.t;
-  rd.log.push({seat:seat, act:act, info:info, trick:r.done ? {win:r.win, pts:r.pts} : null});
+  rd.log.push({seat:seat, act:act, info:info, trick:r.done ? {win:r.win, pts:r.pts, bonus:r.bonus, btxt:r.btxt} : null});
   if(r.done){
     if(rd.trickNo === 1) resolveWeis(rd);
     if(rd.trickNo === 9) finishRound(rd);
@@ -710,6 +716,7 @@ function isMaster(c, rd, known, m){
   return true;
 }
 function heur(rd, seat){
+  if(rd.cfg.kind === 'molotow') return heurM(rd, seat);
   if(IND[rd.cfg.kind]) return heurD(rd, seat);
   var m = effMode(rd.t, rd.trickNo), hand = rd.hands[seat], L = legal(hand, rd.trick, m);
   if(L.length === 1) return {card:L[0], why:'Das ist die einzige erlaubte Karte.'};
@@ -753,6 +760,51 @@ function heur(rd, seat){
   }
   var dis = L.slice().sort(function(a, b){ var ta = (m < 4 && suitOf(a) === m) ? 1 : 0, tb = (m < 4 && suitOf(b) === m) ? 1 : 0; return (ta - tb) || low(a, b); });
   return {card:dis[0], why:'Ich kann den Stich nicht gewinnen und werfe die wertloseste Karte ab.'};
+}
+/* Molotow: wer mehr Punkte macht, verliert. Ziel: Stiche vermeiden, Punktkarten loswerden, Tischwyss/Stöck der anderen füttern */
+function heurM(rd, seat){
+  var m = effMode(rd.t, rd.trickNo), hand = rd.hands[seat], L = legal(hand, rd.trick, m);
+  if(L.length === 1) return {card:L[0], why:'Das ist die einzige erlaubte Karte.'};
+  var known = unseenOf(rd, seat), trick = rd.trick, k = 3 - trick.length, nh = Math.max(1, hand.length - 1), U = 0, i;
+  for(i = 0; i < 36; i++) if(!known[i]) U++;
+  U = Math.max(U, 1);
+  var tcards = trick.map(function(x){ return x.card; }), last5 = rd.trickNo === 8 ? 5 : 0, best = null;
+  L.forEach(function(c){
+    var sets = rd.t == null && trick.length > 0 && suitOf(c) !== suitOf(trick[0].card), T = sets ? suitOf(c) : rd.t;
+    var mm = effMode(T, rd.trickNo), cards = tcards.concat(c), rt = trick.concat({seat:seat, card:c}), wi = trickWinnerIdx(rt, mm), takes = rt[wi].seat === seat;
+    var tp = last5, bon = trickBonus(cards, T).pts, pT = 0, near = 0, liab = 0, a, b, x;
+    cards.forEach(function(y){ tp += cardPts(y, mm); });
+    if(takes){
+      if(k === 0) pT = 1;
+      else {
+        var led = suitOf(rt[0].card), wcard = rt[wi].card, hi = cstr(wcard, mm, led), h = 0, u = 0, hT = 0;
+        for(x = 0; x < 36; x++) if(!known[x] && x !== c){
+          if(suitOf(x) === led){ u++; if(cstr(x, mm, led) > hi) h++; }
+          if(T != null && T !== led && suitOf(x) === T) hT++;
+        }
+        var pv = Math.pow(1 - u / U, nh), pLed = suitOf(wcard) === led ? 1 - Math.pow(1 - 0.5 * k / 3, h) : 0, pOver;
+        if(T == null) pOver = 1 - Math.pow(1 - pv, k) * (1 - pLed);
+        else { var pTr = (hT > 0 && T !== led) ? 1 - Math.pow(1 - 0.3 * pv, k) : 0; pOver = 1 - (1 - pLed) * (1 - pTr); }
+        pT = 1 - pOver;
+        for(a = 0; a < cards.length; a++) for(b = a + 1; b < cards.length; b++) if(suitOf(cards[a]) === suitOf(cards[b]) && Math.abs(cards[a] % 9 - cards[b] % 9) <= 2) near = 6;
+      }
+    }
+    if(sets){
+      hand.forEach(function(y){ if(y !== c && suitOf(y) === T) liab += 0.5 * cardPts(y, T) + 1; });
+      if(!known[T * 9 + 3]) liab -= 4;
+      if(!known[T * 9 + 5]) liab -= 3;
+    }
+    var cost = pT * (tp + 6 * k + bon + near), gain = (1 - pT) * 0.35 * (cardPts(c, mm) + (takes ? 0 : bon)), sc = cost - gain + liab;
+    if(!best || sc < best.sc) best = {c:c, sc:sc, takes:takes, pT:pT, bon:bon, sets:sets, k:k};
+  });
+  var why;
+  if(best.sets) why = 'Ich muss abwerfen: Die Farbe wird Trumpf – ich wähle die, bei der ich am wenigsten Gefährliches auf der Hand habe.';
+  else if(!rd.trick.length) why = 'Ich spiele klein aus, damit ich keinen Stich bekomme.';
+  else if(best.pT > 0.6) why = best.k === 0 ? 'Ich muss den Stich nehmen – mit der Karte, die am wenigsten kostet.' : 'Der Stich wird wohl bei mir bleiben – ich gebe möglichst wenig Punkte dazu.';
+  else if(best.bon > 0 && !best.takes) why = 'Ich lege dazu: Der Weis/Stöck auf dem Tisch geht an jemand anderen.';
+  else if(!best.takes) why = 'Ich bleibe unter dem Stich und werde eine punktreiche Karte los.';
+  else why = 'Ich hoffe, dass jemand anderes den Stich nimmt.';
+  return {card:best.c, why:why};
 }
 function heurD(rd, seat){
   var m = effMode(rd.t, rd.trickNo), hand = rd.hands[seat], L = legal(hand, rd.trick, m);
@@ -819,7 +871,7 @@ function pimcPick(rd, seat, L, N){
     for(var j = 0; j < L.length; j++){
       var ls = cloneRd(rd, deal, seat), r = playCore(ls, seat, L[j]);
       if(ls.trickNo === 9) ls.phase = 'done'; else simulate(ls);
-      sc[j] += rd.cfg.kind === 'differenzler' ? -Math.abs(rd.ans[seat] - ls.spts[seat]) : IND[rd.cfg.kind] ? ls.spts[seat] : ls.pts[team] - ls.pts[1 - team];
+      sc[j] += rd.cfg.kind === 'differenzler' ? -Math.abs(rd.ans[seat] - ls.spts[seat]) : rd.cfg.kind === 'molotow' ? -ls.spts[seat] : IND[rd.cfg.kind] ? ls.spts[seat] : ls.pts[team] - ls.pts[1 - team];
     }
   }
   if(!done) return null;
@@ -831,12 +883,15 @@ function aiCard(rd, seat, lvl){
   if(L.length === 1) return {card:L[0], why:'Das ist die einzige erlaubte Karte.'};
   var h = heur(rd, seat);
   if(lvl === 1){ if(Math.random() < 0.7) return {card:pick(L), why:'Zufällig gewählt.'}; return h; }
-  if(lvl === 2) return h;
+  var mol = rd.cfg.kind === 'molotow';
+  if(lvl === 2 && !mol) return h;
   var left = rd.hands[seat].length, N = left >= 8 ? 24 : left >= 6 ? 36 : 60;
+  if(lvl === 2) N = Math.round(N / 3);
   var pm = pimcPick(rd, seat, L, N);
   if(!pm) return h;
   if(pm.card === h.card) return h;
-  return {card:pm.card, why:rd.cfg.kind === 'differenzler' ? 'In meinen Probe-Partien komme ich mit dieser Karte am nächsten an meine Ansage.' : 'In meinen Probe-Partien holt diese Karte im Schnitt am meisten Punkte.'};
+  if(mol && pm.all.length){ var hi2 = L.indexOf(h.card); if(hi2 >= 0 && pm.avg - pm.all[hi2] < 1.5) return h; }
+  return {card:pm.card, why:rd.cfg.kind === 'differenzler' ? 'In meinen Probe-Partien komme ich mit dieser Karte am nächsten an meine Ansage.' : mol ? 'In meinen Probe-Partien bleiben mir mit dieser Karte im Schnitt am wenigsten Punkte.' : 'In meinen Probe-Partien holt diese Karte im Schnitt am meisten Punkte.'};
 }
 function aiAnsage(rd, seat, lvl){
   var voids = voidsOf(rd), N = lvl === 1 ? 5 : lvl === 2 ? 14 : 36, sum = 0, done = 0;
@@ -952,7 +1007,8 @@ function onApplied(G, e){
   if(e.info && e.info.stoeck){ sayB(G, e.seat, 'Stöck! (+20)', 2400); ton('weis'); }
   if(e.info && e.info.trump != null){ G.msg = nm + ' wirft eine fremde Farbe ab: ' + suitName(e.info.trump) + ' ist Trumpf!'; sayB(G, e.seat, suitName(e.info.trump) + ' ist Trumpf', 2600); ton('weis'); }
   if(e.trick){
-    G.showTrick = {plays:G.rd.lastTrick.plays, win:e.trick.win, pts:e.trick.pts, until:Date.now() + 1200};
+    G.showTrick = {plays:G.rd.lastTrick.plays, win:e.trick.win, pts:e.trick.pts + (e.trick.bonus || 0), until:Date.now() + (e.trick.bonus ? 2200 : 1200)};
+    if(e.trick.bonus){ toast(e.trick.btxt + ' auf dem Tisch: ' + (e.trick.win === G.my ? 'du bekommst' : G.seats[e.trick.win].name + ' bekommt') + ' ' + e.trick.bonus + ' Punkte dazu.'); ton('weis'); }
     ton('stich');
     if(e.trick.pts >= 25) aiSay(G, e.trick.win, 'stich');
     if(G.rd.trickNo === 1 && G.rd.weisWin != null){
@@ -1012,9 +1068,9 @@ function newGame(base){
 }
 function kindCfg(cfg, fixed){
   var coif = fixed === 'coiffeur', dif = fixed === 'differenzler', hj = fixed === 'handjass', mo = fixed === 'molotow';
-  return Object.assign({}, cfg, hj ? {kind:'handjass', fixed:null, mult:false, weis:false, stoeck:false, slalom:false, target:7} : mo ? {kind:'molotow', fixed:null, mult:false, weis:false, stoeck:false, slalom:false, rounds:CFG.dRounds || 8} : dif ? {kind:'differenzler', fixed:null, mult:false, weis:false, stoeck:false, slalom:false, rounds:CFG.dRounds || 8} : coif ? {kind:'coiffeur', fixed:null, mult:true, slalom:false} : fixed != null ? {fixed:fixed, kind:null, mult:false, weis:false, stoeck:false} : {fixed:null, kind:null});
+  return Object.assign({}, cfg, hj ? {kind:'handjass', fixed:null, mult:false, weis:false, stoeck:false, slalom:false, target:7} : mo ? {kind:'molotow', fixed:null, mult:false, weis:false, stoeck:false, slalom:false, target:CFG.mTarget || 300} : dif ? {kind:'differenzler', fixed:null, mult:false, weis:false, stoeck:false, slalom:false, rounds:CFG.dRounds || 8} : coif ? {kind:'coiffeur', fixed:null, mult:true, slalom:false} : fixed != null ? {fixed:fixed, kind:null, mult:false, weis:false, stoeck:false} : {fixed:null, kind:null});
 }
-function kindLabel(o){ return o.kind === 'handjass' ? 'Handjass · 7 Striche' : o.kind === 'molotow' ? 'Molotow · ' + o.rounds + ' Runden' : o.kind === 'coiffeur' ? 'Coiffeur' : o.kind === 'differenzler' ? 'Differenzler · ' + o.rounds + ' Runden' : 'Schieber · Ziel ' + o.target; }
+function kindLabel(o){ return o.kind === 'handjass' ? 'Handjass · 7 Striche' : o.kind === 'molotow' ? 'Molotow · Ziel ' + o.target : o.kind === 'coiffeur' ? 'Coiffeur' : o.kind === 'differenzler' ? 'Differenzler · ' + o.rounds + ' Runden' : 'Schieber · Ziel ' + o.target; }
 function startAI(cfg, fixed){
   closeModal();
   cfg = kindCfg(cfg, fixed); fixed = cfg.fixed; var dif = !!IND[cfg.kind];
@@ -1088,17 +1144,23 @@ function roundEnd(){
 function roundEndInd(G){
   var rd = G.rd, res = rd.result, kd = G.cfg.kind, dz = kd === 'differenzler';
   if(!G.counted || G.counted !== G.rno + 1){ G.counted = G.rno + 1; res.final.forEach(function(d, i){ G.totals[i] += d; }); G.rounds.push({f:res.final.slice(), d:true}); if(G.mode === 'ai') saveLocal(); else if(G.mode === 'online' && G.hostUid === API.uid && S.me.g){ S.me.g.tot = G.totals.slice(); meWrite(); } }
-  var over = kd === 'handjass' ? (G.totals.some(function(x){ return x >= 7; }) || G.rounds.length >= 25) : G.rounds.length >= G.cfg.rounds; G.over = over; if(over) saveLocalClear();
-  var best = dz ? Math.min.apply(null, G.totals) : Math.max.apply(null, G.totals), winners = [0, 1, 2, 3].filter(function(s){ return G.totals[s] === best; });
-  var me = G.my, head = over ? (winners.indexOf(me) >= 0 ? '🏆 ' + (winners.length > 1 ? 'Geteilter Sieg!' : 'Gewonnen!') : 'Gewonnen hat ' + esc(G.seats[winners[0]].name)) : 'Runde ' + (G.rno + 1) + (kd === 'handjass' ? '' : ' von ' + G.cfg.rounds) + ' fertig';
+  var over = kd === 'handjass' ? (G.totals.some(function(x){ return x >= 7; }) || G.rounds.length >= 25) : kd === 'molotow' ? G.totals.some(function(x){ return x >= G.cfg.target; }) : G.rounds.length >= G.cfg.rounds; G.over = over; if(over) saveLocalClear();
+  var best = dz || kd === 'molotow' ? Math.min.apply(null, G.totals) : Math.max.apply(null, G.totals), winners = [0, 1, 2, 3].filter(function(s){ return G.totals[s] === best; });
+  var me = G.my, head = over ? (winners.indexOf(me) >= 0 ? '🏆 ' + (winners.length > 1 ? 'Geteilter Sieg!' : 'Gewonnen!') : 'Gewonnen hat ' + esc(G.seats[winners[0]].name)) : 'Runde ' + (G.rno + 1) + (kd === 'handjass' || kd === 'molotow' ? '' : ' von ' + G.cfg.rounds) + ' fertig';
   var order = [0, 1, 2, 3].map(function(i){ return (me + i) % 4; });
   var sg = function(v){ return v > 0 ? '+' + v : String(v); };
   var tb = '<table><thead><tr><th></th>' + order.map(function(s){ return '<th>' + esc(G.seats[s].name) + '</th>'; }).join('') + '</tr></thead><tbody>';
   if(dz) tb += '<tr><td>Ansage</td>' + order.map(function(s){ return '<td>' + res.ans[s] + '</td>'; }).join('') + '</tr>';
+  if(kd === 'molotow'){
+    tb += '<tr><td>Stiche</td>' + order.map(function(s){ return '<td>' + (res.spts[s] - res.bon[s]) + '</td>'; }).join('') + '</tr>';
+    tb += '<tr><td>Weis / Stöck</td>' + order.map(function(s){ return '<td>' + (res.bon[s] ? '+' + res.bon[s] : '–') + '</td>'; }).join('') + '</tr>';
+    tb += '<tr><td><b>Runde</b></td>' + order.map(function(s){ return '<td><b>' + res.final[s] + '</b></td>'; }).join('') + '</tr>';
+  } else {
   tb += '<tr><td>Punkte</td>' + order.map(function(s){ return '<td>' + res.spts[s] + '</td>'; }).join('') + '</tr>';
-  tb += '<tr><td><b>' + (dz ? 'Differenz' : kd === 'handjass' ? 'Striche' : 'Stöcke / Kartoffeln') + '</b></td>' + order.map(function(s){ return '<td><b>' + (dz ? res.final[s] : sg(res.final[s])) + '</b></td>'; }).join('') + '</tr>';
+  tb += '<tr><td><b>' + (dz ? 'Differenz' : 'Striche') + '</b></td>' + order.map(function(s){ return '<td><b>' + (dz ? res.final[s] : sg(res.final[s])) + '</b></td>'; }).join('') + '</tr>';
+  }
   tb += '<tr><td>Total</td>' + order.map(function(s){ return '<td>' + G.totals[s] + '</td>'; }).join('') + '</tr></tbody></table>';
-  var sub = dz ? 'Trumpf: ' + esc(suitName(rd.t)) + ' · wer die kleinste Gesamtdifferenz hat, gewinnt' : kd === 'handjass' ? 'Trumpf: ' + esc(suitName(rd.t)) + ' · die zwei besten Ergebnisse +1, unter 26 Punkten −1 · 7 Striche gewinnen' : (rd.t != null ? 'Trumpf: ' + esc(suitName(rd.t)) : 'Es wurde nie abgeworfen – kein Trumpf') + ' · wer am Ende die meisten Stöcke hat, gewinnt';
+  var sub = dz ? 'Trumpf: ' + esc(suitName(rd.t)) + ' · wer die kleinste Gesamtdifferenz hat, gewinnt' : kd === 'handjass' ? 'Trumpf: ' + esc(suitName(rd.t)) + ' · die zwei besten Ergebnisse +1, unter 26 Punkten −1 · 7 Striche gewinnen' : (rd.t != null ? 'Trumpf: ' + esc(suitName(rd.t)) : 'Es wurde nie abgeworfen – kein Trumpf') + ' · wer zuerst ' + G.cfg.target + ' Punkte erreicht, verliert – wer dann am wenigsten hat, gewinnt';
   if(over){ ton('ende'); if(G.mode === 'online') overStat(winners.indexOf(me) >= 0 ? 0 : 1); }
   modal('<div class="resbox"><h2>' + head + '</h2><p class="muted" style="margin:0 0 4px">' + sub + '</p>' + tb + '</div><div class="actions">' + (over ? '<button class="btn ghost" data-a="neu" type="button">Neue Partie</button><button class="btn" data-a="ende" type="button">Zum Menü</button>' : '<button class="btn" data-a="weiter" type="button">Nächste Runde</button>') + '</div>', function(m){
     var w = m.querySelector('[data-a="weiter"]'), n = m.querySelector('[data-a="neu"]'), e = m.querySelector('[data-a="ende"]');
@@ -1203,20 +1265,41 @@ function tafelCoiff(G){
   h += rows.map(function(r){ return COIFF[r] + '× ' + modeShort(r); }).join(' · ') + '</div></div>';
   return h;
 }
+/* Jasstafel-Striche: Schieber 100 = langer Strich (je 5 mit Querstrich), 50 = Schrägstrich, 20 = kurzer Querstrich; Handjass = Strichliste in Fünfergruppen */
+function chalkGroup(c, h, cross){
+  var w = c * 5 + 3, d = '', i;
+  for(i = 0; i < Math.min(c, 4); i++) d += 'M' + (2 + i * 5) + ' 1 V' + (h - 1);
+  var sv = '<path d="' + d + '"/>';
+  if(c === 5 && cross) sv += '<path d="M0 ' + (h - 2) + ' L' + (w - 1) + ' 2"/>';
+  return '<svg width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + ' ' + h + '" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round">' + sv + '</svg>';
+}
+function tallyHtml(n, h){
+  var o = '', g; if(n <= 0) return '';
+  for(g = 0; g < n; g += 5) o += chalkGroup(Math.min(5, n - g), h, true);
+  return '<span class="strichi">' + o + '</span>';
+}
+function schieberStriche(n){
+  if(!(n >= 20)) return '';
+  var hh = Math.floor(n / 100), r = n % 100, f = r >= 50 ? 1 : 0, z = Math.floor((r - 50 * f) / 20), o = '', i, g;
+  for(g = 0; g < hh; g += 5) o += chalkGroup(Math.min(5, hh - g), 18, true);
+  for(i = 0; i < f; i++) o += '<svg width="9" height="14" viewBox="0 0 9 14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M1.5 13 L7.5 1"/></svg>';
+  for(i = 0; i < z; i++) o += '<svg width="10" height="14" viewBox="0 0 10 14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M1 12 H9"/></svg>';
+  return '<span class="strichi">' + o + '</span>';
+}
 function tafelDiff(G){
   var me = G.my, order = [0, 1, 2, 3].map(function(i){ return (me + i) % 4; });
   var h = '<div class="tafel"><h4>' + (G.cfg.kind === 'handjass' ? 'Handjass-Tafel' : G.cfg.kind === 'molotow' ? 'Molotow-Tafel' : 'Differenzler-Tafel') + '</h4><table><thead><tr><th></th>' + order.map(function(s){ return '<th style="font-size:13px">' + esc(G.seats[s].name.split(' ')[0]) + '</th>'; }).join('') + '</tr></thead><tbody>';
   G.rounds.forEach(function(r, i){ h += '<tr><td>' + (i + 1) + '</td>' + order.map(function(s){ return '<td>' + r.f[s] + '</td>'; }).join('') + '</tr>'; });
   if(!G.rounds.length) h += '<tr><td></td><td>&nbsp;</td><td></td><td></td><td></td></tr>';
-  h += '</tbody><tfoot><tr><td>Σ</td>' + order.map(function(s){ return '<td>' + G.totals[s] + '</td>'; }).join('') + '</tfoot></table><div class="ziel">' + (G.cfg.kind === 'handjass' ? '7 Striche gewinnen' : G.cfg.kind === 'molotow' ? G.cfg.rounds + ' Runden · meiste Stöcke gewinnen' : G.cfg.rounds + ' Runden · kleinste Differenz gewinnt') + '</div></div>';
+  h += '</tbody><tfoot><tr><td>Σ</td>' + order.map(function(s){ return '<td>' + G.totals[s] + (G.cfg.kind === 'handjass' ? tallyHtml(G.totals[s], 16) : '') + '</td>'; }).join('') + '</tfoot></table><div class="ziel">' + (G.cfg.kind === 'handjass' ? '7 Striche gewinnen' : G.cfg.kind === 'molotow' ? 'Wer zuerst ' + G.cfg.target + ' erreicht, verliert' : G.cfg.rounds + ' Runden · kleinste Differenz gewinnt') + '</div></div>';
   return h;
 }
 function tafelHtml(G){
   if(IND[G.cfg.kind]) return tafelDiff(G);
   if(G.cfg.kind === 'coiffeur') return tafelCoiff(G);
-  var t = (G.mode === 'watch' ? 0 : G.my) % 2, rows = G.rounds.map(function(r, i){ return '<tr><td>' + (i + 1) + '</td><td>' + r.f[t] + '</td><td>' + r.f[1 - t] + '</td></tr>'; }).join('');
+  var t = (G.mode === 'watch' ? 0 : G.my) % 2, rows = G.rounds.map(function(r, i){ return '<tr><td>' + (i + 1) + '</td><td>' + r.f[t] + schieberStriche(r.f[t]) + '</td><td>' + r.f[1 - t] + schieberStriche(r.f[1 - t]) + '</td></tr>'; }).join('');
   var tot = [G.totals[t], G.totals[1 - t]];
-  return '<div class="tafel"><h4>Schreibtafel</h4><table><thead><tr><th></th><th>Wir</th><th>Sie</th></tr></thead><tbody>' + (rows || '<tr><td></td><td>&nbsp;</td><td></td></tr>') + '</tbody><tfoot><tr><td>Σ</td><td>' + tot[0] + '</td><td>' + tot[1] + '</td></tr></tfoot></table><div class="ziel">' + (G.cfg.fixed != null ? 'Sechs Runden' : 'Ziel: ' + G.cfg.target + ' Punkte') + '</div></div>';
+  return '<div class="tafel"><h4>Schreibtafel</h4><table><thead><tr><th></th><th>Wir</th><th>Sie</th></tr></thead><tbody>' + (rows || '<tr><td></td><td>&nbsp;</td><td></td></tr>') + '</tbody><tfoot><tr><td>Σ</td><td>' + tot[0] + schieberStriche(tot[0]) + '</td><td>' + tot[1] + schieberStriche(tot[1]) + '</td></tr></tfoot></table><div class="ziel">' + (G.cfg.fixed != null ? 'Sechs Runden' : 'Ziel: ' + G.cfg.target + ' Punkte') + '<br><small>langer Strich = 100 · schräg = 50 · quer = 20</small></div></div>';
 }
 function liveHtml(G){
   var rd = G.rd, t = (G.mode === 'watch' ? 0 : G.my) % 2;
@@ -1409,7 +1492,7 @@ function setupDialog(kind, fixed){
   } else if(hj){
     h += '<p class="muted">Du spielst gegen drei Computer, jeder für sich. Trumpf ist die letzte ausgeteilte Karte. Nach jeder Runde bekommen die zwei besten Ergebnisse je einen Strich, wer unter 26 Punkten bleibt, einen Strich Abzug (Null). Wer zuerst 7 Striche hat, gewinnt.</p>';
   } else if(mo){
-    h += '<p class="muted">Du spielst gegen drei Computer, jeder für sich. Es gibt zuerst keinen Trumpf: Die erste fremde Farbe, die abgeworfen wird, wird Trumpf. Nach jeder Runde gibt es Stöcke und Kartoffeln.</p><div class="field"><label class="t">Runden</label>' + seg('drounds', [[6, '6'], [8, '8'], [12, '12']], CFG.dRounds || 8) + '</div>';
+    h += '<p class="muted">Du spielst gegen drei Computer, jeder für sich. Es gibt zuerst keinen Trumpf: Die erste fremde Farbe, die abgeworfen wird, wird Trumpf. <b>Punkte machen ist schlecht:</b> Wer zuerst die Zielpunktzahl erreicht, verliert; wer dann die wenigsten Punkte hat, gewinnt. Liegt im Stich ein Weis (z. B. 6-7-8 derselben Farbe) oder König + Ober/Dame vom Trumpf, bekommt die Person, die den Stich nimmt, die Weispunkte (bzw. 20 für den Stöck) dazu.</p><div class="field"><label class="t">Spielende bei (Punkte)</label>' + seg('mtarget', [[200, '200'], [300, '300'], [500, '500']], CFG.mTarget || 300) + '</div>';
   } else if(dif){
     h += '<p class="muted">Du spielst gegen drei Computer, jeder für sich. Vor dem Spielen sagt jede Person an, wie viele Punkte sie holt – die kleinste Gesamtdifferenz gewinnt.</p><div class="field"><label class="t">Runden</label>' + seg('drounds', [[4, '4'], [8, '8'], [12, '12']], CFG.dRounds || 8) + '</div>';
   } else if(coif){
@@ -1435,6 +1518,7 @@ function setupDialog(kind, fixed){
       if(q('oWeis') && !q('oMult')){ CFG.weis = q('oWeis').checked; CFG.stoeck = q('oStoeck').checked; }
       if(q('oMult')){ CFG.mult = q('oMult').checked; CFG.weis = q('oWeis').checked; CFG.stoeck = q('oStoeck').checked; CFG.slalom = q('oSlalom').checked; CFG.guschti = q('oGuschti').checked; CFG.sws = q('oSws').checked; }
       var dr = m.querySelector('input[name="drounds"]:checked'); if(dr) CFG.dRounds = +dr.value;
+      var mt = m.querySelector('input[name="mtarget"]:checked'); if(mt) CFG.mTarget = +mt.value;
       if(q('lP')) CFG.lvlP = +q('lP').value; CFG.lvlG = +q('lG').value; CFG.hilfe = q('oHilfe').checked; CFG.tipp = q('oTipp').checked; CFG.live = q('oLive').checked;
       lsSet('jassen_cfg_v1', CFG);
       if(kind === 'online'){ var ok = m.querySelector('input[name="okind"]:checked'); CFG.okind = ok ? ok.value : 'schieber'; lsSet('jassen_cfg_v1', CFG); openTable(kindCfg(mkCfg(), CFG.okind === 'schieber' ? null : CFG.okind)); } else startAI(mkCfg(), fixed);
@@ -1453,7 +1537,7 @@ function renderMenu(){
     '<button class="mode" data-m="coiffeur" type="button"><span class="pc">♦</span><b>Coiffeur gegen den Computer</b><small>Jede Spielart einmal – die Tafel wird Zeile für Zeile gefüllt.</small></button>' +
     '<button class="mode" data-m="differenzler" type="button"><span class="pc">±</span><b>Differenzler</b><small>Sag deine Punkte an – wer am genauesten ist, gewinnt.</small></button>' +
     '<button class="mode" data-m="handjass" type="button"><span class="pc">♣</span><b>Handjass</b><small>Jeder für sich, Striche sammeln – bis sieben.</small></button>' +
-    '<button class="mode" data-m="molotow" type="button"><span class="pc">★</span><b>Molotow</b><small>Der Trumpf entsteht erst im Spiel – Stöcke und Kartoffeln.</small></button>' +
+    '<button class="mode" data-m="molotow" type="button"><span class="pc">★</span><b>Molotow</b><small>Der Trumpf entsteht erst im Spiel – wer am wenigsten Punkte macht, gewinnt.</small></button>' +
     '<button class="mode" data-m="tschau" type="button"><span class="pc">🂱</span><b>Tschau-Sepp</b><small>Das Kinderspiel mit Spezialkarten – gegen drei Computer.</small></button>' +
     '<button class="mode" data-m="gaemsch" type="button"><span class="pc">🐐</span><b>Gämsch</b><small>Vier gleiche sammeln – im Team gegen die Computer.</small></button>' +
     '<button class="mode" data-m="oben" type="button"><span class="pc">↓</span><b>Obenabe-Jass</b><small>Einfach zum Einstieg: sechs Runden, das Ass sticht.</small></button>' +
@@ -2090,7 +2174,7 @@ var PAGES = [
  {id:'molotow', g:'Weitere Jassarten', t:'Molotow', f:function(){
    return '<h2>Molotow</h2><p class="lead">Der Trumpf ergibt sich erst im Spiel – ein Jass für vier Einzelspieler.</p>' +
    '<ul><li>Vier Personen spielen, jede für sich, mit 36 Karten. Die Karten werden gegen den Uhrzeigersinn in Dreierpaketen ausgeteilt (9 Karten je Person).</li><li>Die Person <b>rechts vom Geber</b> spielt eine beliebige Karte aus. Es gilt Farbe bedienen.</li><li><b>Die erste Karte einer anderen Farbe</b>, die jemand statt zu bedienen spielt, bestimmt <b>die Trumpffarbe</b> für die ganze Runde.</li><li>Danach gelten die üblichen Trumpf-Regeln: Buur und Nell sind die höchsten Trümpfe. Wird nie abgeworfen und gibt es keinen Trumpf, zählt die Acht 8 Punkte.</li><li>Der letzte Stich zählt 5 Punkte.</li></ul>' +
-   '<h3>Wertung (nach 12 Runden)</h3><p>Punkte werden in «Stöcken» (positiv) und «Kartoffeln» (negativ) geschrieben:</p><ul><li>Alle unter 100 Punkten: Höchste und tiefste Person je 1 Stock; die beiden mittleren je 1 Kartoffel.</li><li>Wer 100 bis 156 Punkte hat: 3 Kartoffeln für sie, 3 Stöcke für alle anderen.</li><li>Wer alle 157 Punkte holt: 3 Stöcke für sie, 3 Kartoffeln für alle anderen.</li></ul><p>Wer nach 12 Runden am meisten Stöcke hat, gewinnt.</p>' + '<p><button class="btn sm" data-play="molotow" type="button">★ Molotow gegen den Computer spielen</button></p>' + box('Molotow wird nicht überall gleich gespielt. Die Wertung folgt einer verbreiteten Regelsammlung (gamerules.com).', 'warn');
+   '<h3>Wertung</h3><p><b>Punkte machen ist schlecht.</b> Jede Person schreibt die Punkte, die sie mit ihren Stichen macht (letzter Stich 5 extra), über mehrere Runden zusammen. Sobald eine Person die abgemachte Punktzahl (z. B. 300) erreicht, ist das Spiel zu Ende: Sie hat verloren, und wer dann die <b>wenigsten Punkte</b> hat, gewinnt.</p><h3>Weis und Stöck auf dem Tisch</h3><ul><li><b>Tischwyss:</b> Liegen in einem Stich drei oder mehr Karten einer Farbe in Folge (z. B. 6-7-8 Rosen: 20 Punkte, vier Karten: 50) oder vier gleiche Karten, bekommt die Person, die den Stich nimmt, die Weispunkte dazu.</li><li><b>Stöck:</b> Liegen König und Ober/Dame der Trumpffarbe im selben Stich, bekommt die Person, die den Stich nimmt, 20 Punkte dazu.</li><li>Tipp: Lege solche Karten dazu, wenn jemand anderes den Stich nimmt!</li></ul>' + '<p><button class="btn sm" data-play="molotow" type="button">★ Molotow gegen den Computer spielen</button></p>' + box('Molotow wird nicht überall gleich gespielt. Hier gilt die Hausregel: wenigste Punkte gewinnt.', 'warn');
  }},
  {id:'stoeck', g:'Weitere Jassarten', t:'Stöck-Wyss-Stich', f:function(){
    return '<h2>Stöck – Wyss – Stich</h2><p class="lead">Die Zählreihenfolge beim Jassen – und der Name der Jassteppiche.</p>' +
@@ -2122,7 +2206,7 @@ function spickHtml(which){
     oben:['Obenabe / Undenufe', ['Keine Trumpffarbe, Farbe bedienen', 'Obenabe: Ass, König, ' + RANKN[SET][2] + ', ' + RANKN[SET][3] + ', 10, 9, 8, 7, 6', 'Undenufe: umgekehrt (Sechs oben)', 'Punkte Obenabe: 11 · 4 · 3 · 2 · 10 · 0 · 8 · 0 · 0', 'Punkte Undenufe: 0 · 4 · 3 · 2 · 10 · 0 · 8 · 0 · 11']],
     coiffeur:['Coiffeur', ['Jedes Team spielt jede Zeile einmal', 'Vorhand sagt an, kein Schieben', 'Faktoren: ' + [2, 0, 3, 1].map(function(s){ return suitName(s) + ' ' + COIFF[s] + '×'; }).join(', ') + ', Obenabe 5×, Undenufe 6×', 'Punkte × Faktor in die Tafel', 'Höchste Summe gewinnt']],
     differenzler:['Differenzler', ['4 Einzelspieler', 'Trumpf = letzte Karte des Gebers', 'Jeder sagt seine Stichpunkte an', 'Differenz zwischen Ansage und Ergebnis wird geschrieben', 'Kleinste Gesamtdifferenz gewinnt']],
-    molotow:['Molotow', ['4 Einzelspieler, 12 Runden', 'Erste Karte einer fremden Farbe bestimmt den Trumpf', 'Stöcke und Kartoffeln zählen', 'Wer 157 holt: 3 Stöcke, alle anderen 3 Kartoffeln']],
+    molotow:['Molotow', ['4 Einzelspieler', 'Erste Karte einer fremden Farbe bestimmt den Trumpf', 'Punkte machen ist schlecht: wer zuerst die Zielpunktzahl erreicht, verliert', 'Weis/Stöck auf dem Tisch: Stichnehmer bekommt sie dazu']],
     handjass:['Handjass', ['2 bis 4 Spieler', 'Ziel: 7 Striche sammeln', 'Unter 26 Punkten: eine Null', 'Letzter Stich 5']],
     tschau:['Tschau-Sepp', ['Farbe oder Bild passt', '8 überspringt · Bube wählt Farbe · 6 tauscht · 10 wechselt Richtung · 7 = +2', 'Vorletzte Karte: «Tschau», letzte: «Sepp»']],
     gaemsch:['Gämsch', ['2er-Teams, 4 Handkarten + 4 offene', 'Vier gleiche sammeln, Partner mit Geheimzeichen informieren', 'Gämsch 1 Punkt · Doppelgämsch 2 · Zeichen erraten 2', '10 Punkte gewinnen']]
