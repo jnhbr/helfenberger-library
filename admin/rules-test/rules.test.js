@@ -531,6 +531,25 @@ test('Schach: eigener Spieler-Eintrag (score 0) schreiben, die Klasse liest ihn,
   await assertFails(updateDoc(doc(db.sus(), p + 'sus'), { stat: { w: 99, d: 0, l: 0 }, score: 3 }));
 });
 
+// ---------- 🂡 Jassen (quizSessions/jassen: Freigabe durch die Lehrperson, Spieler-Einträge der Klasse) ----------
+test('Jassen: nur die Lehrperson schaltet frei, die Klasse liest die Freigabe, andere Klassen nicht', async () => {
+  await assertSucceeds(setDoc(doc(db.jan(), 'klassen/G3b/quizSessions/jassen'), { art: 'jassen', bis: 123, von: 'J' }));
+  await assertSucceeds(getDoc(doc(db.sus(), 'klassen/G3b/quizSessions/jassen')));
+  await assertFails(setDoc(doc(db.sus(), 'klassen/G3b/quizSessions/jassen'), { art: 'jassen', bis: 9999999999999 }));
+  await assertFails(getDoc(doc(db.susA(), 'klassen/G3b/quizSessions/jassen')));
+});
+test('Jassen: eigener Spieler-Eintrag (score 0) schreiben, die Klasse liest ihn, fremde nicht schreiben', async () => {
+  const p = 'klassen/G3b/quizSessions/jassen/spieler/';
+  await assertSucceeds(setDoc(doc(db.sus(), p + 'sus'), { score: 0, name: 'S', at: 1, stat: { w: 0, d: 0, l: 0 }, tisch: { id: 'sus-1', status: 'offen', seats: ['sus', null, null, null], names: ['S', '', '', ''], o: { target: 1000, mult: true } } }));
+  await assertSucceeds(setDoc(doc(db.sus(), p + 'sus'), { score: 0, name: 'S', at: 2, g: { id: 'sus-1', rno: 0, a: ['t0', 'p3'], ai: { 1: ['t1'] } } }));
+  await assertFails(setDoc(doc(db.sus(), p + 'sus'), { score: 5, name: 'S' }));
+  await assertFails(setDoc(doc(db.sus(), p + 'anderes'), { score: 0, name: 'X' }));
+  await assertSucceeds(getDocs(collection(db.sus(), 'klassen/G3b/quizSessions/jassen/spieler')));
+  await assertFails(getDocs(collection(db.susA(), 'klassen/G3b/quizSessions/jassen/spieler')));
+  await assertSucceeds(updateDoc(doc(db.jan(), p + 'sus'), { stat: { w: 0, d: 0, l: 0 } }));
+  await assertFails(updateDoc(doc(db.sus(), p + 'sus'), { stat: { w: 99, d: 0, l: 0 }, score: 3 }));
+});
+
 // ---------- 🎲 Live-Spiele: Schätzmeister, Bingo, Buzzer (quizSessions/spiel) ----------
 test('Live-Spiel: nur die Lehrperson schreibt und löscht die Session, die Klasse liest sie', async () => {
   await assertSucceeds(setDoc(doc(db.jan(), 'klassen/G3b/quizSessions/spiel'), { aktiv: true, art: 'buzzer', spielId: 'x', phase: 'lobby', runde: 0 }));

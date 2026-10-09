@@ -1,0 +1,1906 @@
+<!doctype html>
+<html lang="de-CH">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Jasstisch</title>
+<style>
+:root{
+  --felt-1:#1d3a2c; --felt-2:#12251c; --felt-3:#0a1510;
+  --panel:#1c1712; --panel-2:#241d15; --line:#5b4526; --line-soft:#3a2d1a;
+  --gold:#d9b25a; --gold-2:#a8782a; --gold-soft:#f0d79a;
+  --ivory:#f6ecd3; --muted:#b9a98b; --ink:#17110b;
+  --ok:#6fcf8d; --bad:#e8705f; --warn:#f0b650;
+  --sq-l:#ecd9b0; --sq-d:#a56f3f;
+  --serif:"Iowan Old Style","Palatino Linotype",Palatino,"Book Antiqua",Georgia,"Times New Roman",serif;
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --piece-font:"Segoe UI Symbol","Apple Symbols","Noto Sans Symbols 2","DejaVu Sans","Arial Unicode MS",sans-serif;
+  --bs:min(calc(100vw - 56px), calc(100vh - 215px), 640px);
+}
+*{box-sizing:border-box;}
+html,body{margin:0;min-height:100%;}
+body{
+  font-family:var(--sans); color:var(--ivory); font-size:16px; line-height:1.4;
+  background:
+    repeating-conic-gradient(rgba(255,255,255,.018) 0% 25%, transparent 0% 50%) 0 0/72px 72px,
+    radial-gradient(1200px 700px at 50% -10%, var(--felt-1) 0%, var(--felt-2) 48%, var(--felt-3) 100%);
+  background-attachment:fixed;
+  -webkit-text-size-adjust:100%;
+}
+button{font:inherit; color:inherit; cursor:pointer;}
+[hidden]{display:none !important;}
+#app{max-width:1040px; margin:0 auto; padding:14px 16px 40px;}
+
+/* ---------- Kopf ---------- */
+.top{display:flex; align-items:center; gap:12px; margin-bottom:14px;}
+.logo{width:44px; height:44px; border-radius:50%; display:grid; place-items:center; flex:none;
+  background:radial-gradient(circle at 35% 30%, #f3dc9c, var(--gold) 55%, var(--gold-2)); color:var(--ink);
+  font-size:26px; font-family:var(--piece-font); box-shadow:0 2px 0 #6b4a14, 0 6px 14px #0008;}
+.brand{flex:1; min-width:0;}
+.brand h1{margin:0; font-family:var(--serif); font-weight:700; font-size:24px; letter-spacing:.14em; text-transform:uppercase; color:var(--gold-soft); line-height:1.05;}
+.brand small{display:block; color:var(--muted); font-size:12.5px; letter-spacing:.04em;}
+.chip{display:inline-flex; align-items:center; gap:6px; padding:6px 12px; border-radius:999px; font-size:13px; font-weight:600; border:1px solid var(--line); background:#0006; white-space:nowrap;}
+.chip i{width:9px; height:9px; border-radius:50%; background:var(--ok); box-shadow:0 0 8px var(--ok);}
+.chip.zu i{background:var(--bad); box-shadow:0 0 8px var(--bad);}
+.iconbtn{width:40px; height:40px; border-radius:50%; border:1px solid var(--line); background:#0006; font-size:18px; display:grid; place-items:center;}
+.iconbtn:hover{border-color:var(--gold);}
+
+/* ---------- Karten, Knöpfe ---------- */
+.card{background:linear-gradient(180deg,var(--panel-2),var(--panel)); border:1px solid var(--line); border-radius:14px; padding:16px 18px; box-shadow:0 10px 26px #0006, inset 0 1px 0 #ffffff12;}
+.card h2,.card h3{font-family:var(--serif); margin:0 0 8px; color:var(--gold-soft); letter-spacing:.04em;}
+.card h2{font-size:20px;} .card h3{font-size:17px;}
+.muted{color:var(--muted);}
+.btn{border:1px solid #6b4a14; border-radius:10px; padding:10px 16px; font-weight:700; color:var(--ink);
+  background:linear-gradient(180deg,#f0d28a,var(--gold) 50%,var(--gold-2)); box-shadow:0 2px 0 #5a3d0e, 0 6px 14px #0006;
+  transition:transform .08s, filter .15s;}
+.btn:hover{filter:brightness(1.07);} .btn:active{transform:translateY(1px);}
+.btn.ghost{background:transparent; color:var(--ivory); border-color:var(--line); box-shadow:none;}
+.btn.ghost:hover{border-color:var(--gold); color:var(--gold-soft);}
+.btn.danger{background:linear-gradient(180deg,#ef9686,#d1503f 55%,#a63427); color:#fff; border-color:#6e1f15; box-shadow:0 2px 0 #5a160e, 0 6px 14px #0006;}
+.btn.sm{padding:6px 12px; font-size:14px; border-radius:8px;}
+.btn[disabled]{opacity:.45; cursor:not-allowed; filter:none;}
+.row{display:flex; flex-wrap:wrap; gap:8px; align-items:center;}
+
+/* ---------- Gesperrt ---------- */
+.gate{text-align:center; padding:34px 22px 30px; max-width:560px; margin:24px auto;}
+.gate .lock{position:relative; width:150px; height:150px; margin:0 auto 14px; display:grid; place-items:center;}
+.gate .lock b{font-size:96px; font-family:var(--piece-font); color:#d9c7a0; opacity:.5; line-height:1;}
+.gate .lock span{position:absolute; right:6px; bottom:6px; width:58px; height:58px; border-radius:50%; background:radial-gradient(circle at 35% 30%,#f3dc9c,var(--gold) 60%,var(--gold-2)); display:grid; place-items:center; font-size:30px; box-shadow:0 6px 16px #000a;}
+.gate h2{font-size:24px;}
+.gate .big{font-family:var(--serif); font-size:34px; color:var(--gold-soft); margin:6px 0 2px; font-variant-numeric:tabular-nums;}
+.gate ul{list-style:none; padding:0; margin:16px auto 0; max-width:360px; text-align:left; color:var(--muted); font-size:14.5px;}
+.gate li{padding:4px 0 4px 24px; position:relative;} .gate li::before{content:"♠︎"; position:absolute; left:0; color:var(--gold);}
+
+/* ---------- Lehrerfeld ---------- */
+.teacher{margin-bottom:16px; padding:0;}
+.teacher summary{list-style:none; cursor:pointer; padding:12px 18px; display:flex; align-items:center; gap:10px; font-family:var(--serif); color:var(--gold-soft); letter-spacing:.04em; font-size:17px;}
+.teacher summary::-webkit-details-marker{display:none;}
+.teacher summary .sub{margin-left:auto; font-family:var(--sans); font-size:13px; color:var(--muted); letter-spacing:0;}
+.teacher .body{padding:2px 18px 16px; border-top:1px solid var(--line-soft);}
+.teacher .klassen{display:flex; flex-wrap:wrap; gap:6px 12px; margin:8px 0 2px; font-size:14px;}
+.teacher label{display:inline-flex; align-items:center; gap:5px; color:var(--muted);}
+
+/* ---------- Menü ---------- */
+.modes{display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:14px; margin-bottom:18px;}
+.mode{text-align:left; padding:18px 18px 16px; border-radius:14px; border:1px solid var(--line); background:linear-gradient(180deg,var(--panel-2),var(--panel)); box-shadow:0 10px 26px #0006, inset 0 1px 0 #ffffff12; transition:transform .12s, border-color .15s;}
+.mode:hover{transform:translateY(-3px); border-color:var(--gold);}
+.mode .pc{display:block; font-family:var(--piece-font); font-size:44px; line-height:1; color:var(--gold); margin-bottom:6px; text-shadow:0 2px 0 #000a;}
+.mode b{font-family:var(--serif); font-size:19px; color:var(--ivory); letter-spacing:.03em;}
+.mode small{display:block; margin-top:3px; color:var(--muted); font-size:13.5px;}
+.resume{display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:16px; border-color:var(--gold);}
+.resume .grow{flex:1; min-width:180px;}
+.two{display:grid; grid-template-columns:1fr 1fr; gap:14px;}
+@media (max-width:760px){.two{grid-template-columns:1fr;}}
+.tisch{display:flex; align-items:center; gap:10px; padding:10px 0; border-top:1px solid var(--line-soft);}
+.tisch:first-of-type{border-top:0;}
+.tisch .dot{width:30px; height:30px; border-radius:50%; flex:none; display:grid; place-items:center; font-family:var(--piece-font); font-size:20px;}
+.tisch .info{flex:1; min-width:0;} .tisch .info b{display:block;} .tisch .info small{color:var(--muted);}
+.dot.w{background:#f6ecd3; color:#2b1d12; border:1px solid #2b1d12;} .dot.b{background:#1a120c; color:#f6ecd3; border:1px solid #8a6a45;}
+table.rang{width:100%; border-collapse:collapse; font-size:15px;}
+table.rang th{font-size:12px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); text-align:right; padding:0 6px 6px;}
+table.rang th:nth-child(2){text-align:left;}
+table.rang td{padding:7px 6px; border-top:1px solid var(--line-soft); text-align:right; font-variant-numeric:tabular-nums;}
+table.rang td:nth-child(1){text-align:left; width:30px; color:var(--gold);} table.rang td:nth-child(2){text-align:left;}
+table.rang tr.me td{background:#d9b25a1c;} table.rang td.pt{font-weight:700; color:var(--gold-soft);}
+.empty{color:var(--muted); padding:10px 0;}
+
+.nav{display:flex; gap:6px; padding:6px 8px 8px; border-top:1px solid var(--line-soft);}
+.nav button{flex:1; padding:6px 0; border-radius:8px; border:1px solid var(--line); background:#0005; font-size:15px;}
+.nav button:hover{border-color:var(--gold);} .nav button[disabled]{opacity:.35;}
+.acts{display:flex; flex-wrap:wrap; gap:8px;}
+.acts .btn{flex:1 1 auto;}
+.banner{padding:10px 12px; border-radius:10px; border:1px solid var(--warn); background:#f0b6501a; font-size:14px; color:#ffdca0;}
+.banner .row{margin-top:8px;}
+
+/* ---------- Dialog, Toast ---------- */
+.modal{position:fixed; inset:0; z-index:100; background:rgba(4,8,6,.72); display:grid; place-items:center; padding:16px; overflow:auto; animation:fade .15s;}
+.dlg{width:min(520px,100%); max-height:100%; overflow:auto;}
+.dlg h2{font-size:22px;}
+.dlg .field{margin:14px 0 4px;} .dlg .field>label.t{display:block; font-size:12.5px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); margin-bottom:6px;}
+.seg{display:flex; flex-wrap:wrap; gap:6px; position:relative;}
+.seg input{position:absolute; opacity:0; pointer-events:none;}
+.seg label{padding:8px 13px; border-radius:9px; border:1px solid var(--line); background:#0005; cursor:pointer; font-size:14.5px;}
+.seg input:checked + label{background:linear-gradient(180deg,#f0d28a,var(--gold)); color:var(--ink); border-color:#6b4a14; font-weight:700;}
+.seg input:focus-visible + label{outline:2px solid var(--gold-soft); outline-offset:2px;}
+.opt{display:flex; align-items:center; gap:10px; padding:8px 2px; border-top:1px solid var(--line-soft);}
+.opt:first-of-type{border-top:0;} .opt .t{flex:1;} .opt .t small{display:block; color:var(--muted); font-size:12.5px;}
+.sw{position:relative; width:46px; height:26px; flex:none;}
+.sw input{position:absolute; inset:0; opacity:0; width:100%; height:100%; margin:0; cursor:pointer; z-index:1;}
+.sw span{position:absolute; inset:0; border-radius:99px; background:#0008; border:1px solid var(--line); transition:.15s;}
+.sw span::after{content:""; position:absolute; top:2px; left:2px; width:20px; height:20px; border-radius:50%; background:var(--muted); transition:.15s;}
+.sw input:checked + span{background:var(--gold-2); border-color:var(--gold);} .sw input:checked + span::after{left:22px; background:var(--ivory);}
+.sw input:focus-visible + span{outline:2px solid var(--gold-soft); outline-offset:2px;}
+.subopts{margin:4px 0 6px 0; padding:2px 0 8px; display:none;} .subopts.show{display:block;}
+.dlg .actions{display:flex; gap:8px; justify-content:flex-end; margin-top:18px; flex-wrap:wrap;}
+.result{text-align:center;} .result .big{font-family:var(--piece-font); font-size:72px; color:var(--gold); line-height:1; text-shadow:0 3px 0 #000a;} .result h2{font-size:26px; margin-top:6px;}
+#toast{position:fixed; left:50%; bottom:22px; transform:translateX(-50%) translateY(20px); background:#0c0905f0; border:1px solid var(--gold); color:var(--ivory); padding:10px 16px; border-radius:10px; opacity:0; pointer-events:none; transition:.2s; z-index:200; max-width:90vw; text-align:center;}
+#toast.show{opacity:1; transform:translateX(-50%);}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+@media (prefers-reduced-motion:reduce){*{animation:none !important; transition:none !important;}}
+@media (max-width:560px){
+  #app{padding:10px 10px 32px;}
+  .top{gap:8px;} .logo{width:38px;height:38px;font-size:22px;}
+  .brand h1{font-size:18px; letter-spacing:.1em;} .brand small{display:none;}
+  .top{flex-wrap:wrap;} .chip{order:10; flex:1 1 100%; justify-content:center; font-size:12.5px; padding:5px 9px;}
+  .iconbtn{width:36px;height:36px;}
+  .card{padding:14px;}
+}
+button:focus-visible{outline:2px solid var(--gold-soft); outline-offset:2px;}
+
+/* ---------- Jass: Tisch ---------- */
+:root{ --cw:min(15.5vw,78px); --ch:calc(var(--cw)*1.56); --tafel:#232a26; --kreide:#eef0e8; }
+.logo{font-family:var(--serif);}
+.topnav{display:flex; gap:6px; flex-wrap:wrap; margin:0 0 14px;}
+.topnav button{padding:7px 14px; border-radius:999px; border:1px solid var(--line); background:#0005; font-size:14px;}
+.topnav button.on{background:linear-gradient(180deg,#f0d28a,var(--gold)); color:var(--ink); border-color:#6b4a14; font-weight:700;}
+.topnav .sp{flex:1;}
+.setbtn{display:inline-flex; gap:0; border:1px solid var(--line); border-radius:999px; overflow:hidden; background:#0005;}
+.setbtn button{padding:7px 12px; border:0; background:transparent; font-size:13.5px;}
+.setbtn button.on{background:linear-gradient(180deg,#f0d28a,var(--gold)); color:var(--ink); font-weight:700;}
+
+.jc{display:block; width:var(--cw); height:calc(var(--cw)*1.56); flex:none; filter:drop-shadow(0 2px 3px #0008);}
+.jc.sm{--cw:46px;} .jc.xs{--cw:34px;} .jc.lg{--cw:96px;}
+.jc svg{display:block; width:100%; height:100%;}
+.cardbtn{border:0; background:transparent; padding:0; border-radius:8px; position:relative; transition:transform .12s;}
+.cardbtn.ok:hover{transform:translateY(-14px);}
+.cardbtn.no{opacity:.4; filter:grayscale(.4);} .cardbtn.no .jc{filter:none;}
+.cardbtn.hint .jc{filter:drop-shadow(0 0 7px #f0d79a) drop-shadow(0 0 3px #f0d79a);}
+.cardbtn.ok{cursor:pointer;}
+
+.jtable{position:relative; display:grid; grid-template-columns:minmax(0,1fr) minmax(0,2.2fr) minmax(0,1fr); grid-template-rows:auto minmax(220px,auto) auto;
+  gap:8px; padding:16px 12px 14px; border-radius:18px; border:2px solid #1a0f08;
+  background:radial-gradient(ellipse at 50% 45%, #2d6a47 0%, #20503a 55%, #153325 100%);
+  box-shadow:0 22px 44px #000b, inset 0 0 0 6px #6a4529, inset 0 0 0 8px #2d1a0e, inset 0 0 60px #0007;}
+.seat{display:flex; flex-direction:column; align-items:center; gap:6px; min-width:0; position:relative;}
+.seat.top{grid-column:2; grid-row:1;} .seat.left{grid-column:1; grid-row:2; justify-content:center;}
+.seat.right{grid-column:3; grid-row:2; justify-content:center;} .seat.me{grid-column:1/-1; grid-row:3;}
+.center{grid-column:2; grid-row:2; display:grid; place-items:center; position:relative; min-height:230px; padding-top:30px;}
+.nm{font-family:var(--serif); font-weight:700; font-size:15px; padding:3px 12px; border-radius:99px; background:#0009; border:1px solid var(--line); max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--ivory);}
+.seat.act .nm{background:#f0d79a; color:var(--ink); border-color:var(--gold); box-shadow:0 0 14px #f0d79a99;}
+.nm small{font-weight:400; opacity:.8;}
+.backs{display:flex; justify-content:center; padding-left:18px;}
+.backs .jc{--cw:36px; margin-left:calc(-36px*.62);}
+.seat.left .backs,.seat.right .backs{flex-direction:column; padding-left:0; padding-top:calc(var(--ch)*.1);}
+.seat.left .backs .jc,.seat.right .backs .jc{--cw:34px; margin-left:0; margin-top:-37px; transform:rotate(90deg);} .seat.left .backs .jc:first-child,.seat.right .backs .jc:first-child{margin-top:0;}
+.hand{display:flex; justify-content:center; flex-wrap:nowrap; padding-top:16px; min-height:calc(var(--ch) + 18px);}
+.hand .cardbtn{margin-left:calc(var(--cw)*-.3);} .hand .cardbtn:first-child{margin-left:0;}
+.trick{position:relative; width:min(100%,300px); height:240px;}
+.trick .tc{position:absolute; transition:all .25s;}
+.trick .tc.p0{left:50%; bottom:2px; transform:translateX(-50%) rotate(-3deg);} .trick .tc.p1{right:6%; top:50%; transform:translateY(-50%) rotate(7deg);}
+.trick .tc.p2{left:50%; top:2px; transform:translateX(-50%) rotate(3deg);} .trick .tc.p3{left:6%; top:50%; transform:translateY(-50%) rotate(-7deg);}
+.trick .tc .jc{--cw:64px;}
+.trumpbadge{position:absolute; left:6px; top:6px; display:flex; align-items:center; gap:6px; padding:4px 10px; border-radius:99px; background:#0009; border:1px solid var(--gold); font-size:13px; font-weight:700; color:var(--gold-soft);}
+.trumpbadge svg{width:22px; height:22px;}
+.bubble{position:absolute; z-index:6; max-width:190px; background:#fff8e4; color:#2b1d12; font-size:13.5px; padding:6px 10px; border-radius:12px; box-shadow:0 4px 10px #0007; pointer-events:none; animation:fade .2s;}
+.seat.top .bubble{top:100%; margin-top:4px;} .seat.left .bubble{left:10px; top:-6px;} .seat.right .bubble{right:10px; top:-6px;}
+.seat.me .bubble{bottom:100%;}
+.tabs-mini{display:flex; gap:6px; flex-wrap:wrap; margin:8px 0;}
+.ctrls{display:flex; gap:8px; flex-wrap:wrap; justify-content:center; margin-top:10px;}
+.stage2{display:grid; grid-template-columns:minmax(0,1fr) 270px; gap:16px; align-items:start;}
+@media (max-width:980px){.stage2{grid-template-columns:1fr;} :root{--cw:min(11.5vw,70px);} .hand .cardbtn{margin-left:calc(var(--cw)*-.42);}}
+@media (max-width:560px){ :root{--cw:min(12vw,56px);} .jtable{padding:10px 4px;} .trick .tc .jc{--cw:50px;} .trick{height:200px;} .center{min-height:200px;} .seat.left .backs .jc,.seat.right .backs .jc{--cw:24px; margin-top:-26px;} .backs .jc{--cw:28px; margin-left:-17px;} .jtable{grid-template-columns:62px minmax(0,1fr) 62px; gap:4px;} .nm{border-radius:12px; font-size:11.5px; padding:2px 6px; white-space:normal; text-align:center; line-height:1.15;} .nm small{display:block;} .bubble{max-width:130px; font-size:12px; padding:5px 8px;} .seat.left .bubble{left:62px;} .seat.right .bubble{right:62px;} }
+
+.tafel{background:linear-gradient(180deg,#2c342f,var(--tafel)); border:7px solid #7a5230; border-radius:10px; padding:10px 12px 12px; color:var(--kreide); font-family:"Segoe Print","Bradley Hand","Chalkboard SE","Comic Sans MS",cursive; box-shadow:0 10px 24px #0008, inset 0 0 30px #0006;}
+.tafel h4{margin:0 0 6px; text-align:center; font-weight:400; letter-spacing:.08em; font-size:15px; color:#fff7d6;}
+.tafel table{width:100%; border-collapse:collapse; font-size:17px; text-align:center;}
+.tafel th{font-weight:400; border-bottom:2px solid #eef0e888; padding:2px 0 4px;} .tafel td{padding:2px 0; border-bottom:1px dashed #eef0e822; font-variant-numeric:tabular-nums;}
+.tafel td:first-child,.tafel th:first-child{width:24px; opacity:.55; font-size:13px;} .tafel th+th{border-left:2px solid #eef0e888;} .tafel td+td{border-left:2px solid #eef0e888;}
+.tafel tfoot td{border-top:2px solid #eef0e8; border-bottom:0; font-weight:700; font-size:20px; padding-top:4px;}
+.tafel .ziel{text-align:center; font-size:13px; opacity:.7; margin-top:6px;}
+.liveinfo{margin-top:10px; padding:10px 12px; border:1px solid var(--line); border-radius:10px; background:#0006; font-size:14px;}
+.liveinfo b{color:var(--gold-soft);}
+.sidebox{display:flex; flex-direction:column; gap:12px;}
+.stbar{padding:10px 14px; border-radius:12px; border:1px solid var(--line); background:#0007; font-family:var(--serif); font-size:17px; color:var(--gold-soft); text-align:center; margin-bottom:10px;}
+.stbar small{display:block; font-family:var(--sans); color:var(--muted); font-size:13px;}
+
+/* Trumpfwahl */
+.tw{display:flex; flex-wrap:wrap; gap:8px; justify-content:center; margin-top:8px;}
+.tw button{display:flex; flex-direction:column; align-items:center; gap:2px; padding:8px 10px; min-width:84px; border-radius:12px; border:1px solid var(--line); background:linear-gradient(180deg,var(--panel-2),var(--panel)); font-size:13px;}
+.tw button:hover{border-color:var(--gold); transform:translateY(-2px);} .tw button svg{width:34px; height:34px;} .tw button b{font-size:14px;}
+.tw button small{color:var(--muted); font-size:11.5px;}
+
+/* Erklärbuch */
+.book{display:grid; grid-template-columns:230px minmax(0,1fr); gap:16px; align-items:start;}
+@media (max-width:820px){.book{grid-template-columns:1fr;}}
+.toc{position:sticky; top:8px; max-height:calc(100vh - 20px); overflow:auto;}
+@media (max-width:820px){.toc{position:static; max-height:none;}}
+.toc button{display:block; width:100%; text-align:left; padding:7px 10px; border-radius:8px; border:0; background:transparent; font-size:14.5px; color:var(--ivory);}
+.toc button:hover{background:#ffffff12;} .toc button.on{background:linear-gradient(180deg,#f0d28a,var(--gold)); color:var(--ink); font-weight:700;}
+.toc .grp{font-size:11.5px; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); padding:10px 10px 3px;}
+.page{background:linear-gradient(180deg,#f6ecd3,#eadcb8); color:#2b1d12; border-radius:6px 14px 14px 6px; padding:22px 26px 26px; box-shadow:0 14px 30px #000a, inset 8px 0 14px -8px #7a5230aa; border:1px solid #8a6a45; min-height:420px;}
+.page h2{font-family:var(--serif); font-size:27px; margin:0 0 4px; color:#5a3a12;} .page h3{font-family:var(--serif); font-size:18px; color:#7a4b12; margin:18px 0 4px;}
+.page p,.page li{line-height:1.55; font-size:15.5px;} .page ul,.page ol{padding-left:22px; margin:6px 0;}
+.page .lead{font-style:italic; color:#6b5a3a; margin:0 0 12px;}
+.page .box{background:#fff8e0; border-left:5px solid var(--gold-2); border-radius:6px; padding:8px 14px; margin:12px 0;}
+.page .box.tip{border-left-color:#2e7d4f; background:#ecf6e4;} .page .box.warn{border-left-color:#b3402f; background:#fbe9e3;}
+.page table.t{border-collapse:collapse; width:100%; font-size:15px; margin:8px 0;} .page table.t th,.page table.t td{border:1px solid #bda877; padding:5px 8px; text-align:center;}
+.page table.t th{background:#e6d4a0;} .page table.t td.l,.page table.t th.l{text-align:left;}
+.pgnav{display:flex; justify-content:space-between; margin-top:20px; gap:8px;}
+.page .btn.ghost{color:#5a3a12; border-color:#8a6a45;} .page .btn.ghost:hover{color:#2b1d12; border-color:#5a3a12;}
+.page input[type=text],.page input[type=number]{padding:7px 10px; border-radius:8px; border:1px solid #8a6a45; background:#fffdf4; font-size:16px; width:100px;}
+.cardrow{display:flex; flex-wrap:wrap; gap:6px; margin:8px 0;} .cardrow .jc{--cw:54px;}
+.cardrow .jc.sel{outline:3px solid #d1503f; outline-offset:2px; border-radius:6px;}
+.kgrid{display:grid; grid-template-columns:repeat(9,1fr); gap:4px; margin:8px 0;} .kgrid button{padding:0; border:0; background:transparent; border-radius:5px;} .kgrid .jc{--cw:100%; width:100%; height:auto; aspect-ratio:2/3;}
+.kgrid button.sel .jc{outline:3px solid #d1503f; outline-offset:-1px; border-radius:6px;}
+.ok{color:#2e7d4f;} .bad{color:#b3402f;}
+.pill{display:inline-block; padding:2px 9px; border-radius:99px; background:#e6d4a0; font-size:13px; margin:2px 3px 2px 0;}
+.print-only{display:none;}
+@media print{ body{background:#fff !important;} .top,.topnav,.toc,.pgnav,.ctrls,.no-print{display:none !important;} .page{box-shadow:none; border:0;} }
+
+.seatpick{display:grid; grid-template-columns:repeat(2,1fr); gap:8px; margin-top:6px;}
+.seatpick .sp1{padding:8px 10px; border:1px solid var(--line-soft); border-radius:10px; background:#0004; font-size:14px;}
+.seatpick .sp1 b{display:block;} .seatpick .sp1.team0{border-left:4px solid var(--gold);} .seatpick .sp1.team1{border-left:4px solid #6fa8dc;}
+.lvlsel{width:100%; padding:7px; border-radius:8px; background:#0006; color:var(--ivory); border:1px solid var(--line); font-size:14px;}
+.resbox table{width:100%; border-collapse:collapse; margin:8px 0;} .resbox td,.resbox th{padding:4px 8px; text-align:right; border-bottom:1px solid var(--line-soft);} .resbox td:first-child,.resbox th:first-child{text-align:left;}
+.big2{font-family:var(--serif); font-size:34px; color:var(--gold);}
+.qbox{max-width:760px; margin:0 auto;}
+.qq{font-size:17px; margin:8px 0;} .qopt{display:flex; flex-direction:column; gap:8px; margin:10px 0;} .qopt button{padding:11px 14px; text-align:left; border-radius:10px; border:1px solid var(--line); background:#0005; font-size:15.5px;}
+.qopt button:hover{border-color:var(--gold);} .qopt button.rich{border-color:#4caf50; background:#2e7d4f55;} .qopt button.falsch{border-color:#e8705f; background:#b3402f55;}
+.mathi{display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin:12px 0;} .mathi .op{font-size:34px; font-weight:800; color:var(--gold-soft); width:34px; text-align:center;}
+.mathi input{width:110px; padding:9px; border-radius:8px; border:1px solid var(--line); background:#0007; color:var(--ivory); font-size:22px; text-align:center;}
+.bar{height:8px; border-radius:99px; background:#0006; overflow:hidden; margin:8px 0;} .bar>i{display:block; height:100%; background:linear-gradient(90deg,var(--gold-2),var(--gold-soft));}
+.ritem{display:flex; align-items:center; gap:10px; padding:9px 10px; border:1px solid var(--line-soft); border-radius:10px; margin:6px 0; background:#0004;}
+.ritem .rt{flex:1;} .ritem .ra{min-width:80px; text-align:right;}
+.ritem.pick{outline:2px solid var(--gold);}
+
+.jc img{display:block; width:100%; height:100%; object-fit:contain; border-radius:6%; user-select:none; -webkit-user-drag:none;}
+.credit{font-size:12px; color:var(--muted); margin-top:18px; line-height:1.45;}
+.page .credit{color:#6b5a3a;}
+</style>
+</head>
+<body>
+<div id="app">
+  <header class="top">
+    <div class="logo" aria-hidden="true">&#9824;&#xFE0E;</div>
+    <div class="brand"><h1>Jasstisch</h1><small>Helfenberger&rsquo;s Library &middot; Schach &amp; Jassen</small></div>
+    <span class="chip" id="chip" hidden><i></i><span id="chipTxt"></span></span>
+    <button class="iconbtn" id="soundBtn" type="button" title="Ton an/aus" aria-label="Ton an oder aus">&#128266;</button>
+  </header>
+  <nav class="topnav" id="topnav"></nav>
+  <div id="gate" hidden></div>
+  <details class="card teacher" id="teacher" hidden></details>
+  <main id="menu"></main>
+  <main id="wait" hidden></main>
+  <main id="buch" hidden></main>
+  <main id="ueben" hidden></main>
+  <main id="tafel" hidden></main>
+  <main id="game" hidden></main>
+</div>
+<div class="modal" id="modal" hidden></div>
+<div id="toast" role="status"></div>
+<script>
+(function(){
+'use strict';
+/* ===================== Hilfsfunktionen ===================== */
+var $ = function(id){ return document.getElementById(id); };
+function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+function pad(n){ return (n < 10 ? '0' : '') + n; }
+function hm(d){ return pad(d.getHours()) + ':' + pad(d.getMinutes()); }
+function dstr(d){ return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
+var QS = new URLSearchParams(location.search);
+var T0 = Date.now();
+var FRISCH = 100000;
+function lsGet(k, def){ try{ var v = localStorage.getItem(k); return v == null ? def : JSON.parse(v); }catch(e){ return def; } }
+function lsSet(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
+function lsDel(k){ try{ localStorage.removeItem(k); }catch(e){} }
+function mulberry(a){ return function(){ a |= 0; a = a + 0x6D2B79F5 | 0; var t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+function rnd(n){ return Math.floor(Math.random() * n); }
+function pick(a){ return a[rnd(a.length)]; }
+
+/* =====================================================================
+   API: in der Library kommt sie von der Hülle (window.parent.__hlJassen),
+   allein geöffnet gibt es eine Test-Attrappe (mehrere Tabs im selben Browser).
+   ===================================================================== */
+function mockApi(){
+  var KEY = 'jassen_mock_spieler', FKEY = 'jassen_mock_frei';
+  var uid; try{ uid = sessionStorage.getItem('jassen_mock_uid'); if(!uid){ uid = 'u' + Math.random().toString(36).slice(2, 7); sessionStorage.setItem('jassen_mock_uid', uid); } }catch(e){ uid = 'u' + Math.random().toString(36).slice(2, 7); }
+  var lehrer = /lehrer/.test(location.search + location.hash);
+  var name = QS.get('name') || (lehrer ? 'Herr Test' : 'Schüler ' + uid.slice(-2).toUpperCase());
+  function read(k){ try{ return JSON.parse(localStorage.getItem(k) || 'null') || {}; }catch(e){ return {}; } }
+  function watch(readFn, cb){ var last = null; function go(){ var s = JSON.stringify(readFn()); if(s !== last){ last = s; cb(JSON.parse(s)); } } go(); var iv = setInterval(go, 400); return function(){ clearInterval(iv); }; }
+  return {
+    mock:true, uid:uid, name:name, klasse:'G3b', lehrer:lehrer,
+    klassen:[{id:'G3a', label:'G3a'}, {id:'G3b', label:'G3b'}],
+    ferien:function(){ return false; },
+    freigabeWatch:function(cb){ return watch(function(){ return read(FKEY); }, function(o){ cb(o && o.bis ? o : null); }); },
+    freigabeSetzen:function(klassen, bis){ localStorage.setItem(FKEY, JSON.stringify({bis:bis, von:name})); return Promise.resolve(); },
+    spielerWatch:function(cb){ return watch(function(){ return read(KEY); }, function(o){ cb(Object.keys(o).map(function(k){ return Object.assign({uid:k}, o[k]); })); }); },
+    ichSchreiben:function(data){ var o = read(KEY); o[uid] = data; localStorage.setItem(KEY, JSON.stringify(o)); return Promise.resolve(); },
+    statZuruecksetzen:function(){ var o = read(KEY); Object.keys(o).forEach(function(k){ o[k].stat = {w:0, d:0, l:0}; }); localStorage.setItem(KEY, JSON.stringify(o)); return Promise.resolve(); }
+  };
+}
+var API = null;
+try{ if(window.parent && window.parent !== window && typeof window.parent.__hlJassen === 'function') API = window.parent.__hlJassen(); }catch(e){}
+if(!API) API = mockApi();
+
+/* Unterrichtszeit: Mo–Fr 07:30–11:50 und 13:30–16:55 gesperrt, Freitag ab 15:00 frei, Wochenende und Ferien frei. */
+function jetzt(){
+  if(API.mock && QS.get('jetzt')){ var d = new Date(QS.get('jetzt')); if(!isNaN(d)) return new Date(d.getTime() + (Date.now() - T0)); }
+  return new Date();
+}
+function minToDate(d, min){ var x = new Date(d); x.setHours(Math.floor(min / 60), min % 60, 0, 0); return x; }
+function unterricht(d){
+  var day = d.getDay(), m = d.getHours() * 60 + d.getMinutes();
+  if(day === 0 || day === 6) return {zu:false};
+  try{ if(API.ferien && API.ferien(dstr(d))) return {zu:false, ferien:true}; }catch(e){}
+  var bl = [[450, 710], [810, day === 5 ? 900 : 1015]], next = null;
+  for(var i = 0; i < bl.length; i++){
+    if(m >= bl[i][0] && m < bl[i][1]) return {zu:true, bis:minToDate(d, bl[i][1])};
+    if(m < bl[i][0] && next == null) next = bl[i][0];
+  }
+  return {zu:false, ab:next == null ? null : minToDate(d, next)};
+}
+var S = {lehrer:!!API.lehrer, frei:null, spieler:[], hydrated:false, view:'menu', G:null, unsubLobby:null, unsubFrei:null, hb:null, offen:null, muted:!!lsGet('jassen_mute', false), ctx:null,
+  me:{name:API.name, stat:{w:0, d:0, l:0}, tisch:null, want:null, g:null}};
+function status(){
+  var d = jetzt(), u = unterricht(d);
+  if(S.lehrer) return {offen:true, lehrer:true, u:u, d:d};
+  if(!u.zu) return {offen:true, u:u, d:d};
+  if(S.frei && S.frei.bis > Date.now()) return {offen:true, frei:S.frei, u:u, d:d};
+  return {offen:false, u:u, d:d};
+}
+
+/* =====================================================================
+   Kartensets, Namen, Zeichnung
+   Karte = Farbe*9 + Rang. Farbe 0 Herz/Rose, 1 Kreuz/Eichle, 2 Ecke/Schelle, 3 Schaufel/Schilte.
+   Rang 0 Ass, 1 König, 2 Dame/Ober, 3 Bube/Under, 4 Zehn/Banner, 5 Neun, 6 Acht, 7 Sieben, 8 Sechs.
+   ===================================================================== */
+var SET = lsGet('jassen_set', 'd'); if(SET !== 'f' && SET !== 'd') SET = 'd';
+var SUITN = {f:['Herz', 'Kreuz', 'Ecke', 'Schaufel'], d:['Rose', 'Eichle', 'Schelle', 'Schilte']};
+var SUITN_PL = {f:['Herz', 'Kreuz', 'Ecken', 'Schaufeln'], d:['Rosen', 'Eicheln', 'Schellen', 'Schilten']};
+var RANKN = {f:['Ass', 'König', 'Dame', 'Bube', 'Zehn', 'Neun', 'Acht', 'Sieben', 'Sechs'], d:['Ass', 'König', 'Ober', 'Under', 'Banner', 'Neuner', 'Achter', 'Siebner', 'Sechser']};
+var RANKL = {f:['A', 'K', 'D', 'B', '10', '9', '8', '7', '6'], d:['A', 'K', 'O', 'U', '10', '9', '8', '7', '6']};
+var MULTS = {f:[1, 2, 1, 2], d:[1, 1, 2, 2]};
+var MODEN = ['', '', '', '', 'Obenabe', 'Undenufe', 'Slalom ↓', 'Slalom ↑'];
+function suitName(s){ return SUITN[SET][s]; }
+function cardName(c){ return suitName(c / 9 | 0) + ' ' + RANKN[SET][c % 9]; }
+function modeName(t){ return t < 4 ? suitName(t) + ' ist Trumpf' : MODEN[t]; }
+function modeShort(t){ return t < 4 ? suitName(t) : MODEN[t]; }
+
+function symSvg(set, s, size, extra){
+  var g;
+  if(set === 'f'){
+    if(s === 0) g = '<path d="M0 8.5 C-14 -1 -10 -11 -4.5 -9.5 C-2 -8.8 0 -6.5 0 -4.5 C0 -6.5 2 -8.8 4.5 -9.5 C10 -11 14 -1 0 8.5Z" fill="#d62828"/>';
+    else if(s === 1) g = '<g fill="#161616"><circle cx="0" cy="-4.8" r="4.5"/><circle cx="-5.2" cy="2" r="4.5"/><circle cx="5.2" cy="2" r="4.5"/><path d="M-1.6 1 L-3.4 10 L3.4 10 L1.6 1Z"/></g>';
+    else if(s === 2) g = '<path d="M0 -10 L7.2 0 L0 10 L-7.2 0Z" fill="#d62828"/>';
+    else g = '<path d="M0 -10 C-12 0 -11 6 -5 6 C-3 6 -1.6 5.2 -1 3.6 C-1 7 -2 9 -4 10 L4 10 C2 9 1 7 1 3.6 C1.6 5.2 3 6 5 6 C11 6 12 0 0 -10Z" fill="#161616"/>';
+  } else {
+    if(s === 0) g = '<g stroke="#5a4300" stroke-width=".8" fill="#f7d21a">' + [0, 72, 144, 216, 288].map(function(a){ return '<ellipse cx="0" cy="-5.6" rx="3.6" ry="4.6" transform="rotate(' + a + ')"/>'; }).join('') + '</g><circle r="3.3" fill="#d62828" stroke="#5a1010" stroke-width=".7"/>';
+    else if(s === 1) g = '<path d="M-1 -10 Q0 -12 1.5 -10 L1 -6 L-1 -6Z" fill="#6b4a14"/><ellipse cx="0" cy="3.6" rx="5" ry="6.4" fill="#f0c020" stroke="#5a4300" stroke-width=".8"/><path d="M-6.4 -2.2 Q-6.4 -7.4 0 -7.4 Q6.4 -7.4 6.4 -2.2 Q0 -0.6 -6.4 -2.2Z" fill="#2e8b3e" stroke="#164d20" stroke-width=".8"/><path d="M-4 -5.4 L-2 -2 M-1 -6.4 L0 -1.6 M2 -6.2 L2 -1.8 M4.6 -4.8 L3.8 -2.2" stroke="#164d20" stroke-width=".7"/>';
+    else if(s === 2) g = '<circle r="9" fill="#f7d21a" stroke="#5a4300" stroke-width=".9"/><path d="M-8.5 -3 H8.5 A9 9 0 0 1 8.8 2 H-8.8 A9 9 0 0 1 -8.5 -3Z" fill="#d62828"/><circle cx="0" cy="5.4" r="1.5" fill="#333"/><circle cx="3.3" cy="-8.2" r="1.3" fill="#d62828" stroke="#5a1010" stroke-width=".4"/>';
+    else g = '<path d="M-8 -9 H8 V2 C8 7 3.5 10 0 11 C-3.5 10 -8 7 -8 2Z" fill="#fff" stroke="#161616" stroke-width="1"/><path d="M-8 -9 H0 V-3.5 H-8Z M0 -3.5 H8 V2 C8 2.6 7.9 3.2 7.8 3.6 H0Z M-7.8 3.6 H0 L0 11 C-3.5 10 -6.6 7.6 -7.8 3.6Z" fill="#161616"/>';
+  }
+  return '<g transform="translate(' + size.x + ',' + size.y + ') scale(' + (size.s / 20) + ')' + (extra || '') + '">' + g + '</g>';
+}
+function symIcon(set, s){ return '<svg viewBox="-11 -11 22 22" aria-hidden="true">' + symSvg(set, s, {x:0, y:0, s:20}) + '</svg>'; }
+function modeIcon(t){
+  if(t < 4) return symIcon(SET, t);
+  var up = '<path d="M0 -7 L7 1 H3 V7 H-3 V1 H-7Z" fill="#f0d79a"/>', dn = '<path d="M0 7 L7 -1 H3 V-7 H-3 V-1 H-7Z" fill="#f0d79a"/>';
+  if(t === 4) return '<svg viewBox="-11 -11 22 22">' + dn + '</svg>';
+  if(t === 5) return '<svg viewBox="-11 -11 22 22">' + up + '</svg>';
+  return '<svg viewBox="-11 -11 22 22"><g transform="translate(-4,0) scale(.6)">' + (t === 6 ? dn : up) + '</g><g transform="translate(5,0) scale(.6)">' + (t === 6 ? up : dn) + '</g></svg>';
+}
+var PIPS = {
+  6:[[20,26],[40,26],[20,45],[40,45],[20,64],[40,64]],
+  7:[[20,26],[40,26],[30,35],[20,45],[40,45],[20,64],[40,64]],
+  8:[[20,26],[40,26],[30,35],[20,45],[40,45],[30,55],[20,64],[40,64]],
+  9:[[20,24],[40,24],[20,38],[40,38],[30,45],[20,52],[40,52],[20,66],[40,66]],
+  10:[[20,24],[40,24],[30,31],[20,38],[40,38],[20,52],[40,52],[30,59],[20,66],[40,66]]
+};
+var RANKPIPS = {4:10, 5:9, 6:8, 7:7, 8:6};
+function faceArt(set, r, s){
+  var fr = '<rect x="11" y="22" width="38" height="46" rx="3" fill="' + (set === 'f' ? '#f4ead0' : '#f6e7b4') + '" stroke="#7a5a2a" stroke-width="1"/>';
+  var emblem;
+  if(r === 1) emblem = '<g transform="translate(30,45) scale(1.5)"><path d="M-9 5 L-9 -4 L-4.5 0 L0 -7 L4.5 0 L9 -4 L9 5Z" fill="#e6b422" stroke="#5a4300" stroke-width=".9"/><rect x="-9" y="5" width="18" height="2.5" fill="#c9981a" stroke="#5a4300" stroke-width=".6"/></g>';
+  else if(r === 2) emblem = '<g transform="translate(30,45) scale(1.5)"><path d="M-9 5 Q-9 -7 0 -7 Q9 -7 9 5Z" fill="' + (set === 'f' ? '#c8a2d8' : '#7fa7d8') + '" stroke="#333" stroke-width=".9"/><rect x="-11" y="5" width="22" height="2.2" rx="1" fill="#e6b422" stroke="#5a4300" stroke-width=".6"/><circle cy="-8" r="1.6" fill="#d62828"/></g>';
+  else emblem = '<g transform="translate(30,45) scale(1.5)"><path d="M-8 5 Q-8 -4 0 -4 Q8 -4 8 5Z" fill="' + (set === 'f' ? '#e8a05a' : '#e0c050') + '" stroke="#333" stroke-width=".9"/><path d="M3 -4 Q11 -13 12 -1 Q8 -6 3 -2Z" fill="#d62828" stroke="#6e1f15" stroke-width=".6"/></g>';
+  return fr + emblem + symSvg(set, s, {x:30, y:32, s:11}) + '<g transform="rotate(180 30 45)">' + symSvg(set, s, {x:30, y:32, s:11}) + '</g>';
+}
+var svgCache = {};
+var ASSET = /\/jassen\/[^\/]*$/.test(location.pathname) ? '' : 'jassen/';
+function ensureFr(){}
+function cardSvg(c, set){
+  set = set || SET;
+  return '<img src="' + ASSET + 'karten-' + (set === 'f' ? 'fr' : 'de') + '/c' + c + '.webp" alt="" draggable="false">';
+}
+function drawnSvg(c, set){
+  var key = set + c; if(svgCache[key]) return svgCache[key];
+  var s = c / 9 | 0, r = c % 9, red = set === 'f' && (s === 0 || s === 2);
+  var col = set === 'f' ? (red ? '#d62828' : '#161616') : '#2b1d12';
+  var h = '<svg viewBox="0 0 60 90" xmlns="http://www.w3.org/2000/svg"><rect x=".7" y=".7" width="58.6" height="88.6" rx="6" fill="' + (set === 'f' ? '#fffdf8' : '#fffbea') + '" stroke="#3a2d1a" stroke-width="1.3"/>';
+  if(r === 0) h += symSvg(set, s, {x:30, y:45, s:set === 'd' ? 30 : 26});
+  else if(r <= 3) h += faceArt(set, r, s);
+  else {
+    var n = RANKPIPS[r], ps = PIPS[n], sz = set === 'd' ? 12 : 11;
+    ps.forEach(function(p){ h += symSvg(set, s, {x:p[0], y:p[1], s:sz}, p[1] > 46 && n !== 6 ? ' rotate(180)' : ''); });
+  }
+  var lab = RANKL[set][r];
+  h += '<text x="6" y="15" font-family="Georgia,serif" font-weight="700" font-size="' + (lab.length > 1 ? 11 : 13) + '" fill="' + col + '">' + lab + '</text>' + symSvg(set, s, {x:9, y:24, s:7.5});
+  h += '<g transform="rotate(180 30 45)"><text x="6" y="15" font-family="Georgia,serif" font-weight="700" font-size="' + (lab.length > 1 ? 11 : 13) + '" fill="' + col + '">' + lab + '</text>' + symSvg(set, s, {x:9, y:24, s:7.5}) + '</g></svg>';
+  return svgCache[key] = h;
+}
+var BACK = '<svg viewBox="0 0 60 90" xmlns="http://www.w3.org/2000/svg"><rect x=".7" y=".7" width="58.6" height="88.6" rx="6" fill="#fff" stroke="#3a2d1a" stroke-width="1.3"/><rect x="4" y="4" width="52" height="82" rx="4" fill="#b3222a"/><path d="M8 8 L52 8 L52 82 L8 82Z" fill="none" stroke="#f4d7d7" stroke-width=".8" stroke-dasharray="2 2"/><g stroke="#d9626a" stroke-width="1">' + (function(){ var s = ''; for(var i = -90; i < 120; i += 9){ s += '<path d="M' + i + ' 4 L' + (i + 90) + ' 86"/><path d="M' + (i + 90) + ' 4 L' + i + ' 86"/>'; } return s; })() + '</g><circle cx="30" cy="45" r="11" fill="#b3222a" stroke="#f4d7d7" stroke-width="1.2"/><path d="M26 45 H34 M30 41 V49" stroke="#fff" stroke-width="3.4"/></svg>';
+function cardHtml(c, cls, set){ return '<span class="jc ' + (cls || '') + '">' + cardSvg(c, set) + '</span>'; }
+function backHtml(cls){ return '<span class="jc ' + (cls || '') + '">' + BACK + '</span>'; }
+
+/* =====================================================================
+   Jass-Motor (Schieber)
+   ===================================================================== */
+var TR = {3:9, 5:8, 0:7, 1:6, 2:5, 4:4, 6:3, 7:2, 8:1};
+var BASE = [11, 4, 3, 2, 10, 0, 0, 0, 0];
+function suitOf(c){ return c / 9 | 0; }
+function effMode(t, trickNo){ if(t === 6) return trickNo % 2 === 0 ? 4 : 5; if(t === 7) return trickNo % 2 === 0 ? 5 : 4; return t; }
+function cardPts(c, m){
+  var s = c / 9 | 0, r = c % 9;
+  if(m < 4){ if(s === m){ if(r === 3) return 20; if(r === 5) return 14; } return BASE[r]; }
+  if(m === 4) return [11, 4, 3, 2, 10, 0, 8, 0, 0][r];
+  return [0, 4, 3, 2, 10, 0, 8, 0, 11][r];
+}
+function cstr(c, m, led){
+  var s = c / 9 | 0, r = c % 9;
+  if(m < 4){ if(s === m) return 100 + TR[r]; return s === led ? 9 - r : 0; }
+  if(s !== led) return 0;
+  return m === 4 ? 9 - r : r + 1;
+}
+function trickWinnerIdx(trick, m){
+  var led = trick[0].card / 9 | 0, best = 0, bs = -1;
+  for(var i = 0; i < trick.length; i++){ var v = cstr(trick[i].card, m, led); if(v > bs){ bs = v; best = i; } }
+  return best;
+}
+function legal(hand, trick, m){
+  if(!trick.length) return hand.slice();
+  var led = trick[0].card / 9 | 0, i;
+  if(m >= 4){ var f = hand.filter(function(c){ return suitOf(c) === led; }); return f.length ? f : hand.slice(); }
+  var T = m, trumps = hand.filter(function(c){ return suitOf(c) === T; });
+  if(led === T){
+    if(!trumps.length) return hand.slice();
+    if(trumps.length === 1 && trumps[0] % 9 === 3) return hand.slice();
+    return trumps;
+  }
+  var follow = hand.filter(function(c){ return suitOf(c) === led; }), hi = 0;
+  for(i = 0; i < trick.length; i++) if(suitOf(trick[i].card) === T) hi = Math.max(hi, TR[trick[i].card % 9]);
+  var okTr = trumps.filter(function(c){ return TR[c % 9] > hi; });
+  if(follow.length) return follow.concat(okTr);
+  if(!trumps.length) return hand.slice();
+  var non = hand.filter(function(c){ return suitOf(c) !== T; }), res = non.concat(okTr);
+  return res.length ? res : trumps;
+}
+var COIFF = {0:2, 1:4, 2:1, 3:3, 4:5, 5:6};
+function multOf(t, cfg){ if(cfg.kind === 'coiffeur') return COIFF[t]; if(!cfg.mult) return 1; return t >= 4 ? 3 : MULTS[cfg.set][t]; }
+function sortHand(h, t){
+  var order = function(c){ var s = suitOf(c), r = c % 9; var v = (t === 5 || t === 7) ? 8 - r : (t < 4 && s === t ? [0, 3, 5, 6, 7, 8, 1, 2, 4].indexOf(r) : r); if(t < 4 && s === t) v = -20 + (9 - TR[r]); return v; };
+  var sorder = [0, 1, 2, 3];
+  return h.slice().sort(function(a, b){ var sa = suitOf(a), sb = suitOf(b); if(t != null && t < 4){ if(sa === t && sb !== t) return -1; if(sb === t && sa !== t) return 1; } if(sa !== sb) return [0, 3, 2, 1][sa] - [0, 3, 2, 1][sb]; return order(a) - order(b); });
+}
+function allowedModes(cfg){ if(cfg.kind === 'coiffeur') return [0, 1, 2, 3, 4, 5]; var a = [0, 1, 2, 3, 4, 5]; if(cfg.slalom){ a.push(6); a.push(7); } return a; }
+
+function weisPts(n){ return {3:20, 4:50, 5:100, 6:150, 7:200, 8:250, 9:300}[n] || 0; }
+var WEISN = {3:'Dreiblatt', 4:'Vierblatt', 5:'Fünfblatt', 6:'Sechsblatt', 7:'Siebenblatt', 8:'Achtblatt', 9:'Neunblatt'};
+function findWeis(hand, m){
+  var res = [], s, r, has = {};
+  hand.forEach(function(c){ has[c] = true; });
+  for(s = 0; s < 4; s++){
+    r = 0;
+    while(r < 9){
+      if(has[s * 9 + r]){ var e = r; while(e + 1 < 9 && has[s * 9 + e + 1]) e++; var n = e - r + 1;
+        if(n >= 3){ var cards = []; for(var k = r; k <= e; k++) cards.push(s * 9 + k); res.push({kind:'run', n:n, pts:weisPts(n), s:s, top:m === 5 ? e + 1 : 9 - r, cards:cards, name:WEISN[n]}); }
+        r = e + 1; } else r++;
+    }
+  }
+  for(r = 0; r <= 5; r++){
+    if(has[r] && has[9 + r] && has[18 + r] && has[27 + r]){
+      res.push({kind:'four', n:4, pts:r === 3 ? 200 : r === 5 ? 150 : 100, s:-1, r:r, top:m === 5 ? r + 1 : 9 - r, cards:[r, 9 + r, 18 + r, 27 + r], name:'vier ' + (r === 3 ? 'Bauern' : r === 5 ? 'Neuner' : RANKN[SET][r] === 'Ass' ? 'Asse' : RANKN[SET][r] === 'König' ? 'Könige' : r === 2 ? (SET === 'f' ? 'Damen' : 'Ober') : 'Zehner')});
+    }
+  }
+  return res;
+}
+function weisKey(w, t, mm, orderPos){ return w.pts * 100000 + (w.kind === 'run' ? 1 : 0) * 10000 + w.top * 100 + ((w.kind === 'run' && t < 4 && w.s === t) ? 10 : 0) + (3 - orderPos); }
+
+function newRound(seed, dealer, cfg){
+  var rng = mulberry(seed), deck = [], i;
+  for(i = 0; i < 36; i++) deck.push(i);
+  for(i = 35; i > 0; i--){ var j = Math.floor(rng() * (i + 1)), t = deck[i]; deck[i] = deck[j]; deck[j] = t; }
+  var hands = [[], [], [], []];
+  for(i = 0; i < 36; i++) hands[i % 4].push(deck[i]);
+  hands = hands.map(function(h){ return sortHand(h, null); });
+  var rd = {seed:seed, dealer:dealer, fore:(dealer + 1) % 4, cfg:cfg, hands:hands, orig:hands.map(function(h){ return h.slice(); }),
+    phase:'trump', turn:(dealer + 1) % 4, shifted:false, t:null, mult:1, trick:[], trickNo:0, tricks:[], seen:[], pts:[0, 0], tricksWon:[0, 0],
+    cnt:[0, 0, 0, 0], weis:[[], [], [], []], weisPts:[0, 0], weisWin:null, stoeck:[0, 0], stoeckSeen:{}, lastTrick:null, result:null, log:[]};
+  if(cfg.kind === 'differenzler'){
+    rd.trumpCard = deck[35]; rd.t = deck[35] / 9 | 0; rd.mult = 1; rd.caller = rd.fore; rd.ans = [null, null, null, null]; rd.spts = [0, 0, 0, 0];
+    rd.phase = 'ansage'; rd.hands = rd.hands.map(function(h){ return sortHand(h, rd.t); }); rd.orig = rd.hands.map(function(h){ return h.slice(); });
+  }
+  if(cfg.fixed != null){
+    rd.phase = 'play'; rd.t = cfg.fixed; rd.mult = 1; rd.caller = rd.fore;
+    rd.hands = rd.hands.map(function(h){ return sortHand(h, rd.t); }); rd.orig = rd.hands.map(function(h){ return h.slice(); });
+  }
+  return rd;
+}
+function dropCard(h, c){ var i = h.indexOf(c); if(i >= 0) h.splice(i, 1); }
+/* Kern: spielt eine Karte (ohne Weis/Stöck), gibt Info zurück */
+function playCore(rd, seat, card){
+  dropCard(rd.hands[seat], card);
+  rd.trick.push({seat:seat, card:card}); rd.seen.push(card);
+  if(rd.trick.length < 4){ rd.turn = (seat + 1) % 4; return {done:false}; }
+  var m = effMode(rd.t, rd.trickNo), wi = trickWinnerIdx(rd.trick, m), win = rd.trick[wi].seat, team = win % 2, p = 0;
+  rd.trick.forEach(function(x){ p += cardPts(x.card, m); });
+  if(rd.trickNo === 8) p += 5;
+  rd.pts[team] += p; rd.tricksWon[team]++; if(rd.spts) rd.spts[win] += p;
+  rd.tricks.push({m:m, led:suitOf(rd.trick[0].card), plays:rd.trick.slice(), win:win, pts:p});
+  rd.lastTrick = {plays:rd.trick.slice(), win:win, pts:p};
+  rd.trick = []; rd.trickNo++; rd.turn = win;
+  return {done:true, win:win, pts:p};
+}
+function finishRound(rd){
+  if(rd.cfg.kind === 'differenzler'){
+    var df = [0, 1, 2, 3].map(function(s){ return Math.abs(rd.ans[s] - rd.spts[s]); });
+    rd.result = {diff:true, ans:rd.ans.slice(), spts:rd.spts.slice(), final:df, cards:rd.pts.slice(), weis:[0, 0], stoeck:[0, 0], match:[0, 0], mult:1, tricksWon:rd.tricksWon.slice()}; rd.phase = 'done'; return;
+  }
+  var base = [rd.pts[0], rd.pts[1]], match = [0, 0];
+  if(rd.tricksWon[0] === 9) match[0] = 100; if(rd.tricksWon[1] === 9) match[1] = 100;
+  var tot = [0, 1].map(function(t){ return (base[t] + rd.weisPts[t] + rd.stoeck[t] + match[t]) * rd.mult; });
+  if(rd.cfg.kind === 'coiffeur') tot[1 - rd.fore % 2] = 0;
+  rd.result = {cards:base, weis:rd.weisPts.slice(), stoeck:rd.stoeck.slice(), match:match, mult:rd.mult, final:tot, tricksWon:rd.tricksWon.slice()};
+  rd.phase = 'done';
+}
+function resolveWeis(rd){
+  var best = [null, null];
+  for(var seat = 0; seat < 4; seat++){
+    var op = (seat - rd.fore + 4) % 4, team = seat % 2;
+    rd.weis[seat].forEach(function(w){ var k = weisKey(w, rd.t, effMode(rd.t, 0), op); if(!best[team] || k > best[team].k) best[team] = {k:k, w:w, seat:seat}; });
+  }
+  if(!best[0] && !best[1]) return;
+  var win = !best[1] ? 0 : !best[0] ? 1 : best[0].k > best[1].k ? 0 : 1;
+  rd.weisWin = win; var sum = 0;
+  for(var s = 0; s < 4; s++) if(s % 2 === win) rd.weis[s].forEach(function(w){ sum += w.pts; });
+  rd.weisPts[win] = sum;
+}
+/* wendet eine Aktion an; gibt null oder eine Fehlermeldung zurück */
+function applyAct(rd, seat, act){
+  if(rd.phase === 'done') return 'fertig';
+  if(seat !== rd.turn) return 'nicht dran';
+  var cfg = rd.cfg, p;
+  if(rd.phase === 'ansage'){
+    if(act.charAt(0) !== 'a') return 'Ansage erwartet';
+    var an = +act.slice(1); if(!(an >= 0 && an <= 157) || an !== Math.round(an)) return 'Ansage ungültig';
+    rd.ans[seat] = an; rd.cnt[seat]++; rd.log.push({seat:seat, act:act});
+    if(rd.ans.every(function(x){ return x != null; })){ rd.phase = 'play'; rd.turn = rd.fore; } else rd.turn = (seat + 1) % 4;
+    return null;
+  }
+  if(rd.phase === 'trump'){
+    if(act === 's'){
+      if(cfg.kind === 'coiffeur') return 'im Coiffeur wird nicht geschoben';
+      if(rd.shifted || seat !== rd.fore) return 'schieben nicht möglich';
+      rd.shifted = true; rd.turn = (rd.fore + 2) % 4; rd.cnt[seat]++; rd.log.push({seat:seat, act:act}); return null;
+    }
+    if(act.charAt(0) !== 't') return 'Trumpf erwartet';
+    var n = +act.slice(1);
+    if((rd.allowed || allowedModes(cfg)).indexOf(n) < 0) return 'Trumpf nicht erlaubt';
+    rd.t = n; rd.mult = multOf(n, cfg); rd.phase = 'play'; rd.turn = rd.fore; rd.cnt[seat]++; rd.log.push({seat:seat, act:act, caller:seat});
+    rd.caller = seat; rd.hands = rd.hands.map(function(h){ return sortHand(h, n); }); rd.orig = rd.orig.map(function(h){ return sortHand(h, n); });
+    return null;
+  }
+  if(act.charAt(0) !== 'p') return 'Karte erwartet';
+  var wflag = /w$/.test(act), card = +act.slice(1).replace('w', '');
+  if(rd.hands[seat].indexOf(card) < 0) return 'Karte nicht auf der Hand';
+  var m = effMode(rd.t, rd.trickNo);
+  if(legal(rd.hands[seat], rd.trick, m).indexOf(card) < 0) return 'Karte nicht erlaubt';
+  var info = {};
+  if(wflag && rd.trickNo === 0 && cfg.weis){
+    var ws = findWeis(rd.orig[seat], m); if(ws.length) rd.weis[seat] = ws, info.weis = ws;
+  }
+  if(cfg.stoeck && rd.t < 4 && suitOf(card) === rd.t && (card % 9 === 1 || card % 9 === 2)){
+    var other = rd.t * 9 + (card % 9 === 1 ? 2 : 1);
+    if(rd.orig[seat].indexOf(other) >= 0){
+      if(rd.stoeckSeen[seat]){ rd.stoeck[seat % 2] += 20; info.stoeck = true; } else rd.stoeckSeen[seat] = true;
+    }
+  }
+  rd.cnt[seat]++;
+  var r = playCore(rd, seat, card);
+  rd.log.push({seat:seat, act:act, info:info, trick:r.done ? {win:r.win, pts:r.pts} : null});
+  if(r.done){
+    if(rd.trickNo === 1) resolveWeis(rd);
+    if(rd.trickNo === 9) finishRound(rd);
+  }
+  return null;
+}
+
+/* =====================================================================
+   Computergegner
+   ===================================================================== */
+var LVLN = {1:'Chind', 2:'Stammtisch', 3:'Jassmeister'};
+var LVLDESC = {1:'spielt regelkonform, aber unüberlegt', 2:'spielt solide wie am Stammtisch', 3:'zählt Karten und rechnet Partien durch'};
+var AINAMES = {1:['Luca', 'Mia', 'Noah'], 2:['Sepp', 'Vreni', 'Köbi'], 3:['Meister Ruedi', 'Grossmutter Hedy', 'Onkel Fritz']};
+var SPRUCH = {
+  stich:{1:['Hoppla, das ging gut!', 'Juhu, ein Stich!'], 2:['Das nehm ich mit.', 'So macht man das.'], 3:['Wie berechnet.', 'Das war zu erwarten.']},
+  weis:{1:['Ich hab was Schönes!', 'Schaut mal!'], 2:['Wiis!', 'Da hast du, was ich weise.'], 3:['Der Weis gehört uns.', 'Rechne nach: das zählt.']},
+  schieb:{1:['Ich weiss nicht … schieb!'], 2:['Schieb, Partner!'], 3:['Das überlasse ich dir.']},
+  stoeck:{1:['Stöck!'], 2:['Stöck, wiis, Stich.'], 3:['Stöck – 20 Punkte.']},
+  match:{1:['Alles gewonnen?!'], 2:['Match!'], 3:['Match – wie geplant.']}
+};
+function strongTrump(h, T){
+  var c = h.filter(function(x){ return suitOf(x) === T; }), has = function(r){ return c.some(function(x){ return x % 9 === r; }); }, n = c.length, s = 0;
+  if(has(3)) s += 20; if(has(5)) s += has(3) ? 14 : (n >= 3 ? 11 : 4);
+  if(has(0)) s += 8; if(has(1)) s += 5; if(has(2)) s += 4; if(has(4)) s += 3;
+  s += Math.max(0, n - 4) * 2 + (n >= 3 ? (n - 2) * 5 : n === 2 ? 0 : -6);
+  h.forEach(function(x){ if(suitOf(x) !== T){ if(x % 9 === 0) s += 6; else if(x % 9 === 1) s += 1; } });
+  return s;
+}
+function surePts(h, up){
+  var s = 0, extra = 0;
+  for(var su = 0; su < 4; su++){
+    var cs = h.filter(function(x){ return suitOf(x) === su; }).map(function(x){ return up ? 8 - x % 9 : x % 9; }).sort(function(a, b){ return a - b; });
+    var k = 0; while(k < cs.length && cs[k] === k) k++;
+    s += k; if(cs.length > k) extra += cs[k] <= 2 ? 0.7 : cs[k] <= 3 ? 0.4 : 0.15;
+    if(cs.length >= 4) extra += 0.6;
+    if(cs.length === 1 && cs[0] >= 7) extra -= 0.5;
+  }
+  return s * 12 + extra * 7;
+}
+function trumpScores(h, cfg){
+  var sc = {}; allowedModes(cfg).forEach(function(t){
+    if(t < 4) sc[t] = strongTrump(h, t); else if(t === 4) sc[t] = surePts(h, false); else if(t === 5) sc[t] = surePts(h, true);
+    else sc[t] = (surePts(h, false) + surePts(h, true)) * 0.36 + 4;
+  });
+  return sc;
+}
+function aiTrump(rd, seat, lvl){
+  var h = rd.hands[seat], sc = trumpScores(h, rd.cfg), best = null, ts = Object.keys(sc).map(Number), coif = rd.cfg.kind === 'coiffeur';
+  if(rd.allowed) ts = ts.filter(function(t){ return rd.allowed.indexOf(t) >= 0; });
+  var wv = function(t){ return sc[t] + (coif ? 3 * COIFF[t] : 0); };
+  ts.sort(function(a, b){ return wv(b) - wv(a); });
+  best = ts[0];
+  if(lvl === 1 && Math.random() < 0.4) best = pick(ts.slice(0, 4));
+  var canShift = seat === rd.fore && !rd.shifted && !coif;
+  if(canShift){
+    var thr = lvl === 1 ? 20 + rnd(30) : lvl === 2 ? 36 : 40;
+    if(sc[best] < thr) return {act:'s', why:'Meine Hand ist für keinen Trumpf stark genug – ich schiebe.'};
+  }
+  return {act:'t' + best, why:'Hier habe ich die meisten sicheren Punkte (' + modeName(best) + ').'};
+}
+/* heuristische Spielweise (auch für Berechnungen) */
+function unseenOf(rd, seat){
+  var known = {}; rd.seen.forEach(function(c){ known[c] = true; }); rd.hands[seat].forEach(function(c){ known[c] = true; });
+  return known;
+}
+function isMaster(c, rd, known, m){
+  var s = suitOf(c);
+  for(var r = 0; r < 9; r++){ var o = s * 9 + r; if(o === c || known[o]) continue; if(m < 4 && s === m){ if(TR[r] > TR[c % 9]) return false; } else if(m < 4){ if(9 - r > 9 - c % 9) return false; } else if(m === 4){ if(r < c % 9) return false; } else { if(r > c % 9) return false; } }
+  return true;
+}
+function heur(rd, seat){
+  if(rd.cfg.kind === 'differenzler') return heurD(rd, seat);
+  var m = effMode(rd.t, rd.trickNo), hand = rd.hands[seat], L = legal(hand, rd.trick, m);
+  if(L.length === 1) return {card:L[0], why:'Das ist die einzige erlaubte Karte.'};
+  var known = unseenOf(rd, seat), partner = (seat + 2) % 4, best, i;
+  var val = function(c){ return cardPts(c, m); };
+  var low = function(a, b){ return (val(a) - val(b)) || (cstr(a, m, suitOf(a)) - cstr(b, m, suitOf(b))); };
+  if(!rd.trick.length){
+    var T = m < 4 ? m : -1;
+    var trumpsLeft = 0; if(T >= 0) for(i = 0; i < 9; i++){ var tc = T * 9 + i; if(!known[tc]) trumpsLeft++; }
+    var masters = L.filter(function(c){ return isMaster(c, rd, known, m); });
+    if(T >= 0){
+      var myTr = L.filter(function(c){ return suitOf(c) === T; });
+      var mt = masters.filter(function(c){ return suitOf(c) === T; });
+      if(mt.length && trumpsLeft >= 2 && (rd.caller === seat || rd.caller === partner || myTr.length >= 3)) return {card:mt.sort(function(a, b){ return cstr(b, m, T) - cstr(a, m, T); })[0], why:'Ich ziehe die Gegner-Trümpfe mit dem höchsten Trumpf heraus.'};
+      var sideM = masters.filter(function(c){ return suitOf(c) !== T; });
+      if(sideM.length) return {card:sideM.sort(function(a, b){ return val(b) - val(a); })[0], why:'Diese Karte ist die höchste ihrer Farbe – ein sicherer Stich.'};
+      var sides = L.filter(function(c){ return suitOf(c) !== T; });
+      if(sides.length) return {card:sides.sort(low)[0], why:'Ich spiele eine kleine Karte aus, um Trümpfe zu schonen.'};
+      return {card:L.sort(low)[0], why:'Ich muss Trumpf spielen, nehme die kleinste Karte.'};
+    }
+    if(masters.length) return {card:masters.sort(function(a, b){ return val(b) - val(a); })[0], why:'Das ist die höchste Karte ihrer Farbe – ein sicherer Stich.'};
+    var cnt = [0, 0, 0, 0]; hand.forEach(function(c){ cnt[suitOf(c)]++; });
+    L.sort(function(a, b){ return low(a, b) || cnt[suitOf(b)] - cnt[suitOf(a)]; });
+    return {card:L[0], why:'Ich spiele eine kleine Karte aus meiner längsten Farbe aus.'};
+  }
+  var led = suitOf(rd.trick[0].card), wi = trickWinnerIdx(rd.trick, m), wc = rd.trick[wi], pWin = wc.seat === partner, last = rd.trick.length === 3;
+  var wstr = cstr(wc.card, m, led);
+  var winners = L.filter(function(c){ return cstr(c, m, led) > wstr; });
+  if(pWin){
+    var pm = isMaster(wc.card, rd, known, m) || last;
+    if(pm){ var sm = L.slice().sort(function(a, b){ return val(b) - val(a); }); return {card:sm[0], why:last ? 'Mein Partner macht den Stich – ich schmiere die punktreichste Karte dazu.' : 'Die Karte des Partners ist kaum zu schlagen – ich schmiere Punkte.'}; }
+    var nonW = L.filter(function(c){ return cstr(c, m, led) < wstr || winners.indexOf(c) < 0; }); var pool = nonW.length ? nonW : L;
+    return {card:pool.sort(low)[0], why:'Mein Partner ist vorn – ich gebe eine kleine Karte.'};
+  }
+  var tp = 0; rd.trick.forEach(function(x){ tp += val(x.card); });
+  if(winners.length){
+    winners.sort(function(a, b){ return cstr(a, m, led) - cstr(b, m, led); });
+    var cheap = winners[0];
+    if(last || isMaster(cheap, rd, known, m) || tp >= 8 || suitOf(cheap) !== m) return {card:cheap, why:suitOf(cheap) === m && m < 4 && suitOf(rd.trick[0].card) !== m ? 'Ich steche mit dem kleinsten möglichen Trumpf.' : 'Ich hole den Stich mit der billigsten Karte, die reicht.'};
+    if(tp < 8) { var d0 = L.slice().sort(low)[0]; return {card:d0, why:'Der Stich ist zu wenig wert für einen Trumpf – ich werfe ab.'}; }
+  }
+  var dis = L.slice().sort(function(a, b){ var ta = (m < 4 && suitOf(a) === m) ? 1 : 0, tb = (m < 4 && suitOf(b) === m) ? 1 : 0; return (ta - tb) || low(a, b); });
+  return {card:dis[0], why:'Ich kann den Stich nicht gewinnen und werfe die wertloseste Karte ab.'};
+}
+function heurD(rd, seat){
+  var m = effMode(rd.t, rd.trickNo), hand = rd.hands[seat], L = legal(hand, rd.trick, m);
+  if(L.length === 1) return {card:L[0], why:'Das ist die einzige erlaubte Karte.'};
+  var known = unseenOf(rd, seat), need = (rd.ans && rd.ans[seat] != null ? rd.ans[seat] : 157) - (rd.spts ? rd.spts[seat] : 0), want = need > 4;
+  var val = function(c){ return cardPts(c, m); }, low = function(a, b){ return (val(a) - val(b)) || (cstr(a, m, suitOf(a)) - cstr(b, m, suitOf(b))); };
+  if(!rd.trick.length){
+    if(want){ var ms = L.filter(function(c){ return isMaster(c, rd, known, m); }); if(ms.length) return {card:ms.sort(function(a, b){ return val(b) - val(a); })[0], why:'Ich brauche noch Punkte – diese Karte sticht sicher.'}; return {card:L.slice().sort(function(a, b){ return cstr(b, m, suitOf(b)) - cstr(a, m, suitOf(a)); })[0], why:'Ich brauche noch Punkte und spiele meine höchste Karte aus.'}; }
+    return {card:L.slice().sort(low)[0], why:'Mein Ziel ist erreicht – ich spiele klein aus, um keine Stiche mehr zu holen.'};
+  }
+  var led = suitOf(rd.trick[0].card), wi = trickWinnerIdx(rd.trick, m), wstr = cstr(rd.trick[wi].card, m, led);
+  var winners = L.filter(function(c){ return cstr(c, m, led) > wstr; }), non = L.filter(function(c){ return winners.indexOf(c) < 0; });
+  if(want){
+    if(winners.length) return {card:winners.slice().sort(function(a, b){ return cstr(a, m, led) - cstr(b, m, led); })[0], why:'Ich brauche noch Punkte – ich hole den Stich mit der billigsten Karte, die reicht.'};
+    return {card:L.slice().sort(low)[0], why:'Ich kann den Stich nicht gewinnen und werfe die wertloseste Karte ab.'};
+  }
+  if(non.length) return {card:non.slice().sort(function(a, b){ return cstr(b, m, led) - cstr(a, m, led); })[0], why:'Ich will keine Punkte mehr – ich werfe die höchste Karte ab, die nicht sticht.'};
+  return {card:winners.slice().sort(function(a, b){ return cstr(a, m, led) - cstr(b, m, led); })[0], why:'Ich muss gewinnen – mit der kleinsten Karte, die sticht.'};
+}
+function cloneRd(rd, deal, seat){
+  var c = {t:rd.t, trickNo:rd.trickNo, trick:rd.trick.slice(), seen:rd.seen.slice(), pts:rd.pts.slice(), tricksWon:rd.tricksWon.slice(), hands:rd.hands.map(function(h){ return h.slice(); }),
+    caller:rd.caller, turn:rd.turn, phase:'play', tricks:[], cfg:rd.cfg, orig:rd.orig, weis:[[], [], [], []], weisPts:[0, 0], stoeck:[0, 0], stoeckSeen:{}, spts:rd.spts ? rd.spts.slice() : null, ans:rd.ans ? rd.ans.slice() : null};
+  if(deal) for(var s = 0; s < 4; s++) if(s !== seat) c.hands[s] = deal[s].slice();
+  return c;
+}
+function simulate(ls){
+  var guard = 0;
+  while(ls.phase !== 'done' && guard++ < 60){
+    var s = ls.turn, h = heur(ls, s); playCore(ls, s, h.card);
+    if(ls.trickNo === 9) ls.phase = 'done';
+  }
+}
+function voidsOf(rd){
+  var v = [{}, {}, {}, {}];
+  var scan = function(tr, led, m){ tr.forEach(function(x){ var s = suitOf(x.card); if(s !== led && !(m < 4 && led === m)) v[x.seat][led] = true; }); };
+  rd.tricks.forEach(function(t){ scan(t.plays, t.led, t.m); });
+  if(rd.trick.length){ var led = suitOf(rd.trick[0].card); scan(rd.trick, led, effMode(rd.t, rd.trickNo)); }
+  return v;
+}
+function sampleDeal(rd, seat, voids){
+  var known = unseenOf(rd, seat), unk = [], i;
+  rd.trick.forEach(function(x){ known[x.card] = true; });
+  for(i = 0; i < 36; i++) if(!known[i]) unk.push(i);
+  for(var attempt = 0; attempt < 6; attempt++){
+    var need = [0, 0, 0, 0], hs = [[], [], [], []];
+    for(var s = 0; s < 4; s++) if(s !== seat) need[s] = rd.hands[s].length;
+    var cs = unk.slice(); for(i = cs.length - 1; i > 0; i--){ var j = rnd(i + 1), t = cs[i]; cs[i] = cs[j]; cs[j] = t; }
+    cs.sort(function(a, b){ var ca = 0, cb = 0; for(var q = 0; q < 4; q++){ if(q !== seat){ if(voids[q][suitOf(a)]) ca++; if(voids[q][suitOf(b)]) cb++; } } return cb - ca; });
+    var ok = true;
+    for(i = 0; i < cs.length; i++){
+      var c = cs[i], opts = [];
+      for(var q2 = 0; q2 < 4; q2++) if(q2 !== seat && need[q2] > 0 && (attempt >= 4 || !voids[q2][suitOf(c)])) for(var k = 0; k < need[q2]; k++) opts.push(q2);
+      if(!opts.length){ ok = false; break; }
+      var who = pick(opts); hs[who].push(c); need[who]--;
+    }
+    if(ok) return hs;
+  }
+  return null;
+}
+function pimcPick(rd, seat, L, N){
+  var voids = voidsOf(rd), sc = L.map(function(){ return 0; }), done = 0, team = seat % 2;
+  for(var i = 0; i < N; i++){
+    var deal = sampleDeal(rd, seat, voids); if(!deal) continue; done++;
+    for(var j = 0; j < L.length; j++){
+      var ls = cloneRd(rd, deal, seat), r = playCore(ls, seat, L[j]);
+      if(ls.trickNo === 9) ls.phase = 'done'; else simulate(ls);
+      sc[j] += rd.cfg.kind === 'differenzler' ? -Math.abs(rd.ans[seat] - ls.spts[seat]) : ls.pts[team] - ls.pts[1 - team];
+    }
+  }
+  if(!done) return null;
+  var bi = 0; for(var k = 1; k < L.length; k++) if(sc[k] > sc[bi]) bi = k;
+  return {card:L[bi], avg:sc[bi] / done, all:sc.map(function(x){ return x / done; })};
+}
+function aiCard(rd, seat, lvl){
+  var m = effMode(rd.t, rd.trickNo), L = legal(rd.hands[seat], rd.trick, m);
+  if(L.length === 1) return {card:L[0], why:'Das ist die einzige erlaubte Karte.'};
+  var h = heur(rd, seat);
+  if(lvl === 1){ if(Math.random() < 0.7) return {card:pick(L), why:'Zufällig gewählt.'}; return h; }
+  if(lvl === 2) return h;
+  var left = rd.hands[seat].length, N = left >= 8 ? 24 : left >= 6 ? 36 : 60;
+  var pm = pimcPick(rd, seat, L, N);
+  if(!pm) return h;
+  if(pm.card === h.card) return h;
+  return {card:pm.card, why:rd.cfg.kind === 'differenzler' ? 'In meinen Probe-Partien komme ich mit dieser Karte am nächsten an meine Ansage.' : 'In meinen Probe-Partien holt diese Karte im Schnitt am meisten Punkte.'};
+}
+function aiAnsage(rd, seat, lvl){
+  var voids = voidsOf(rd), N = lvl === 1 ? 5 : lvl === 2 ? 14 : 36, sum = 0, done = 0;
+  for(var i = 0; i < N; i++){
+    var deal = sampleDeal(rd, seat, voids); if(!deal) continue; var ls = cloneRd(rd, deal, seat); ls.ans = [157, 157, 157, 157]; ls.turn = rd.fore; simulate(ls); sum += ls.spts[seat]; done++;
+  }
+  var est = done ? sum / done : 39; if(lvl === 1) est += rnd(41) - 20; else if(lvl === 2) est += rnd(13) - 6;
+  return Math.max(0, Math.min(157, Math.round(est)));
+}
+function aiAct(rd, seat, lvl){
+  if(rd.phase === 'ansage'){ var an = aiAnsage(rd, seat, lvl); return {act:'a' + an, why:'In meinen Probe-Runden hole ich mit dieser Hand ungefähr ' + an + ' Punkte.'}; }
+  if(rd.phase === 'trump'){ var r = aiTrump(rd, seat, lvl); return {act:r.act, why:r.why}; }
+  var c = aiCard(rd, seat, lvl), act = 'p' + c.card;
+  if(rd.trickNo === 0 && rd.cfg.weis && findWeis(rd.orig[seat], effMode(rd.t, 0)).length) act += 'w';
+  return {act:act, why:c.why};
+}
+
+/* =====================================================================
+   Oberfläche: Ton, Toast, Dialog
+   ===================================================================== */
+var CFG = Object.assign({target:1000, mult:true, weis:true, stoeck:true, slalom:false, hilfe:true, tipp:true, live:true, lvlP:2, lvlG:2}, lsGet('jassen_cfg_v1', {}));
+function ton(art){
+  if(S.muted) return;
+  try{
+    var AC = window.AudioContext || window.webkitAudioContext; if(!AC) return;
+    if(!S.ctx) S.ctx = new AC();
+    var c = S.ctx, t = c.currentTime;
+    var tick = function(f, dur, vol, type, at){
+      var o = c.createOscillator(), g = c.createGain();
+      o.type = type || 'triangle'; o.frequency.setValueAtTime(f, t + (at || 0)); o.frequency.exponentialRampToValueAtTime(f * 0.55, t + (at || 0) + dur);
+      g.gain.setValueAtTime(vol, t + (at || 0)); g.gain.exponentialRampToValueAtTime(0.0008, t + (at || 0) + dur);
+      o.connect(g); g.connect(c.destination); o.start(t + (at || 0)); o.stop(t + (at || 0) + dur + 0.02);
+    };
+    if(art === 'karte') tick(240, 0.07, 0.3);
+    else if(art === 'stich'){ tick(180, 0.12, 0.4); tick(330, 0.06, 0.18, 'square', 0.04); }
+    else if(art === 'weis') tick(520, 0.18, 0.2, 'sine');
+    else if(art === 'ende'){ tick(392, 0.5, 0.3, 'sine'); tick(523, 0.6, 0.3, 'sine', 0.18); tick(659, 0.8, 0.3, 'sine', 0.36); }
+    else tick(330, 0.12, 0.25, 'sine');
+  }catch(e){}
+}
+var toastTimer = null;
+function toast(msg){ var t = $('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(function(){ t.classList.remove('show'); }, 3000); }
+function modal(html, bind, noBackdrop){
+  var m = $('modal'); m.innerHTML = '<div class="card dlg" role="dialog" aria-modal="true">' + html + '</div>'; m.hidden = false; S.noBackdrop = !!noBackdrop;
+  if(bind) bind(m);
+  var f = m.querySelector('[autofocus],button.btn'); if(f) try{ f.focus({preventScroll:true}); }catch(e){}
+}
+function closeModal(){ var m = $('modal'); m.hidden = true; m.innerHTML = ''; S.noBackdrop = false; }
+function ask(titel, text, okLabel, cb, gefahr){
+  modal('<h2>' + esc(titel) + '</h2><p class="muted">' + text + '</p><div class="actions"><button class="btn ghost" data-a="no" type="button">Abbrechen</button><button class="btn' + (gefahr ? ' danger' : '') + '" data-a="ok" type="button">' + esc(okLabel) + '</button></div>', function(m){
+    m.querySelector('[data-a="no"]').onclick = closeModal; m.querySelector('[data-a="ok"]').onclick = function(){ closeModal(); cb(); };
+  });
+}
+$('modal').addEventListener('click', function(e){ if(e.target === $('modal') && !S.noBackdrop) closeModal(); });
+
+/* =====================================================================
+   Spiel: Quellen der Aktionen, Pumpe, KI-Planung
+   ===================================================================== */
+function seedFor(G, r){ return (G.seed0 + r * 7919) >>> 0; }
+function coiffFree(G, team){
+  var used = {}; G.rounds.forEach(function(r){ if(r.tm === team) used[r.t] = true; });
+  return [0, 1, 2, 3, 4, 5].filter(function(t){ return !used[t]; });
+}
+function mkRound(G){
+  var rd = newRound(seedFor(G, G.rno), (G.dealer0 + G.rno) % 4, G.cfg);
+  if(G.cfg.kind === 'coiffeur') rd.allowed = coiffFree(G, rd.fore % 2);
+  return rd;
+}
+function docG(uid){
+  if(uid === API.uid) return S.me.g;
+  var d = S.spieler.filter(function(x){ return x.uid === uid; })[0]; return d ? d.g : null;
+}
+function roundPart(g, id, rno){ if(!g || g.id !== id) return null; if(g.rno === rno) return g; if(g.prev && g.prev.rno === rno) return g.prev; return null; }
+function srcActs(G, seat){
+  if(G.mode === 'ai') return G.acts[seat];
+  var sp = G.seats[seat];
+  if(sp.type === 'ai'){ var h = roundPart(docG(G.hostUid), G.id, G.rno); return (h && h.ai && h.ai[seat]) || []; }
+  var p = roundPart(docG(sp.uid), G.id, G.rno); return (p && p.a) || [];
+}
+function isMine(G, seat){ return G.mode !== 'watch' && seat === G.my; }
+function iAmHost(G){ return G.mode === 'ai' || G.hostUid === API.uid; }
+function pushAct(G, seat, act){
+  if(G.mode === 'ai'){ G.acts[seat].push(act); saveLocal(); }
+  else {
+    var g = S.me.g;
+    if(G.seats[seat].type === 'ai'){ g.ai = g.ai || {}; (g.ai[seat] = g.ai[seat] || []).push(act); }
+    else g.a.push(act);
+    meWrite();
+  }
+  pump();
+}
+function saveLocal(){
+  var G = S.G; if(!G || G.mode !== 'ai') return;
+  lsSet('jassen_save_v1', {cfg:G.cfg, seed0:G.seed0, dealer0:G.dealer0, rno:G.rno, totals:G.totals, rounds:G.rounds, acts:G.acts, seats:G.seats, set:G.cfg.set, over:G.over});
+}
+function sayB(G, seat, text, ms){ G.bubble = {seat:seat, text:text, until:Date.now() + (ms || 2200)}; setTimeout(function(){ if(S.G === G) draw(); }, (ms || 2200) + 50); }
+function aiSay(G, seat, kind){
+  var sp = G.seats[seat]; if(sp.type !== 'ai') return; var l = SPRUCH[kind] && SPRUCH[kind][sp.lvl]; if(l && Math.random() < 0.6) sayB(G, seat, pick(l));
+}
+function entryText(G, e){
+  var nm = G.seats[e.seat].name;
+  if(e.act === 's') return nm + ' schiebt.';
+  if(e.act.charAt(0) === 't') return nm + ' sagt an: ' + modeName(+e.act.slice(1)) + '.';
+  return null;
+}
+function onApplied(G, e){
+  var nm = G.seats[e.seat].name;
+  if(e.act.charAt(0) === 'a'){ G.msg = nm + ' sagt ' + e.act.slice(1) + ' an.'; ton('weis'); return; }
+  if(e.act === 's'){ G.msg = nm + ' schiebt.'; aiSay(G, e.seat, 'schieb'); ton('weis'); return; }
+  if(e.act.charAt(0) === 't'){ G.msg = nm + ' sagt an: ' + modeName(+e.act.slice(1)) + '.'; ton('weis'); return; }
+  ton('karte');
+  if(e.info && e.info.weis){ var pts = 0; e.info.weis.forEach(function(w){ pts += w.pts; }); sayB(G, e.seat, 'Weis: ' + pts, 2600); aiSay(G, e.seat, 'weis'); ton('weis'); }
+  if(e.info && e.info.stoeck){ sayB(G, e.seat, 'Stöck! (+20)', 2400); ton('weis'); }
+  if(e.trick){
+    G.showTrick = {plays:G.rd.lastTrick.plays, win:e.trick.win, pts:e.trick.pts, until:Date.now() + 1200};
+    ton('stich');
+    if(e.trick.pts >= 25) aiSay(G, e.trick.win, 'stich');
+    if(G.rd.trickNo === 1 && G.rd.weisWin != null){
+      var w = G.rd.weisPts[G.rd.weisWin], who = G.rd.weisWin === G.my % 2 ? 'Euer Team' : 'Das Gegenteam';
+      toast(who + ' gewinnt den Weis: ' + w + ' Punkte.');
+    }
+  }
+}
+function pump(){
+  var G = S.G; if(!G) return; var rd = G.rd, guard = 0;
+  while(rd.phase !== 'done' && guard++ < 80){
+    var actor = rd.turn, list = srcActs(G, actor), k = rd.cnt[actor];
+    if(list.length <= k) break;
+    var act = list[k], err = applyAct(rd, actor, act);
+    if(err){ G.stuck = 'Unerlaubter Zug (' + err + ')'; console.warn('Jassen:', err, act); break; }
+    onApplied(G, rd.log[rd.log.length - 1]);
+  }
+  draw();
+  if(rd.phase === 'done'){ if(!G.endShown){ G.endShown = true; setTimeout(function(){ if(S.G === G) roundEnd(); }, Math.max(300, (G.showTrick ? G.showTrick.until - Date.now() : 0) + 150)); } return; }
+  schedule();
+}
+function schedule(){
+  var G = S.G; if(!G || G.over) return; var rd = G.rd; clearTimeout(G.timer); G.timer = null;
+  if(rd.phase === 'done') return;
+  var seat = rd.turn, sp = G.seats[seat];
+  if(sp.type === 'ai' && iAmHost(G) && !srcActs(G, seat)[rd.cnt[seat]]){
+    var hold = G.showTrick ? Math.max(0, G.showTrick.until - Date.now()) : 0, base = sp.lvl === 1 ? 650 : 800 + rnd(500);
+    var token = G.token = (G.token || 0) + 1;
+    G.timer = setTimeout(function(){
+      if(S.G !== G || G.token !== token || G.rd !== rd || rd.turn !== seat || rd.phase === 'done') return;
+      var r = aiAct(rd, seat, sp.lvl); pushAct(G, seat, r.act);
+    }, hold + base);
+  } else if(isMine(G, seat) && G.showTrick && G.showTrick.until > Date.now()){
+    G.timer = setTimeout(function(){ if(S.G === G) draw(); }, G.showTrick.until - Date.now() + 30);
+  }
+  statusLine();
+}
+function myTurn(G){ return G && !G.over && G.rd.phase !== 'done' && isMine(G, G.rd.turn) && !(G.showTrick && G.showTrick.until > Date.now()); }
+function statusLine(){ var el = $('stbar'); if(el) el.innerHTML = stbarHtml(); }
+
+/* =====================================================================
+   Spiel starten / verlassen
+   ===================================================================== */
+function mkCfg(extra){ var c = Object.assign({}, CFG, extra || {}); c.set = SET; return c; }
+function aiSeats(cfg, my){
+  var used = {}, seats = [];
+  for(var s = 0; s < 4; s++){
+    if(s === my){ seats.push({type:'me', name:API.name}); continue; }
+    var lvl = cfg.kind === 'differenzler' || s % 2 !== my % 2 ? cfg.lvlG : cfg.lvlP, names = AINAMES[lvl].filter(function(n){ return !used[n]; }), nm = pick(names.length ? names : AINAMES[lvl]);
+    used[nm] = true; seats.push({type:'ai', lvl:lvl, name:nm});
+  }
+  return seats;
+}
+function newGame(base){
+  var G = Object.assign({rno:0, totals:[0, 0], rounds:[], acts:[[], [], [], []], over:false, bubble:null, showTrick:null, msg:'', weisOn:true, hint:null, hintN:0, endShown:false, stuck:null}, base);
+  G.rd = mkRound(G); return G;
+}
+function startAI(cfg, fixed){
+  closeModal();
+  var coif = fixed === 'coiffeur', dif = fixed === 'differenzler';
+  cfg = Object.assign({}, cfg, dif ? {kind:'differenzler', fixed:null, mult:false, weis:false, stoeck:false, slalom:false, rounds:CFG.dRounds || 8} : coif ? {kind:'coiffeur', fixed:null, mult:true, slalom:false} : fixed != null ? {fixed:fixed, kind:null, mult:false, weis:false, stoeck:false} : {fixed:null, kind:null}); fixed = coif || dif ? null : fixed;
+  var G = newGame({id:'a' + Date.now(), mode:'ai', cfg:cfg, my:0, hostUid:API.uid, seed0:(Math.random() * 4294967296) >>> 0, dealer0:rnd(4), seats:aiSeats(cfg, 0)});
+  if(dif) G.totals = [0, 0, 0, 0];
+  S.G = G; S.view = 'game'; lsDel('jassen_save_v1'); saveLocal(); refresh(true); pump();
+}
+function resumeLocal(){
+  var sv = lsGet('jassen_save_v1', null); if(!sv) return;
+  SET = sv.cfg.set || SET;
+  var G = newGame({id:'a' + Date.now(), mode:'ai', cfg:sv.cfg, my:0, hostUid:API.uid, seed0:sv.seed0, dealer0:sv.dealer0, seats:sv.seats});
+  G.rno = sv.rno; G.totals = sv.totals; G.rounds = sv.rounds; G.acts = sv.acts; G.over = !!sv.over; G.rd = mkRound(G);
+  S.G = G; S.view = 'game'; refresh(true); pump();
+}
+function verlassen(){
+  var G = S.G; if(G){ clearTimeout(G.timer); G.token = -1; }
+  if(G && G.mode === 'online'){
+    if(G.hostUid === API.uid){ S.me.tisch = null; S.me.g = null; }
+    S.me.want = null; if(G.hostUid !== API.uid) S.me.g = null;
+    meWrite();
+  }
+  S.G = null; S.view = 'menu'; closeModal(); refresh(true);
+}
+
+/* =====================================================================
+   Runde / Spielende
+   ===================================================================== */
+function resRows(res, my){
+  var t = my % 2, o = 1 - t, r = function(l, a, b){ return '<tr><td>' + l + '</td><td>' + a + '</td><td>' + b + '</td></tr>'; };
+  var h = '<table><thead><tr><th></th><th>Wir</th><th>Sie</th></tr></thead><tbody>';
+  h += r('Stichpunkte (inkl. 5 letzter Stich)', res.cards[t], res.cards[o]);
+  if(res.weis[0] || res.weis[1]) h += r('Weis', res.weis[t], res.weis[o]);
+  if(res.stoeck[0] || res.stoeck[1]) h += r('Stöck', res.stoeck[t], res.stoeck[o]);
+  if(res.match[0] || res.match[1]) h += r('Match', res.match[t], res.match[o]);
+  if(res.mult !== 1) h += r('Faktor', '×' + res.mult, '×' + res.mult);
+  h += '<tr><td><b>Total</b></td><td><b>' + res.final[t] + '</b></td><td><b>' + res.final[o] + '</b></td></tr></tbody></table>';
+  return h;
+}
+function roundEnd(){
+  var G = S.G; if(!G) return; var rd = G.rd, res = rd.result, t = (G.mode === 'watch' ? 0 : G.my) % 2;
+  if(G.cfg.kind === 'differenzler') return roundEndDiff(G);
+  if(!G.counted || G.counted !== G.rno + 1){
+    G.counted = G.rno + 1; G.totals[0] += res.final[0]; G.totals[1] += res.final[1]; G.rounds.push({f:res.final.slice(), t:rd.t, tm:rd.fore % 2});
+    if(G.mode === 'ai') saveLocal();
+  }
+  var tot = G.totals, my = [tot[t], tot[1 - t]], target = G.cfg.target;
+  var coif = G.cfg.kind === 'coiffeur';
+  var over = coif ? G.rounds.length >= 12 : (!G.cfg.fixed && (tot[0] >= target || tot[1] >= target) || (G.cfg.fixed != null && G.rno >= 5));
+  if(G.cfg.fixed != null && !over){ /* Mini-Spiel: sechs Runden */ }
+  G.over = over; if(over) saveLocalClear();
+  var win = my[0] > my[1] ? 0 : my[0] < my[1] ? 1 : -1;
+  var head = over ? (win === 0 ? '🏆 Gewonnen!' : win === 1 ? 'Diesmal verloren' : 'Unentschieden') : 'Runde ' + (G.rno + 1) + ' fertig';
+  if(G.mode === 'watch') head = over ? 'Partie beendet' : head;
+  var body = '<div class="resbox"><h2>' + head + '</h2><p class="muted" style="margin:0 0 4px">' + (rd.t != null ? modeName(rd.t) + (rd.mult > 1 ? ' · Faktor ×' + rd.mult : '') : '') + '</p>' + resRows(res, G.mode === 'watch' ? 0 : G.my) +
+    '<p style="margin:6px 0 0">Zwischenstand: <b>Wir ' + my[0] + '</b> · <b>Sie ' + my[1] + '</b>' + (coif ? ' <span class="muted">(Spiel ' + (G.rno + 1) + ' von 12)</span>' : G.cfg.fixed != null ? ' <span class="muted">(nach Runde ' + (G.rno + 1) + ' von 6)</span>' : ' <span class="muted">(Ziel ' + target + ')</span>') + '</p></div>';
+  if(over){ ton('ende'); overStat(win); }
+  if(res.tricksWon[0] === 9 || res.tricksWon[1] === 9){ var wt = res.tricksWon[0] === 9 ? 0 : 1; aiSay(G, (wt === 0 ? 0 : 1), 'match'); }
+  modal(body + '<div class="actions">' + (over ? '<button class="btn ghost" data-a="neu" type="button">Neue Partie</button><button class="btn" data-a="ende" type="button">Zum Menü</button>' : '<button class="btn" data-a="weiter" type="button" id="weiterBtn">Nächste Runde</button>') + '</div>', function(m){
+    var w = m.querySelector('[data-a="weiter"]'), n = m.querySelector('[data-a="neu"]'), e = m.querySelector('[data-a="ende"]');
+    if(w){ if(G.mode === 'online' || G.mode === 'watch'){ w.disabled = true; setTimeout(function(){ w.disabled = false; }, 1800); } w.onclick = function(){ closeModal(); nextRound(); }; }
+    if(e) e.onclick = function(){ verlassen(); };
+    if(n) n.onclick = function(){ var c = G.cfg, fx = c.fixed; closeModal(); if(G.mode === 'ai'){ startAI(c, fx); } else verlassen(); };
+  }, true);
+}
+function roundEndDiff(G){
+  var rd = G.rd, res = rd.result;
+  if(!G.counted || G.counted !== G.rno + 1){ G.counted = G.rno + 1; res.final.forEach(function(d, i){ G.totals[i] += d; }); G.rounds.push({f:res.final.slice(), d:true}); saveLocal(); }
+  var over = G.rounds.length >= G.cfg.rounds; G.over = over; if(over) saveLocalClear();
+  var best = Math.min.apply(null, G.totals), winners = [0, 1, 2, 3].filter(function(s){ return G.totals[s] === best; });
+  var me = G.my, head = over ? (winners.indexOf(me) >= 0 ? '🏆 ' + (winners.length > 1 ? 'Geteilter Sieg!' : 'Gewonnen!') : 'Gewonnen hat ' + esc(G.seats[winners[0]].name)) : 'Runde ' + (G.rno + 1) + ' von ' + G.cfg.rounds + ' fertig';
+  var order = [0, 1, 2, 3].map(function(i){ return (me + i) % 4; });
+  var tb = '<table><thead><tr><th></th>' + order.map(function(s){ return '<th>' + esc(G.seats[s].name) + '</th>'; }).join('') + '</tr></thead><tbody>' +
+    '<tr><td>Ansage</td>' + order.map(function(s){ return '<td>' + res.ans[s] + '</td>'; }).join('') + '</tr>' +
+    '<tr><td>Geholt</td>' + order.map(function(s){ return '<td>' + res.spts[s] + '</td>'; }).join('') + '</tr>' +
+    '<tr><td><b>Differenz</b></td>' + order.map(function(s){ return '<td><b>' + res.final[s] + '</b></td>'; }).join('') + '</tr>' +
+    '<tr><td>Total</td>' + order.map(function(s){ return '<td>' + G.totals[s] + '</td>'; }).join('') + '</tr></tbody></table>';
+  if(over) ton('ende');
+  modal('<div class="resbox"><h2>' + head + '</h2><p class="muted" style="margin:0 0 4px">Trumpf: ' + esc(suitName(rd.t)) + ' · wer die kleinste Gesamtdifferenz hat, gewinnt</p>' + tb + '</div><div class="actions">' + (over ? '<button class="btn ghost" data-a="neu" type="button">Neue Partie</button><button class="btn" data-a="ende" type="button">Zum Menü</button>' : '<button class="btn" data-a="weiter" type="button">Nächste Runde</button>') + '</div>', function(m){
+    var w = m.querySelector('[data-a="weiter"]'), n = m.querySelector('[data-a="neu"]'), e = m.querySelector('[data-a="ende"]');
+    if(w) w.onclick = function(){ closeModal(); nextRound(); };
+    if(e) e.onclick = function(){ verlassen(); };
+    if(n) n.onclick = function(){ var c = G.cfg; closeModal(); startAI(c, 'differenzler'); };
+  }, true);
+}
+function saveLocalClear(){ if(S.G && S.G.mode === 'ai') lsDel('jassen_save_v1'); }
+function overStat(win){
+  var G = S.G; if(!G || G.mode !== 'online' || G.statDone === G.id) return; G.statDone = G.id;
+  var humans = G.seats.filter(function(s){ return s.type === 'human'; }).length;
+  if(humans < 2) return;
+  if(win === 0) S.me.stat.w++; else if(win === 1) S.me.stat.l++; else S.me.stat.d++;
+  meWrite();
+}
+function nextRound(){
+  var G = S.G; if(!G || G.over) return;
+  G.rno++; G.endShown = false; G.showTrick = null; G.hint = null; G.rd = mkRound(G); G.weisOn = true;
+  if(G.mode === 'ai'){ G.acts = [[], [], [], []]; saveLocal(); }
+  else if(G.mode === 'online'){
+    var g = S.me.g; if(g && g.id === G.id){ g.prev = {rno:g.rno, a:g.a, ai:g.ai || {}}; g.rno = G.rno; g.a = []; g.ai = {}; meWrite(); }
+  }
+  pump();
+}
+
+/* =====================================================================
+   Zeichnen
+   ===================================================================== */
+function rel(G, seat){ return (seat - (G.mode === 'watch' ? 0 : G.my) + 4) % 4; }
+function seatOf(G, relPos){ return ((G.mode === 'watch' ? 0 : G.my) + relPos) % 4; }
+function teamLabel(G, seat){ return seat % 2 === (G.mode === 'watch' ? 0 : G.my) % 2 ? 'Wir' : 'Sie'; }
+function stbarHtml(){
+  var G = S.G; if(!G) return ''; var rd = G.rd;
+  if(G.stuck) return '<span style="color:#ffb0a2">' + esc(G.stuck) + '</span>';
+  if(G.over) return 'Partie beendet';
+  if(rd.phase === 'done') return 'Runde ' + (G.rno + 1) + ' beendet';
+  var sp = G.seats[rd.turn], me = isMine(G, rd.turn);
+  var t;
+  if(rd.phase === 'ansage') t = me ? 'Wie viele Punkte holst du in dieser Runde?' : esc(sp.name) + ' überlegt die Ansage …';
+  else if(rd.phase === 'trump') t = me ? 'Dein Trumpf – sag an oder schieb' + (rd.shifted ? ' (Partner hat dir geschoben)' : '') : esc(sp.name) + ' wählt den Trumpf …';
+  else if(G.showTrick && G.showTrick.until > Date.now()) t = esc(G.seats[G.showTrick.win].name) + ' holt den Stich (' + G.showTrick.pts + ' Punkte)';
+  else t = me ? 'Du bist dran – spiel eine Karte' : esc(sp.name) + (sp.type === 'ai' ? ' überlegt …' : ' ist dran …');
+  var small = (G.msg ? esc(G.msg) : '');
+  if(rd.phase === 'ansage' && rd.trumpCard != null) small = 'Trumpf ist durch die letzte Karte des Gebers bestimmt: ' + esc(suitName(rd.t));
+  if(G.hint) small = '<b style="color:#f0d79a">💡 ' + esc(G.hint.text) + '</b>';
+  return t + (small ? '<small>' + small + '</small>' : '');
+}
+function trumpBadge(G){
+  var rd = G.rd; if(rd.t == null) return '';
+  var m = effMode(rd.t, rd.trickNo);
+  return '<div class="trumpbadge">' + modeIcon(rd.t < 6 ? rd.t : m) + '<span>' + esc(modeShort(rd.t)) + (rd.mult > 1 ? ' ×' + rd.mult : '') + '</span></div>';
+}
+function seatHtml(G, relPos){
+  var seat = seatOf(G, relPos), sp = G.seats[seat], rd = G.rd, cls = ['me', 'right', 'top', 'left'][relPos];
+  var act = rd.phase !== 'done' && rd.turn === seat ? ' act' : '';
+  var nm = esc(sp.name) + (sp.type === 'ai' ? ' <small>' + LVLN[sp.lvl] + '</small>' : '') + (seat === rd.fore && rd.phase !== 'done' ? ' <small>· Vorhand</small>' : '');
+  if(rd.ans && rd.ans[seat] != null) nm += ' <small>· Ansage ' + rd.ans[seat] + (rd.phase === 'play' || rd.phase === 'done' ? ' (' + rd.spts[seat] + ')' : '') + '</small>';
+  var b = G.bubble && G.bubble.seat === seat && G.bubble.until > Date.now() ? '<div class="bubble">' + esc(G.bubble.text) + '</div>' : '';
+  var hand = '';
+  if(relPos === 0 && G.mode !== 'watch'){
+    var h = rd.hands[seat], my = myTurn(G) && rd.phase === 'play', L = my ? legal(h, rd.trick, effMode(rd.t, rd.trickNo)) : [];
+    hand = '<div class="hand" id="hand">' + h.map(function(c){
+      var ok = !my || L.indexOf(c) >= 0, st = my ? (CFG.hilfe ? (ok ? 'ok' : 'no') : 'ok') : '';
+      if(!my) st = '';
+      if(rd.phase === 'trump') st = '';
+      return '<button class="cardbtn ' + st + (G.hint && G.hint.card === c ? ' hint' : '') + '" data-c="' + c + '" type="button" aria-label="' + esc(cardName(c)) + '">' + cardHtml(c) + '</button>';
+    }).join('') + '</div>';
+  } else {
+    var n = rd.hands[seat].length; hand = '<div class="backs">' + (n ? new Array(n + 1).join(backHtml()) : '') + '</div>';
+  }
+  return '<div class="seat ' + cls + act + '">' + b + (relPos === 0 ? '' : '<div class="nm">' + nm + '</div>') + hand + (relPos === 0 ? '<div class="nm">' + nm + '</div>' : '') + '</div>';
+}
+function centerHtml(G){
+  var rd = G.rd, h = trumpBadge(G);
+  if(rd.phase === 'ansage'){
+    if(isMine(G, rd.turn)) h += '<div style="text-align:center"><div style="font-family:var(--serif);color:var(--gold-soft);font-size:18px">Deine Ansage</div><div class="row" style="justify-content:center;margin-top:8px"><button class="btn sm ghost" data-ad="-10" type="button">−10</button><button class="btn sm ghost" data-ad="-1" type="button">−1</button><input id="anIn" type="number" min="0" max="157" value="' + (G.anVal != null ? G.anVal : 40) + '" inputmode="numeric" style="width:72px;padding:8px;border-radius:8px;border:1px solid var(--line);background:#0007;color:var(--ivory);font-size:20px;text-align:center"><button class="btn sm ghost" data-ad="1" type="button">+1</button><button class="btn sm ghost" data-ad="10" type="button">+10</button></div><div style="margin-top:10px"><button class="btn" data-an="ok" type="button">Ansagen</button></div><p class="muted" style="font-size:13px;margin:8px 0 0">Zusammen gibt es 157 Punkte pro Runde.</p></div>';
+    else h += '<div class="muted" style="text-align:center">' + esc(G.seats[rd.turn].name) + ' überlegt die Ansage …</div>';
+    return h;
+  }
+  if(rd.phase === 'trump' && isMine(G, rd.turn)){
+    var modes = rd.allowed || allowedModes(G.cfg);
+    h += '<div style="text-align:center"><div style="font-family:var(--serif);color:var(--gold-soft);font-size:18px">Trumpf ansagen</div><div class="tw">' +
+      modes.map(function(t){ var mu = multOf(t, G.cfg); return '<button type="button" data-t="' + t + '">' + modeIcon(t) + '<b>' + esc(modeShort(t)) + '</b><small>' + (mu > 1 ? '×' + mu : (G.cfg.mult || G.cfg.kind === 'coiffeur') ? '×1' : '') + '</small></button>'; }).join('') +
+      (rd.turn === rd.fore && !rd.shifted && G.cfg.kind !== 'coiffeur' ? '<button type="button" data-s="1" style="border-color:var(--gold)"><svg viewBox="-11 -11 22 22"><path d="M-8 0 H5 M0 -6 L6 0 L0 6" stroke="#f0d79a" stroke-width="2.4" fill="none"/></svg><b>Schieben</b><small>an Partner</small></button>' : '') + '</div></div>';
+    return h;
+  }
+  var plays = rd.trick, win = -1;
+  if(G.showTrick && G.showTrick.until > Date.now() && !plays.length){ plays = G.showTrick.plays; win = G.showTrick.win; }
+  h += '<div class="trick">' + plays.map(function(p){ var r = rel(G, p.seat); return '<div class="tc p' + r + '"><span class="jc' + (p.seat === win ? ' lg' : '') + '" style="' + (p.seat === win ? '' : '') + '">' + cardSvg(p.card) + '</span></div>'; }).join('') + '</div>';
+  if(rd.phase === 'trump') h += '<div class="muted" style="position:absolute;bottom:8px;width:100%;text-align:center">' + esc(G.seats[rd.turn].name) + ' wählt den Trumpf …</div>';
+  return h;
+}
+function tafelCoiff(G){
+  var t = (G.mode === 'watch' ? 0 : G.my) % 2, rows = [0, 1, 2, 3, 4, 5], h = '<div class="tafel"><h4>Coiffeur-Tafel</h4><table><thead><tr><th>×</th><th>Wir</th><th>Sie</th></tr></thead><tbody>';
+  rows.forEach(function(r){
+    var cell = function(team){ var e = G.rounds.filter(function(x){ return x.tm === team && x.t === r; })[0]; return e ? e.f[team] : ''; };
+    h += '<tr><td>' + COIFF[r] + '</td><td>' + cell(t) + '</td><td>' + cell(1 - t) + '</td></tr>';
+  });
+  h += '</tbody><tfoot><tr><td>Σ</td><td>' + G.totals[t] + '</td><td>' + G.totals[1 - t] + '</td></tr></tfoot></table><div class="ziel">';
+  h += rows.map(function(r){ return COIFF[r] + '× ' + modeShort(r); }).join(' · ') + '</div></div>';
+  return h;
+}
+function tafelDiff(G){
+  var me = G.my, order = [0, 1, 2, 3].map(function(i){ return (me + i) % 4; });
+  var h = '<div class="tafel"><h4>Differenzler-Tafel</h4><table><thead><tr><th></th>' + order.map(function(s){ return '<th style="font-size:13px">' + esc(G.seats[s].name.split(' ')[0]) + '</th>'; }).join('') + '</tr></thead><tbody>';
+  G.rounds.forEach(function(r, i){ h += '<tr><td>' + (i + 1) + '</td>' + order.map(function(s){ return '<td>' + r.f[s] + '</td>'; }).join('') + '</tr>'; });
+  if(!G.rounds.length) h += '<tr><td></td><td>&nbsp;</td><td></td><td></td><td></td></tr>';
+  h += '</tbody><tfoot><tr><td>Σ</td>' + order.map(function(s){ return '<td>' + G.totals[s] + '</td>'; }).join('') + '</tfoot></table><div class="ziel">' + G.cfg.rounds + ' Runden · kleinste Differenz gewinnt</div></div>';
+  return h;
+}
+function tafelHtml(G){
+  if(G.cfg.kind === 'differenzler') return tafelDiff(G);
+  if(G.cfg.kind === 'coiffeur') return tafelCoiff(G);
+  var t = (G.mode === 'watch' ? 0 : G.my) % 2, rows = G.rounds.map(function(r, i){ return '<tr><td>' + (i + 1) + '</td><td>' + r.f[t] + '</td><td>' + r.f[1 - t] + '</td></tr>'; }).join('');
+  var tot = [G.totals[t], G.totals[1 - t]];
+  return '<div class="tafel"><h4>Schreibtafel</h4><table><thead><tr><th></th><th>Wir</th><th>Sie</th></tr></thead><tbody>' + (rows || '<tr><td></td><td>&nbsp;</td><td></td></tr>') + '</tbody><tfoot><tr><td>Σ</td><td>' + tot[0] + '</td><td>' + tot[1] + '</td></tr></tfoot></table><div class="ziel">' + (G.cfg.fixed != null ? 'Sechs Runden' : 'Ziel: ' + G.cfg.target + ' Punkte') + '</div></div>';
+}
+function liveHtml(G){
+  var rd = G.rd, t = (G.mode === 'watch' ? 0 : G.my) % 2;
+  if(G.cfg.kind === 'differenzler'){ var me0 = G.my, a0 = rd.ans && rd.ans[me0] != null ? rd.ans[me0] : null; return '<div class="liveinfo"><div>Runde <b>' + (G.rno + 1) + '</b> von ' + G.cfg.rounds + ' · Stich <b>' + Math.min(9, rd.trickNo + (rd.trick.length ? 1 : 0) || 1) + '</b> von 9</div>' + (a0 != null ? '<div>Deine Ansage: <b>' + a0 + '</b> · bisher <b>' + rd.spts[me0] + '</b> · noch <b>' + (a0 - rd.spts[me0]) + '</b></div>' : '') + '</div>'; }
+  var h = '<div class="liveinfo"><div>Runde <b>' + (G.rno + 1) + '</b> · Stich <b>' + Math.min(9, rd.trickNo + (rd.trick.length ? 1 : 0) || 1) + '</b> von 9</div>';
+  if(CFG.live && rd.t != null && G.cfg.kind !== 'coiffeur') h += '<div>Stichpunkte: <b>Wir ' + rd.pts[t] + '</b> · <b>Sie ' + rd.pts[1 - t] + '</b></div>';
+  if(rd.weisWin != null) h += '<div>Weis: <b>' + (rd.weisWin === t ? 'Wir' : 'Sie') + ' ' + rd.weisPts[rd.weisWin] + '</b></div>';
+  if(rd.stoeck[0] || rd.stoeck[1]) h += '<div>Stöck: ' + (rd.stoeck[t] ? 'Wir 20' : 'Sie 20') + '</div>';
+  if(G.mode === 'online') h += '<div class="muted" style="font-size:12.5px;margin-top:4px">Online-Tisch · ' + G.seats.filter(function(s){ return s.type === 'human'; }).length + ' Mitspieler:innen</div>';
+  return h + '</div>';
+}
+function weisChip(G){
+  var rd = G.rd; if(!myTurn(G) || rd.phase !== 'play' || rd.trickNo !== 0 || !G.cfg.weis || G.mode === 'watch') return '';
+  var ws = findWeis(rd.hands[G.my], effMode(rd.t, 0)); if(!ws.length) return '';
+  var sum = 0, names = ws.map(function(w){ sum += w.pts; return w.name + ' (' + w.pts + ')'; }).join(' + ');
+  return '<div class="liveinfo" style="border-color:var(--gold)">📣 Du hast einen Weis: <b>' + esc(names) + '</b> <button class="btn sm' + (G.weisOn ? '' : ' ghost') + '" type="button" data-weis="1">' + (G.weisOn ? 'Ansagen: AN' : 'Ansagen: AUS') + '</button></div>';
+}
+function draw(){
+  var G = S.G, el = $('game'); if(!G || !el) return;
+  var h = '<div class="stage2"><div><div class="stbar" id="stbar">' + stbarHtml() + '</div><div class="jtable">' + seatHtml(G, 2) + seatHtml(G, 3) + '<div class="center">' + centerHtml(G) + '</div>' + seatHtml(G, 1) + seatHtml(G, 0) + '</div>' + weisChip(G) +
+    '<div class="ctrls">' + (G.mode !== 'watch' && CFG.tipp && myTurn(G) ? '<button class="btn sm" data-a="tipp" type="button">💡 Tipp</button>' : '') + '<button class="btn sm ghost" data-a="regeln" type="button">📖 Regeln</button><button class="btn sm ghost" data-a="ende" type="button">' + (G.mode === 'watch' ? 'Zuschauen beenden' : 'Partie beenden') + '</button></div></div>' +
+    '<aside class="sidebox">' + tafelHtml(G) + liveHtml(G) + '</aside></div>';
+  el.innerHTML = h;
+}
+function reasonIllegal(G, c){
+  var rd = G.rd, m = effMode(rd.t, rd.trickNo); if(!rd.trick.length) return '';
+  var led = suitOf(rd.trick[0].card);
+  if(m >= 4) return 'Du musst ' + suitName(led) + ' bedienen (Farbe zugeben), solange du eine hast.';
+  if(led === m) return 'Es wurde Trumpf (' + suitName(m) + ') angespielt: Du musst Trumpf zugeben – nur der Under darf zurückgehalten werden.';
+  return 'Du musst ' + suitName(led) + ' bedienen oder stechen – und darfst nicht untertrumpfen (mit kleinerem Trumpf stechen).';
+}
+function doTipp(){
+  var G = S.G; if(!G || !myTurn(G)) return; var rd = G.rd, r;
+  if(rd.phase === 'ansage'){ var an = aiAnsage(rd, G.my, 3); G.hint = {text:'Sag etwa ' + an + ' an. In meinen Probe-Runden hole ich mit dieser Hand ungefähr so viele Punkte.', card:-1}; G.anVal = an; G.hintN++; draw(); return; }
+  if(rd.phase === 'trump'){ r = aiTrump(rd, G.my, 3); G.hint = {text:r.act === 's' ? 'Schieben. ' + r.why : 'Sag ' + modeName(+r.act.slice(1)) + ' an. ' + r.why, card:-1}; }
+  else { r = aiCard(rd, G.my, 3); G.hint = {text:cardName(r.card) + ': ' + r.why, card:r.card}; }
+  G.hintN++; draw();
+}
+function humanAct(act){
+  var G = S.G; if(!G || !myTurn(G)) return; G.hint = null; G.msg = '';
+  pushAct(G, G.my, act);
+}
+function bindGame(){
+  var g = $('game');
+  g.addEventListener('click', function(e){
+    var G = S.G; if(!G) return;
+    var b = e.target.closest('[data-c],[data-t],[data-s],[data-a],[data-weis],[data-an],[data-ad]'); if(!b) return;
+    if(b.dataset.ad != null){ var ip = $('anIn'); if(ip){ ip.value = Math.max(0, Math.min(157, (+ip.value || 0) + (+b.dataset.ad))); G.anVal = +ip.value; } return; }
+    if(b.dataset.an != null){ var ip2 = $('anIn'), v = Math.round(+ip2.value); if(!(v >= 0 && v <= 157)){ toast('Die Ansage muss zwischen 0 und 157 liegen.'); return; } G.anVal = null; humanAct('a' + v); return; }
+    if(b.dataset.c != null){
+      if(!myTurn(G) || G.rd.phase !== 'play') return;
+      var c = +b.dataset.c, rd = G.rd, m = effMode(rd.t, rd.trickNo);
+      if(legal(rd.hands[G.my], rd.trick, m).indexOf(c) < 0){ toast(reasonIllegal(G, c)); return; }
+      var wf = rd.trickNo === 0 && G.cfg.weis && G.weisOn && findWeis(rd.orig[G.my], m).length ? 'w' : '';
+      humanAct('p' + c + wf);
+    } else if(b.dataset.t != null) humanAct('t' + b.dataset.t);
+    else if(b.dataset.s != null) humanAct('s');
+    else if(b.dataset.weis != null){ G.weisOn = !G.weisOn; draw(); }
+    else if(b.dataset.a === 'tipp') doTipp();
+    else if(b.dataset.a === 'regeln'){ openBookInModal(); }
+    else if(b.dataset.a === 'ende'){ if(G.mode === 'watch' || G.over) verlassen(); else ask('Partie beenden?', 'Die Partie wird abgebrochen' + (G.mode === 'online' ? ' – dein Tisch wird geschlossen.' : ' (sie bleibt gespeichert, bis du eine neue beginnst).'), 'Beenden', verlassen, true); }
+  });
+}
+
+/* =====================================================================
+   Online: Tische, Lobby, Synchronisation
+   ===================================================================== */
+function meWrite(patch){
+  if(patch) for(var k in patch) S.me[k] = patch[k];
+  S.me.at = Date.now(); S.me.name = API.name;
+  var data = JSON.parse(JSON.stringify(S.me));
+  return Promise.resolve(API.ichSchreiben(data)).catch(function(e){ console.error('Jassen: schreiben', e); toast('Online-Verbindung hat nicht geklappt.'); });
+}
+function startLobby(){ stopLobby(); S.unsubLobby = API.spielerWatch(onLobby); }
+function stopLobby(){ if(S.unsubLobby){ S.unsubLobby(); S.unsubLobby = null; } }
+function startHeartbeat(){ if(S.hb) return; S.hb = setInterval(function(){ if(S.me.tisch || S.me.want || (S.G && S.G.mode === 'online')) meWrite(); }, 40000); }
+function frisch(d){ return d && d.at && Date.now() - d.at < FRISCH; }
+function docOf(uid){ return S.spieler.filter(function(x){ return x.uid === uid; })[0]; }
+function onLobby(list){
+  S.spieler = list;
+  var mine = docOf(API.uid);
+  if(!S.hydrated){
+    S.hydrated = true;
+    if(mine){ if(mine.stat) S.me.stat = mine.stat; if(mine.tisch || mine.want || mine.g){ S.me.tisch = null; S.me.want = null; S.me.g = null; meWrite(); } }
+  }
+  var T = S.me.tisch, changed = false;
+  if(T && T.status === 'offen'){
+    list.forEach(function(d){
+      if(d.uid === API.uid || !d.want || d.want.host !== API.uid || d.want.id !== T.id) return;
+      var sIdx = d.want.seat;
+      if(T.seats.indexOf(d.uid) < 0 && sIdx > 0 && sIdx < 4 && !T.seats[sIdx]){ T.seats[sIdx] = d.uid; T.names[sIdx] = d.name; changed = true; }
+    });
+    for(var i = 1; i < 4; i++){
+      var u = T.seats[i]; if(!u) continue; var d2 = docOf(u);
+      if(!d2 || !d2.want || d2.want.id !== T.id || d2.want.host !== API.uid){ if(d2 || Date.now() - (T.t || 0) > 8000){ T.seats[i] = null; T.names[i] = ''; changed = true; } }
+    }
+    if(changed){ meWrite(); }
+  }
+  var W = S.me.want;
+  if(W && !S.G){
+    var hd = docOf(W.host), tt = hd && hd.tisch;
+    if(!tt || tt.id !== W.id){ if(Date.now() - W.t > 6000){ toast('Der Tisch ist nicht mehr da.'); S.me.want = null; meWrite(); S.view = 'menu'; } }
+    else if(tt.seats[W.seat] !== API.uid){ if(Date.now() - W.t > 5000){ toast('Der Platz ist leider besetzt.'); S.me.want = null; meWrite(); S.view = 'menu'; } }
+    else if(tt.status === 'laeuft'){ startOnlineGame(tt, W.seat, W.host); return; }
+  }
+  if(S.G && S.G.mode !== 'ai') syncOnline();
+  if(!S.G) renderView();
+}
+function syncOnline(){
+  var G = S.G, hd = G.hostUid === API.uid ? S.me : docOf(G.hostUid), tt = hd && hd.tisch;
+  if(G.hostUid !== API.uid){
+    if(!tt || tt.id !== G.id){ if(!G.over && !G.closedMsg){ G.closedMsg = true; toast('Der Tisch wurde geschlossen.'); verlassen(); } return; }
+    tt.seats.forEach(function(s, i){ if(s && String(s).indexOf('ai') === 0 && G.seats[i].type !== 'ai') G.seats[i] = {type:'ai', lvl:+String(s).slice(2), name:tt.names[i]}; });
+  }
+  if(G.mode === 'watch'){
+    var hg = hd && hd.g; if(hg && hg.id === G.id && hg.rno > G.rno){ G.rno = hg.rno; G.totals = (hg.tot || G.totals).slice(); G.rd = mkRound(G); G.endShown = false; G.showTrick = null; G.counted = G.rno; }
+  }
+  pump();
+}
+function openTable(cfg){
+  closeModal();
+  var T = {id:API.uid + '-' + Date.now(), o:Object.assign({}, cfg, {fixed:null}), seats:[API.uid, null, null, null], names:[API.name, '', '', ''], status:'offen', t:Date.now()};
+  S.me.tisch = T; S.me.want = null; S.me.g = null; meWrite(); startHeartbeat(); S.view = 'wait'; refresh(true);
+}
+function joinTable(hd, seat){
+  var T = hd.tisch;
+  S.me.tisch = null; S.me.g = null; S.me.want = {host:hd.uid, id:T.id, seat:seat, t:Date.now()}; meWrite(); startHeartbeat(); S.view = 'wait'; refresh(true);
+}
+function leaveWant(){ S.me.want = null; S.me.g = null; meWrite(); S.view = 'menu'; refresh(true); }
+function closeTable(){ S.me.tisch = null; S.me.g = null; meWrite(); S.view = 'menu'; refresh(true); }
+function hostStartGame(){
+  var T = S.me.tisch; if(!T || T.status !== 'offen') return;
+  var o = T.o;
+  for(var s = 0; s < 4; s++) if(!T.seats[s]){
+    var lvl = s % 2 === 0 ? o.lvlP : o.lvlG, used = T.names.slice(), nm = pick(AINAMES[lvl].filter(function(n){ return used.indexOf(n) < 0; }).concat(AINAMES[lvl]));
+    T.seats[s] = 'ai' + lvl; T.names[s] = nm;
+  }
+  T.status = 'laeuft'; T.seed0 = (Math.random() * 4294967296) >>> 0; T.dealer0 = rnd(4);
+  S.me.g = {id:T.id, rno:0, a:[], ai:{}, tot:[0, 0]};
+  meWrite(); startOnlineGame(T, 0, API.uid);
+}
+function startOnlineGame(T, seat, hostUid){
+  var cfg = T.o; SET = cfg.set || SET;
+  var seats = T.seats.map(function(s, i){ return String(s).indexOf('ai') === 0 ? {type:'ai', lvl:+String(s).slice(2), name:T.names[i]} : {type:'human', uid:s, name:T.names[i]}; });
+  if(hostUid !== API.uid) S.me.g = {id:T.id, rno:0, a:[], ai:{}};
+  S.me.want = hostUid !== API.uid ? S.me.want : null;
+  var G = newGame({id:T.id, mode:'online', cfg:cfg, my:seat, hostUid:hostUid, seed0:T.seed0, dealer0:T.dealer0, seats:seats});
+  S.G = G; S.view = 'game'; meWrite(); startHeartbeat(); refresh(true); pump();
+}
+function watchTable(hd){
+  var T = hd.tisch, cfg = T.o; SET = cfg.set || SET;
+  var seats = T.seats.map(function(s, i){ return String(s).indexOf('ai') === 0 ? {type:'ai', lvl:+String(s).slice(2), name:T.names[i]} : {type:'human', uid:s, name:T.names[i]}; });
+  var hg = hd.g || {rno:0}, G = newGame({id:T.id, mode:'watch', cfg:cfg, my:0, hostUid:hd.uid, seed0:T.seed0, dealer0:T.dealer0, seats:seats});
+  G.rno = hg.rno || 0; G.totals = (hg.tot || [0, 0]).slice(); G.rd = mkRound(G); G.counted = G.rno;
+  S.G = G; S.view = 'game'; refresh(true); pump();
+}
+function takeover(seat){
+  var G = S.G; if(!G || G.hostUid !== API.uid) return; var T = S.me.tisch, sp = G.seats[seat], lvl = 2;
+  var old = roundPart(docG(sp.uid), G.id, G.rno), acts = (old && old.a ? old.a : []).slice();
+  T.seats[seat] = 'ai' + lvl; T.names[seat] = sp.name + ' (Computer)';
+  G.seats[seat] = {type:'ai', lvl:lvl, name:T.names[seat]};
+  S.me.g.ai = S.me.g.ai || {}; S.me.g.ai[seat] = acts; meWrite(); pump(); toast('Der Computer übernimmt den Platz von ' + sp.name + '.');
+}
+
+/* =====================================================================
+   Menü, Einstellungen, Lobby
+   ===================================================================== */
+function optSwitch(id, titel, klein, an){ return '<div class="opt"><div class="t">' + titel + (klein ? '<small>' + klein + '</small>' : '') + '</div><label class="sw"><input type="checkbox" id="' + id + '"' + (an ? ' checked' : '') + '><span></span></label></div>'; }
+function seg(name, opts, cur){ return '<div class="seg">' + opts.map(function(o, i){ return '<input type="radio" name="' + name + '" id="' + name + i + '" value="' + o[0] + '"' + (String(o[0]) === String(cur) ? ' checked' : '') + '><label for="' + name + i + '">' + o[1] + '</label>'; }).join('') + '</div>'; }
+function lvlSel(id, cur){ return '<select class="lvlsel" id="' + id + '">' + [1, 2, 3].map(function(l){ return '<option value="' + l + '"' + (cur === l ? ' selected' : '') + '>' + LVLN[l] + ' – ' + LVLDESC[l] + '</option>'; }).join('') + '</select>'; }
+function setupDialog(kind, fixed){
+  var coif = fixed === 'coiffeur', dif = fixed === 'differenzler';
+  var t = kind === 'online' ? 'Online-Tisch eröffnen' : dif ? 'Differenzler gegen den Computer' : coif ? 'Coiffeur gegen den Computer' : fixed === 4 ? 'Obenabe-Jass' : fixed === 5 ? 'Undenufe / Hindenufe' : 'Schieber gegen den Computer';
+  var h = '<h2>' + t + '</h2>';
+  if(dif){
+    h += '<p class="muted">Du spielst gegen drei Computer, jeder für sich. Vor dem Spielen sagt jede Person an, wie viele Punkte sie holt – die kleinste Gesamtdifferenz gewinnt.</p><div class="field"><label class="t">Runden</label>' + seg('drounds', [[4, '4'], [8, '8'], [12, '12']], CFG.dRounds || 8) + '</div>';
+  } else if(coif){
+    h += '<p class="muted">12 Spiele: Jedes Team spielt jede Zeile der Tafel einmal. Vorhand wählt die Spielart, die dem eigenen Team noch fehlt; die Punkte zählen mal Faktor.</p>';
+    h += optSwitch('oWeis', 'Weis', 'Reihen und Vierlinge zählen extra', CFG.weis) + optSwitch('oStoeck', 'Stöck', 'König + Ober/Dame vom Trumpf: 20 Punkte', CFG.stoeck);
+  } else if(fixed == null){
+    h += '<div class="field"><label class="t">Zielpunkte</label>' + seg('target', [[1000, '1000'], [1500, '1500'], [2500, '2500']], CFG.target) + '</div>';
+    h += optSwitch('oMult', 'Faktoren', 'Trumpfarten zählen 1×, 2× oder 3× (Obenabe/Undenufe 3×)', CFG.mult);
+    h += optSwitch('oWeis', 'Weis', 'Reihen und Vierlinge zählen extra', CFG.weis);
+    h += optSwitch('oStoeck', 'Stöck', 'König + Ober/Dame vom Trumpf: 20 Punkte', CFG.stoeck);
+    h += optSwitch('oSlalom', 'Slalom zuschalten', 'Abwechselnd Obenabe und Undenufe', CFG.slalom);
+  } else h += '<p class="muted">Sechs Runden, keine Trumpfwahl. ' + (fixed === 4 ? 'Das Ass ist die stärkste Karte, die 8 zählt 8 Punkte.' : 'Die 6 ist die stärkste Karte (11 Punkte), das Ass ist wertlos.') + '</p>';
+  if(!dif) h += '<div class="field"><label class="t">Dein Partner (Platz oben)</label>' + lvlSel('lP', CFG.lvlP) + '</div>';
+  h += '<div class="field"><label class="t">' + (dif ? 'Die drei Computer' : 'Gegner') + '</label>' + lvlSel('lG', CFG.lvlG) + '</div>';
+  h += '<div style="margin-top:8px">' + optSwitch('oHilfe', 'Erlaubte Karten markieren', 'Nicht spielbare Karten werden abgedunkelt', CFG.hilfe) + optSwitch('oTipp', 'Tipp-Knopf', 'Der Computer schlägt dir einen Zug vor', CFG.tipp) + optSwitch('oLive', 'Punkte live anzeigen', 'Stichpunkte der Runde neben dem Tisch', CFG.live) + '</div>';
+  h += '<div class="actions"><button class="btn ghost" data-a="no" type="button">Abbrechen</button><button class="btn" data-a="go" type="button">' + (kind === 'online' ? 'Tisch eröffnen' : 'Spiel starten') + '</button></div>';
+  modal(h, function(m){
+    m.querySelector('[data-a="no"]').onclick = closeModal;
+    m.querySelector('[data-a="go"]').onclick = function(){
+      var q = function(id){ var e = m.querySelector('#' + id); return e; };
+      var tg = m.querySelector('input[name="target"]:checked');
+      if(tg) CFG.target = +tg.value;
+      if(q('oWeis') && !q('oMult')){ CFG.weis = q('oWeis').checked; CFG.stoeck = q('oStoeck').checked; }
+      if(q('oMult')){ CFG.mult = q('oMult').checked; CFG.weis = q('oWeis').checked; CFG.stoeck = q('oStoeck').checked; CFG.slalom = q('oSlalom').checked; }
+      var dr = m.querySelector('input[name="drounds"]:checked'); if(dr) CFG.dRounds = +dr.value;
+      if(q('lP')) CFG.lvlP = +q('lP').value; CFG.lvlG = +q('lG').value; CFG.hilfe = q('oHilfe').checked; CFG.tipp = q('oTipp').checked; CFG.live = q('oLive').checked;
+      lsSet('jassen_cfg_v1', CFG);
+      if(kind === 'online') openTable(mkCfg()); else startAI(mkCfg(), fixed);
+    };
+  });
+}
+function renderMenu(){
+  var sv = lsGet('jassen_save_v1', null), h = '';
+  if(sv && !sv.over){
+    var tt = sv.totals || [0, 0];
+    h += '<div class="card resume"><div class="grow"><h3 style="margin:0">Angefangene Partie</h3><span class="muted">' + (sv.cfg.fixed != null ? 'Mini-Spiel' : sv.cfg.kind === 'coiffeur' ? 'Coiffeur' : sv.cfg.kind === 'differenzler' ? 'Differenzler' : 'Schieber') + ' gegen den Computer · Wir ' + tt[0] + ' : Sie ' + tt[1] + '</span></div><button class="btn" data-a="resume" type="button">Weiterspielen</button><button class="btn ghost" data-a="del" type="button">Verwerfen</button></div>';
+  }
+  h += '<div class="modes">' +
+    '<button class="mode" data-m="ai" type="button"><span class="pc">♠</span><b>Schieber gegen den Computer</b><small>Du und dein Partner gegen zwei Computer – drei Stärken.</small></button>' +
+    '<button class="mode" data-m="online" type="button"><span class="pc">♥</span><b>Online mit Freunden</b><small>Eröffne einen Tisch (4 Plätze) oder setz dich an einen offenen. Leere Plätze füllt der Computer.</small></button>' +
+    '<button class="mode" data-m="coiffeur" type="button"><span class="pc">♦</span><b>Coiffeur gegen den Computer</b><small>Jede Spielart einmal – die Tafel wird Zeile für Zeile gefüllt.</small></button>' +
+    '<button class="mode" data-m="differenzler" type="button"><span class="pc">±</span><b>Differenzler</b><small>Sag deine Punkte an – wer am genauesten ist, gewinnt.</small></button>' +
+    '<button class="mode" data-m="oben" type="button"><span class="pc">↓</span><b>Obenabe-Jass</b><small>Einfach zum Einstieg: sechs Runden, das Ass sticht.</small></button>' +
+    '<button class="mode" data-m="unden" type="button"><span class="pc">↑</span><b>Undenufe / Hindenufe</b><small>Die Sechs ist am stärksten – umdenken üben!</small></button></div>';
+  h += '<div class="card" style="margin-bottom:16px"><h3>Weitere Jassarten</h3><p class="muted" style="margin:0 0 8px">Molotow, Handjass, Stöck-Wyss-Stich, Tschau-Sepp und Gämsch sind schon im Erklärbuch ausführlich erklärt – spielbar werden sie in den nächsten Etappen.</p><div class="row">' +
+    ['molotow', 'handjass', 'stoeck', 'tschau', 'gaemsch'].map(function(p){ return '<button class="btn sm ghost" data-buch="' + p + '" type="button">' + esc(PAGES.filter(function(x){ return x.id === p; })[0].t) + '</button>'; }).join('') + '</div></div>';
+  h += '<div class="two"><section class="card"><h3>Offene Tische</h3><div id="tischeBox"></div></section><section class="card"><h3>Rangliste</h3><div id="rangBox"></div></section></div>';
+  $('menu').innerHTML = h;
+  var q = function(s){ return $('menu').querySelector(s); };
+  $('menu').querySelectorAll('[data-m]').forEach(function(b){ b.onclick = function(){ var m = b.dataset.m; setupDialog(m === 'online' ? 'online' : 'ai', m === 'oben' ? 4 : m === 'unden' ? 5 : m === 'coiffeur' ? 'coiffeur' : m === 'differenzler' ? 'differenzler' : null); }; });
+  $('menu').querySelectorAll('[data-buch]').forEach(function(b){ b.onclick = function(){ S.view = 'buch'; BOOK.page = b.dataset.buch; refresh(true); }; });
+  var r = q('[data-a="resume"]'); if(r) r.onclick = resumeLocal;
+  var d = q('[data-a="del"]'); if(d) d.onclick = function(){ lsDel('jassen_save_v1'); renderMenu(); };
+  renderLobbyTeile();
+}
+function tableFree(T){ var f = []; [2, 1, 3].forEach(function(i){ if(!T.seats[i]) f.push(i); }); return f; }
+function renderLobbyTeile(){
+  var tb = $('tischeBox'), rb = $('rangBox'); if(!tb || !rb) return;
+  var th = '';
+  var tische = S.spieler.filter(function(d){ return d.uid !== API.uid && d.tisch && frisch(d) && (d.tisch.status === 'offen' || d.tisch.status === 'laeuft'); });
+  tische.forEach(function(d){
+    var T = d.tisch, n = T.seats.filter(function(s){ return s && String(s).indexOf('ai') !== 0; }).length, free = tableFree(T);
+    th += '<div class="tisch"><span class="dot b">♠</span><div class="info"><b>' + esc(d.name) + '</b><small>' + (T.status === 'laeuft' ? 'Partie läuft · ' + n + ' Menschen' : n + ' von 4 Plätzen besetzt · Ziel ' + T.o.target) + '</small></div>' +
+      (T.status === 'offen' && free.length ? '<button class="btn sm" data-j="' + esc(d.uid) + '" type="button">Mitspielen</button>' : '<button class="btn sm ghost" data-w="' + esc(d.uid) + '" type="button">Zuschauen</button>') + '</div>';
+  });
+  if(!tische.length) th += '<p class="empty">Gerade ist kein Tisch offen. Eröffne selbst einen – oben bei «Online».</p>';
+  tb.innerHTML = th;
+  tb.querySelectorAll('[data-j]').forEach(function(b){ b.onclick = function(){ var d = docOf(b.dataset.j), f = d && d.tisch && d.tisch.status === 'offen' ? tableFree(d.tisch) : []; if(!f.length){ toast('Der Tisch ist nicht mehr frei.'); return; } joinTable(d, f[0]); }; });
+  tb.querySelectorAll('[data-w]').forEach(function(b){ b.onclick = function(){ var d = docOf(b.dataset.w); if(!d || !d.tisch || d.tisch.status !== 'laeuft'){ toast('Die Partie läuft nicht mehr.'); return; } watchTable(d); }; });
+  var rows = S.spieler.filter(function(d){ return d.stat && (d.stat.w + d.stat.d + d.stat.l) > 0; }).map(function(d){ return {uid:d.uid, name:d.name, w:d.stat.w, l:d.stat.l}; });
+  rows.sort(function(a, b){ return b.w - a.w || (a.l - b.l) || String(a.name).localeCompare(String(b.name), 'de'); });
+  var rh = '';
+  if(!rows.length) rh = '<p class="empty">Noch keine Online-Partie gespielt. Wer gewinnt, kommt hierher.</p>';
+  else { rh = '<table class="rang"><thead><tr><th></th><th>Name</th><th>S</th><th>N</th></tr></thead><tbody>'; rows.slice(0, 12).forEach(function(r, i){ rh += '<tr' + (r.uid === API.uid ? ' class="me"' : '') + '><td>' + (i + 1) + '</td><td>' + esc(r.name) + '</td><td class="pt">' + r.w + '</td><td>' + r.l + '</td></tr>'; }); rh += '</tbody></table><p class="muted" style="margin:8px 0 0;font-size:12.5px">S = Siege · N = Niederlagen (nur Online-Partien mit mindestens zwei Menschen)</p>'; }
+  rb.innerHTML = rh;
+}
+function renderWait(){
+  var el = $('wait'), T = S.me.tisch, host = true, hd = null;
+  if(!T){ var W = S.me.want; if(!W){ S.view = 'menu'; return renderView(); } hd = docOf(W.host); T = hd && hd.tisch; host = false; }
+  if(!T){ el.innerHTML = '<div class="card"><h3>Tisch wird gesucht …</h3><button class="btn ghost" data-a="leave" type="button">Abbrechen</button></div>'; el.querySelector('[data-a="leave"]').onclick = leaveWant; return; }
+  var h = '<div class="card"><h2>' + (host ? 'Dein Tisch ist offen' : 'Am Tisch von ' + esc(T.names[0])) + '</h2><p class="muted">Ziel ' + T.o.target + ' Punkte · ' + (T.o.set === 'f' ? 'Französisches' : 'Deutsches') + ' Blatt · Plätze 1 &amp; 3 = Team A, Plätze 2 &amp; 4 = Team B · leere Plätze füllt der Computer.</p><div class="seatpick">';
+  var lab = ['Platz 1 (Gastgeber:in)', 'Platz 2 (Gegner)', 'Platz 3 (Partner)', 'Platz 4 (Gegner)'];
+  for(var i = 0; i < 4; i++){ var s = T.seats[i]; h += '<div class="sp1 team' + (i % 2) + '"><b>' + lab[i] + '</b>' + (s ? esc(T.names[i]) + (s === API.uid ? ' (du)' : '') : '<span class="muted">frei – Computer (' + LVLN[i % 2 === 0 ? T.o.lvlP : T.o.lvlG] + ')</span>') + '</div>'; }
+  h += '</div><div class="actions">' + (host ? '<button class="btn danger" data-a="close" type="button">Tisch schliessen</button><button class="btn" data-a="start" type="button">Los geht’s!</button>' : '<button class="btn ghost" data-a="leave" type="button">Platz verlassen</button>') + '</div>' + (host ? '' : '<p class="muted">Warte, bis die Gastgeberin oder der Gastgeber startet …</p>') + '</div>';
+  el.innerHTML = h;
+  var q = function(a){ return el.querySelector('[data-a="' + a + '"]'); };
+  if(q('close')) q('close').onclick = closeTable; if(q('start')) q('start').onclick = hostStartGame; if(q('leave')) q('leave').onclick = leaveWant;
+}
+
+/* ---------- Sperre / Lehrperson ---------- */
+function renderGate(st){
+  var g = $('gate');
+  g.innerHTML = '<div class="card gate"><div class="lock"><b>♠</b><span>🔒</span></div><h2>Der Jasstisch ist geschlossen</h2><p class="muted">Im Unterricht wird nicht gejasst.</p><div class="big" id="gateCount"></div><div class="muted" id="gateSub"></div>' +
+    '<ul><li>Frei: vor 07:30, über Mittag (11:50–13:30) und ab 16:55</li><li>Freitag ab 15:00 (Freifach) und am Wochenende</li><li>Deine Lehrperson kann den Jasstisch für die Klasse freischalten</li></ul><div style="margin-top:14px"><button class="btn sm ghost" id="gateBuch" type="button">📖 Erklärbuch lesen</button></div></div>';
+  $('gateBuch').onclick = function(){ S.view = 'buch'; $('gate').hidden = true; refresh(true); };
+  gateTick(st);
+}
+function gateTick(st){
+  var c = $('gateCount'); if(!c) return; var ende = st.u && st.u.bis;
+  if(ende){ var s = Math.max(0, Math.round((ende - jetzt()) / 1000)), hh = Math.floor(s / 3600), mm = Math.floor(s % 3600 / 60); c.textContent = (hh ? hh + ':' + pad(mm) : mm) + ':' + pad(s % 60); $('gateSub').textContent = 'bis ' + hm(ende) + ' Uhr geschlossen'; }
+}
+function renderTeacher(st){
+  var t = $('teacher');
+  if(!S.lehrer || S.G){ t.hidden = true; return; }
+  t.hidden = false; var open = t.open;
+  var u = st.u, kl = API.klassen || [], sel = lsGet('jassen_klassen', [API.klasse]), f = S.frei && S.frei.bis > Date.now() ? S.frei : null;
+  var sub = f ? '🔓 freigeschaltet bis ' + hm(new Date(f.bis)) : (u.zu ? '🔒 für Schüler:innen gesperrt bis ' + hm(u.bis) : '🟢 gerade ohnehin offen');
+  var h = '<summary><span>🔑</span> Lehrperson: Freischaltung <span class="sub">' + esc(sub) + '</span></summary><div class="body">';
+  h += '<p class="muted" style="margin:10px 0 8px">Im Unterricht (Mo–Fr 07:30–11:50 und 13:30–16:55, Freitag ab 15:00 frei) ist der Jasstisch für Schüler:innen gesperrt. Hier schaltest du ihn für <b>' + esc(API.klasse) + '</b>' + (kl.length > 1 ? ' (und gewählte Klassen)' : '') + ' frei. Du selbst kannst immer spielen.</p><div class="row">';
+  [15, 30, 45].forEach(function(m){ h += '<button class="btn sm" data-fr="' + m + '" type="button">🔓 ' + m + ' Min</button>'; });
+  if(u.zu) h += '<button class="btn sm" data-fr="ende" type="button">🔓 Bis ' + hm(u.bis) + '</button>';
+  h += '<button class="btn sm ghost" data-fr="0" type="button">🔒 Wieder sperren</button></div>';
+  if(kl.length > 1) h += '<div class="klassen"><span class="muted">Auch für:</span>' + kl.map(function(k){ return '<label><input type="checkbox" data-k="' + esc(k.id) + '"' + (sel.indexOf(k.id) >= 0 || k.id === API.klasse ? ' checked' : '') + (k.id === API.klasse ? ' disabled' : '') + '> ' + esc(k.label) + '</label>'; }).join('') + '</div>';
+  h += '<div class="row" style="margin-top:12px"><button class="btn sm ghost" data-a="reset" type="button">🗑️ Rangliste zurücksetzen</button></div></div>';
+  t.innerHTML = h; t.open = open;
+  t.querySelectorAll('[data-fr]').forEach(function(b){ b.onclick = function(){
+    var v = b.dataset.fr, bis; if(v === 'ende') bis = Date.now() + (st.u.bis - jetzt()); else if(v === '0') bis = 0; else bis = Date.now() + (+v) * 60000;
+    var ks = [API.klasse]; t.querySelectorAll('[data-k]').forEach(function(c){ if(c.checked && ks.indexOf(c.dataset.k) < 0) ks.push(c.dataset.k); }); lsSet('jassen_klassen', ks);
+    Promise.resolve(API.freigabeSetzen(ks, bis)).then(function(){ toast(bis ? 'Der Jasstisch ist freigeschaltet.' : 'Der Jasstisch ist wieder gesperrt.'); }).catch(function(e){ console.error(e); toast('Das hat nicht geklappt.'); });
+  }; });
+  var rs = t.querySelector('[data-a="reset"]');
+  if(rs) rs.onclick = function(){ ask('Rangliste zurücksetzen?', 'Siege und Niederlagen aller Schüler:innen in ' + esc(API.klasse) + ' werden auf 0 gesetzt.', 'Zurücksetzen', function(){ Promise.resolve(API.statZuruecksetzen()).then(function(){ toast('Rangliste ist zurückgesetzt.'); }).catch(function(){ toast('Das hat nicht geklappt.'); }); }, true); };
+}
+
+/* ---------- Ansichten ---------- */
+function renderNav(){
+  var n = $('topnav'); if(S.G){ n.hidden = true; return; } n.hidden = false;
+  var items = [['menu', '🂡 Spielen'], ['buch', '📖 Erklärbuch'], ['ueben', '🎯 Üben'], ['tafel', '📝 Schreibtafel']];
+  n.innerHTML = items.map(function(i){ return '<button type="button" data-v="' + i[0] + '" class="' + ((S.view === i[0] || (S.view === 'wait' && i[0] === 'menu')) ? 'on' : '') + '">' + i[1] + '</button>'; }).join('') + '<span class="sp"></span><span class="setbtn"><button type="button" data-set="d" class="' + (SET === 'd' ? 'on' : '') + '">Deutsch</button><button type="button" data-set="f" class="' + (SET === 'f' ? 'on' : '') + '">Französisch</button></span>';
+  n.querySelectorAll('[data-v]').forEach(function(b){ b.onclick = function(){ if(b.dataset.v === 'ueben' && S.view === 'ueben') UE.kind = null; S.view = b.dataset.v; refresh(true); }; });
+  n.querySelectorAll('[data-set]').forEach(function(b){ b.onclick = function(){ SET = b.dataset.set; lsSet('jassen_set', SET); refresh(true); }; });
+}
+function renderView(){
+  var st = status();
+  ['menu', 'wait', 'buch', 'ueben', 'tafel'].forEach(function(v){ var e = $(v); if(e) e.hidden = true; });
+  if(S.G) return;
+  var v = S.view; if(v === 'game') v = S.view = 'menu';
+  if(!st.offen && (v === 'menu' || v === 'wait' || v === 'ueben' || v === 'tafel')) v = 'gate';
+  if(v === 'gate'){ $('gate').hidden = false; return; }
+  if(v === 'menu' && (S.me.tisch || S.me.want)){ S.view = v = 'wait'; }
+  $('gate').hidden = true;
+  var el = $(v); if(!el) return; el.hidden = false;
+  if(v === 'menu') renderMenu(); else if(v === 'wait') renderWait(); else if(v === 'buch') renderBuch(); else if(v === 'ueben') renderUeben(); else if(v === 'tafel') renderTafel();
+}
+var lastKey = '';
+function refresh(force){
+  var st = status();
+  var key = (st.offen ? 'o' : 'z') + (st.lehrer ? 'L' : '') + (st.frei ? st.frei.bis : '') + (S.G ? 'g' : '') + (st.u.zu ? 'u' : '') + S.view + SET;
+  var chip = $('chip'); chip.hidden = false; chip.classList.toggle('zu', !st.offen); var txt;
+  if(st.lehrer) txt = !st.u.zu ? 'Offen' : (S.frei && S.frei.bis > Date.now() ? 'Freigeschaltet bis ' + hm(new Date(S.frei.bis)) : 'Schüler:innen: gesperrt bis ' + hm(st.u.bis));
+  else if(!st.offen) txt = 'Gesperrt bis ' + hm(st.u.bis); else if(st.frei) txt = 'Freigeschaltet bis ' + hm(new Date(st.frei.bis)); else txt = st.u.ab ? 'Offen bis ' + hm(st.u.ab) : 'Offen';
+  $('chipTxt').textContent = txt;
+  if(!st.offen && S.offen !== false){
+    if(S.G){ var G = S.G; if(G.mode === 'ai'){ saveLocal(); toast('Der Unterricht beginnt – deine Partie ist gespeichert.'); } verlassen(); }
+    stopLobby();
+  }
+  if(st.offen && S.offen === false) startLobby();
+  S.offen = st.offen;
+  if(force || key !== lastKey){
+    lastKey = key; $('game').hidden = !S.G; renderNav(); renderTeacher(st);
+    if(S.G){ ['menu', 'wait', 'buch', 'ueben', 'tafel', 'gate'].forEach(function(v){ var e = $(v); if(e) e.hidden = true; }); $('game').hidden = false; draw(); }
+    else { renderView(); if(!st.offen && S.view !== 'buch') renderGate(st); }
+  } else if(!st.offen) gateTick(st);
+}
+
+/* =====================================================================
+   Schreibtafel (Punktezähler für echte Runden)
+   ===================================================================== */
+var TAF = lsGet('jassen_tafel_v1', {a:'Wir', b:'Sie', ziel:1000, runden:[]});
+function tafSave(){ lsSet('jassen_tafel_v1', TAF); }
+function renderTafel(){
+  var el = $('tafel'), sa = 0, sb = 0, rows = '';
+  TAF.runden.forEach(function(r, i){ sa += r.a; sb += r.b; rows += '<tr><td>' + (i + 1) + '</td><td>' + r.a + '</td><td>' + r.b + '</td><td><button class="btn sm ghost" data-del="' + i + '" type="button" aria-label="Runde löschen">✕</button></td></tr>'; });
+  var gew = sa >= TAF.ziel || sb >= TAF.ziel ? (sa === sb ? 'Gleichstand!' : (sa > sb ? esc(TAF.a) : esc(TAF.b)) + ' gewinnt!') : '';
+  el.innerHTML = '<div class="stage2"><div class="card"><h2>Schreibtafel für echte Jassrunden</h2><p class="muted">Am Tisch mit richtigen Karten: Trag nach jeder Runde die Stichpunkte, Weis und Stöck ein – die Tafel rechnet mit dem Faktor.</p>' +
+    '<div class="row" style="margin:8px 0"><label class="muted">Team A <input class="modal-in" id="tA" value="' + esc(TAF.a) + '" maxlength="14" style="width:110px;padding:6px 8px;border-radius:8px;border:1px solid var(--line);background:#0007;color:var(--ivory)"></label><label class="muted">Team B <input id="tB" value="' + esc(TAF.b) + '" maxlength="14" style="width:110px;padding:6px 8px;border-radius:8px;border:1px solid var(--line);background:#0007;color:var(--ivory)"></label></div>' +
+    '<div class="field"><label class="t muted">Zielpunkte</label>' + seg('tz', [[1000, '1000'], [1500, '1500'], [2500, '2500']], TAF.ziel) + '</div>' +
+    '<div class="field"><label class="t muted">Neue Runde</label><div class="row"><label class="muted">Stichpunkte Team A <input id="rA" type="number" min="0" max="257" inputmode="numeric" style="width:84px;padding:7px;border-radius:8px;border:1px solid var(--line);background:#0007;color:var(--ivory)"></label><span class="muted" id="rBtxt">Team B: –</span></div>' +
+    '<div class="row" style="margin-top:6px"><label class="muted">Weis A <input id="wA" type="number" min="0" value="0" style="width:70px;padding:7px;border-radius:8px;border:1px solid var(--line);background:#0007;color:var(--ivory)"></label><label class="muted">Weis B <input id="wB" type="number" min="0" value="0" style="width:70px;padding:7px;border-radius:8px;border:1px solid var(--line);background:#0007;color:var(--ivory)"></label><label class="muted">Stöck A <input id="sA" type="number" min="0" value="0" step="20" style="width:64px;padding:7px;border-radius:8px;border:1px solid var(--line);background:#0007;color:var(--ivory)"></label><label class="muted">Stöck B <input id="sB" type="number" min="0" value="0" step="20" style="width:64px;padding:7px;border-radius:8px;border:1px solid var(--line);background:#0007;color:var(--ivory)"></label></div>' +
+    '<div class="row" style="margin-top:6px"><span class="muted">Faktor</span>' + seg('tf', [[1, '1×'], [2, '2×'], [3, '3×']], 1) + '</div><p class="muted" style="margin:6px 0 0;font-size:13px">Die Stichpunkte (inkl. 5 für den letzten Stich) ergeben zusammen 157. Match (alle 9 Stiche) = 257 für ein Team.</p><div class="row" style="margin-top:10px"><button class="btn" id="tAdd" type="button">Runde eintragen</button><button class="btn ghost" id="tClr" type="button">Alles löschen</button></div></div></div>' +
+    '<aside class="sidebox"><div class="tafel"><h4>' + esc(TAF.a) + ' · ' + esc(TAF.b) + '</h4><table><thead><tr><th></th><th>' + esc(TAF.a) + '</th><th>' + esc(TAF.b) + '</th><th></th></tr></thead><tbody>' + (rows || '<tr><td></td><td>&nbsp;</td><td></td><td></td></tr>') + '</tbody><tfoot><tr><td>Σ</td><td>' + sa + '</td><td>' + sb + '</td><td></td></tr></tfoot></table><div class="ziel">Ziel ' + TAF.ziel + (gew ? ' · <b>' + gew + '</b>' : '') + '</div></div></aside></div>';
+  var q = function(id){ return el.querySelector('#' + id); };
+  q('tA').onchange = function(){ TAF.a = this.value || 'Wir'; tafSave(); renderTafel(); }; q('tB').onchange = function(){ TAF.b = this.value || 'Sie'; tafSave(); renderTafel(); };
+  el.querySelectorAll('input[name="tz"]').forEach(function(i){ i.onchange = function(){ TAF.ziel = +i.value; tafSave(); renderTafel(); }; });
+  q('rA').oninput = function(){ var v = +this.value; q('rBtxt').textContent = 'Team B: ' + (v >= 0 && v <= 257 ? Math.max(0, (v === 257 ? 0 : 157 - v)) : '–'); };
+  q('tAdd').onclick = function(){
+    var a = Math.round(+q('rA').value); if(!(a >= 0 && a <= 257) || q('rA').value === ''){ toast('Trag die Stichpunkte von Team A ein (0 bis 257).'); return; }
+    var b = a === 257 ? 0 : a === 0 ? 257 : Math.max(0, 157 - a);
+    var f = +el.querySelector('input[name="tf"]:checked').value;
+    TAF.runden.push({a:(a + (+q('wA').value || 0) + (+q('sA').value || 0)) * f, b:(b + (+q('wB').value || 0) + (+q('sB').value || 0)) * f}); tafSave(); renderTafel();
+  };
+  q('tClr').onclick = function(){ ask('Alles löschen?', 'Alle eingetragenen Runden werden gelöscht.', 'Löschen', function(){ TAF.runden = []; tafSave(); renderTafel(); }, true); };
+  el.querySelectorAll('[data-del]').forEach(function(b){ b.onclick = function(){ TAF.runden.splice(+b.dataset.del, 1); tafSave(); renderTafel(); }; });
+}
+
+/* =====================================================================
+   Erklärbuch
+   ===================================================================== */
+var BOOK = {page:'start', ksuit:0, kmode:'trumpf', wsel:[], spick:'schieber'};
+function box(h, c){ return '<div class="box ' + (c || '') + '">' + h + '</div>'; }
+function cardsRow(list, cls){ return '<div class="cardrow">' + list.map(function(c){ return cardHtml(c, cls); }).join('') + '</div>'; }
+function C(s, r){ return s * 9 + r; }
+function goUeben(kind, label){ return '<p><button class="btn sm" data-ue="' + kind + '" type="button">🎯 ' + (label || 'Jetzt üben') + '</button></p>'; }
+var PAGES = [
+ {id:'start', g:'', t:'Willkommen', f:function(){
+   return '<h2>Willkommen am Jasstisch</h2><p class="lead">Dein Erklärbuch zum Jassen – Regeln, Beispiele und Hilfsmittel für alle Jassarten.</p>' +
+   '<p>Jassen ist das Schweizer Nationalspiel. Hier lernst du die Karten kennen, wie ein <b>Stich</b> funktioniert, wie man <b>Trumpf</b> ansagt und <b>weist</b> – und danach kannst du gegen den Computer oder online mit Freunden spielen.</p>' +
+   '<h3>So ist das Buch aufgebaut</h3><ol><li><b>Grundlagen</b>: Karten, Werte, Spielablauf, Stich</li><li><b>Schieber</b>: die wichtigste Jassart – Schritt für Schritt</li><li><b>Weitere Jassarten</b>: Obenabe, Coiffeur, Differenzler, Molotow, Handjass, Stöck-Wyss-Stich</li><li><b>Kinderspiele</b>: Tschau-Sepp und Gämsch</li><li><b>Hilfsmittel</b>: Glossar und druckbare Spickzettel</li></ol>' +
+   box('Oben rechts kannst du zwischen dem <b>deutschen</b> und dem <b>französischen</b> Blatt wechseln. Alle Beispiele und Namen im Buch passen sich an.', 'tip') +
+   '<h3>Meine Jass-Lernziele</h3><ul><li>Ich kenne die deutschen und die französischen Jasskarten und kann sie benennen.</li><li>Ich kenne die Kartenwerte und kann die Punkte zusammenzählen.</li><li>Ich kann die Punkte aufschreiben.</li><li>Ich kenne die Reihenfolge der Karten und kann Obenabe oder Undenufe spielen.</li><li>Ich kann den Trumpf ansagen und den Trumpf spielen.</li><li>Ich kenne mindestens drei Jassarten und kann sie spielen.</li></ul>' +
+   '<p class="credit">Bildnachweis: Die Jasskarten (deutsch und französisch) wurden von der Lehrperson bereitgestellt. Die Jassregeln folgen dem Dossier «Jassen in der Schule» (Schweizer Jassverzeichnis, jassverzeichnis.ch) und gängigen Regelsammlungen.</p>';
+ }},
+ {id:'karten', g:'Grundlagen', t:'Karten, Werte & Reihenfolge', f:function(){
+   var s = BOOK.ksuit, mode = BOOK.kmode, m = mode === 'trumpf' ? s : mode === 'oben' ? 4 : 5, o = (s + 1) % 4;
+   var h = '<h2>Karten, Werte &amp; Reihenfolge</h2><p class="lead">36 Karten: vier Farben mit je neun Karten.</p>' +
+   '<p><b>Deutsches Blatt:</b> Rosen, Eicheln, Schellen, Schilten · <b>Französisches Blatt:</b> Herz, Kreuz, Ecken, Schaufeln. Beide Blätter haben dieselben Karten: Rosen = Herz, Eicheln = Kreuz, Schellen = Ecken, Schilten = Schaufeln.</p>' +
+   '<p>Wähle eine Farbe und eine Spielart:</p><div class="tabs-mini">' + [0, 1, 2, 3].map(function(x){ return '<button class="btn sm' + (x === s ? '' : ' ghost') + '" data-ks="' + x + '" type="button">' + esc(suitName(x)) + '</button>'; }).join('') + '</div>' +
+   '<div class="tabs-mini">' + [['trumpf', 'Trumpf'], ['oben', 'Obenabe'], ['unden', 'Undenufe']].map(function(x){ return '<button class="btn sm' + (x[0] === mode ? '' : ' ghost') + '" data-km="' + x[0] + '" type="button">' + x[1] + '</button>'; }).join('') + '</div>';
+   var order = []; for(var r = 0; r < 9; r++) order.push(r);
+   order.sort(function(a, b){ return cstr(C(s, b), m, s) - cstr(C(s, a), m, s); });
+   h += '<table class="t"><thead><tr><th>Stärke</th><th>Karte</th><th class="l">Name</th>' + (mode === 'trumpf' ? '<th>Punkte als Trumpf</th><th>Punkte in anderer Farbe</th>' : '<th>Punkte</th>') + '</tr></thead><tbody>';
+   order.forEach(function(r, i){
+     h += '<tr><td>' + (i + 1) + '</td><td>' + cardHtml(C(s, r), 'sm') + '</td><td class="l">' + esc(RANKN[SET][r]) + (mode === 'trumpf' && r === 3 ? ' (Buur)' : mode === 'trumpf' && r === 5 ? ' (Nell)' : '') + '</td>' +
+       (mode === 'trumpf' ? '<td><b>' + cardPts(C(s, r), m) + '</b></td><td>' + cardPts(C(o, r), m) + '</td>' : '<td><b>' + cardPts(C(s, r), m) + '</b></td>') + '</tr>';
+   });
+   h += '</tbody></table>';
+   h += box('<b>Total:</b> Eine Jassrunde hat <b>152</b> Punkte. Der <b>letzte Stich</b> bringt 5 Punkte dazu: <b>157</b> Punkte pro Runde. Macht ein Team alle 9 Stiche, ist das ein <b>Match</b> (+100).') +
+   (mode === 'trumpf' ? box('Beim Trumpf gilt: Der <b>Buur</b> (' + RANKN[SET][3] + ') ist mit 20 Punkten die höchste Karte, der <b>Nell</b> (Neun) mit 14 Punkten die zweithöchste. Alle anderen Karten der Trumpffarbe folgen: Ass, König, ' + RANKN[SET][2] + ', Zehn, Acht, Sieben, Sechs.') : mode === 'oben' ? box('Beim <b>Obenabe</b> gibt es keinen Trumpf. Das Ass sticht, die Acht zählt 8 Punkte.') : box('Beim <b>Undenufe</b> ist es umgekehrt: Die Sechs sticht und zählt 11 Punkte, das Ass zählt nichts.'));
+   h += '<h3>Alle 36 Karten</h3>' + [0, 1, 2, 3].map(function(x){ return '<div class="cardrow">' + [0, 1, 2, 3, 4, 5, 6, 7, 8].map(function(r){ return cardHtml(C(x, r), 'xs'); }).join('') + '</div>'; }).join('');
+   return h + goUeben('wert', 'Kartenwerte üben') + '<p><button class="btn sm ghost" data-ue="raetsel" type="button">🔎 Jass-Rätsel lösen</button></p>';
+ }},
+ {id:'ablauf', g:'Grundlagen', t:'Grundlegender Spielablauf', f:function(){
+   var st = [['Karten mischen', 'Die Karten werden gemischt.'], ['Karten abheben', 'Mindestens 3 Karten werden von der Person links des Gebers abgehoben.'], ['Karten verteilen', 'Bei vier Spielern erhält jede Person 3 × 3 Karten.'], ['Handkarten sortieren', 'Zuerst nach Farbe, dann nach Kartenwert.'], ['Trumpf bestimmen und ausspielen', 'Je nach Jassart wird der Trumpf bestimmt und gleichzeitig die erste Karte ausgespielt.'], ['Weisen', 'Im ersten Spielzug wird der Weis bekannt gegeben (wenn die Jassart ihn kennt).'], ['Jassen', 'Alle Runden werden nach den Regeln der jeweiligen Jassart gespielt.'], ['Punkte schreiben', 'Am Schluss der Runde werden die Punkte aufgeschrieben.'], ['Bedanken', 'Beim Jassen bedanken sich die Gewinner:innen – das gehört dazu!']];
+   return '<h2>Grundlegender Spielablauf</h2><p class="lead">So läuft fast jede Jassrunde ab.</p><ol style="padding:0;list-style:none">' + st.map(function(x, i){ return '<li style="display:flex;gap:12px;align-items:flex-start;margin:8px 0"><span style="font-family:var(--serif);font-size:30px;font-weight:700;color:#7a4b12;width:34px;text-align:center">' + (i + 1) + '</span><span><b>' + x[0] + '</b><br>' + x[1] + '</span></li>'; }).join('') + '</ol>' +
+     box('Gespielt wird <b>gegen den Uhrzeigersinn</b>. Die Person <b>rechts vom Geber</b> hat <i>Vorhand</i> – sie beginnt.');
+ }},
+ {id:'stich', g:'Grundlagen', t:'Der Stich', f:function(){
+   var tr = C(1, 0);
+   return '<h2>Der Stich</h2><p class="lead">Jeder Spieler legt eine Karte – wer gewinnt?</p>' +
+   '<p>In einem <b>Stich</b> legt jede Person reihum eine Karte offen in die Mitte. Wer die <b>stärkste Karte</b> gelegt hat, gewinnt den Stich, nimmt die vier Karten zu sich und spielt als Nächstes aus.</p>' +
+   '<ul><li>Es gilt <b>Farbe bedienen</b> (auch «Leihhalten»): Wer die ausgespielte Farbe hat, muss sie zugeben.</li><li>Wer die Farbe nicht hat, darf beliebig spielen – im Trumpfspiel auch mit Trumpf <b>stechen</b>.</li><li>Gewonnen hat der <b>höchste Trumpf</b>, sonst die <b>höchste Karte der Anspielfarbe</b>.</li></ul>' +
+   '<h3>Beispiel: ' + esc(suitName(1)) + ' ist Trumpf</h3>' + cardsRow([C(1, 0), C(1, 3), C(1, 8), C(1, 4)], '') +
+   '<p>Spieler 4 spielt das <b>' + esc(cardName(C(1, 0))) + '</b> aus, Spieler 1 legt den <b>' + esc(cardName(C(1, 3))) + '</b> (Buur!), dann kommen ' + esc(cardName(C(1, 8))) + ' und ' + esc(cardName(C(1, 4))) + '. Der Buur ist die höchste Trumpfkarte – <b>Spieler 1 gewinnt den Stich</b>. Zusammen mit dem Partner (Spieler 3) zählt er die Punkte: 11 + 20 + 0 + 10 = <b>41</b>.</p>' + goUeben('sticht', 'Wer sticht? üben');
+ }},
+ {id:'schieber1', g:'Schieber', t:'Schieber – Ziel und Ablauf', f:function(){
+   return '<h2>Schieber</h2><p class="lead">Der Schweizer Klassiker: zwei Teams zu je zwei Personen.</p>' +
+   '<div class="box"><b>Ziel des Spiels.</b> Gewonnen hat das Paar, das zuerst die vereinbarte Punktzahl erreicht – zum Beispiel <b>1000</b> Punkte.</div>' +
+   '<h3>Vorbereitung &amp; Trumpf ansagen</h3><p>Alle Karten werden verteilt: jede Person erhält <b>9 Karten</b>. Die Person <b>rechts vom Geber</b> (Vorhand) sagt den Trumpf an <b>oder schiebt</b> – dann muss ihr Partner den Trumpf bestimmen. <b>Zurückschieben ist nicht erlaubt.</b></p>' +
+   '<h3>Spielablauf</h3><ul><li>Wer den Trumpf ansagt oder schiebt, spielt in der <b>ersten Runde</b> die erste Karte aus (Vorhand).</li><li>Reihum, gegen den Uhrzeigersinn, legt jede Person eine Karte.</li><li><b>Kartenreihenfolge</b>: wie beim Obenabe/Undenufe – ausser beim Trumpf: Dort ist der <b>Buur</b> (' + esc(RANKN[SET][3]) + ') die höchste Karte, der <b>Nell</b> (Neun) die zweithöchste.</li><li><b>Leih halten (Farbe bedienen)</b>: Hast du die ausgespielte Farbe, musst du sie zugeben.</li><li><b>Ausnahme Trumpfbauer</b>: Der Buur muss nicht gespielt werden, wenn Trumpf ausgespielt wird – er kann aber.</li><li>Statt Farbe zu bedienen darfst du auch mit <b>Trumpf stechen</b>. Mit einem <i>kleineren</i> Trumpf als schon liegt darfst du nicht untertrumpfen – ausser du hast nur noch Trümpfe.</li></ul>' +
+   '<p>Wer den Stich gewinnt, nimmt die 4 Karten und spielt die nächste Karte aus. So geht es, bis alle <b>9 Stiche</b> gespielt sind.</p>' +
+   goUeben('darf', 'Welche Karte darf ich spielen?');
+ }},
+ {id:'schieber2', g:'Schieber', t:'Schieber – ein Beispiel', f:function(){
+   return '<h2>Schieber – ein Beispiel</h2><p class="lead">Spieler 4 schiebt, Spieler 1 sagt an.</p>' +
+   '<p>Spieler 4 <b>schiebt</b> zu Spieler 1. Spieler 1 sagt <b>' + esc(suitName(1)) + ' Trumpf</b> an. Spieler 4 darf als Erster ausspielen und legt das <b>' + esc(cardName(C(1, 0))) + '</b>. Spieler 2 spielt den ' + esc(cardName(C(1, 8))) + ', Spieler 3 die ' + esc(cardName(C(1, 4))) + ' – und Spieler 1 sticht alles mit dem <b>Trumpfbauer</b>.</p>' + cardsRow([C(1, 0), C(1, 8), C(1, 4), C(1, 3)]) +
+   '<p>Der Stich geht an das Team von Spieler 1 und Spieler 4. Spieler 1 spielt nun die nächste Karte aus. Alles wiederholt sich, bis alle 9 Stiche gespielt wurden.</p>' + box('<b>Wichtig:</b> Der <b>letzte Stich</b> zählt 5 Punkte extra. Insgesamt gibt es pro Runde <b>157</b> Punkte.') +
+   '<p><button class="btn sm" data-play="ai" type="button">♠ Gleich ausprobieren: Schieber gegen den Computer</button></p>';
+ }},
+ {id:'trumpfarten', g:'Schieber', t:'Trumpfarten', f:function(){
+   var sy = function(t){ return '<span style="display:inline-block;width:26px;vertical-align:middle">' + modeIcon(t).replace('<svg', '<svg style="width:26px;height:26px;background:#1c1712;border-radius:50%"') + '</span>'; };
+   return '<h2>Schieber – Trumpfarten</h2><p class="lead">Welche Spielarten kannst du ansagen?</p>' +
+   '<div class="box"><b>Trumpffarbe</b> ' + [0, 1, 2, 3].map(function(t){ return sy(t) + ' '; }).join('') + '<br>Du wählst eine Farbe zum Trumpf. Von dieser Farbe ist der <b>Buur</b> die höchste Karte (20 Punkte), gefolgt vom <b>Nell</b> (14 Punkte). Gestochen werden kann jederzeit, sofern man eine Trumpfkarte besitzt.</div>' +
+   '<div class="box"><b>Obenabe</b> ' + sy(4) + '<br>Es gibt keine Stechfarbe. Die Asse sind die stärksten Karten, dann König, ' + esc(RANKN[SET][2]) + ' und so weiter. Das Ass zählt 11 Punkte – aber Achtung: auch die tiefe <b>Acht zählt 8 Punkte</b>.</div>' +
+   '<div class="box"><b>Undenufe</b> ' + sy(5) + '<br>Das Gegenstück zum Obenabe: Die <b>Sechser</b> sind die stärksten Karten, gefolgt von Siebner und Achter. Die Sechs gibt 11 Punkte, das Ass nur 0.</div>' +
+   '<div class="box"><b>Slalom (Zick-Zack)</b> ' + sy(6) + sy(7) + '<br>Ein Mix aus Obenabe und Undenufe: Nach jedem Stich wechselt die Spielart. Wer zuerst ausspielt, bestimmt, ob oben oder unten begonnen wird – und danach zählen auch die Punktwerte.</div>' +
+   box('Es gibt noch weitere Trumpfarten wie Guschti, Marty, 3×3, Trumpf-Undenufe, Tutti, Mezzo oder Misere. Sie werden nicht überall gespielt.') +
+   '<p>Hier im Spiel kannst du Slalom beim Starten zuschalten.</p>';
+ }},
+ {id:'trumpfansagen', g:'Schieber', t:'Trumpf ansagen', f:function(){
+   var m = MULTS[SET];
+   var f1 = [], f2 = []; [0, 1, 2, 3].forEach(function(s){ (m[s] === 1 ? f1 : f2).push(s); });
+   return '<h2>Trumpf ansagen</h2><p class="lead">Wer sagt an – und wann lohnt sich welcher Trumpf?</p>' +
+   '<h3>Wer sagt den Trumpf an?</h3><p>Die Person rechts vom Geber (Vorhand) darf den Trumpf ansagen oder <b>schieben</b>. Dann muss der Partner ansagen – zurückschieben ist verboten.</p>' +
+   '<h3>Wann soll ich selbst ansagen?</h3><ul><li>Mit <b>3 bis 4 sicheren Trümpfen</b> kannst du Vorhand Trumpf ansagen (z. B. Buur, Nell, Ass und eine weitere Trumpfkarte).</li><li>Für <b>Obenabe</b> oder <b>Undenufe</b> sollten deine Handkarten mindestens <b>5 bis 6 sichere Stiche</b> ergeben (viele Asse und Könige bzw. viele Sechser und Siebner).</li><li>Hast du von allem etwas, aber nichts Gutes? Dann <b>schieb</b> – vielleicht hat dein Partner eine bessere Hand.</li></ul>' +
+   '<h3>Wie werden die Trumpfarten gewertet?</h3><p>Vor Spielbeginn kann ein Faktor abgemacht werden. Die erzielten Punkte zählen dann einfach, doppelt oder dreifach – das am weitesten verbreitete System:</p>' +
+   '<table class="t"><tbody><tr><td style="width:60px"><b>1×</b></td><td class="l">' + f1.map(function(s){ return esc(suitName(s)); }).join(', ') + '</td></tr><tr><td><b>2×</b></td><td class="l">' + f2.map(function(s){ return esc(suitName(s)); }).join(', ') + '</td></tr><tr><td><b>3×</b></td><td class="l">Obenabe, Undenufe' + ' (und Slalom)</td></tr></tbody></table>' +
+   box('Tipp: Je höher der Faktor, desto riskanter – aber desto mehr Punkte gibt es auch!', 'tip');
+ }},
+ {id:'weisen', g:'Schieber', t:'Weisen', f:function(){
+   var h = '<h2>Weisen</h2><p class="lead">Extrapunkte für besondere Kartenkombinationen.</p>' +
+   '<p>Es gibt zwei Arten von Weis: eine <b>Reihe</b> in derselben Farbe (mindestens drei aufeinanderfolgende Karten) oder <b>vier gleiche Karten</b> in verschiedenen Farben.</p>' +
+   '<table class="t"><thead><tr><th>Weis</th><th>Punkte</th></tr></thead><tbody><tr><td class="l">Dreiblatt (3 Karten in Folge)</td><td>20</td></tr><tr><td class="l">Vierblatt</td><td>50</td></tr><tr><td class="l">Fünfblatt</td><td>100</td></tr><tr><td class="l">Sechsblatt</td><td>150</td></tr><tr><td class="l">Siebenblatt / Achtblatt / Neunblatt</td><td>200 / 250 / 300</td></tr><tr><td class="l">vier gleiche Karten (Ass, König, ' + esc(RANKN[SET][2]) + ' oder Zehner)</td><td>100</td></tr><tr><td class="l">vier Neuner (Nell)</td><td>150</td></tr><tr><td class="l">vier ' + (SET === 'f' ? 'Buben' : 'Bauern') + '</td><td>200</td></tr><tr><td class="l"><b>Stöck</b>: König + ' + esc(RANKN[SET][2]) + ' der Trumpffarbe</td><td>20</td></tr></tbody></table>' +
+   '<p>Die Reihenfolge der Karten für eine Reihe ist: Ass, König, ' + esc(RANKN[SET][2]) + ', ' + esc(RANKN[SET][3]) + ', 10, 9, 8, 7, 6.</p>' +
+   '<h3>Wann muss ich weisen?</h3><p>Der Weis wird <b>im ersten Stich</b> gleichzeitig mit dem Ausspielen der ersten Karte angesagt. Sobald die nächste Person ihre Karte gespielt hat, darf nicht mehr gewiesen werden. Man sagt nur die <b>Höhe</b> oder die Anzahl Karten (z. B. «Dreiblatt»), nie welche Karten es sind.</p>' +
+   '<h3>Wer darf seine Weispunkte schreiben?</h3><ul><li>Nur das Team mit dem <b>höchsten Weis</b> schreibt <b>alle</b> seine Weispunkte (auch die des Partners). Das andere Team schreibt keine.</li><li>Eine <b>Reihe schlägt vier Gleiche</b> bei gleicher Punktzahl (Fünfblatt vor vier Königen).</li><li>Bei gleicher Punktzahl entscheidet die <b>höhere Karte</b> (beim Undenufe die tiefste), dann der Trumpf, dann wer <b>zuerst</b> weist (Vorhand).</li><li><b>Kreuzweis</b>: Kommt eine Karte in zwei Weisen derselben Person vor, dürfen beide geschrieben werden.</li><li>Der <b>Stöck</b> zählt immer – auch wenn das Gegenteam den höchsten Weis hat.</li></ul>' +
+   '<h3>Weis-Rechner</h3><p>Tippe bis zu neun Karten an – ich zeige dir, was du weisen darfst.</p><div class="kgrid">';
+   for(var s = 0; s < 4; s++) for(var r = 0; r < 9; r++){ var c = C(s, r); h += '<button type="button" class="' + (BOOK.wsel.indexOf(c) >= 0 ? 'sel' : '') + '" data-wc="' + c + '" aria-label="' + esc(cardName(c)) + '">' + cardHtml(c) + '</button>'; }
+   h += '</div>';
+   var ws = findWeis(BOOK.wsel, 4), sum = 0; ws.forEach(function(w){ sum += w.pts; });
+   h += '<div class="box ' + (ws.length ? 'tip' : '') + '"><b>' + BOOK.wsel.length + ' Karten</b> gewählt. ' + (ws.length ? 'Du darfst weisen: ' + ws.map(function(w){ return esc(w.name) + ' (' + w.pts + ')'; }).join(', ') + ' – zusammen <b>' + sum + '</b> Punkte.' : 'Kein Weis in dieser Auswahl.') + '</div><p><button class="btn sm ghost" data-wclr="1" type="button">Auswahl löschen</button></p>';
+   return h;
+ }},
+ {id:'punkte', g:'Schieber', t:'Punkte schreiben', f:function(){
+   return '<h2>Schieber – Punkte schreiben</h2><p class="lead">Wie hält man das Resultat fest?</p>' +
+   '<p>Am Ende jeder Runde zählt jedes Team seine <b>Stichpunkte</b> (Kartenwerte aller gewonnenen Stiche plus 5 für den letzten Stich) zusammen und addiert <b>Weis</b> und <b>Stöck</b>. Danach wird mit dem <b>Faktor</b> der Trumpfart multipliziert.</p>' +
+   '<table class="t"><tbody><tr><td class="l">Stichpunkte (inkl. 5 letzter Stich)</td><td>Wir 98</td><td>Sie 59</td></tr><tr><td class="l">Weis</td><td>50</td><td>–</td></tr><tr><td class="l">Faktor (z. B. Schaufel 2×)</td><td colspan="2">×2</td></tr><tr><td class="l"><b>Total</b></td><td><b>(98+50)×2 = 296</b></td><td><b>59×2 = 118</b></td></tr></tbody></table>' +
+   '<p>Das geht auf der <b>Jasstafel</b> mit Kreide, auf einem Blatt oder mit der <b>Schreibtafel</b> in diesem Programm.</p>' + '<p><button class="btn sm" data-v="tafel" type="button">📝 Zur Schreibtafel</button></p>' +
+   box('Macht ein Team alle 9 Stiche, ist das ein <b>Match</b> – es gibt <b>100</b> Zusatzpunkte (257 statt 157).');
+ }},
+ {id:'obenabe', g:'Weitere Jassarten', t:'Obenabe &amp; Undenufe', f:function(){
+   return '<h2>Obenabe-Jass</h2><p class="lead">Der ideale Einstieg: keine Trumpffarbe, nur die Reihenfolge zählt.</p>' +
+   '<div class="box"><b>Ziel.</b> Gewinne möglichst viele Stiche, indem du die stärkste Karte der ausgespielten Farbe legst – und so die Karten sammelst.</div>' +
+   '<h3>Vorbereitung</h3><p>Alle Karten werden gleichmässig verteilt. Jede Person sortiert ihre Karten nach Farbe und Wert.</p>' +
+   '<h3>Ablauf</h3><ol><li>Die erste Person beginnt und legt eine Karte offen auf den Tisch.</li><li>Reihum legt jede Person eine Karte der <b>gleichen Farbe</b>. Fehlt die Farbe, darf eine beliebige Karte gespielt werden.</li><li>Wer die <b>stärkste Karte der ersten Farbe</b> hat, gewinnt den Stich und legt die Karten verdeckt auf seinen Stapel.</li><li>Diese Person spielt die nächste Karte aus und bestimmt damit die Farbe.</li><li>Wiederholen, bis alle Karten gespielt sind.</li></ol>' +
+   '<h3>Wer gewinnt?</h3><p>Zähle zuerst nur die <b>Anzahl der eingenommenen Karten</b> (oder Stiche). Wenn die Reihenfolge sitzt, zählst du die Punkte nach Tabelle (Ass 11, König 4, ' + esc(RANKN[SET][2]) + ' 3, ' + esc(RANKN[SET][3]) + ' 2, Zehn 10, <b>Acht 8</b>) zusammen und jasst auf eine Zielpunktzahl.</p>' +
+   '<h3>Undenufe (Hindenufe)</h3><p>Gleich wie Obenabe – aber <b>umgekehrt</b>: Die Sechs ist am stärksten (11 Punkte), das Ass am schwächsten (0 Punkte).</p><p><button class="btn sm" data-play="oben" type="button">↓ Obenabe-Jass spielen</button> <button class="btn sm" data-play="unden" type="button">↑ Undenufe spielen</button></p>';
+ }},
+ {id:'handjass', g:'Weitere Jassarten', t:'Handjass', f:function(){
+   return '<h2>Handjass</h2><p class="lead">Die einfachste Form des Jassens – für 2 bis 4 Personen.</p>' +
+   '<p>Handjass heisst auch <i>Sackjass</i> oder <i>Butzer</i>. Jeder spielt für sich oder in Paaren; man spielt mit den Trumpf-Regeln wie beim Schieber, aber ohne Schieben: Der Trumpf wird meist <b>durch die letzte Karte des Gebers</b> oder die oberste Karte des Stapels bestimmt.</p>' +
+   '<ul><li>Gespielt wird mit 36 Karten, gegen den Uhrzeigersinn.</li><li>Ziel: <b>7 Striche</b> sammeln – die Person, die zuletzt übrig bleibt, hat verloren (so die gängigste Hausregel).</li><li>Nach jeder Runde bekommen die beiden Personen mit den meisten Punkten je einen Strich; wer weniger als <b>26</b> Kartenpunkte hat, bekommt eine «Null» (−1 Strich).</li><li>Der letzte Stich zählt 5 Punkte. <b>Weis</b> und <b>Stöck</b> zählen wie beim Schieber.</li></ul>' + box('Hausregeln unterscheiden sich stark. Vereinbart vor dem Spiel Zielpunkte und Weis ab.', 'warn');
+ }},
+ {id:'coiffeur', g:'Weitere Jassarten', t:'Coiffeur', f:function(){
+   var rows = [[0, 1], [1, 2], [2, 1], [3, 2]];
+   return '<h2>Coiffeur</h2><p class="lead">Jede Spielart muss einmal gespielt werden.</p>' +
+   '<p>Coiffeur wird mit zwei Teams zu je zwei Personen gespielt. Auf der <b>Coiffeur-Tafel</b> hat jedes Team eine Spalte mit allen Spielarten:</p><table class="t"><thead><tr><th class="l">Spielart</th><th>Faktor</th></tr></thead><tbody>' +
+   [2, 0, 3, 1].map(function(s){ return '<tr><td class="l">' + esc(suitName(s)) + ' Trumpf</td><td>' + COIFF[s] + '×</td></tr>'; }).join('') + '<tr><td class="l">Obenabe</td><td>5×</td></tr><tr><td class="l">Undenufe</td><td>6×</td></tr></tbody></table>' +
+   '<ul><li>Vorhand sagt <b>ohne zu schieben</b> an, welche Spielart gespielt wird – nur eine Zeile, die das eigene Team noch <b>nicht gespielt</b> hat.</li><li>Die erreichten Punkte (Stichpunkte + Weis + Stöck) des ansagenden Teams werden mit dem Faktor der Zeile multipliziert und in die Tafel eingetragen.</li><li>Jedes Team spielt jede Zeile <b>genau einmal</b> – das sind <b>12 Spiele</b>. Wer am Ende die höchste Summe hat, gewinnt.</li><li>Variante: Zusätzliche Zeilen wie <b>Slalom</b> (7×) und <b>Guschti</b> (8×) als «grosser Coiffeur».</li></ul>' +
+   '<p><button class="btn sm" data-play="coiffeur" type="button">♦ Coiffeur gegen den Computer spielen</button></p>' +
+   box('Tipp: Hebt euch die starken Spielarten (hohe Faktoren) für Runden mit guten Karten auf – und nehmt die kleinen Faktoren, wenn die Hand schwach ist.', 'tip') + box('Die Faktoren sind eine häufige Tafel – es gibt regionale Varianten.', 'warn');
+ }},
+ {id:'differenzler', g:'Weitere Jassarten', t:'Differenzler', f:function(){
+   return '<h2>Differenzler</h2><p class="lead">Jeder gegen jeden: Wer seine Punkte am besten vorhersagt, gewinnt.</p>' +
+   '<ul><li>Gespielt wird zu viert, <b>jeder für sich</b>. Alle 36 Karten werden ausgeteilt (je 9).</li><li>Der Trumpf wird durch die <b>letzte Karte des Gebers</b> bestimmt (er zeigt sie offen).</li><li>Zuerst sagt jede Person an, <b>wie viele Punkte</b> sie in den Stichen holen wird (reihum, ab Vorhand).</li><li>Gespielt wird wie beim Schieber mit Trumpf; der letzte Stich zählt 5 Punkte.</li><li>Am Schluss zählt die <b>Differenz</b> zwischen Ansage und tatsächlichen Punkten – die wird aufgeschrieben.</li><li>Wer nach den vereinbarten Runden die <b>kleinste Gesamtdifferenz</b> hat, gewinnt.</li></ul>' +
+   box('<b>Beispiel:</b> Du sagst 40 an und holst 46 → Differenz 6. Eine perfekte Ansage ergibt 0 – das ist das Ziel!', 'tip') + '<p>Weis wird meist nicht gezählt; vereinbart das vor dem Spiel. Mit der <b>Zahl der Gesamtpunkte 157</b> im Hinterkopf kannst du gut schätzen.</p><p><button class="btn sm" data-play="differenzler" type="button">± Differenzler gegen den Computer spielen</button></p>';
+ }},
+ {id:'molotow', g:'Weitere Jassarten', t:'Molotow', f:function(){
+   return '<h2>Molotow</h2><p class="lead">Der Trumpf ergibt sich erst im Spiel – ein Jass für vier Einzelspieler.</p>' +
+   '<ul><li>Vier Personen spielen, jede für sich, mit 36 Karten. Die Karten werden gegen den Uhrzeigersinn in Dreierpaketen ausgeteilt (9 Karten je Person).</li><li>Die Person <b>rechts vom Geber</b> spielt eine beliebige Karte aus. Es gilt Farbe bedienen.</li><li><b>Die erste Karte einer anderen Farbe</b>, die jemand statt zu bedienen spielt, bestimmt <b>die Trumpffarbe</b> für die ganze Runde.</li><li>Danach gelten die üblichen Trumpf-Regeln: Buur und Nell sind die höchsten Trümpfe. Wird nie abgeworfen und gibt es keinen Trumpf, zählt die Acht 8 Punkte.</li><li>Der letzte Stich zählt 5 Punkte.</li></ul>' +
+   '<h3>Wertung (nach 12 Runden)</h3><p>Punkte werden in «Stöcken» (positiv) und «Kartoffeln» (negativ) geschrieben:</p><ul><li>Alle unter 100 Punkten: Höchste und tiefste Person je 1 Stock; die beiden mittleren je 1 Kartoffel.</li><li>Wer 100 bis 156 Punkte hat: 3 Kartoffeln für sie, 3 Stöcke für alle anderen.</li><li>Wer alle 157 Punkte holt: 3 Stöcke für sie, 3 Kartoffeln für alle anderen.</li></ul><p>Wer nach 12 Runden am meisten Stöcke hat, gewinnt.</p>' + box('Molotow wird nicht überall gleich gespielt. Die Wertung folgt einer verbreiteten Regelsammlung (gamerules.com).', 'warn');
+ }},
+ {id:'stoeck', g:'Weitere Jassarten', t:'Stöck-Wyss-Stich', f:function(){
+   return '<h2>Stöck – Wyss – Stich</h2><p class="lead">Die Zählreihenfolge beim Jassen – und der Name der Jassteppiche.</p>' +
+   '<p>Beim Zählen am Ende einer Runde kommt es manchmal darauf an, <b>in welcher Reihenfolge</b> die Punkte gezählt werden – vor allem, wenn beide Teams gleichzeitig die Zielpunktzahl erreichen:</p>' +
+   '<ol><li><b>Stöck</b> (König + ' + esc(RANKN[SET][2]) + ' vom Trumpf = 20 Punkte)</li><li><b>Wyss</b> (Weis: Reihen und Vierlinge)</li><li><b>Stich</b> (Punkte aus den Stichen)</li></ol>' +
+   '<p>Wer zuerst die Zielpunkte erreicht, wenn man in dieser Reihenfolge zählt, hat gewonnen. Viele Jassteppiche tragen deshalb die Aufschrift «Stöck · Wys · Stich».</p>' + box('Diese Zählreihenfolge ist eine <b>Hausregel</b> – manche spielen «Stöck-Stich-Wys». Sprecht sie vor dem Spiel ab, dann gibt es keinen Streit.', 'warn');
+ }},
+ {id:'tschau', g:'Kinderspiele', t:'Tschau-Sepp', f:function(){
+   return '<h2>Tschau-Sepp</h2><p class="lead">Das Kartenspiel zum Kennenlernen der Jasskarten.</p>' +
+   '<div class="box"><b>Ziel.</b> Gewonnen hat, wer zuerst alle Karten abgelegt und «Sepp» gerufen hat.</div><div class="box"><b>Vorbereitung.</b> Jedes Kind erhält 5 bis 7 Karten. Die restlichen Karten bilden den Stapel, die oberste Karte wird offen daneben gelegt.</div>' +
+   '<h3>Ablauf</h3><ul><li>Die aufgedeckte Karte muss der Reihe nach mit einer passenden Karte überdeckt werden: <b>gleiche Farbe</b> oder <b>gleiches Bild</b> (z. B. Dame auf Dame).</li><li>Passt keine, wird eine Karte vom Stapel gezogen (darf sofort gespielt werden, wenn sie passt).</li><li>Bei der <b>vorletzten Karte</b> muss «Tschau» gesagt werden, bei der <b>letzten</b> «Sepp». Vergessen: 2 Karten (Tschau) bzw. 4 Karten (Sepp) aufnehmen.</li></ul>' +
+   '<h3>Spezialregeln</h3><table class="t"><tbody><tr><td>' + cardHtml(C(3, 6), 'xs') + '</td><td class="l"><b>Acht</b>: Das nächste Kind wird übersprungen.</td></tr><tr><td>' + cardHtml(C(0, 3), 'xs') + '</td><td class="l"><b>' + esc(RANKN[SET][3]) + '</b>: Mit dem ' + esc(RANKN[SET][3]) + ' darf man eine Farbe wählen.</td></tr><tr><td>' + cardHtml(C(1, 0), 'xs') + '</td><td class="l"><b>Ass</b>: muss mit einer Karte derselben Farbe gedeckt werden, sonst Karte ziehen.</td></tr><tr><td>' + cardHtml(C(0, 8), 'xs') + '</td><td class="l"><b>Sechs</b>: Man darf die Karte mit einem anderen Kind tauschen.</td></tr><tr><td>' + cardHtml(C(3, 4), 'xs') + '</td><td class="l"><b>Banner/Zehn</b>: Die Spielrichtung wechselt.</td></tr><tr><td>' + cardHtml(C(2, 7), 'xs') + '</td><td class="l"><b>Sieben</b>: Das nächste Kind muss 2 Karten aufnehmen. Mit einer weiteren 7 kann weitergegeben werden: dann 4, dann 6 Karten …</td></tr></tbody></table>';
+ }},
+ {id:'gaemsch', g:'Kinderspiele', t:'Gämsch', f:function(){
+   return '<h2>Gämsch</h2><p class="lead">Teamspiel mit Geheimzeichen – wer sammelt vier gleiche?</p>' +
+   '<div class="box"><b>Ziel.</b> Sammle vier Karten vom gleichen Wert, z. B. alle vier ' + esc(RANKN[SET][3]) + ' oder alle vier Zehner.</div><div class="box"><b>Vorbereitung.</b> Es werden 2er-Teams gebildet, die sich gegenübersitzen. Jedes Kind erhält 4 Karten, 4 Karten liegen offen in der Mitte, der Rest bildet den Stapel.</div>' +
+   '<h3>Ablauf</h3><ul><li>Alle dürfen Karten aus der Mitte mit ihren Handkarten tauschen – «je schneller, desto besser». Wer eine Karte nimmt, muss eine Handkarte ablegen. Mag niemand mehr tauschen, werden die vier offenen Karten entfernt und neue aufgedeckt.</li><li>Hat jemand vier gleiche Karten, wird das dem Teammitglied mit dem <b>Geheimzeichen</b> mitgeteilt. Das Teammitglied ruft «<b>Gämsch</b>» – die Runde ist gewonnen.</li><li>Haben beide im Team ein Gämsch, kann «<b>Doppelgämsch</b>» gerufen werden.</li><li>Merken die Gegner, dass du ein Gämsch hast, rufen sie «<b>Gegen-Gämsch</b>» – dann geht der Punkt an die Gegner.</li></ul>' +
+   '<h3>Wer gewinnt?</h3><p>Gämsch und Gegen-Gämsch geben <b>1 Punkt</b>, Doppelgämsch und das Erraten des Geheimzeichens <b>2 Punkte</b>. Wird falsch geraten, bekommen die Gegner einen Punkt. Wer zuerst <b>10 Punkte</b> hat, gewinnt.</p>';
+ }},
+ {id:'glossar', g:'Hilfsmittel', t:'Glossar', f:function(){
+   var gl = [['Stich', 'Die vier Karten, die in einer Runde ausgespielt werden. Wer die stärkste legt, gewinnt sie.'], ['Vorhand', 'Die Person rechts vom Geber – sie spielt zuerst aus (und sagt im Schieber den Trumpf an).'], ['Geber', 'Wer mischt und austeilt.'], ['Trumpf', 'Die stärkste Farbe der Runde. Trumpf sticht jede andere Farbe.'], ['Buur / Bauer / Under', 'Der Bube der Trumpffarbe: die höchste Trumpfkarte (20 Punkte).'], ['Nell', 'Die Neun der Trumpffarbe: zweithöchste Karte (14 Punkte).'], ['Obenabe', 'Spielart ohne Trumpf: das Ass ist die stärkste Karte.'], ['Undenufe', 'Spielart ohne Trumpf: die Sechs ist die stärkste Karte.'], ['Slalom', 'Wechsel zwischen Obenabe und Undenufe nach jedem Stich.'], ['Schieben', 'Das Ansagen des Trumpfs an den Partner abgeben (nur Vorhand, nur einmal).'], ['Farbe bedienen / Leih halten', 'Die ausgespielte Farbe zugeben, wenn man sie hat.'], ['Stechen', 'Mit einem Trumpf einen Stich holen, wenn man die Farbe nicht hat.'], ['Untertrumpfen', 'Mit einem kleineren Trumpf stechen, als schon liegt – verboten.'], ['Schmieren', 'Eine wertvolle Karte auf den Stich des Partners legen.'], ['Weis', 'Reihe oder vier Gleiche, die Extrapunkte geben.'], ['Stöck', 'König und Ober/Dame der Trumpffarbe zusammen: 20 Punkte.'], ['Match', 'Ein Team holt alle 9 Stiche: 100 Zusatzpunkte.'], ['Bock', 'Eine Karte, die garantiert sticht (die höchste noch im Spiel).'], ['Ansage', 'Das Bekanntgeben von Trumpf oder Punkten.']];
+   return '<h2>Glossar</h2><p class="lead">Jasswörter von A bis Z</p><table class="t"><tbody>' + gl.sort(function(a, b){ return a[0].localeCompare(b[0], 'de'); }).map(function(x){ return '<tr><td class="l" style="width:34%"><b>' + x[0] + '</b></td><td class="l">' + x[1] + '</td></tr>'; }).join('') + '</tbody></table>';
+ }},
+ {id:'spick', g:'Hilfsmittel', t:'Spickzettel zum Drucken', f:function(){ return spickHtml(BOOK.spick); }}
+];
+function spickHtml(which){
+  var sp = {
+    schieber:['Schieber', ['2 gegen 2, je 9 Karten, gegen den Uhrzeigersinn', 'Vorhand (rechts vom Geber): Trumpf ansagen oder schieben (nicht zurück)', 'Trumpf: Buur 20, Nell 14, Ass 11, König 4, ' + RANKN[SET][2] + ' 3, Zehn 10', 'Obenabe: Ass 11, 8 zählt 8 · Undenufe: Sechs 11, Ass 0', 'Farbe bedienen; stechen erlaubt; nicht untertrumpfen', 'Letzter Stich 5, total 157, Match +100', 'Weis: 3 Blatt 20 · 4 Blatt 50 · 5 Blatt 100 · 4 Gleiche 100 · 4 Neuner 150 · 4 Buben 200 · Stöck 20']],
+    oben:['Obenabe / Undenufe', ['Keine Trumpffarbe, Farbe bedienen', 'Obenabe: Ass, König, ' + RANKN[SET][2] + ', ' + RANKN[SET][3] + ', 10, 9, 8, 7, 6', 'Undenufe: umgekehrt (Sechs oben)', 'Punkte Obenabe: 11 · 4 · 3 · 2 · 10 · 0 · 8 · 0 · 0', 'Punkte Undenufe: 0 · 4 · 3 · 2 · 10 · 0 · 8 · 0 · 11']],
+    coiffeur:['Coiffeur', ['Jedes Team spielt jede Zeile einmal', 'Vorhand sagt an, kein Schieben', 'Faktoren: ' + [2, 0, 3, 1].map(function(s){ return suitName(s) + ' ' + COIFF[s] + '×'; }).join(', ') + ', Obenabe 5×, Undenufe 6×', 'Punkte × Faktor in die Tafel', 'Höchste Summe gewinnt']],
+    differenzler:['Differenzler', ['4 Einzelspieler', 'Trumpf = letzte Karte des Gebers', 'Jeder sagt seine Stichpunkte an', 'Differenz zwischen Ansage und Ergebnis wird geschrieben', 'Kleinste Gesamtdifferenz gewinnt']],
+    molotow:['Molotow', ['4 Einzelspieler, 12 Runden', 'Erste Karte einer fremden Farbe bestimmt den Trumpf', 'Stöcke und Kartoffeln zählen', 'Wer 157 holt: 3 Stöcke, alle anderen 3 Kartoffeln']],
+    handjass:['Handjass', ['2 bis 4 Spieler', 'Ziel: 7 Striche sammeln', 'Unter 26 Punkten: eine Null', 'Letzter Stich 5']],
+    tschau:['Tschau-Sepp', ['Farbe oder Bild passt', '8 überspringt · Bube wählt Farbe · 6 tauscht · 10 wechselt Richtung · 7 = +2', 'Vorletzte Karte: «Tschau», letzte: «Sepp»']],
+    gaemsch:['Gämsch', ['2er-Teams, 4 Handkarten + 4 offene', 'Vier gleiche sammeln, Partner mit Geheimzeichen informieren', 'Gämsch 1 Punkt · Doppelgämsch 2 · Zeichen erraten 2', '10 Punkte gewinnen']]
+  };
+  var w = sp[which] || sp.schieber;
+  var h = '<h2>Spickzettel</h2><p class="lead">Wähle eine Jassart und drucke den Zettel aus.</p><div class="tabs-mini no-print">' + Object.keys(sp).map(function(k){ return '<button class="btn sm' + (k === which ? '' : ' ghost') + '" data-sp="' + k + '" type="button">' + sp[k][0] + '</button>'; }).join('') + '</div>';
+  h += '<div class="box"><h3 style="margin-top:0">' + w[0] + '</h3><ul>' + w[1].map(function(x){ return '<li>' + esc(x) + '</li>'; }).join('') + '</ul></div>';
+  return h + '<p class="no-print"><button class="btn sm" data-print="1" type="button">🖨️ Drucken</button></p>';
+}
+function openBookInModal(){
+  var which = 'schieber';
+  modal('<h2>Regeln – kurz</h2><div class="page" style="padding:14px 18px;min-height:0;max-height:62vh;overflow:auto">' + spickHtml('schieber').replace(/<div class="tabs-mini no-print">.*?<\/div>/, '').replace(/<p class="no-print">.*?<\/p>/, '') + '</div><div class="actions"><button class="btn ghost" data-a="buch" type="button">Ganzes Erklärbuch</button><button class="btn" data-a="ok" type="button">Weiter spielen</button></div>', function(m){
+    m.querySelector('[data-a="ok"]').onclick = closeModal;
+    m.querySelector('[data-a="buch"]').onclick = function(){ closeModal(); window.open(location.href, '_blank'); };
+  });
+}
+function renderBuch(){
+  var el = $('buch'), cur = PAGES.filter(function(p){ return p.id === BOOK.page; })[0] || PAGES[0], grp = '', toc = '';
+  PAGES.forEach(function(p){ if(p.g !== grp){ grp = p.g; if(grp) toc += '<div class="grp">' + grp + '</div>'; } toc += '<button type="button" data-bp="' + p.id + '" class="' + (p.id === cur.id ? 'on' : '') + '">' + p.t + '</button>'; });
+  var idx = PAGES.indexOf(cur);
+  el.innerHTML = '<div class="book"><nav class="card toc" aria-label="Inhaltsverzeichnis">' + toc + '</nav><div><div class="page">' + cur.f() + '<div class="pgnav no-print">' + (idx > 0 ? '<button class="btn ghost sm" data-bp="' + PAGES[idx - 1].id + '" type="button">← ' + PAGES[idx - 1].t + '</button>' : '<span></span>') + (idx < PAGES.length - 1 ? '<button class="btn sm" data-bp="' + PAGES[idx + 1].id + '" type="button">' + PAGES[idx + 1].t + ' →</button>' : '') + '</div></div></div></div>';
+}
+function bindBuch(){
+  $('buch').addEventListener('click', function(e){
+    var b = e.target.closest('button'); if(!b) return;
+    var d = b.dataset;
+    if(d.bp){ BOOK.page = d.bp; renderBuch(); window.scrollTo(0, 0); }
+    else if(d.ks != null){ BOOK.ksuit = +d.ks; renderBuch(); }
+    else if(d.km){ BOOK.kmode = d.km; renderBuch(); }
+    else if(d.wc != null){ var c = +d.wc, i = BOOK.wsel.indexOf(c); if(i >= 0) BOOK.wsel.splice(i, 1); else if(BOOK.wsel.length < 9) BOOK.wsel.push(c); else toast('Mehr als neun Karten hat man nicht auf der Hand.'); renderBuch(); }
+    else if(d.wclr){ BOOK.wsel = []; renderBuch(); }
+    else if(d.sp){ BOOK.spick = d.sp; renderBuch(); }
+    else if(d.print){ window.print(); }
+    else if(d.ue){ UE.kind = d.ue; UE.q = null; S.view = 'ueben'; refresh(true); window.scrollTo(0, 0); }
+    else if(d.v){ S.view = d.v; refresh(true); }
+    else if(d.play){ S.view = 'menu'; refresh(true); setupDialog('ai', d.play === 'oben' ? 4 : d.play === 'unden' ? 5 : d.play === 'coiffeur' ? 'coiffeur' : d.play === 'differenzler' ? 'differenzler' : null); }
+  });
+}
+
+/* =====================================================================
+   Üben
+   ===================================================================== */
+var UE = {kind:null, q:null, n:0, ok:0, total:10, sel:[], done:false, ri:0};
+function shuffle(a){ a = a.slice(); for(var i = a.length - 1; i > 0; i--){ var j = rnd(i + 1), t = a[i]; a[i] = a[j]; a[j] = t; } return a; }
+function randMode(){ return pick([0, 1, 2, 3, 4, 5]); }
+function modeLabel(m){ return m < 4 ? suitName(m) + ' ist Trumpf' : MODEN[m]; }
+function ueQuestion(){
+  var k = UE.kind, q = {};
+  if(k === 'wert'){
+    var m = randMode(), c = rnd(36), ans = cardPts(c, m), opts = {}; opts[ans] = 1; var cand = [0, 2, 3, 4, 8, 10, 11, 14, 20];
+    while(Object.keys(opts).length < 4) opts[pick(cand)] = 1;
+    q = {c:c, m:m, ans:ans, opts:shuffle(Object.keys(opts).map(Number))};
+  } else if(k === 'sticht'){
+    var m2 = randMode(), led = rnd(4), cards = [], used = {};
+    var first = led * 9 + rnd(9); cards.push(first); used[first] = 1;
+    while(cards.length < 4){ var s2 = Math.random() < 0.6 ? led : (m2 < 4 && Math.random() < 0.5 ? m2 : rnd(4)), c2 = s2 * 9 + rnd(9); if(!used[c2]){ used[c2] = 1; cards.push(c2); } }
+    var tr = cards.map(function(c, i){ return {seat:i, card:c}; }); q = {m:m2, cards:cards, ans:trickWinnerIdx(tr, m2)};
+  } else if(k === 'darf'){
+    var m3 = randMode(), hand = shuffle([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35]), n = 1 + rnd(3);
+    var tcs = hand.slice(0, n), hd = sortHand(hand.slice(n, n + 9), m3 < 4 ? m3 : null), trk = tcs.map(function(c, i){ return {seat:i, card:c}; });
+    q = {m:m3, trick:tcs, hand:hd, ans:legal(hd, trk, m3)};
+  } else if(k === 'mathi1' || k === 'mathi2'){
+    var m4 = randMode(), cs = shuffle([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35]).slice(0, 3);
+    var ops = k === 'mathi1' ? [pick(['+', '+', '−']), pick(['+', '−'])] : [pick(['×', '+', '−']), pick(['×', '−', '+'])];
+    var v = cs.map(function(c){ return cardPts(c, m4); }), expr = v[0] + ops[0].replace('×', '*').replace('−', '-') + v[1] + ops[1].replace('×', '*').replace('−', '-') + v[2], res;
+    try{ res = Function('return ' + expr)(); }catch(e){ res = 0; }
+    q = {m:m4, cs:cs, ops:ops, ans:res};
+  } else if(k === 'regeln'){ q = RQ[UE.ri % RQ.length]; }
+  UE.q = q; UE.sel = []; UE.done = false; UE.fb = '';
+}
+var RQ = [
+  {q:'Wie viele Punkte hat eine Jassrunde insgesamt (mit letztem Stich)?', o:['152', '157', '257', '100'], a:1, e:'152 Kartenpunkte plus 5 für den letzten Stich = 157. Ein Match bringt 100 dazu.'},
+  {q:'Welche Karte ist im Trumpf die höchste?', o:['Das Ass', 'Der König', 'Der Buur (Bube/Under)', 'Die Neun'], a:2, e:'Der Buur zählt 20 Punkte und sticht alles. Die Neun (Nell) ist die zweithöchste.'},
+  {q:'Wie viele Punkte zählt der Nell (Neun der Trumpffarbe)?', o:['9', '11', '14', '20'], a:2, e:'Der Nell zählt 14 Punkte.'},
+  {q:'Wer darf beim Schieber zuerst Trumpf ansagen?', o:['Der Geber', 'Die Person rechts vom Geber (Vorhand)', 'Wer das Ass hat', 'Der Partner des Gebers'], a:1, e:'Die Vorhand sagt an – oder schiebt.'},
+  {q:'Darf der Partner den Trumpf wieder zurückschieben?', o:['Ja, einmal', 'Ja, immer', 'Nein', 'Nur beim Obenabe'], a:2, e:'Zurückschieben ist nicht erlaubt.'},
+  {q:'Wie viele Punkte gibt ein Dreiblatt?', o:['10', '20', '50', '100'], a:1, e:'Dreiblatt 20, Vierblatt 50, Fünfblatt 100.'},
+  {q:'Was ist ein Stöck?', o:['Vier Buben', 'König und Ober/Dame der Trumpffarbe', 'Der letzte Stich', 'Ein Dreiblatt'], a:1, e:'Stöck = König + Ober (Dame) vom Trumpf, 20 Punkte.'},
+  {q:'Wie viele Punkte bringt der letzte Stich?', o:['0', '5', '10', '20'], a:1, e:'Der letzte Stich zählt 5 Punkte.'},
+  {q:'Beim Undenufe ist die stärkste Karte …', o:['das Ass', 'der König', 'die Sechs', 'der Buur'], a:2, e:'Beim Undenufe ist die Sechs ganz oben (11 Punkte).'},
+  {q:'In welche Richtung wird gejasst?', o:['Im Uhrzeigersinn', 'Gegen den Uhrzeigersinn', 'Egal', 'Immer zum Partner'], a:1, e:'Gegen den Uhrzeigersinn.'},
+  {q:'Was ist ein Match?', o:['Ein Team holt alle 9 Stiche', 'Zwei Teams haben gleich viele Punkte', 'Man hat vier Asse', 'Der Trumpf wird geschoben'], a:0, e:'Alle 9 Stiche: 100 Zusatzpunkte.'},
+  {q:'Darf man mit einem kleineren Trumpf stechen, als schon auf dem Tisch liegt?', o:['Ja, immer', 'Nein, das ist untertrumpfen – nur erlaubt, wenn man sonst nur Trümpfe hat', 'Nur im Obenabe', 'Nur der Partner'], a:1, e:'Untertrumpfen ist verboten, ausser man hat nur noch Trümpfe.'},
+  {q:'Was zählt die Acht beim Obenabe?', o:['0', '4', '8', '10'], a:2, e:'Die Acht gibt beim Obenabe und Undenufe 8 Punkte.'}
+];
+var RAETSEL = [
+  function(){ return ['Ich zähle als Trumpf 14 Punkte, sonst nichts – und ich gehöre zur Farbe ' + suitName(0) + '.', C(0, 5)]; },
+  function(){ return ['Als Trumpf bin ich der Chef und zähle 20 Punkte. Meine Farbe: ' + suitName(1) + '.', C(1, 3)]; },
+  function(){ return ['Beim Obenabe bin ich die stärkste Karte (11 Punkte) in der Farbe ' + suitName(2) + '.', C(2, 0)]; },
+  function(){ return ['Beim Undenufe bin ich die stärkste Karte (11 Punkte) in der Farbe ' + suitName(3) + '.', C(3, 8)]; },
+  function(){ return ['Ich zähle immer 10 Punkte – in der Farbe ' + suitName(0) + '. Wer bin ich?', C(0, 4)]; },
+  function(){ return ['Zusammen mit meiner ' + RANKN[SET][2] + ' bilde ich im Trumpf einen Stöck. Ich bin der König der Farbe ' + suitName(1) + '.', C(1, 1)]; },
+  function(){ return ['Beim Obenabe zähle ich 8 Punkte, im Trumpf 0. Meine Farbe ist ' + suitName(2) + '.', C(2, 6)]; },
+  function(){ return ['Ich bin die ' + RANKN[SET][2] + ' der Farbe ' + suitName(3) + ' und zähle 3 Punkte.', C(3, 2)]; },
+  function(){ return ['Ich zähle nie Punkte – ich bin die Sieben der Farbe ' + suitName(0) + '.', C(0, 7)]; },
+  function(){ return ['Ich bin die Neun: In der Trumpffarbe heisse ich Nell. Meine Farbe: ' + suitName(1) + '.', C(1, 5)]; }
+];
+function ueMenu(){
+  var items = [['wert', 'Kartenwerte', 'Wie viele Punkte zählt die Karte?'], ['sticht', 'Wer sticht?', 'Welche Karte gewinnt den Stich?'], ['darf', 'Welche Karte darf ich spielen?', 'Farbe bedienen, stechen, nicht untertrumpfen'], ['mathi1', 'Jass-Mathi I', 'Plus und Minus mit Kartenwerten'], ['mathi2', 'Jass-Mathi II', 'Auch mal und – Punkt vor Strich!'], ['raetsel', 'Jass-Rätsel', 'Finde die gesuchte Karte'], ['regeln', 'Regel-Quiz', RQ.length + ' Fragen zum Schieber']];
+  return '<div class="card"><h2>Üben</h2><p class="muted">Kleine Übungen zu den Jass-Lernzielen. Die Karten wechseln mit dem Blatt (Deutsch/Französisch).</p></div><div class="modes" style="margin-top:14px">' + items.map(function(i){ return '<button class="mode" data-uk="' + i[0] + '" type="button"><b>' + i[1] + '</b><small>' + i[2] + '</small></button>'; }).join('') + '</div>';
+}
+function renderUeben(){
+  var el = $('ueben');
+  if(!UE.kind){ el.innerHTML = ueMenu(); el.querySelectorAll('[data-uk]').forEach(function(b){ b.onclick = function(){ UE.kind = b.dataset.uk; UE.n = 0; UE.ok = 0; UE.ri = rnd(RQ.length); UE.q = null; renderUeben(); }; }); return; }
+  var k = UE.kind, total = k === 'raetsel' ? RAETSEL.length : k === 'regeln' ? RQ.length : UE.total;
+  if(UE.n >= total){
+    el.innerHTML = '<div class="card qbox" style="text-align:center"><h2>Geschafft!</h2><div class="big2">' + UE.ok + ' / ' + total + '</div><p class="muted">' + (UE.ok >= total * 0.8 ? 'Super – du bist ein echter Jasser!' : UE.ok >= total * 0.5 ? 'Gut gemacht – noch etwas üben und es sitzt.' : 'Lies noch einmal im Erklärbuch nach und versuch es nochmals.') + '</p><div class="row" style="justify-content:center"><button class="btn" data-a="again" type="button">Nochmals</button><button class="btn ghost" data-a="menu" type="button">Zurück</button><button class="btn ghost" data-a="buch" type="button">📖 Erklärbuch</button></div></div>';
+    el.querySelector('[data-a="again"]').onclick = function(){ UE.n = 0; UE.ok = 0; UE.q = null; UE.ri = rnd(RQ.length); renderUeben(); };
+    el.querySelector('[data-a="menu"]').onclick = function(){ UE.kind = null; renderUeben(); }; el.querySelector('[data-a="buch"]').onclick = function(){ S.view = 'buch'; refresh(true); };
+    return;
+  }
+  if(!UE.q){ if(k === 'raetsel'){ var r = RAETSEL[UE.n](); UE.q = {t:r[0], ans:r[1]}; UE.sel = []; UE.done = false; UE.fb = ''; } else ueQuestion(); }
+  var q = UE.q, h = '<div class="card qbox"><div class="row" style="justify-content:space-between"><button class="btn sm ghost" data-a="menu" type="button">← Übungen</button><span class="muted">Frage ' + (UE.n + 1) + ' von ' + total + ' · richtig: ' + UE.ok + '</span></div><div class="bar"><i style="width:' + (UE.n / total * 100) + '%"></i></div>';
+  if(k === 'wert'){
+    h += '<div class="qq">' + esc(modeLabel(q.m)) + ': Wie viele Punkte zählt diese Karte?</div><div style="text-align:center">' + cardHtml(q.c, 'lg') + '</div><div class="qopt" style="flex-direction:row;flex-wrap:wrap;justify-content:center">' + q.opts.map(function(o){ return '<button type="button" data-o="' + o + '" style="min-width:90px;text-align:center">' + o + '</button>'; }).join('') + '</div>';
+  } else if(k === 'sticht'){
+    h += '<div class="qq">' + esc(modeLabel(q.m)) + '. Die Karten wurden in dieser Reihenfolge gespielt (von links nach rechts). Welche gewinnt den Stich?</div><div class="cardrow" style="justify-content:center">' + q.cards.map(function(c, i){ return '<button class="cardbtn ok" type="button" data-o="' + i + '">' + cardHtml(c, 'sm') + '<div class="muted" style="font-size:12px">' + (i + 1) + '.</div></button>'; }).join('') + '</div>';
+  } else if(k === 'darf'){
+    h += '<div class="qq">' + esc(modeLabel(q.m)) + '. Auf dem Tisch liegt schon (erste Karte = Anspiel):</div>' + cardsRow(q.trick, 'sm') + '<div class="qq">Deine Hand – wähle <b>alle</b> Karten, die du jetzt spielen darfst:</div><div class="cardrow">' + q.hand.map(function(c){ return '<button type="button" class="cardbtn ok" data-o="' + c + '" style="' + (UE.sel.indexOf(c) >= 0 ? 'outline:3px solid var(--gold);outline-offset:2px;border-radius:6px' : '') + '">' + cardHtml(c, 'sm') + '</button>'; }).join('') + '</div><div class="row"><button class="btn" data-a="check" type="button"' + (UE.done ? ' disabled' : '') + '>Prüfen</button></div>';
+  } else if(k === 'mathi1' || k === 'mathi2'){
+    h += '<div class="qq">' + esc(modeLabel(q.m)) + ' – rechne:' + (k === 'mathi2' ? ' <span class="muted">(Punkt vor Strich!)</span>' : '') + '</div><div class="mathi">' + cardHtml(q.cs[0], 'sm') + '<span class="op">' + q.ops[0] + '</span>' + cardHtml(q.cs[1], 'sm') + '<span class="op">' + q.ops[1] + '</span>' + cardHtml(q.cs[2], 'sm') + '<span class="op">=</span><input id="mAns" type="number" inputmode="numeric" ' + (UE.done ? 'disabled' : '') + ' autofocus></div><div class="row"><button class="btn" data-a="mcheck" type="button"' + (UE.done ? ' disabled' : '') + '>Prüfen</button></div>';
+  } else if(k === 'raetsel'){
+    h += '<div class="qq">🔎 ' + esc(q.t) + '</div><div class="kgrid">';
+    for(var s = 0; s < 4; s++) for(var rr = 0; rr < 9; rr++){ var cc = C(s, rr); h += '<button type="button" data-o="' + cc + '" class="' + (UE.sel[0] === cc ? 'sel' : '') + '" style="color:#000" aria-label="' + esc(cardName(cc)) + '">' + cardHtml(cc) + '</button>'; }
+    h += '</div>';
+  } else if(k === 'regeln'){
+    h += '<div class="qq">' + esc(q.q) + '</div><div class="qopt">' + q.o.map(function(o, i){ return '<button type="button" data-o="' + i + '" class="' + (UE.done ? (i === q.a ? 'rich' : (UE.sel[0] === i ? 'falsch' : '')) : '') + '">' + esc(o) + '</button>'; }).join('') + '</div>';
+  }
+  if(UE.fb) h += '<div class="box ' + (UE.good ? 'tip' : 'warn') + '" style="color:#2b1d12">' + UE.fb + '</div>';
+  if(UE.done) h += '<div class="row"><button class="btn" data-a="next" type="button">' + (UE.n + 1 >= total ? 'Resultat' : 'Weiter') + '</button></div>';
+  el.innerHTML = h + '</div>';
+  if(k === 'sticht' && UE.done){ /* nichts */ }
+  var cl = function(){ };
+  el.querySelectorAll('[data-a="menu"]').forEach(function(b){ b.onclick = function(){ UE.kind = null; renderUeben(); }; });
+  var nx = el.querySelector('[data-a="next"]'); if(nx) nx.onclick = function(){ UE.n++; UE.ri++; UE.q = null; renderUeben(); };
+  el.querySelectorAll('[data-o]').forEach(function(b){ b.onclick = function(){ ueAnswer(+b.dataset.o); }; });
+  var ck = el.querySelector('[data-a="check"]'); if(ck) ck.onclick = ueCheckDarf;
+  var mk = el.querySelector('[data-a="mcheck"]'); if(mk) mk.onclick = function(){ var v = el.querySelector('#mAns').value; if(v === ''){ toast('Trag eine Zahl ein.'); return; } ueFinish(Math.round(+v * 100) / 100 === Math.round(q.ans * 100) / 100, q.ans + (k === 'mathi2' ? '' : '')); };
+  var inp = el.querySelector('#mAns'); if(inp) inp.onkeydown = function(e){ if(e.key === 'Enter' && mk) mk.click(); };
+}
+function ueFinish(good, ansTxt, extra){
+  if(UE.done) return; UE.done = true; UE.good = good; if(good) UE.ok++;
+  UE.fb = (good ? '✓ Richtig! ' : '✗ Leider nicht. ' + (ansTxt != null ? 'Richtig ist: <b>' + esc(ansTxt) + '</b>. ' : '')) + (extra || '');
+  renderUeben();
+}
+function ueAnswer(v){
+  var q = UE.q, k = UE.kind; if(UE.done) return;
+  if(k === 'wert') ueFinish(v === q.ans, q.ans, q.m < 4 ? '' : '');
+  else if(k === 'sticht') ueFinish(v === q.ans, (q.ans + 1) + '. Karte (' + cardName(q.cards[q.ans]) + ')', 'Die höchste Trumpfkarte gewinnt, sonst die höchste Karte der Anspielfarbe.');
+  else if(k === 'darf'){ var i = UE.sel.indexOf(v); if(i >= 0) UE.sel.splice(i, 1); else UE.sel.push(v); renderUeben(); }
+  else if(k === 'raetsel'){ UE.sel = [v]; ueFinish(v === q.ans, cardName(q.ans)); }
+  else if(k === 'regeln'){ UE.sel = [v]; ueFinish(v === q.a, q.o[q.a], q.e); }
+}
+function ueCheckDarf(){
+  var q = UE.q; if(UE.done) return;
+  var a = q.ans.slice().sort(function(x, y){ return x - y; }), b = UE.sel.slice().sort(function(x, y){ return x - y; });
+  var good = a.length === b.length && a.every(function(x, i){ return x === b[i]; });
+  ueFinish(good, q.ans.map(cardName).join(', '), reasonText(q));
+}
+function reasonText(q){
+  var m = q.m, led = suitOf(q.trick[0]);
+  if(m >= 4) return 'Ohne Trumpf: Farbe bedienen, sonst frei.';
+  if(led === m) return 'Trumpf wurde ausgespielt: Trumpf zugeben (der Buur darf zurückgehalten werden, wenn er der einzige Trumpf ist).';
+  return 'Farbe bedienen oder stechen – aber nicht untertrumpfen.';
+}
+
+/* =====================================================================
+   Start
+   ===================================================================== */
+function init(){
+  $('soundBtn').textContent = S.muted ? '🔇' : '🔊';
+  $('soundBtn').onclick = function(){ S.muted = !S.muted; lsSet('jassen_mute', S.muted); $('soundBtn').textContent = S.muted ? '🔇' : '🔊'; if(!S.muted) ton('neu'); };
+  window.__jassRedraw = function(){ refresh(true); };
+  bindGame(); bindBuch();
+  S.unsubFrei = API.freigabeWatch(function(f){ S.frei = f; refresh(true); });
+  refresh(true);
+  if(status().offen) startLobby();
+  setInterval(function(){ refresh(); if(S.G && S.G.showTrick && S.G.showTrick.until < Date.now() - 50 && S.G.showTrick.shown !== true){ S.G.showTrick.shown = true; draw(); } }, 1000);
+  if(API.mock){ window.__jass = S; window.__jassTest = {newRound:newRound, applyAct:applyAct, legal:legal, findWeis:findWeis, aiAct:aiAct, cardPts:cardPts, trickWinnerIdx:trickWinnerIdx}; }
+}
+init();
+})();
+
+</script>
+</body>
+</html>
