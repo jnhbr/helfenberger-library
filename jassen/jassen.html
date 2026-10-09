@@ -371,7 +371,7 @@ var SUITN_PL = {f:['Herz', 'Kreuz', 'Ecken', 'Schaufeln'], d:['Rosen', 'Eicheln'
 var RANKN = {f:['Ass', 'König', 'Dame', 'Bube', 'Zehn', 'Neun', 'Acht', 'Sieben', 'Sechs'], d:['Ass', 'König', 'Ober', 'Under', 'Banner', 'Neuner', 'Achter', 'Siebner', 'Sechser']};
 var RANKL = {f:['A', 'K', 'D', 'B', '10', '9', '8', '7', '6'], d:['A', 'K', 'O', 'U', '10', '9', '8', '7', '6']};
 var MULTS = {f:[1, 2, 1, 2], d:[1, 1, 2, 2]};
-var MODEN = ['', '', '', '', 'Obenabe', 'Undenufe', 'Slalom ↓', 'Slalom ↑'];
+var MODEN = ['', '', '', '', 'Obenabe', 'Undenufe', 'Slalom ↓', 'Slalom ↑', 'Guschti ↓', 'Guschti ↑'];
 function suitName(s){ return SUITN[SET][s]; }
 function cardName(c){ return suitName(c / 9 | 0) + ' ' + RANKN[SET][c % 9]; }
 function modeName(t){ return t < 4 ? suitName(t) + ' ist Trumpf' : MODEN[t]; }
@@ -398,7 +398,7 @@ function modeIcon(t){
   var up = '<path d="M0 -7 L7 1 H3 V7 H-3 V1 H-7Z" fill="#f0d79a"/>', dn = '<path d="M0 7 L7 -1 H3 V-7 H-3 V-1 H-7Z" fill="#f0d79a"/>';
   if(t === 4) return '<svg viewBox="-11 -11 22 22">' + dn + '</svg>';
   if(t === 5) return '<svg viewBox="-11 -11 22 22">' + up + '</svg>';
-  return '<svg viewBox="-11 -11 22 22"><g transform="translate(-4,0) scale(.6)">' + (t === 6 ? dn : up) + '</g><g transform="translate(5,0) scale(.6)">' + (t === 6 ? up : dn) + '</g></svg>';
+  return '<svg viewBox="-11 -11 22 22"><g transform="translate(-4,0) scale(.6)">' + (t === 6 || t === 8 ? dn : up) + '</g><g transform="translate(5,0) scale(.6)">' + (t === 6 || t === 8 ? up : dn) + '</g></svg>';
 }
 var PIPS = {
   6:[[20,26],[40,26],[20,45],[40,45],[20,64],[40,64]],
@@ -449,7 +449,8 @@ function backHtml(cls){ return '<span class="jc ' + (cls || '') + '">' + BACK + 
 var TR = {3:9, 5:8, 0:7, 1:6, 2:5, 4:4, 6:3, 7:2, 8:1};
 var BASE = [11, 4, 3, 2, 10, 0, 0, 0, 0];
 function suitOf(c){ return c / 9 | 0; }
-function effMode(t, trickNo){ if(t === 6) return trickNo % 2 === 0 ? 4 : 5; if(t === 7) return trickNo % 2 === 0 ? 5 : 4; return t; }
+var IND = {differenzler:1, handjass:1, molotow:1};
+function effMode(t, trickNo){ if(t == null) return 4; if(t === 8) return trickNo < 5 ? 4 : 5; if(t === 9) return trickNo < 5 ? 5 : 4; if(t === 6) return trickNo % 2 === 0 ? 4 : 5; if(t === 7) return trickNo % 2 === 0 ? 5 : 4; return t; }
 function cardPts(c, m){
   var s = c / 9 | 0, r = c % 9;
   if(m < 4){ if(s === m){ if(r === 3) return 20; if(r === 5) return 14; } return BASE[r]; }
@@ -492,7 +493,7 @@ function sortHand(h, t){
   var sorder = [0, 1, 2, 3];
   return h.slice().sort(function(a, b){ var sa = suitOf(a), sb = suitOf(b); if(t != null && t < 4){ if(sa === t && sb !== t) return -1; if(sb === t && sa !== t) return 1; } if(sa !== sb) return [0, 3, 2, 1][sa] - [0, 3, 2, 1][sb]; return order(a) - order(b); });
 }
-function allowedModes(cfg){ if(cfg.kind === 'coiffeur') return [0, 1, 2, 3, 4, 5]; var a = [0, 1, 2, 3, 4, 5]; if(cfg.slalom){ a.push(6); a.push(7); } return a; }
+function allowedModes(cfg){ if(cfg.kind === 'coiffeur') return [0, 1, 2, 3, 4, 5]; var a = [0, 1, 2, 3, 4, 5]; if(cfg.slalom){ a.push(6); a.push(7); } if(cfg.guschti){ a.push(8); a.push(9); } return a; }
 
 function weisPts(n){ return {3:20, 4:50, 5:100, 6:150, 7:200, 8:250, 9:300}[n] || 0; }
 var WEISN = {3:'Dreiblatt', 4:'Vierblatt', 5:'Fünfblatt', 6:'Sechsblatt', 7:'Siebenblatt', 8:'Achtblatt', 9:'Neunblatt'};
@@ -530,6 +531,10 @@ function newRound(seed, dealer, cfg){
     rd.trumpCard = deck[35]; rd.t = deck[35] / 9 | 0; rd.mult = 1; rd.caller = rd.fore; rd.ans = [null, null, null, null]; rd.spts = [0, 0, 0, 0];
     rd.phase = 'ansage'; rd.hands = rd.hands.map(function(h){ return sortHand(h, rd.t); }); rd.orig = rd.hands.map(function(h){ return h.slice(); });
   }
+  if(cfg.kind === 'handjass' || cfg.kind === 'molotow'){
+    rd.spts = [0, 0, 0, 0]; rd.mult = 1; rd.caller = rd.fore; rd.phase = 'play'; rd.turn = rd.fore;
+    if(cfg.kind === 'handjass'){ rd.trumpCard = deck[35]; rd.t = deck[35] / 9 | 0; rd.hands = rd.hands.map(function(h){ return sortHand(h, rd.t); }); rd.orig = rd.hands.map(function(h){ return h.slice(); }); }
+  }
   if(cfg.fixed != null){
     rd.phase = 'play'; rd.t = cfg.fixed; rd.mult = 1; rd.caller = rd.fore;
     rd.hands = rd.hands.map(function(h){ return sortHand(h, rd.t); }); rd.orig = rd.hands.map(function(h){ return h.slice(); });
@@ -541,7 +546,9 @@ function dropCard(h, c){ var i = h.indexOf(c); if(i >= 0) h.splice(i, 1); }
 function playCore(rd, seat, card){
   dropCard(rd.hands[seat], card);
   rd.trick.push({seat:seat, card:card}); rd.seen.push(card);
-  if(rd.trick.length < 4){ rd.turn = (seat + 1) % 4; return {done:false}; }
+  var tdet = false;
+  if(rd.cfg.kind === 'molotow' && rd.t == null && rd.trick.length > 1 && suitOf(card) !== suitOf(rd.trick[0].card)){ rd.t = suitOf(card); rd.trumpBy = seat; tdet = true; }
+  if(rd.trick.length < 4){ rd.turn = (seat + 1) % 4; return {done:false, trump:tdet}; }
   var m = effMode(rd.t, rd.trickNo), wi = trickWinnerIdx(rd.trick, m), win = rd.trick[wi].seat, team = win % 2, p = 0;
   rd.trick.forEach(function(x){ p += cardPts(x.card, m); });
   if(rd.trickNo === 8) p += 5;
@@ -549,9 +556,21 @@ function playCore(rd, seat, card){
   rd.tricks.push({m:m, led:suitOf(rd.trick[0].card), plays:rd.trick.slice(), win:win, pts:p});
   rd.lastTrick = {plays:rd.trick.slice(), win:win, pts:p};
   rd.trick = []; rd.trickNo++; rd.turn = win;
-  return {done:true, win:win, pts:p};
+  return {done:true, win:win, pts:p, trump:tdet};
 }
 function finishRound(rd){
+  var kd = rd.cfg.kind;
+  if(kd === 'handjass' || kd === 'molotow'){
+    if(kd === 'molotow'){ var fm = rd.t == null ? 4 : rd.t, fs = [0, 0, 0, 0]; rd.tricks.forEach(function(tr, i){ var pp = 0; tr.plays.forEach(function(x){ pp += cardPts(x.card, fm); }); if(i === 8) pp += 5; fs[tr.win] += pp; }); rd.spts = fs; }
+    var sp = rd.spts, d = [0, 0, 0, 0], ord = [0, 1, 2, 3].sort(function(x, y){ return (sp[y] - sp[x]) || (((x - rd.fore + 4) % 4) - ((y - rd.fore + 4) % 4)); });
+    if(kd === 'handjass'){ d[ord[0]]++; d[ord[1]]++; for(var s = 0; s < 4; s++) if(sp[s] < 26) d[s]--; }
+    else {
+      var big = -1; for(var q = 0; q < 4; q++) if(sp[q] >= 100) big = q;
+      if(big >= 0){ if(sp[big] >= 157){ d = [-3, -3, -3, -3]; d[big] = 3; } else { d = [3, 3, 3, 3]; d[big] = -3; } }
+      else { d[ord[0]] = 1; d[ord[3]] = 1; d[ord[1]] = -1; d[ord[2]] = -1; }
+    }
+    rd.result = {ind:kd, spts:sp.slice(), final:d, cards:rd.pts.slice(), weis:[0, 0], stoeck:[0, 0], match:[0, 0], mult:1, tricksWon:rd.tricksWon.slice(), trump:rd.t}; rd.phase = 'done'; return;
+  }
   if(rd.cfg.kind === 'differenzler'){
     var df = [0, 1, 2, 3].map(function(s){ return Math.abs(rd.ans[s] - rd.spts[s]); });
     rd.result = {diff:true, ans:rd.ans.slice(), spts:rd.spts.slice(), final:df, cards:rd.pts.slice(), weis:[0, 0], stoeck:[0, 0], match:[0, 0], mult:1, tricksWon:rd.tricksWon.slice()}; rd.phase = 'done'; return;
@@ -617,6 +636,7 @@ function applyAct(rd, seat, act){
   }
   rd.cnt[seat]++;
   var r = playCore(rd, seat, card);
+  if(r.trump) info.trump = rd.t;
   rd.log.push({seat:seat, act:act, info:info, trick:r.done ? {win:r.win, pts:r.pts} : null});
   if(r.done){
     if(rd.trickNo === 1) resolveWeis(rd);
@@ -689,7 +709,7 @@ function isMaster(c, rd, known, m){
   return true;
 }
 function heur(rd, seat){
-  if(rd.cfg.kind === 'differenzler') return heurD(rd, seat);
+  if(IND[rd.cfg.kind]) return heurD(rd, seat);
   var m = effMode(rd.t, rd.trickNo), hand = rd.hands[seat], L = legal(hand, rd.trick, m);
   if(L.length === 1) return {card:L[0], why:'Das ist die einzige erlaubte Karte.'};
   var known = unseenOf(rd, seat), partner = (seat + 2) % 4, best, i;
@@ -798,7 +818,7 @@ function pimcPick(rd, seat, L, N){
     for(var j = 0; j < L.length; j++){
       var ls = cloneRd(rd, deal, seat), r = playCore(ls, seat, L[j]);
       if(ls.trickNo === 9) ls.phase = 'done'; else simulate(ls);
-      sc[j] += rd.cfg.kind === 'differenzler' ? -Math.abs(rd.ans[seat] - ls.spts[seat]) : ls.pts[team] - ls.pts[1 - team];
+      sc[j] += rd.cfg.kind === 'differenzler' ? -Math.abs(rd.ans[seat] - ls.spts[seat]) : IND[rd.cfg.kind] ? ls.spts[seat] : ls.pts[team] - ls.pts[1 - team];
     }
   }
   if(!done) return null;
@@ -929,6 +949,7 @@ function onApplied(G, e){
   ton('karte');
   if(e.info && e.info.weis){ var pts = 0; e.info.weis.forEach(function(w){ pts += w.pts; }); sayB(G, e.seat, 'Weis: ' + pts, 2600); aiSay(G, e.seat, 'weis'); ton('weis'); }
   if(e.info && e.info.stoeck){ sayB(G, e.seat, 'Stöck! (+20)', 2400); ton('weis'); }
+  if(e.info && e.info.trump != null){ G.msg = nm + ' wirft eine fremde Farbe ab: ' + suitName(e.info.trump) + ' ist Trumpf!'; sayB(G, e.seat, suitName(e.info.trump) + ' ist Trumpf', 2600); ton('weis'); }
   if(e.trick){
     G.showTrick = {plays:G.rd.lastTrick.plays, win:e.trick.win, pts:e.trick.pts, until:Date.now() + 1200};
     ton('stich');
@@ -979,7 +1000,7 @@ function aiSeats(cfg, my){
   var used = {}, seats = [];
   for(var s = 0; s < 4; s++){
     if(s === my){ seats.push({type:'me', name:API.name}); continue; }
-    var lvl = cfg.kind === 'differenzler' || s % 2 !== my % 2 ? cfg.lvlG : cfg.lvlP, names = AINAMES[lvl].filter(function(n){ return !used[n]; }), nm = pick(names.length ? names : AINAMES[lvl]);
+    var lvl = IND[cfg.kind] || s % 2 !== my % 2 ? cfg.lvlG : cfg.lvlP, names = AINAMES[lvl].filter(function(n){ return !used[n]; }), nm = pick(names.length ? names : AINAMES[lvl]);
     used[nm] = true; seats.push({type:'ai', lvl:lvl, name:nm});
   }
   return seats;
@@ -989,14 +1010,13 @@ function newGame(base){
   G.rd = mkRound(G); return G;
 }
 function kindCfg(cfg, fixed){
-  var coif = fixed === 'coiffeur', dif = fixed === 'differenzler';
-  return Object.assign({}, cfg, dif ? {kind:'differenzler', fixed:null, mult:false, weis:false, stoeck:false, slalom:false, rounds:CFG.dRounds || 8} : coif ? {kind:'coiffeur', fixed:null, mult:true, slalom:false} : fixed != null ? {fixed:fixed, kind:null, mult:false, weis:false, stoeck:false} : {fixed:null, kind:null});
+  var coif = fixed === 'coiffeur', dif = fixed === 'differenzler', hj = fixed === 'handjass', mo = fixed === 'molotow';
+  return Object.assign({}, cfg, hj ? {kind:'handjass', fixed:null, mult:false, weis:false, stoeck:false, slalom:false, target:7} : mo ? {kind:'molotow', fixed:null, mult:false, weis:false, stoeck:false, slalom:false, rounds:CFG.dRounds || 8} : dif ? {kind:'differenzler', fixed:null, mult:false, weis:false, stoeck:false, slalom:false, rounds:CFG.dRounds || 8} : coif ? {kind:'coiffeur', fixed:null, mult:true, slalom:false} : fixed != null ? {fixed:fixed, kind:null, mult:false, weis:false, stoeck:false} : {fixed:null, kind:null});
 }
-function kindLabel(o){ return o.kind === 'coiffeur' ? 'Coiffeur' : o.kind === 'differenzler' ? 'Differenzler · ' + o.rounds + ' Runden' : 'Schieber · Ziel ' + o.target; }
+function kindLabel(o){ return o.kind === 'handjass' ? 'Handjass · 7 Striche' : o.kind === 'molotow' ? 'Molotow · ' + o.rounds + ' Runden' : o.kind === 'coiffeur' ? 'Coiffeur' : o.kind === 'differenzler' ? 'Differenzler · ' + o.rounds + ' Runden' : 'Schieber · Ziel ' + o.target; }
 function startAI(cfg, fixed){
   closeModal();
-  var dif = fixed === 'differenzler';
-  cfg = kindCfg(cfg, fixed); fixed = cfg.fixed;
+  cfg = kindCfg(cfg, fixed); fixed = cfg.fixed; var dif = !!IND[cfg.kind];
   var G = newGame({id:'a' + Date.now(), mode:'ai', cfg:cfg, my:0, hostUid:API.uid, seed0:(Math.random() * 4294967296) >>> 0, dealer0:rnd(4), seats:aiSeats(cfg, 0)});
   if(dif) G.totals = [0, 0, 0, 0];
   S.G = G; S.view = 'game'; lsDel('jassen_save_v1'); saveLocal(); refresh(true); pump();
@@ -1034,9 +1054,9 @@ function resRows(res, my){
 }
 function roundEnd(){
   var G = S.G; if(!G) return; var rd = G.rd, res = rd.result, t = (G.mode === 'watch' ? 0 : G.my) % 2;
-  if(G.cfg.kind === 'differenzler') return roundEndDiff(G);
+  if(IND[G.cfg.kind]) return roundEndInd(G);
   if(!G.counted || G.counted !== G.rno + 1){
-    G.counted = G.rno + 1; G.totals[0] += res.final[0]; G.totals[1] += res.final[1]; G.rounds.push({f:res.final.slice(), t:rd.t, tm:rd.fore % 2});
+    G.counted = G.rno + 1; G.prevTot = G.totals.slice(); G.totals[0] += res.final[0]; G.totals[1] += res.final[1]; G.rounds.push({f:res.final.slice(), t:rd.t, tm:rd.fore % 2});
     if(G.mode === 'ai') saveLocal();
     else if(G.mode === 'online' && G.hostUid === API.uid && S.me.g){ S.me.g.tot = G.totals.slice(); meWrite(); }
   }
@@ -1045,11 +1065,16 @@ function roundEnd(){
   var over = coif ? G.rounds.length >= 12 : (!G.cfg.fixed && (tot[0] >= target || tot[1] >= target) || (G.cfg.fixed != null && G.rno >= 5));
   if(G.cfg.fixed != null && !over){ /* Mini-Spiel: sechs Runden */ }
   G.over = over; if(over) saveLocalClear();
-  var win = my[0] > my[1] ? 0 : my[0] < my[1] ? 1 : -1;
+  var win = my[0] > my[1] ? 0 : my[0] < my[1] ? 1 : -1, swsTxt = '';
+  if(G.cfg.sws && !G.cfg.fixed && !coif && tot[0] >= target && tot[1] >= target && G.prevTot){
+    var steps = [[res.stoeck[0] * res.mult, res.stoeck[1] * res.mult], [res.weis[0] * res.mult, res.weis[1] * res.mult], [(res.cards[0] + res.match[0]) * res.mult, (res.cards[1] + res.match[1]) * res.mult]], cur = G.prevTot.slice(), swsWin = -1;
+    for(var si = 0; si < 3 && swsWin < 0; si++){ cur[0] += steps[si][0]; cur[1] += steps[si][1]; var r0 = cur[0] >= target, r1 = cur[1] >= target; if(r0 || r1) swsWin = r0 && r1 ? (cur[0] > cur[1] ? 0 : cur[1] > cur[0] ? 1 : (G.prevTot[0] >= G.prevTot[1] ? 0 : 1)) : (r0 ? 0 : 1); }
+    if(swsWin >= 0){ win = swsWin === t ? 0 : 1; swsTxt = '<p class="muted" style="margin:6px 0 0">Beide Teams haben das Ziel erreicht – nach der Zählreihenfolge Stöck, Weis, Stich ' + (win === 0 ? 'seid <b>ihr</b>' : 'sind <b>die Gegner</b>') + ' zuerst dort.</p>'; }
+  }
   var head = over ? (win === 0 ? '🏆 Gewonnen!' : win === 1 ? 'Diesmal verloren' : 'Unentschieden') : 'Runde ' + (G.rno + 1) + ' fertig';
   if(G.mode === 'watch') head = over ? 'Partie beendet' : head;
   var body = '<div class="resbox"><h2>' + head + '</h2><p class="muted" style="margin:0 0 4px">' + (rd.t != null ? modeName(rd.t) + (rd.mult > 1 ? ' · Faktor ×' + rd.mult : '') : '') + '</p>' + resRows(res, G.mode === 'watch' ? 0 : G.my) +
-    '<p style="margin:6px 0 0">Zwischenstand: <b>Wir ' + my[0] + '</b> · <b>Sie ' + my[1] + '</b>' + (coif ? ' <span class="muted">(Spiel ' + (G.rno + 1) + ' von 12)</span>' : G.cfg.fixed != null ? ' <span class="muted">(nach Runde ' + (G.rno + 1) + ' von 6)</span>' : ' <span class="muted">(Ziel ' + target + ')</span>') + '</p></div>';
+    swsTxt + '<p style="margin:6px 0 0">Zwischenstand: <b>Wir ' + my[0] + '</b> · <b>Sie ' + my[1] + '</b>' + (coif ? ' <span class="muted">(Spiel ' + (G.rno + 1) + ' von 12)</span>' : G.cfg.fixed != null ? ' <span class="muted">(nach Runde ' + (G.rno + 1) + ' von 6)</span>' : ' <span class="muted">(Ziel ' + target + ')</span>') + '</p></div>';
   if(over){ ton('ende'); overStat(win); }
   if(res.tricksWon[0] === 9 || res.tricksWon[1] === 9){ var wt = res.tricksWon[0] === 9 ? 0 : 1; aiSay(G, (wt === 0 ? 0 : 1), 'match'); }
   modal(body + '<div class="actions">' + (over ? '<button class="btn ghost" data-a="neu" type="button">Neue Partie</button><button class="btn" data-a="ende" type="button">Zum Menü</button>' : '<button class="btn" data-a="weiter" type="button" id="weiterBtn">Nächste Runde</button>') + '</div>', function(m){
@@ -1059,24 +1084,26 @@ function roundEnd(){
     if(n) n.onclick = function(){ var c = G.cfg, fx = c.kind === 'coiffeur' ? 'coiffeur' : c.fixed; closeModal(); if(G.mode === 'ai'){ startAI(c, fx); } else verlassen(); };
   }, true);
 }
-function roundEndDiff(G){
-  var rd = G.rd, res = rd.result;
+function roundEndInd(G){
+  var rd = G.rd, res = rd.result, kd = G.cfg.kind, dz = kd === 'differenzler';
   if(!G.counted || G.counted !== G.rno + 1){ G.counted = G.rno + 1; res.final.forEach(function(d, i){ G.totals[i] += d; }); G.rounds.push({f:res.final.slice(), d:true}); if(G.mode === 'ai') saveLocal(); else if(G.mode === 'online' && G.hostUid === API.uid && S.me.g){ S.me.g.tot = G.totals.slice(); meWrite(); } }
-  var over = G.rounds.length >= G.cfg.rounds; G.over = over; if(over) saveLocalClear();
-  var best = Math.min.apply(null, G.totals), winners = [0, 1, 2, 3].filter(function(s){ return G.totals[s] === best; });
-  var me = G.my, head = over ? (winners.indexOf(me) >= 0 ? '🏆 ' + (winners.length > 1 ? 'Geteilter Sieg!' : 'Gewonnen!') : 'Gewonnen hat ' + esc(G.seats[winners[0]].name)) : 'Runde ' + (G.rno + 1) + ' von ' + G.cfg.rounds + ' fertig';
+  var over = kd === 'handjass' ? (G.totals.some(function(x){ return x >= 7; }) || G.rounds.length >= 25) : G.rounds.length >= G.cfg.rounds; G.over = over; if(over) saveLocalClear();
+  var best = dz ? Math.min.apply(null, G.totals) : Math.max.apply(null, G.totals), winners = [0, 1, 2, 3].filter(function(s){ return G.totals[s] === best; });
+  var me = G.my, head = over ? (winners.indexOf(me) >= 0 ? '🏆 ' + (winners.length > 1 ? 'Geteilter Sieg!' : 'Gewonnen!') : 'Gewonnen hat ' + esc(G.seats[winners[0]].name)) : 'Runde ' + (G.rno + 1) + (kd === 'handjass' ? '' : ' von ' + G.cfg.rounds) + ' fertig';
   var order = [0, 1, 2, 3].map(function(i){ return (me + i) % 4; });
-  var tb = '<table><thead><tr><th></th>' + order.map(function(s){ return '<th>' + esc(G.seats[s].name) + '</th>'; }).join('') + '</tr></thead><tbody>' +
-    '<tr><td>Ansage</td>' + order.map(function(s){ return '<td>' + res.ans[s] + '</td>'; }).join('') + '</tr>' +
-    '<tr><td>Geholt</td>' + order.map(function(s){ return '<td>' + res.spts[s] + '</td>'; }).join('') + '</tr>' +
-    '<tr><td><b>Differenz</b></td>' + order.map(function(s){ return '<td><b>' + res.final[s] + '</b></td>'; }).join('') + '</tr>' +
-    '<tr><td>Total</td>' + order.map(function(s){ return '<td>' + G.totals[s] + '</td>'; }).join('') + '</tr></tbody></table>';
+  var sg = function(v){ return v > 0 ? '+' + v : String(v); };
+  var tb = '<table><thead><tr><th></th>' + order.map(function(s){ return '<th>' + esc(G.seats[s].name) + '</th>'; }).join('') + '</tr></thead><tbody>';
+  if(dz) tb += '<tr><td>Ansage</td>' + order.map(function(s){ return '<td>' + res.ans[s] + '</td>'; }).join('') + '</tr>';
+  tb += '<tr><td>Punkte</td>' + order.map(function(s){ return '<td>' + res.spts[s] + '</td>'; }).join('') + '</tr>';
+  tb += '<tr><td><b>' + (dz ? 'Differenz' : kd === 'handjass' ? 'Striche' : 'Stöcke / Kartoffeln') + '</b></td>' + order.map(function(s){ return '<td><b>' + (dz ? res.final[s] : sg(res.final[s])) + '</b></td>'; }).join('') + '</tr>';
+  tb += '<tr><td>Total</td>' + order.map(function(s){ return '<td>' + G.totals[s] + '</td>'; }).join('') + '</tr></tbody></table>';
+  var sub = dz ? 'Trumpf: ' + esc(suitName(rd.t)) + ' · wer die kleinste Gesamtdifferenz hat, gewinnt' : kd === 'handjass' ? 'Trumpf: ' + esc(suitName(rd.t)) + ' · die zwei besten Ergebnisse +1, unter 26 Punkten −1 · 7 Striche gewinnen' : (rd.t != null ? 'Trumpf: ' + esc(suitName(rd.t)) : 'Es wurde nie abgeworfen – kein Trumpf') + ' · wer am Ende die meisten Stöcke hat, gewinnt';
   if(over){ ton('ende'); if(G.mode === 'online') overStat(winners.indexOf(me) >= 0 ? 0 : 1); }
-  modal('<div class="resbox"><h2>' + head + '</h2><p class="muted" style="margin:0 0 4px">Trumpf: ' + esc(suitName(rd.t)) + ' · wer die kleinste Gesamtdifferenz hat, gewinnt</p>' + tb + '</div><div class="actions">' + (over ? '<button class="btn ghost" data-a="neu" type="button">Neue Partie</button><button class="btn" data-a="ende" type="button">Zum Menü</button>' : '<button class="btn" data-a="weiter" type="button">Nächste Runde</button>') + '</div>', function(m){
+  modal('<div class="resbox"><h2>' + head + '</h2><p class="muted" style="margin:0 0 4px">' + sub + '</p>' + tb + '</div><div class="actions">' + (over ? '<button class="btn ghost" data-a="neu" type="button">Neue Partie</button><button class="btn" data-a="ende" type="button">Zum Menü</button>' : '<button class="btn" data-a="weiter" type="button">Nächste Runde</button>') + '</div>', function(m){
     var w = m.querySelector('[data-a="weiter"]'), n = m.querySelector('[data-a="neu"]'), e = m.querySelector('[data-a="ende"]');
     if(w){ if(G.mode !== 'ai'){ w.disabled = true; setTimeout(function(){ w.disabled = false; }, 1800); } w.onclick = function(){ closeModal(); nextRound(); }; }
     if(e) e.onclick = function(){ verlassen(); };
-    if(n) n.onclick = function(){ var c = G.cfg; closeModal(); if(G.mode === 'ai') startAI(c, 'differenzler'); else verlassen(); };
+    if(n) n.onclick = function(){ var c = G.cfg; closeModal(); if(G.mode === 'ai') startAI(c, c.kind); else verlassen(); };
   }, true);
 }
 function saveLocalClear(){ if(S.G && S.G.mode === 'ai') lsDel('jassen_save_v1'); }
@@ -1115,6 +1142,7 @@ function stbarHtml(){
   else if(G.showTrick && G.showTrick.until > Date.now()) t = esc(G.seats[G.showTrick.win].name) + ' holt den Stich (' + G.showTrick.pts + ' Punkte)';
   else t = me ? 'Du bist dran – spiel eine Karte' : esc(sp.name) + (sp.type === 'ai' ? ' überlegt …' : ' ist dran …');
   var small = (G.msg ? esc(G.msg) : '');
+  if(G.cfg.kind === 'molotow' && rd.t == null && rd.phase === 'play') small = 'Noch kein Trumpf: die erste fremde Farbe, die abgeworfen wird, bestimmt ihn.';
   if(rd.phase === 'ansage' && rd.trumpCard != null) small = 'Trumpf ist durch die letzte Karte des Gebers bestimmt: ' + esc(suitName(rd.t));
   if(G.hint) small = '<b style="color:#f0d79a">💡 ' + esc(G.hint.text) + '</b>';
   return t + (small ? '<small>' + small + '</small>' : '');
@@ -1176,14 +1204,14 @@ function tafelCoiff(G){
 }
 function tafelDiff(G){
   var me = G.my, order = [0, 1, 2, 3].map(function(i){ return (me + i) % 4; });
-  var h = '<div class="tafel"><h4>Differenzler-Tafel</h4><table><thead><tr><th></th>' + order.map(function(s){ return '<th style="font-size:13px">' + esc(G.seats[s].name.split(' ')[0]) + '</th>'; }).join('') + '</tr></thead><tbody>';
+  var h = '<div class="tafel"><h4>' + (G.cfg.kind === 'handjass' ? 'Handjass-Tafel' : G.cfg.kind === 'molotow' ? 'Molotow-Tafel' : 'Differenzler-Tafel') + '</h4><table><thead><tr><th></th>' + order.map(function(s){ return '<th style="font-size:13px">' + esc(G.seats[s].name.split(' ')[0]) + '</th>'; }).join('') + '</tr></thead><tbody>';
   G.rounds.forEach(function(r, i){ h += '<tr><td>' + (i + 1) + '</td>' + order.map(function(s){ return '<td>' + r.f[s] + '</td>'; }).join('') + '</tr>'; });
   if(!G.rounds.length) h += '<tr><td></td><td>&nbsp;</td><td></td><td></td><td></td></tr>';
-  h += '</tbody><tfoot><tr><td>Σ</td>' + order.map(function(s){ return '<td>' + G.totals[s] + '</td>'; }).join('') + '</tfoot></table><div class="ziel">' + G.cfg.rounds + ' Runden · kleinste Differenz gewinnt</div></div>';
+  h += '</tbody><tfoot><tr><td>Σ</td>' + order.map(function(s){ return '<td>' + G.totals[s] + '</td>'; }).join('') + '</tfoot></table><div class="ziel">' + (G.cfg.kind === 'handjass' ? '7 Striche gewinnen' : G.cfg.kind === 'molotow' ? G.cfg.rounds + ' Runden · meiste Stöcke gewinnen' : G.cfg.rounds + ' Runden · kleinste Differenz gewinnt') + '</div></div>';
   return h;
 }
 function tafelHtml(G){
-  if(G.cfg.kind === 'differenzler') return tafelDiff(G);
+  if(IND[G.cfg.kind]) return tafelDiff(G);
   if(G.cfg.kind === 'coiffeur') return tafelCoiff(G);
   var t = (G.mode === 'watch' ? 0 : G.my) % 2, rows = G.rounds.map(function(r, i){ return '<tr><td>' + (i + 1) + '</td><td>' + r.f[t] + '</td><td>' + r.f[1 - t] + '</td></tr>'; }).join('');
   var tot = [G.totals[t], G.totals[1 - t]];
@@ -1191,6 +1219,7 @@ function tafelHtml(G){
 }
 function liveHtml(G){
   var rd = G.rd, t = (G.mode === 'watch' ? 0 : G.my) % 2;
+  if(G.cfg.kind === 'handjass' || G.cfg.kind === 'molotow'){ return '<div class="liveinfo"><div>Runde <b>' + (G.rno + 1) + '</b> · Stich <b>' + Math.min(9, rd.trickNo + (rd.trick.length ? 1 : 0) || 1) + '</b> von 9</div><div>Punkte: ' + [0, 1, 2, 3].map(function(i){ var s = (G.my + i) % 4; return '<b>' + esc(i === 0 ? 'du' : G.seats[s].name.split(' ')[0]) + '</b> ' + rd.spts[s]; }).join(' · ') + '</div></div>'; }
   if(G.cfg.kind === 'differenzler'){ var me0 = G.my, a0 = rd.ans && rd.ans[me0] != null ? rd.ans[me0] : null; return '<div class="liveinfo"><div>Runde <b>' + (G.rno + 1) + '</b> von ' + G.cfg.rounds + ' · Stich <b>' + Math.min(9, rd.trickNo + (rd.trick.length ? 1 : 0) || 1) + '</b> von 9</div>' + (a0 != null ? '<div>Deine Ansage: <b>' + a0 + '</b> · bisher <b>' + rd.spts[me0] + '</b> · noch <b>' + (a0 - rd.spts[me0]) + '</b></div>' : '') + '</div>'; }
   var h = '<div class="liveinfo"><div>Runde <b>' + (G.rno + 1) + '</b> · Stich <b>' + Math.min(9, rd.trickNo + (rd.trick.length ? 1 : 0) || 1) + '</b> von 9</div>';
   if(CFG.live && rd.t != null && G.cfg.kind !== 'coiffeur') h += '<div>Stichpunkte: <b>Wir ' + rd.pts[t] + '</b> · <b>Sie ' + rd.pts[1 - t] + '</b></div>';
@@ -1207,6 +1236,8 @@ function weisChip(G){
 }
 function draw(){
   var G = S.G, el = $('game'); if(!G || !el) return;
+  if(G.ts) return tsDraw();
+  if(G.gs) return gsDrawUi();
   var h = '<div class="stage2"><div><div class="stbar" id="stbar">' + stbarHtml() + '</div><div class="jtable">' + seatHtml(G, 2) + seatHtml(G, 3) + '<div class="center">' + centerHtml(G) + '</div>' + seatHtml(G, 1) + seatHtml(G, 0) + '</div>' + weisChip(G) +
     '<div class="ctrls">' + (G.mode !== 'watch' && CFG.tipp && myTurn(G) ? '<button class="btn sm" data-a="tipp" type="button">💡 Tipp</button>' : '') + '<button class="btn sm ghost" data-a="regeln" type="button">📖 Regeln</button><button class="btn sm ghost" data-a="ende" type="button">' + (G.mode === 'watch' ? 'Zuschauen beenden' : 'Partie beenden') + '</button></div></div>' +
     '<aside class="sidebox">' + tafelHtml(G) + liveHtml(G) + '</aside></div>';
@@ -1248,7 +1279,7 @@ function bindGame(){
     else if(b.dataset.weis != null){ G.weisOn = !G.weisOn; draw(); }
     else if(b.dataset.a === 'tipp') doTipp();
     else if(b.dataset.a === 'regeln'){ openBookInModal(); }
-    else if(b.dataset.a === 'ende'){ if(G.mode === 'watch' || G.over) verlassen(); else ask('Partie beenden?', 'Die Partie wird abgebrochen' + (G.mode === 'online' ? ' – dein Tisch wird geschlossen.' : ' (sie bleibt gespeichert, bis du eine neue beginnst).'), 'Beenden', verlassen, true); }
+    else if(b.dataset.a === 'ende'){ if(G.mode === 'watch' || G.over) verlassen(); else ask('Partie beenden?', 'Die Partie wird abgebrochen' + (G.mode === 'online' ? ' – dein Tisch wird geschlossen.' : G.ts ? '.' : ' (sie bleibt gespeichert, bis du eine neue beginnst).'), 'Beenden', verlassen, true); }
   });
 }
 
@@ -1322,7 +1353,7 @@ function hostStartGame(){
   var T = S.me.tisch; if(!T || T.status !== 'offen') return;
   var o = T.o;
   for(var s = 0; s < 4; s++) if(!T.seats[s]){
-    var lvl = o.kind === 'differenzler' || s % 2 !== 0 ? o.lvlG : o.lvlP, used = T.names.slice(), nm = pick(AINAMES[lvl].filter(function(n){ return used.indexOf(n) < 0; }).concat(AINAMES[lvl]));
+    var lvl = IND[o.kind] || s % 2 !== 0 ? o.lvlG : o.lvlP, used = T.names.slice(), nm = pick(AINAMES[lvl].filter(function(n){ return used.indexOf(n) < 0; }).concat(AINAMES[lvl]));
     T.seats[s] = 'ai' + lvl; T.names[s] = nm;
   }
   T.status = 'laeuft'; T.seed0 = (Math.random() * 4294967296) >>> 0; T.dealer0 = rnd(4);
@@ -1335,7 +1366,7 @@ function startOnlineGame(T, seat, hostUid){
   if(hostUid !== API.uid) S.me.g = {id:T.id, rno:0, a:[], ai:{}};
   S.me.want = hostUid !== API.uid ? S.me.want : null;
   var G = newGame({id:T.id, mode:'online', cfg:cfg, my:seat, hostUid:hostUid, seed0:T.seed0, dealer0:T.dealer0, seats:seats});
-  if(cfg.kind === 'differenzler') G.totals = [0, 0, 0, 0];
+  if(IND[cfg.kind]) G.totals = [0, 0, 0, 0];
   S.G = G; S.view = 'game'; meWrite(); startHeartbeat(); refresh(true); pump();
 }
 function watchTable(hd){
@@ -1360,13 +1391,17 @@ function optSwitch(id, titel, klein, an){ return '<div class="opt"><div class="t
 function seg(name, opts, cur){ return '<div class="seg">' + opts.map(function(o, i){ return '<input type="radio" name="' + name + '" id="' + name + i + '" value="' + o[0] + '"' + (String(o[0]) === String(cur) ? ' checked' : '') + '><label for="' + name + i + '">' + o[1] + '</label>'; }).join('') + '</div>'; }
 function lvlSel(id, cur){ return '<select class="lvlsel" id="' + id + '">' + [1, 2, 3].map(function(l){ return '<option value="' + l + '"' + (cur === l ? ' selected' : '') + '>' + LVLN[l] + ' – ' + LVLDESC[l] + '</option>'; }).join('') + '</select>'; }
 function setupDialog(kind, fixed){
-  var coif = fixed === 'coiffeur', dif = fixed === 'differenzler';
-  var t = kind === 'online' ? 'Online-Tisch eröffnen' : dif ? 'Differenzler gegen den Computer' : coif ? 'Coiffeur gegen den Computer' : fixed === 4 ? 'Obenabe-Jass' : fixed === 5 ? 'Undenufe / Hindenufe' : 'Schieber gegen den Computer';
+  var coif = fixed === 'coiffeur', dif = fixed === 'differenzler', hj = fixed === 'handjass', mo = fixed === 'molotow', ind = dif || hj || mo;
+  var t = kind === 'online' ? 'Online-Tisch eröffnen' : hj ? 'Handjass gegen den Computer' : mo ? 'Molotow gegen den Computer' : dif ? 'Differenzler gegen den Computer' : coif ? 'Coiffeur gegen den Computer' : fixed === 4 ? 'Obenabe-Jass' : fixed === 5 ? 'Undenufe / Hindenufe' : 'Schieber gegen den Computer';
   var h = '<h2>' + t + '</h2>';
   if(kind === 'online') h += '<div class="field"><label class="t">Spielart</label>' + seg('okind', [['schieber', 'Schieber'], ['coiffeur', 'Coiffeur'], ['differenzler', 'Differenzler']], CFG.okind || 'schieber') + '</div>';
   if(kind === 'online'){
     h += '<div class="field"><label class="t">Zielpunkte (Schieber)</label>' + seg('target', [[1000, '1000'], [1500, '1500'], [2500, '2500']], CFG.target) + '</div><div class="field"><label class="t">Runden (Differenzler)</label>' + seg('drounds', [[4, '4'], [8, '8'], [12, '12']], CFG.dRounds || 8) + '</div>';
-    h += optSwitch('oMult', 'Faktoren (Schieber)', 'Trumpfarten zählen 1×, 2× oder 3×', CFG.mult) + optSwitch('oWeis', 'Weis (Schieber, Coiffeur)', 'Reihen und Vierlinge zählen extra', CFG.weis) + optSwitch('oStoeck', 'Stöck (Schieber, Coiffeur)', 'König + Ober/Dame vom Trumpf: 20 Punkte', CFG.stoeck) + optSwitch('oSlalom', 'Slalom zuschalten (Schieber)', 'Abwechselnd Obenabe und Undenufe', CFG.slalom);
+    h += optSwitch('oMult', 'Faktoren (Schieber)', 'Trumpfarten zählen 1×, 2× oder 3×', CFG.mult) + optSwitch('oWeis', 'Weis (Schieber, Coiffeur)', 'Reihen und Vierlinge zählen extra', CFG.weis) + optSwitch('oStoeck', 'Stöck (Schieber, Coiffeur)', 'König + Ober/Dame vom Trumpf: 20 Punkte', CFG.stoeck) + optSwitch('oSlalom', 'Slalom zuschalten (Schieber)', 'Abwechselnd Obenabe und Undenufe', CFG.slalom) + optSwitch('oGuschti', 'Guschti zuschalten (Schieber)', 'Fünf Stiche Obenabe, dann vier Stiche Undenufe (oder umgekehrt)', CFG.guschti) + optSwitch('oSws', 'Stöck–Wys–Stich (Schieber)', 'Erreichen beide das Ziel, zählt die Reihenfolge Stöck, Weis, Stich', CFG.sws);
+  } else if(hj){
+    h += '<p class="muted">Du spielst gegen drei Computer, jeder für sich. Trumpf ist die letzte ausgeteilte Karte. Nach jeder Runde bekommen die zwei besten Ergebnisse je einen Strich, wer unter 26 Punkten bleibt, einen Strich Abzug (Null). Wer zuerst 7 Striche hat, gewinnt.</p>';
+  } else if(mo){
+    h += '<p class="muted">Du spielst gegen drei Computer, jeder für sich. Es gibt zuerst keinen Trumpf: Die erste fremde Farbe, die abgeworfen wird, wird Trumpf. Nach jeder Runde gibt es Stöcke und Kartoffeln.</p><div class="field"><label class="t">Runden</label>' + seg('drounds', [[6, '6'], [8, '8'], [12, '12']], CFG.dRounds || 8) + '</div>';
   } else if(dif){
     h += '<p class="muted">Du spielst gegen drei Computer, jeder für sich. Vor dem Spielen sagt jede Person an, wie viele Punkte sie holt – die kleinste Gesamtdifferenz gewinnt.</p><div class="field"><label class="t">Runden</label>' + seg('drounds', [[4, '4'], [8, '8'], [12, '12']], CFG.dRounds || 8) + '</div>';
   } else if(coif){
@@ -1377,10 +1412,10 @@ function setupDialog(kind, fixed){
     h += optSwitch('oMult', 'Faktoren', 'Trumpfarten zählen 1×, 2× oder 3× (Obenabe/Undenufe 3×)', CFG.mult);
     h += optSwitch('oWeis', 'Weis', 'Reihen und Vierlinge zählen extra', CFG.weis);
     h += optSwitch('oStoeck', 'Stöck', 'König + Ober/Dame vom Trumpf: 20 Punkte', CFG.stoeck);
-    h += optSwitch('oSlalom', 'Slalom zuschalten', 'Abwechselnd Obenabe und Undenufe', CFG.slalom);
+    h += optSwitch('oSlalom', 'Slalom zuschalten', 'Abwechselnd Obenabe und Undenufe', CFG.slalom) + optSwitch('oGuschti', 'Guschti zuschalten', 'Fünf Stiche Obenabe, dann vier Stiche Undenufe (oder umgekehrt)', CFG.guschti) + optSwitch('oSws', 'Stöck–Wys–Stich', 'Erreichen beide das Ziel, zählt die Reihenfolge Stöck, Weis, Stich', CFG.sws);
   } else h += '<p class="muted">Sechs Runden, keine Trumpfwahl. ' + (fixed === 4 ? 'Das Ass ist die stärkste Karte, die 8 zählt 8 Punkte.' : 'Die 6 ist die stärkste Karte (11 Punkte), das Ass ist wertlos.') + '</p>';
-  if(!dif) h += '<div class="field"><label class="t">Dein Partner (Platz oben)</label>' + lvlSel('lP', CFG.lvlP) + '</div>';
-  h += '<div class="field"><label class="t">' + (dif ? 'Die drei Computer' : 'Gegner (und leere Plätze)') + '</label>' + lvlSel('lG', CFG.lvlG) + '</div>';
+  if(!ind) h += '<div class="field"><label class="t">Dein Partner (Platz oben)</label>' + lvlSel('lP', CFG.lvlP) + '</div>';
+  h += '<div class="field"><label class="t">' + (ind ? 'Die drei Computer' : 'Gegner (und leere Plätze)') + '</label>' + lvlSel('lG', CFG.lvlG) + '</div>';
   h += '<div style="margin-top:8px">' + optSwitch('oHilfe', 'Erlaubte Karten markieren', 'Nicht spielbare Karten werden abgedunkelt', CFG.hilfe) + optSwitch('oTipp', 'Tipp-Knopf', 'Der Computer schlägt dir einen Zug vor', CFG.tipp) + optSwitch('oLive', 'Punkte live anzeigen', 'Stichpunkte der Runde neben dem Tisch', CFG.live) + '</div>';
   h += '<div class="actions"><button class="btn ghost" data-a="no" type="button">Abbrechen</button><button class="btn" data-a="go" type="button">' + (kind === 'online' ? 'Tisch eröffnen' : 'Spiel starten') + '</button></div>';
   modal(h, function(m){
@@ -1390,7 +1425,7 @@ function setupDialog(kind, fixed){
       var tg = m.querySelector('input[name="target"]:checked');
       if(tg) CFG.target = +tg.value;
       if(q('oWeis') && !q('oMult')){ CFG.weis = q('oWeis').checked; CFG.stoeck = q('oStoeck').checked; }
-      if(q('oMult')){ CFG.mult = q('oMult').checked; CFG.weis = q('oWeis').checked; CFG.stoeck = q('oStoeck').checked; CFG.slalom = q('oSlalom').checked; }
+      if(q('oMult')){ CFG.mult = q('oMult').checked; CFG.weis = q('oWeis').checked; CFG.stoeck = q('oStoeck').checked; CFG.slalom = q('oSlalom').checked; CFG.guschti = q('oGuschti').checked; CFG.sws = q('oSws').checked; }
       var dr = m.querySelector('input[name="drounds"]:checked'); if(dr) CFG.dRounds = +dr.value;
       if(q('lP')) CFG.lvlP = +q('lP').value; CFG.lvlG = +q('lG').value; CFG.hilfe = q('oHilfe').checked; CFG.tipp = q('oTipp').checked; CFG.live = q('oLive').checked;
       lsSet('jassen_cfg_v1', CFG);
@@ -1402,21 +1437,25 @@ function renderMenu(){
   var sv = lsGet('jassen_save_v1', null), h = '';
   if(sv && !sv.over){
     var tt = sv.totals || [0, 0];
-    h += '<div class="card resume"><div class="grow"><h3 style="margin:0">Angefangene Partie</h3><span class="muted">' + (sv.cfg.fixed != null ? 'Mini-Spiel' : sv.cfg.kind === 'coiffeur' ? 'Coiffeur' : sv.cfg.kind === 'differenzler' ? 'Differenzler' : 'Schieber') + ' gegen den Computer · Wir ' + tt[0] + ' : Sie ' + tt[1] + '</span></div><button class="btn" data-a="resume" type="button">Weiterspielen</button><button class="btn ghost" data-a="del" type="button">Verwerfen</button></div>';
+    h += '<div class="card resume"><div class="grow"><h3 style="margin:0">Angefangene Partie</h3><span class="muted">' + (sv.cfg.fixed != null ? 'Mini-Spiel' : sv.cfg.kind === 'coiffeur' ? 'Coiffeur' : sv.cfg.kind === 'differenzler' ? 'Differenzler' : sv.cfg.kind === 'handjass' ? 'Handjass' : sv.cfg.kind === 'molotow' ? 'Molotow' : 'Schieber') + ' gegen den Computer · Wir ' + tt[0] + ' : Sie ' + tt[1] + '</span></div><button class="btn" data-a="resume" type="button">Weiterspielen</button><button class="btn ghost" data-a="del" type="button">Verwerfen</button></div>';
   }
   h += '<div class="modes">' +
     '<button class="mode" data-m="ai" type="button"><span class="pc">♠</span><b>Schieber gegen den Computer</b><small>Du und dein Partner gegen zwei Computer – drei Stärken.</small></button>' +
     '<button class="mode" data-m="online" type="button"><span class="pc">♥</span><b>Online mit Freunden</b><small>Eröffne einen Tisch (4 Plätze) oder setz dich an einen offenen. Leere Plätze füllt der Computer.</small></button>' +
     '<button class="mode" data-m="coiffeur" type="button"><span class="pc">♦</span><b>Coiffeur gegen den Computer</b><small>Jede Spielart einmal – die Tafel wird Zeile für Zeile gefüllt.</small></button>' +
     '<button class="mode" data-m="differenzler" type="button"><span class="pc">±</span><b>Differenzler</b><small>Sag deine Punkte an – wer am genauesten ist, gewinnt.</small></button>' +
+    '<button class="mode" data-m="handjass" type="button"><span class="pc">♣</span><b>Handjass</b><small>Jeder für sich, Striche sammeln – bis sieben.</small></button>' +
+    '<button class="mode" data-m="molotow" type="button"><span class="pc">★</span><b>Molotow</b><small>Der Trumpf entsteht erst im Spiel – Stöcke und Kartoffeln.</small></button>' +
+    '<button class="mode" data-m="tschau" type="button"><span class="pc">🂱</span><b>Tschau-Sepp</b><small>Das Kinderspiel mit Spezialkarten – gegen drei Computer.</small></button>' +
+    '<button class="mode" data-m="gaemsch" type="button"><span class="pc">🐐</span><b>Gämsch</b><small>Vier gleiche sammeln – im Team gegen die Computer.</small></button>' +
     '<button class="mode" data-m="oben" type="button"><span class="pc">↓</span><b>Obenabe-Jass</b><small>Einfach zum Einstieg: sechs Runden, das Ass sticht.</small></button>' +
     '<button class="mode" data-m="unden" type="button"><span class="pc">↑</span><b>Undenufe / Hindenufe</b><small>Die Sechs ist am stärksten – umdenken üben!</small></button></div>';
-  h += '<div class="card" style="margin-bottom:16px"><h3>Weitere Jassarten</h3><p class="muted" style="margin:0 0 8px">Molotow, Handjass, Stöck-Wyss-Stich, Tschau-Sepp und Gämsch sind schon im Erklärbuch ausführlich erklärt – spielbar werden sie in den nächsten Etappen.</p><div class="row">' +
-    ['molotow', 'handjass', 'stoeck', 'tschau', 'gaemsch'].map(function(p){ return '<button class="btn sm ghost" data-buch="' + p + '" type="button">' + esc(PAGES.filter(function(x){ return x.id === p; })[0].t) + '</button>'; }).join('') + '</div></div>';
+  h += '<div class="card" style="margin-bottom:16px"><h3>Mehr zum Nachlesen</h3><p class="muted" style="margin:0 0 8px">Alle Jassarten sind im Erklärbuch erklärt. Die Zählreihenfolge Stöck–Wys–Stich schaltest du beim Start des Schiebers zu.</p><div class="row">' +
+    ['stoeck'].map(function(p){ return '<button class="btn sm ghost" data-buch="' + p + '" type="button">' + esc(PAGES.filter(function(x){ return x.id === p; })[0].t) + '</button>'; }).join('') + '</div></div>';
   h += '<div class="two"><section class="card"><h3>Offene Tische</h3><div id="tischeBox"></div></section><section class="card"><h3>Rangliste</h3><div id="rangBox"></div></section></div>';
   $('menu').innerHTML = h;
   var q = function(s){ return $('menu').querySelector(s); };
-  $('menu').querySelectorAll('[data-m]').forEach(function(b){ b.onclick = function(){ var m = b.dataset.m; setupDialog(m === 'online' ? 'online' : 'ai', m === 'oben' ? 4 : m === 'unden' ? 5 : m === 'coiffeur' ? 'coiffeur' : m === 'differenzler' ? 'differenzler' : null); }; });
+  $('menu').querySelectorAll('[data-m]').forEach(function(b){ b.onclick = function(){ var m = b.dataset.m; if(m === 'tschau'){ tsSetup(); return; } if(m === 'gaemsch'){ gsSetup(); return; } setupDialog(m === 'online' ? 'online' : 'ai', m === 'oben' ? 4 : m === 'unden' ? 5 : m === 'coiffeur' ? 'coiffeur' : m === 'differenzler' || m === 'handjass' || m === 'molotow' ? m : null); }; });
   $('menu').querySelectorAll('[data-buch]').forEach(function(b){ b.onclick = function(){ S.view = 'buch'; BOOK.page = b.dataset.buch; refresh(true); }; });
   var r = q('[data-a="resume"]'); if(r) r.onclick = resumeLocal;
   var d = q('[data-a="del"]'); if(d) d.onclick = function(){ lsDel('jassen_save_v1'); renderMenu(); };
@@ -1563,6 +1602,353 @@ function renderTafel(){
 }
 
 /* =====================================================================
+   Tschau-Sepp (Kinderspiel, Regeln wie im Dossier)
+   Karte: gleiche Farbe oder gleiches Bild · 8 überspringt · Bauer wählt Farbe · Ass: gleiche Farbe nachlegen, sonst ziehen ·
+   6 tauscht · Banner/Zehn wechselt die Richtung · 7: +2 (weitergeben möglich) · vorletzte Karte «Tschau», letzte «Sepp»
+   ===================================================================== */
+function tsShuffle(a){ return shuffle(a); }
+function tsNew(lvl){
+  var deck = tsShuffle(Array.apply(null, Array(36)).map(function(_, i){ return i; })), hands = [[], [], [], []], i, s;
+  for(i = 0; i < 6; i++) for(s = 0; s < 4; s++) hands[s].push(deck.pop());
+  var top = deck.pop(), guard = 0;
+  while([0, 3, 4, 6, 7, 8].indexOf(top % 9) >= 0 && guard++ < 20){ deck.unshift(top); top = deck.pop(); }
+  var names = [API.name], used = {}, nm;
+  for(s = 1; s < 4; s++){ var l = lvl, cand = AINAMES[l].filter(function(n){ return !used[n]; }); nm = pick(cand.length ? cand : AINAMES[l]); used[nm] = 1; names.push(nm); }
+  return {ts:true, mode:'ts', cfg:{kind:'ts'}, my:0, seats:names.map(function(n, k){ return {type:k ? 'ai' : 'me', name:n, lvl:lvl}; }), lvl:lvl, hands:hands.map(function(h){ return tsSort(h); }), draw:deck, disc:[top], dir:1, turn:0, suit:null, pend:0, must:null, said:false, over:false, winner:-1, msg:'Du beginnst.', justDrew:false, bubble:null, timer:null, token:0, hint:null};
+}
+function tsSort(h){ return h.slice().sort(function(a, b){ var sa = a / 9 | 0, sb = b / 9 | 0; return sa !== sb ? sa - sb : a % 9 - b % 9; }); }
+function tsTop(G){ return G.disc[G.disc.length - 1]; }
+function tsCurSuit(G){ return G.suit != null ? G.suit : tsTop(G) / 9 | 0; }
+function tsPlayable(G, seat, c){
+  if(G.pend > 0) return c % 9 === 7;
+  if(G.must != null) return (c / 9 | 0) === G.must;
+  if(c % 9 === 3) return true;
+  return (c / 9 | 0) === tsCurSuit(G) || c % 9 === tsTop(G) % 9;
+}
+function tsRefill(G){
+  if(G.draw.length) return;
+  var top = G.disc.pop(); G.draw = tsShuffle(G.disc); G.disc = [top];
+}
+function tsDrawCards(G, seat, n){
+  var got = [];
+  for(var i = 0; i < n; i++){ tsRefill(G); if(!G.draw.length) break; var c = G.draw.pop(); G.hands[seat].push(c); got.push(c); }
+  G.hands[seat] = tsSort(G.hands[seat]); return got;
+}
+function tsAdvance(G, skip){
+  var n = 1 + (skip ? 1 : 0); G.turn = ((G.turn + G.dir * n) % 4 + 4) % 4; G.justDrew = false;
+}
+function tsSay(G, seat, text){ G.bubble = {seat:seat, text:text, until:Date.now() + 2200}; setTimeout(function(){ if(S.G === G) draw(); }, 2300); }
+/* spielt eine Karte; opts: {suit, swapTarget, swapCard, said} */
+function tsPlay(G, seat, c, opts){
+  opts = opts || {};
+  var h = G.hands[seat], i = h.indexOf(c); if(i < 0 || !tsPlayable(G, seat, c)) return false;
+  h.splice(i, 1); G.disc.push(c); G.suit = null; var r = c % 9, name = G.seats[seat].name, skip = false, stay = false;
+  var said = seat === 0 ? G.said : opts.said; if(seat === 0) G.said = false;
+  ton('karte'); G.hint = null;
+  if(G.must != null) G.must = null;
+  if(h.length === 0){
+    if(said){ G.over = true; G.winner = seat; G.msg = name + ' hat «Sepp» gerufen und gewonnen!'; return true; }
+    tsDrawCards(G, seat, 4); G.msg = name + ' hat «Sepp» vergessen: 4 Karten aufnehmen.'; tsSay(G, seat, 'Ups …'); ton('weis');
+  } else if(h.length === 1 && !said){ tsDrawCards(G, seat, 2); G.msg = name + ' hat «Tschau» vergessen: 2 Karten aufnehmen.'; ton('weis'); }
+  else if(h.length === 1 || h.length === 0){ tsSay(G, seat, h.length === 1 ? 'Tschau!' : 'Sepp!'); }
+  if(r === 6){ skip = true; G.msg = name + ' spielt eine Acht – ' + G.seats[((G.turn + G.dir) % 4 + 4) % 4].name + ' wird übersprungen.'; }
+  else if(r === 3){ G.suit = opts.suit != null ? opts.suit : (c / 9 | 0); G.msg = name + ' wünscht sich ' + suitName(G.suit) + '.'; }
+  else if(r === 0 && G.hands[seat].length){ G.must = c / 9 | 0; stay = true; G.msg = name + ' spielt ein Ass und muss mit ' + suitName(c / 9 | 0) + ' nachlegen – sonst eine Karte ziehen.'; }
+  else if(r === 8){
+    var tgt = opts.swapTarget, give = opts.swapCard;
+    if(tgt != null && G.hands[tgt] && G.hands[tgt].length && G.hands[seat].length){
+      if(give == null || G.hands[seat].indexOf(give) < 0) give = pick(G.hands[seat]);
+      var get = pick(G.hands[tgt]); G.hands[tgt].splice(G.hands[tgt].indexOf(get), 1); G.hands[seat].splice(G.hands[seat].indexOf(give), 1);
+      G.hands[tgt].push(give); G.hands[seat].push(get); G.hands[tgt] = tsSort(G.hands[tgt]); G.hands[seat] = tsSort(G.hands[seat]);
+      G.msg = name + ' tauscht eine Karte mit ' + G.seats[tgt].name + '.';
+    }
+  }
+  else if(r === 4){ G.dir = -G.dir; G.msg = name + ' spielt einen Banner – die Richtung wechselt.'; }
+  else if(r === 7){ G.pend += 2; G.msg = name + ' spielt eine Sieben: ' + G.seats[((G.turn + G.dir) % 4 + 4) % 4].name + ' muss ' + G.pend + ' Karten aufnehmen – oder mit einer Sieben weitergeben.'; }
+  else G.msg = '';
+  if(!stay) tsAdvance(G, skip);
+  return true;
+}
+function tsDrawAction(G, seat){
+  var name = G.seats[seat].name;
+  if(G.pend > 0){ var n = G.pend; G.pend = 0; tsDrawCards(G, seat, n); G.msg = name + ' nimmt ' + n + ' Karten auf.'; tsAdvance(G, false); return {played:false}; }
+  if(G.must != null){ G.must = null; tsDrawCards(G, seat, 1); G.msg = name + ' kann nicht nachlegen und zieht eine Karte.'; tsAdvance(G, false); return {played:false}; }
+  var got = tsDrawCards(G, seat, 1); G.msg = name + ' zieht eine Karte.';
+  if(got.length && tsPlayable(G, seat, got[0])){ G.justDrew = true; return {played:false, drew:got[0]}; }
+  tsAdvance(G, false); return {played:false};
+}
+/* Computer */
+function tsAiChoose(G, seat){
+  var h = G.hands[seat], pl = h.filter(function(c){ return tsPlayable(G, seat, c); });
+  if(!pl.length) return null;
+  var cnt = [0, 0, 0, 0]; h.forEach(function(c){ cnt[c / 9 | 0]++; });
+  var next = ((G.turn + G.dir) % 4 + 4) % 4, nextSmall = G.hands[next].length <= 2;
+  var score = function(c){
+    var r = c % 9, s = 0;
+    if(r === 3) s -= 6; if(r === 0) s -= 2;
+    if(r === 7 && nextSmall) s += 8; if(r === 6 && nextSmall) s += 6;
+    if(r === 4 && nextSmall && G.dir === 1) s += 1;
+    s += cnt[c / 9 | 0]; return s + Math.random() * 1.5;
+  };
+  if(G.lvl === 1) return pick(pl);
+  pl.sort(function(a, b){ return score(b) - score(a); }); return pl[0];
+}
+function tsAiSuit(G, seat){
+  var cnt = [0, 0, 0, 0]; G.hands[seat].forEach(function(c){ if(c % 9 !== 3) cnt[c / 9 | 0]++; });
+  var best = 0; for(var s = 1; s < 4; s++) if(cnt[s] > cnt[best]) best = s; return best;
+}
+function tsAiMove(G){
+  var seat = G.turn; if(G.over) return;
+  var c = tsAiChoose(G, seat), said = G.lvl === 1 ? Math.random() < 0.7 : G.lvl === 2 ? Math.random() < 0.92 : true;
+  if(c == null){
+    var res = tsDrawAction(G, seat);
+    if(res.drew != null){ var again = res.drew; tsPlay(G, seat, again, {said:said, suit:tsAiSuit(G, seat), swapTarget:tsAiTarget(G, seat)}); }
+  } else {
+    var opts = {said:said};
+    if(c % 9 === 3){ var rest = G.hands[seat].filter(function(x){ return x !== c; }); var cnt = [0, 0, 0, 0]; rest.forEach(function(x){ cnt[x / 9 | 0]++; }); var b = 0; for(var s = 1; s < 4; s++) if(cnt[s] > cnt[b]) b = s; opts.suit = b; }
+    if(c % 9 === 8) opts.swapTarget = tsAiTarget(G, seat);
+    tsPlay(G, seat, c, opts);
+  }
+}
+function tsAiTarget(G, seat){
+  var best = -1, bn = -1; for(var s = 0; s < 4; s++){ if(s === seat) continue; if(G.hands[s].length > bn){ bn = G.hands[s].length; best = s; } } return best;
+}
+function tsSchedule(G){
+  clearTimeout(G.timer); if(S.G !== G || G.over) return;
+  if(G.turn === 0) return;
+  var token = ++G.token;
+  G.timer = setTimeout(function(){
+    if(S.G !== G || G.token !== token || G.over || G.turn === 0) return;
+    tsAiMove(G); tsAfter(G);
+  }, 950 + rnd(500));
+}
+function tsAfter(G){
+  draw();
+  if(G.over){ ton('ende'); setTimeout(function(){ if(S.G === G) tsEnd(G); }, 900); return; }
+  tsSchedule(G);
+}
+function tsEnd(G){
+  var win = G.winner === 0;
+  modal('<div class="resbox"><h2>' + (win ? '🏆 Gewonnen!' : 'Gewonnen hat ' + esc(G.seats[G.winner].name)) + '</h2><p class="muted">' + esc(G.msg) + '</p></div><div class="actions"><button class="btn ghost" data-a="neu" type="button">Nochmals</button><button class="btn" data-a="ende" type="button">Zum Menü</button></div>', function(m){
+    m.querySelector('[data-a="ende"]').onclick = verlassen;
+    m.querySelector('[data-a="neu"]').onclick = function(){ closeModal(); startTS(G.lvl); };
+  }, true);
+}
+function startTS(lvl){
+  closeModal(); var G = tsNew(lvl); S.G = G; S.view = 'game'; refresh(true); tsSchedule(G);
+}
+/* Zeichnen */
+function tsSeatHtml(G, relPos){
+  var seat = relPos, cls = ['me', 'right', 'top', 'left'][relPos], sp = G.seats[seat], act = !G.over && G.turn === seat ? ' act' : '';
+  var b = G.bubble && G.bubble.seat === seat && G.bubble.until > Date.now() ? '<div class="bubble">' + esc(G.bubble.text) + '</div>' : '';
+  var nm = '<div class="nm">' + esc(sp.name) + (seat ? ' <small>' + LVLN[sp.lvl] + ' · ' + G.hands[seat].length + ' Karten</small>' : ' <small>' + G.hands[0].length + ' Karten</small>') + '</div>';
+  var hand;
+  if(seat === 0){
+    var my = G.turn === 0 && !G.over, can = my;
+    hand = '<div class="hand" id="hand">' + G.hands[0].map(function(c){
+      var ok = my && tsPlayable(G, 0, c); var st = my ? (CFG.hilfe ? (ok ? 'ok' : 'no') : 'ok') : '';
+      return '<button class="cardbtn ' + st + (G.hint === c ? ' hint' : '') + '" data-tc="' + c + '" type="button" aria-label="' + esc(cardName(c)) + '">' + cardHtml(c) + '</button>';
+    }).join('') + '</div>';
+  } else hand = '<div class="backs">' + new Array(G.hands[seat].length + 1).join(backHtml()) + '</div>';
+  return '<div class="seat ' + cls + act + '">' + b + (seat === 0 ? '' : nm) + hand + (seat === 0 ? nm : '') + '</div>';
+}
+function tsCenter(G){
+  var top = tsTop(G), h = '<div style="display:flex;gap:18px;align-items:center;justify-content:center;flex-wrap:wrap">';
+  h += '<button class="cardbtn ' + (G.turn === 0 && !G.over ? 'ok' : '') + '" data-ts="draw" type="button" aria-label="Karte ziehen">' + backHtml('lg') + '<div class="muted" style="font-size:12px">Stapel (' + G.draw.length + ')</div></button>';
+  h += '<div style="text-align:center">' + cardHtml(top, 'lg') + '<div class="muted" style="font-size:12px">' + (G.suit != null ? 'gewünscht: <b>' + esc(suitName(G.suit)) + '</b>' : 'Ablage') + '</div></div></div>';
+  h += '<div style="text-align:center;margin-top:8px" class="muted">' + (G.dir === 1 ? '↺ gegen den Uhrzeigersinn' : '↻ im Uhrzeigersinn') + (G.pend ? ' · <b style="color:var(--gold-soft)">+' + G.pend + ' Karten drohen</b>' : '') + (G.must != null ? ' · <b style="color:var(--gold-soft)">Ass: ' + esc(suitName(G.must)) + ' nachlegen</b>' : '') + '</div>';
+  return h;
+}
+function tsDraw(){
+  var G = S.G, el = $('game'); if(!G) return;
+  var st;
+  if(G.over) st = 'Spiel beendet';
+  else if(G.turn === 0) st = G.justDrew ? 'Du hast gezogen – spiel die Karte oder pass' : G.pend ? 'Gib eine Sieben weiter oder nimm ' + G.pend + ' Karten auf' : G.must != null ? 'Lege ' + esc(suitName(G.must)) + ' nach oder zieh eine Karte' : 'Du bist dran';
+  else st = esc(G.seats[G.turn].name) + ' überlegt …';
+  var stb = '<div class="stbar">' + st + (G.hint != null ? '<small style="color:#f0d79a">💡 Spiel ' + esc(cardName(G.hint)) + '.</small>' : G.msg ? '<small>' + esc(G.msg) + '</small>' : '') + '</div>';
+  var rem = G.hands[0].length;
+  var sayLabel = rem === 2 ? 'Tschau!' : rem === 1 ? 'Sepp!' : 'Tschau / Sepp';
+  var h = '<div class="stage2"><div>' + stb + '<div class="jtable">' + tsSeatHtml(G, 2) + tsSeatHtml(G, 3) + '<div class="center">' + tsCenter(G) + '</div>' + tsSeatHtml(G, 1) + tsSeatHtml(G, 0) + '</div>' +
+    '<div class="ctrls"><button class="btn sm' + (G.said ? '' : ' ghost') + '" data-ts="say" type="button">📣 ' + sayLabel + (G.said ? ' ✓' : '') + '</button>' +
+    (G.turn === 0 && G.justDrew ? '<button class="btn sm" data-ts="pass" type="button">Passen</button>' : '') +
+    (CFG.tipp && G.turn === 0 && !G.over ? '<button class="btn sm" data-ts="tipp" type="button">💡 Tipp</button>' : '') +
+    '<button class="btn sm ghost" data-a="regeln" type="button">📖 Regeln</button><button class="btn sm ghost" data-a="ende" type="button">Partie beenden</button></div></div>' +
+    '<aside class="sidebox"><div class="liveinfo"><b>Spezialkarten</b><br>8 überspringt · Bauer wählt Farbe · Ass: gleiche Farbe nachlegen · 6 tauscht · Banner wechselt die Richtung · 7: +2 (weitergeben)<br><br>Vorletzte Karte: «Tschau», letzte: «Sepp» – drück den Knopf <b>bevor</b> du spielst!</div></aside></div>';
+  el.innerHTML = h;
+}
+function tsChoose(G, c){
+  if(G.turn !== 0 || G.over) return;
+  if(!tsPlayable(G, 0, c)){ toast(G.pend ? 'Du kannst nur mit einer Sieben weitergeben – oder Karten aufnehmen.' : G.must != null ? 'Das Ass muss mit ' + suitName(G.must) + ' gedeckt werden.' : 'Die Karte passt nicht: gleiche Farbe (' + suitName(tsCurSuit(G)) + ') oder gleiches Bild.'); return; }
+  var r = c % 9;
+  var finish = function(opts){ tsPlay(G, 0, c, opts); tsAfter(G); };
+  if(r === 3 && G.hands[0].length > 1){
+    modal('<h2>Welche Farbe wünschst du dir?</h2><div class="tw">' + [0, 1, 2, 3].map(function(s){ return '<button type="button" data-s="' + s + '">' + symIcon(SET, s) + '<b>' + esc(suitName(s)) + '</b></button>'; }).join('') + '</div>', function(m){
+      m.querySelectorAll('[data-s]').forEach(function(b){ b.onclick = function(){ closeModal(); finish({suit:+b.dataset.s}); }; });
+    }, true);
+  } else if(r === 8 && G.hands[0].length > 1){
+    modal('<h2>Tauschen mit wem?</h2><div class="tw">' + [1, 2, 3].map(function(s){ return '<button type="button" data-t="' + s + '"><b>' + esc(G.seats[s].name) + '</b><small>' + G.hands[s].length + ' Karten</small></button>'; }).join('') + '<button type="button" data-t="-1"><b>Nicht tauschen</b></button></div>', function(m){
+      m.querySelectorAll('[data-t]').forEach(function(b){ b.onclick = function(){
+        var t = +b.dataset.t; if(t < 0){ closeModal(); finish({}); return; }
+        var rest = G.hands[0].filter(function(x){ return x !== c; });
+        modal('<h2>Welche Karte gibst du ab?</h2><p class="muted">Du bekommst eine zufällige Karte von ' + esc(G.seats[t].name) + '.</p><div class="cardrow">' + rest.map(function(x){ return '<button type="button" class="cardbtn ok" data-g="' + x + '">' + cardHtml(x, 'sm') + '</button>'; }).join('') + '</div>', function(m2){
+          m2.querySelectorAll('[data-g]').forEach(function(bb){ bb.onclick = function(){ closeModal(); finish({swapTarget:t, swapCard:+bb.dataset.g}); }; });
+        }, true);
+      }; });
+    }, true);
+  } else finish({});
+}
+function bindTS(){
+  $('game').addEventListener('click', function(e){
+    var G = S.G; if(!G || !G.ts) return;
+    var b = e.target.closest('[data-tc],[data-ts]'); if(!b) return;
+    if(b.dataset.tc != null){ tsChoose(G, +b.dataset.tc); return; }
+    var a = b.dataset.ts;
+    if(a === 'say'){ G.said = !G.said; draw(); }
+    else if(a === 'draw'){
+      if(G.turn !== 0 || G.over) return;
+      if(G.justDrew){ toast('Du hast schon gezogen.'); return; }
+      if(!G.pend && G.hands[0].some(function(c){ return tsPlayable(G, 0, c); })){ toast('Du hast eine passende Karte – spiel sie.'); return; }
+      var res = tsDrawAction(G, 0); tsAfter(G);
+    }
+    else if(a === 'pass'){ if(G.turn === 0 && G.justDrew){ tsAdvance(G, false); G.msg = 'Du passt.'; tsAfter(G); } }
+    else if(a === 'tipp'){ var pl = G.hands[0].filter(function(c){ return tsPlayable(G, 0, c); }); if(!pl.length){ G.hint = null; G.msg = 'Keine Karte passt – zieh vom Stapel.'; } else { G.hint = tsAiChoose(Object.assign({}, G, {lvl:3}), 0); } draw(); }
+  });
+}
+
+function tsSetup(){
+  modal('<h2>Tschau-Sepp</h2><p class="muted">Du spielst gegen drei Computer, jede Person bekommt 6 Karten. Wer zuerst alle Karten abgelegt und «Sepp» gerufen hat, gewinnt.</p><div class="field"><label class="t">Die drei Computer</label>' + lvlSel('tl', CFG.lvlG) + '</div><div class="actions"><button class="btn ghost" data-a="no" type="button">Abbrechen</button><button class="btn" data-a="go" type="button">Spiel starten</button></div>', function(m){
+    m.querySelector('[data-a="no"]').onclick = closeModal;
+    m.querySelector('[data-a="go"]').onclick = function(){ CFG.lvlG = +m.querySelector('#tl').value; lsSet('jassen_cfg_v1', CFG); startTS(CFG.lvlG); };
+  });
+}
+
+/* =====================================================================
+   Gämsch (vereinfacht, rundenweise): vier gleiche Karten sammeln – Teams 2 gegen 2.
+   Du + Partner (oben) gegen zwei Computer. Wer vier gleiche hat, ruft «Gämsch» (1 Punkt, beide: Doppelgämsch 2 Punkte).
+   Wer es bei den Gegnern merkt, ruft «Gegen-Gämsch» (Punkt für euch) – falsch geraten gibt den Gegnern einen Punkt. Wer zuerst 10 hat, gewinnt.
+   ===================================================================== */
+function gsHasQuad(h){ var c = {}; h.forEach(function(x){ c[x % 9] = (c[x % 9] || 0) + 1; }); return Object.keys(c).some(function(k){ return c[k] >= 4; }); }
+function gsDeal(G){
+  var all = shuffle(Array.apply(null, Array(36)).map(function(_, i){ return i; })), s;
+  G.hands = [[], [], [], []];
+  for(s = 0; s < 4; s++) for(var i = 0; i < 4; i++) G.hands[s].push(all.pop());
+  G.center = [all.pop(), all.pop(), all.pop(), all.pop()]; G.stock = all; G.discard = []; G.passes = 0; G.sel = null; G.selHand = null;
+  G.hands = G.hands.map(tsSort);
+}
+function gsNew(lvl){
+  var names = [API.name], used = {}, s;
+  for(s = 1; s < 4; s++){ var cand = AINAMES[lvl].filter(function(n){ return !used[n]; }), nm = pick(cand.length ? cand : AINAMES[lvl]); used[nm] = 1; names.push(nm); }
+  var G = {gs:true, mode:'gs', cfg:{kind:'gs'}, my:0, seats:names.map(function(n, k){ return {type:k ? 'ai' : 'me', name:n, lvl:lvl}; }), lvl:lvl, turn:0, points:[0, 0], over:false, msg:'Tausche Karten aus der Mitte – sammle vier gleiche.', bubble:null, timer:null, token:0, rounds:0, hint:null};
+  gsDeal(G); return G;
+}
+function gsRefreshCenter(G){
+  G.discard = G.discard.concat(G.center); G.center = [];
+  for(var i = 0; i < 4; i++){ if(!G.stock.length){ G.stock = shuffle(G.discard); G.discard = []; } if(G.stock.length) G.center.push(G.stock.pop()); }
+  G.passes = 0; G.sel = null; G.msg = 'Neue Karten in der Mitte.';
+}
+function gsResolve(G, team, pts, text){
+  G.points[team] += pts; G.msg = text; ton('weis'); G.rounds++;
+  if(G.points[team] >= 10){ G.over = true; setTimeout(function(){ if(S.G === G) gsEnd(G); }, 900); return; }
+  var turn = (G.turn + 1) % 4; gsDeal(G); G.turn = turn;
+}
+function gsCall(G, seat){
+  var team = seat % 2, partner = (seat + 2) % 4, dbl = gsHasQuad(G.hands[partner]);
+  gsResolve(G, team, dbl ? 2 : 1, G.seats[seat].name + ' ruft «' + (dbl ? 'Doppelgämsch' : 'Gämsch') + '»' + (dbl ? ' – 2 Punkte!' : ' – 1 Punkt!'));
+  tsSay(G, seat, dbl ? 'Doppelgämsch!' : 'Gämsch!');
+}
+function gsAiStep(G){
+  var seat = G.turn, h = G.hands[seat], lvl = G.lvl;
+  // Gegen-Gämsch gegen den Menschen / Partner?
+  var foes = [(seat + 1) % 4, (seat + 3) % 4];
+  for(var f = 0; f < 2; f++){
+    var fs = foes[f];
+    if(gsHasQuad(G.hands[fs]) && Math.random() < (lvl === 1 ? 0.25 : lvl === 2 ? 0.55 : 0.9)){
+      gsResolve(G, seat % 2, 1, G.seats[seat].name + ' ruft «Gegen-Gämsch» – Punkt für ' + (seat % 2 === 0 ? 'euch' : 'die Gegner') + '!'); tsSay(G, seat, 'Gegen-Gämsch!'); return;
+    }
+  }
+  if(gsHasQuad(h) && Math.random() < (lvl === 1 ? 0.55 : lvl === 2 ? 0.85 : 1)){ gsCall(G, seat); return; }
+  // Tausch
+  var cnt = {}; h.forEach(function(x){ cnt[x % 9] = (cnt[x % 9] || 0) + 1; });
+  var best = -1, bc = 0; Object.keys(cnt).forEach(function(k){ if(cnt[k] > bc){ bc = cnt[k]; best = +k; } });
+  var want = null; G.center.forEach(function(c, i){ if(c % 9 === best) want = i; });
+  var swapped = false;
+  if(want != null){
+    var giveI = -1, gv = 99; h.forEach(function(x, i){ var cv = cnt[x % 9] - (x % 9 === best ? 0.5 : 0); if(x % 9 !== best && cv < gv){ gv = cv; giveI = i; } });
+    if(giveI >= 0){ var g = h[giveI]; h[giveI] = G.center[want]; G.center[want] = g; swapped = true; }
+  }
+  if(lvl === 1 && Math.random() < 0.3) swapped = swapped && false;
+  if(swapped){ G.passes = 0; G.msg = G.seats[seat].name + ' tauscht eine Karte.'; }
+  else { G.passes++; G.msg = G.seats[seat].name + ' passt.'; }
+  G.hands[seat] = tsSort(h);
+  gsNext(G);
+}
+function gsNext(G){ G.turn = (G.turn + 1) % 4; if(G.passes >= 4) gsRefreshCenter(G); }
+function gsSchedule(G){
+  clearTimeout(G.timer); if(S.G !== G || G.over || G.turn === 0) return;
+  var token = ++G.token;
+  G.timer = setTimeout(function(){ if(S.G !== G || G.token !== token || G.over || G.turn === 0) return; gsAiStep(G); gsAfter(G); }, 900 + rnd(500));
+}
+function gsAfter(G){ draw(); if(!G.over) gsSchedule(G); }
+function gsEnd(G){
+  var win = G.points[0] >= 10;
+  modal('<div class="resbox"><h2>' + (win ? '🏆 Gewonnen!' : 'Die Gegner haben gewonnen') + '</h2><p>Endstand: <b>Ihr ' + G.points[0] + '</b> : <b>Gegner ' + G.points[1] + '</b></p></div><div class="actions"><button class="btn ghost" data-a="neu" type="button">Nochmals</button><button class="btn" data-a="ende" type="button">Zum Menü</button></div>', function(m){
+    m.querySelector('[data-a="ende"]').onclick = verlassen; m.querySelector('[data-a="neu"]').onclick = function(){ closeModal(); startGS(G.lvl); };
+  }, true);
+}
+function startGS(lvl){ closeModal(); var G = gsNew(lvl); S.G = G; S.view = 'game'; refresh(true); gsSchedule(G); }
+function gsSeatHtml(G, seat){
+  var cls = ['me', 'right', 'top', 'left'][seat], sp = G.seats[seat], act = !G.over && G.turn === seat ? ' act' : '';
+  var b = G.bubble && G.bubble.seat === seat && G.bubble.until > Date.now() ? '<div class="bubble">' + esc(G.bubble.text) + '</div>' : '';
+  var nm = '<div class="nm">' + esc(sp.name) + (seat === 2 ? ' <small>Partner</small>' : seat ? ' <small>Gegner</small>' : '') + '</div>', hand;
+  if(seat === 0) hand = '<div class="hand" id="hand">' + G.hands[0].map(function(c, i){ return '<button class="cardbtn ok' + (G.selHand === c ? '' : '') + '" data-gh="' + c + '" type="button" style="' + (G.selHand === c ? 'transform:translateY(-14px)' : '') + '" aria-label="' + esc(cardName(c)) + '">' + cardHtml(c) + '</button>'; }).join('') + '</div>';
+  else hand = '<div class="backs">' + new Array(G.hands[seat].length + 1).join(backHtml()) + '</div>';
+  return '<div class="seat ' + cls + act + '">' + b + (seat === 0 ? '' : nm) + hand + (seat === 0 ? nm : '') + '</div>';
+}
+function gsDrawUi(){
+  var G = S.G, el = $('game'); if(!G) return;
+  var my = G.turn === 0 && !G.over, quad = gsHasQuad(G.hands[0]);
+  var st = G.over ? 'Spiel beendet' : my ? 'Du bist dran: tausche eine Karte aus der Mitte – oder passe' : esc(G.seats[G.turn].name) + ' ist dran …';
+  var center = '<div class="cardrow" style="justify-content:center">' + G.center.map(function(c, i){ return '<button class="cardbtn ' + (my ? 'ok' : '') + '" data-gc="' + i + '" type="button" style="' + (G.sel === i ? 'transform:translateY(-12px)' : '') + '" aria-label="' + esc(cardName(c)) + '">' + cardHtml(c, 'sm') + '</button>'; }).join('') + '</div><div class="muted" style="text-align:center;margin-top:8px">Mitte · Stapel ' + G.stock.length + ' · ' + (G.passes ? G.passes + ' × gepasst' : '') + '</div>';
+  var h = '<div class="stage2"><div><div class="stbar">' + st + (G.msg ? '<small>' + esc(G.msg) + '</small>' : '') + '</div><div class="jtable">' + gsSeatHtml(G, 2) + gsSeatHtml(G, 3) + '<div class="center">' + center + '</div>' + gsSeatHtml(G, 1) + gsSeatHtml(G, 0) + '</div>' +
+    '<div class="ctrls">' + (my ? '<button class="btn sm ghost" data-gs="pass" type="button">Passen</button>' : '') + '<button class="btn sm' + (quad ? '' : ' ghost') + '" data-gs="call" type="button">📣 Gämsch!</button><button class="btn sm ghost" data-gs="counter" type="button">🕵️ Gegen-Gämsch!</button><button class="btn sm ghost" data-a="regeln" type="button">📖 Regeln</button><button class="btn sm ghost" data-a="ende" type="button">Partie beenden</button></div></div>' +
+    '<aside class="sidebox"><div class="tafel"><h4>Gämsch</h4><table><thead><tr><th></th><th>Ihr</th><th>Gegner</th></tr></thead><tbody><tr><td></td><td>' + G.points[0] + '</td><td>' + G.points[1] + '</td></tr></tbody></table><div class="ziel">10 Punkte gewinnen</div></div><div class="liveinfo">Tipp: Karte in der Mitte antippen, dann die Handkarte, die du abgibst. Hast du vier gleiche, sofort <b>Gämsch!</b> rufen – sonst rufen die Gegner «Gegen-Gämsch».<br><br><span class="muted">Vereinfachte Fassung: ohne Geheimzeichen, abwechselnd.</span></div></aside></div>';
+  el.innerHTML = h;
+}
+function bindGS(){
+  $('game').addEventListener('click', function(e){
+    var G = S.G; if(!G || !G.gs) return;
+    var b = e.target.closest('[data-gh],[data-gc],[data-gs]'); if(!b) return;
+    var my = G.turn === 0 && !G.over;
+    if(b.dataset.gs === 'call'){
+      if(G.over) return;
+      if(!gsHasQuad(G.hands[0])){ gsResolve(G, 1, 1, 'Du hast kein Gämsch – Punkt für die Gegner.'); gsAfter(G); return; }
+      gsCall(G, 0); gsAfter(G); return;
+    }
+    if(b.dataset.gs === 'counter'){
+      if(G.over) return;
+      if(gsHasQuad(G.hands[1]) || gsHasQuad(G.hands[3])) gsResolve(G, 0, 1, 'Gegen-Gämsch! Die Gegner hatten vier gleiche – Punkt für euch.');
+      else gsResolve(G, 1, 1, 'Falsch geraten: kein Gämsch bei den Gegnern – Punkt für sie.');
+      gsAfter(G); return;
+    }
+    if(!my) return;
+    if(b.dataset.gs === 'pass'){ G.passes++; G.msg = 'Du passt.'; G.sel = null; G.selHand = null; gsNext(G); gsAfter(G); return; }
+    if(b.dataset.gc != null){ G.sel = G.sel === +b.dataset.gc ? null : +b.dataset.gc; }
+    else if(b.dataset.gh != null){ G.selHand = G.selHand === +b.dataset.gh ? null : +b.dataset.gh; }
+    if(G.sel != null && G.selHand != null){
+      var i = G.hands[0].indexOf(G.selHand), c = G.center[G.sel]; G.hands[0][i] = c; G.center[G.sel] = G.selHand; G.hands[0] = tsSort(G.hands[0]);
+      G.passes = 0; G.msg = 'Du tauschst eine Karte.'; G.sel = null; G.selHand = null; ton('karte'); gsNext(G); gsAfter(G); return;
+    }
+    draw();
+  });
+}
+function gsSetup(){
+  modal('<h2>Gämsch</h2><p class="muted">Du und dein Partner (oben) gegen zwei Computer. Sammelt vier gleiche Karten – Wer zuerst 10 Punkte hat, gewinnt.</p><div class="field"><label class="t">Die drei Computer</label>' + lvlSel('gl', CFG.lvlG) + '</div><div class="actions"><button class="btn ghost" data-a="no" type="button">Abbrechen</button><button class="btn" data-a="go" type="button">Spiel starten</button></div>', function(m){
+    m.querySelector('[data-a="no"]').onclick = closeModal;
+    m.querySelector('[data-a="go"]').onclick = function(){ CFG.lvlG = +m.querySelector('#gl').value; lsSet('jassen_cfg_v1', CFG); startGS(CFG.lvlG); };
+  });
+}
+
+/* =====================================================================
    Erklärbuch
    ===================================================================== */
 var BOOK = {page:'start', ksuit:0, kmode:'trumpf', wsel:[], spick:'schieber'};
@@ -1632,8 +2018,8 @@ var PAGES = [
    '<div class="box"><b>Obenabe</b> ' + sy(4) + '<br>Es gibt keine Stechfarbe. Die Asse sind die stärksten Karten, dann König, ' + esc(RANKN[SET][2]) + ' und so weiter. Das Ass zählt 11 Punkte – aber Achtung: auch die tiefe <b>Acht zählt 8 Punkte</b>.</div>' +
    '<div class="box"><b>Undenufe</b> ' + sy(5) + '<br>Das Gegenstück zum Obenabe: Die <b>Sechser</b> sind die stärksten Karten, gefolgt von Siebner und Achter. Die Sechs gibt 11 Punkte, das Ass nur 0.</div>' +
    '<div class="box"><b>Slalom (Zick-Zack)</b> ' + sy(6) + sy(7) + '<br>Ein Mix aus Obenabe und Undenufe: Nach jedem Stich wechselt die Spielart. Wer zuerst ausspielt, bestimmt, ob oben oder unten begonnen wird – und danach zählen auch die Punktwerte.</div>' +
-   box('Es gibt noch weitere Trumpfarten wie Guschti, Marty, 3×3, Trumpf-Undenufe, Tutti, Mezzo oder Misere. Sie werden nicht überall gespielt.') +
-   '<p>Hier im Spiel kannst du Slalom beim Starten zuschalten.</p>';
+   box('<b>Guschti</b>: Fünf Stiche Obenabe, dann vier Stiche Undenufe (oder umgekehrt) – hier im Spiel zuschaltbar. Es gibt noch weitere Trumpfarten wie Marty, 3×3, Trumpf-Undenufe, Tutti, Mezzo oder Misere. Sie werden nicht überall gespielt.') +
+   '<p>Hier im Spiel kannst du Slalom und Guschti beim Starten zuschalten.</p>';
  }},
  {id:'trumpfansagen', g:'Schieber', t:'Trumpf ansagen', f:function(){
    var m = MULTS[SET];
@@ -1677,7 +2063,7 @@ var PAGES = [
  {id:'handjass', g:'Weitere Jassarten', t:'Handjass', f:function(){
    return '<h2>Handjass</h2><p class="lead">Die einfachste Form des Jassens – für 2 bis 4 Personen.</p>' +
    '<p>Handjass heisst auch <i>Sackjass</i> oder <i>Butzer</i>. Jeder spielt für sich oder in Paaren; man spielt mit den Trumpf-Regeln wie beim Schieber, aber ohne Schieben: Der Trumpf wird meist <b>durch die letzte Karte des Gebers</b> oder die oberste Karte des Stapels bestimmt.</p>' +
-   '<ul><li>Gespielt wird mit 36 Karten, gegen den Uhrzeigersinn.</li><li>Ziel: <b>7 Striche</b> sammeln – die Person, die zuletzt übrig bleibt, hat verloren (so die gängigste Hausregel).</li><li>Nach jeder Runde bekommen die beiden Personen mit den meisten Punkten je einen Strich; wer weniger als <b>26</b> Kartenpunkte hat, bekommt eine «Null» (−1 Strich).</li><li>Der letzte Stich zählt 5 Punkte. <b>Weis</b> und <b>Stöck</b> zählen wie beim Schieber.</li></ul>' + box('Hausregeln unterscheiden sich stark. Vereinbart vor dem Spiel Zielpunkte und Weis ab.', 'warn');
+   '<ul><li>Gespielt wird mit 36 Karten, gegen den Uhrzeigersinn.</li><li>Ziel: <b>7 Striche</b> sammeln – die Person, die zuletzt übrig bleibt, hat verloren (so die gängigste Hausregel).</li><li>Nach jeder Runde bekommen die beiden Personen mit den meisten Punkten je einen Strich; wer weniger als <b>26</b> Kartenpunkte hat, bekommt eine «Null» (−1 Strich).</li><li>Der letzte Stich zählt 5 Punkte. <b>Weis</b> und <b>Stöck</b> zählen wie beim Schieber.</li></ul>' + '<p><button class="btn sm" data-play="handjass" type="button">♣ Handjass gegen den Computer spielen</button></p>' + box('Hausregeln unterscheiden sich stark. Vereinbart vor dem Spiel Zielpunkte und Weis ab. Im Spiel hier gewinnt, wer zuerst 7 Striche hat (ohne Weis).', 'warn');
  }},
  {id:'coiffeur', g:'Weitere Jassarten', t:'Coiffeur', f:function(){
    var rows = [[0, 1], [1, 2], [2, 1], [3, 2]];
@@ -1696,25 +2082,25 @@ var PAGES = [
  {id:'molotow', g:'Weitere Jassarten', t:'Molotow', f:function(){
    return '<h2>Molotow</h2><p class="lead">Der Trumpf ergibt sich erst im Spiel – ein Jass für vier Einzelspieler.</p>' +
    '<ul><li>Vier Personen spielen, jede für sich, mit 36 Karten. Die Karten werden gegen den Uhrzeigersinn in Dreierpaketen ausgeteilt (9 Karten je Person).</li><li>Die Person <b>rechts vom Geber</b> spielt eine beliebige Karte aus. Es gilt Farbe bedienen.</li><li><b>Die erste Karte einer anderen Farbe</b>, die jemand statt zu bedienen spielt, bestimmt <b>die Trumpffarbe</b> für die ganze Runde.</li><li>Danach gelten die üblichen Trumpf-Regeln: Buur und Nell sind die höchsten Trümpfe. Wird nie abgeworfen und gibt es keinen Trumpf, zählt die Acht 8 Punkte.</li><li>Der letzte Stich zählt 5 Punkte.</li></ul>' +
-   '<h3>Wertung (nach 12 Runden)</h3><p>Punkte werden in «Stöcken» (positiv) und «Kartoffeln» (negativ) geschrieben:</p><ul><li>Alle unter 100 Punkten: Höchste und tiefste Person je 1 Stock; die beiden mittleren je 1 Kartoffel.</li><li>Wer 100 bis 156 Punkte hat: 3 Kartoffeln für sie, 3 Stöcke für alle anderen.</li><li>Wer alle 157 Punkte holt: 3 Stöcke für sie, 3 Kartoffeln für alle anderen.</li></ul><p>Wer nach 12 Runden am meisten Stöcke hat, gewinnt.</p>' + box('Molotow wird nicht überall gleich gespielt. Die Wertung folgt einer verbreiteten Regelsammlung (gamerules.com).', 'warn');
+   '<h3>Wertung (nach 12 Runden)</h3><p>Punkte werden in «Stöcken» (positiv) und «Kartoffeln» (negativ) geschrieben:</p><ul><li>Alle unter 100 Punkten: Höchste und tiefste Person je 1 Stock; die beiden mittleren je 1 Kartoffel.</li><li>Wer 100 bis 156 Punkte hat: 3 Kartoffeln für sie, 3 Stöcke für alle anderen.</li><li>Wer alle 157 Punkte holt: 3 Stöcke für sie, 3 Kartoffeln für alle anderen.</li></ul><p>Wer nach 12 Runden am meisten Stöcke hat, gewinnt.</p>' + '<p><button class="btn sm" data-play="molotow" type="button">★ Molotow gegen den Computer spielen</button></p>' + box('Molotow wird nicht überall gleich gespielt. Die Wertung folgt einer verbreiteten Regelsammlung (gamerules.com).', 'warn');
  }},
  {id:'stoeck', g:'Weitere Jassarten', t:'Stöck-Wyss-Stich', f:function(){
    return '<h2>Stöck – Wyss – Stich</h2><p class="lead">Die Zählreihenfolge beim Jassen – und der Name der Jassteppiche.</p>' +
    '<p>Beim Zählen am Ende einer Runde kommt es manchmal darauf an, <b>in welcher Reihenfolge</b> die Punkte gezählt werden – vor allem, wenn beide Teams gleichzeitig die Zielpunktzahl erreichen:</p>' +
    '<ol><li><b>Stöck</b> (König + ' + esc(RANKN[SET][2]) + ' vom Trumpf = 20 Punkte)</li><li><b>Wyss</b> (Weis: Reihen und Vierlinge)</li><li><b>Stich</b> (Punkte aus den Stichen)</li></ol>' +
-   '<p>Wer zuerst die Zielpunkte erreicht, wenn man in dieser Reihenfolge zählt, hat gewonnen. Viele Jassteppiche tragen deshalb die Aufschrift «Stöck · Wys · Stich».</p>' + box('Diese Zählreihenfolge ist eine <b>Hausregel</b> – manche spielen «Stöck-Stich-Wys». Sprecht sie vor dem Spiel ab, dann gibt es keinen Streit.', 'warn');
+   '<p>Wer zuerst die Zielpunkte erreicht, wenn man in dieser Reihenfolge zählt, hat gewonnen. Viele Jassteppiche tragen deshalb die Aufschrift «Stöck · Wys · Stich».</p><p>Im Spiel hier schaltest du die Zählreihenfolge beim Start des Schiebers ein (<i>Stöck–Wys–Stich</i>): Erreichen beide Teams in derselben Runde das Ziel, entscheidet die Reihenfolge Stöck, Weis, Stich – wer dabei zuerst die Zielpunkte hat, gewinnt.</p>' + box('Diese Zählreihenfolge ist eine <b>Hausregel</b> – manche spielen «Stöck-Stich-Wys». Sprecht sie vor dem Spiel ab, dann gibt es keinen Streit.', 'warn');
  }},
  {id:'tschau', g:'Kinderspiele', t:'Tschau-Sepp', f:function(){
    return '<h2>Tschau-Sepp</h2><p class="lead">Das Kartenspiel zum Kennenlernen der Jasskarten.</p>' +
    '<div class="box"><b>Ziel.</b> Gewonnen hat, wer zuerst alle Karten abgelegt und «Sepp» gerufen hat.</div><div class="box"><b>Vorbereitung.</b> Jedes Kind erhält 5 bis 7 Karten. Die restlichen Karten bilden den Stapel, die oberste Karte wird offen daneben gelegt.</div>' +
    '<h3>Ablauf</h3><ul><li>Die aufgedeckte Karte muss der Reihe nach mit einer passenden Karte überdeckt werden: <b>gleiche Farbe</b> oder <b>gleiches Bild</b> (z. B. Dame auf Dame).</li><li>Passt keine, wird eine Karte vom Stapel gezogen (darf sofort gespielt werden, wenn sie passt).</li><li>Bei der <b>vorletzten Karte</b> muss «Tschau» gesagt werden, bei der <b>letzten</b> «Sepp». Vergessen: 2 Karten (Tschau) bzw. 4 Karten (Sepp) aufnehmen.</li></ul>' +
-   '<h3>Spezialregeln</h3><table class="t"><tbody><tr><td>' + cardHtml(C(3, 6), 'xs') + '</td><td class="l"><b>Acht</b>: Das nächste Kind wird übersprungen.</td></tr><tr><td>' + cardHtml(C(0, 3), 'xs') + '</td><td class="l"><b>' + esc(RANKN[SET][3]) + '</b>: Mit dem ' + esc(RANKN[SET][3]) + ' darf man eine Farbe wählen.</td></tr><tr><td>' + cardHtml(C(1, 0), 'xs') + '</td><td class="l"><b>Ass</b>: muss mit einer Karte derselben Farbe gedeckt werden, sonst Karte ziehen.</td></tr><tr><td>' + cardHtml(C(0, 8), 'xs') + '</td><td class="l"><b>Sechs</b>: Man darf die Karte mit einem anderen Kind tauschen.</td></tr><tr><td>' + cardHtml(C(3, 4), 'xs') + '</td><td class="l"><b>Banner/Zehn</b>: Die Spielrichtung wechselt.</td></tr><tr><td>' + cardHtml(C(2, 7), 'xs') + '</td><td class="l"><b>Sieben</b>: Das nächste Kind muss 2 Karten aufnehmen. Mit einer weiteren 7 kann weitergegeben werden: dann 4, dann 6 Karten …</td></tr></tbody></table>';
+   '<h3>Spezialregeln</h3><table class="t"><tbody><tr><td>' + cardHtml(C(3, 6), 'xs') + '</td><td class="l"><b>Acht</b>: Das nächste Kind wird übersprungen.</td></tr><tr><td>' + cardHtml(C(0, 3), 'xs') + '</td><td class="l"><b>' + esc(RANKN[SET][3]) + '</b>: Mit dem ' + esc(RANKN[SET][3]) + ' darf man eine Farbe wählen.</td></tr><tr><td>' + cardHtml(C(1, 0), 'xs') + '</td><td class="l"><b>Ass</b>: muss mit einer Karte derselben Farbe gedeckt werden, sonst Karte ziehen.</td></tr><tr><td>' + cardHtml(C(0, 8), 'xs') + '</td><td class="l"><b>Sechs</b>: Man darf die Karte mit einem anderen Kind tauschen.</td></tr><tr><td>' + cardHtml(C(3, 4), 'xs') + '</td><td class="l"><b>Banner/Zehn</b>: Die Spielrichtung wechselt.</td></tr><tr><td>' + cardHtml(C(2, 7), 'xs') + '</td><td class="l"><b>Sieben</b>: Das nächste Kind muss 2 Karten aufnehmen. Mit einer weiteren 7 kann weitergegeben werden: dann 4, dann 6 Karten …</td></tr></tbody></table><p><button class="btn sm" data-play="tschau" type="button">🂱 Tschau-Sepp gegen den Computer spielen</button></p>' + box('Im Spiel hier darfst du nur ziehen, wenn keine Karte passt. Der Bauer darf auf jede Karte gespielt werden. Das Ass legst du selbst mit einer Karte derselben Farbe nach – sonst ziehst du eine Karte.', 'warn');
  }},
  {id:'gaemsch', g:'Kinderspiele', t:'Gämsch', f:function(){
    return '<h2>Gämsch</h2><p class="lead">Teamspiel mit Geheimzeichen – wer sammelt vier gleiche?</p>' +
    '<div class="box"><b>Ziel.</b> Sammle vier Karten vom gleichen Wert, z. B. alle vier ' + esc(RANKN[SET][3]) + ' oder alle vier Zehner.</div><div class="box"><b>Vorbereitung.</b> Es werden 2er-Teams gebildet, die sich gegenübersitzen. Jedes Kind erhält 4 Karten, 4 Karten liegen offen in der Mitte, der Rest bildet den Stapel.</div>' +
    '<h3>Ablauf</h3><ul><li>Alle dürfen Karten aus der Mitte mit ihren Handkarten tauschen – «je schneller, desto besser». Wer eine Karte nimmt, muss eine Handkarte ablegen. Mag niemand mehr tauschen, werden die vier offenen Karten entfernt und neue aufgedeckt.</li><li>Hat jemand vier gleiche Karten, wird das dem Teammitglied mit dem <b>Geheimzeichen</b> mitgeteilt. Das Teammitglied ruft «<b>Gämsch</b>» – die Runde ist gewonnen.</li><li>Haben beide im Team ein Gämsch, kann «<b>Doppelgämsch</b>» gerufen werden.</li><li>Merken die Gegner, dass du ein Gämsch hast, rufen sie «<b>Gegen-Gämsch</b>» – dann geht der Punkt an die Gegner.</li></ul>' +
-   '<h3>Wer gewinnt?</h3><p>Gämsch und Gegen-Gämsch geben <b>1 Punkt</b>, Doppelgämsch und das Erraten des Geheimzeichens <b>2 Punkte</b>. Wird falsch geraten, bekommen die Gegner einen Punkt. Wer zuerst <b>10 Punkte</b> hat, gewinnt.</p>';
+   '<h3>Wer gewinnt?</h3><p>Gämsch und Gegen-Gämsch geben <b>1 Punkt</b>, Doppelgämsch und das Erraten des Geheimzeichens <b>2 Punkte</b>. Wird falsch geraten, bekommen die Gegner einen Punkt. Wer zuerst <b>10 Punkte</b> hat, gewinnt.</p><p><button class="btn sm" data-play="gaemsch" type="button">🐐 Gämsch gegen den Computer spielen</button></p>' + box('Im Spiel hier wird abwechselnd getauscht und es gibt keine Geheimzeichen – ein vereinfachtes Gämsch.', 'warn');
  }},
  {id:'glossar', g:'Hilfsmittel', t:'Glossar', f:function(){
    var gl = [['Stich', 'Die vier Karten, die in einer Runde ausgespielt werden. Wer die stärkste legt, gewinnt sie.'], ['Vorhand', 'Die Person rechts vom Geber – sie spielt zuerst aus (und sagt im Schieber den Trumpf an).'], ['Geber', 'Wer mischt und austeilt.'], ['Trumpf', 'Die stärkste Farbe der Runde. Trumpf sticht jede andere Farbe.'], ['Buur / Bauer / Under', 'Der Bube der Trumpffarbe: die höchste Trumpfkarte (20 Punkte).'], ['Nell', 'Die Neun der Trumpffarbe: zweithöchste Karte (14 Punkte).'], ['Obenabe', 'Spielart ohne Trumpf: das Ass ist die stärkste Karte.'], ['Undenufe', 'Spielart ohne Trumpf: die Sechs ist die stärkste Karte.'], ['Slalom', 'Wechsel zwischen Obenabe und Undenufe nach jedem Stich.'], ['Schieben', 'Das Ansagen des Trumpfs an den Partner abgeben (nur Vorhand, nur einmal).'], ['Farbe bedienen / Leih halten', 'Die ausgespielte Farbe zugeben, wenn man sie hat.'], ['Stechen', 'Mit einem Trumpf einen Stich holen, wenn man die Farbe nicht hat.'], ['Untertrumpfen', 'Mit einem kleineren Trumpf stechen, als schon liegt – verboten.'], ['Schmieren', 'Eine wertvolle Karte auf den Stich des Partners legen.'], ['Weis', 'Reihe oder vier Gleiche, die Extrapunkte geben.'], ['Stöck', 'König und Ober/Dame der Trumpffarbe zusammen: 20 Punkte.'], ['Match', 'Ein Team holt alle 9 Stiche: 100 Zusatzpunkte.'], ['Bock', 'Eine Karte, die garantiert sticht (die höchste noch im Spiel).'], ['Ansage', 'Das Bekanntgeben von Trumpf oder Punkten.']];
@@ -1764,7 +2150,9 @@ function bindBuch(){
     else if(d.print){ window.print(); }
     else if(d.ue){ UE.kind = d.ue; UE.q = null; S.view = 'ueben'; refresh(true); window.scrollTo(0, 0); }
     else if(d.v){ S.view = d.v; refresh(true); }
-    else if(d.play){ S.view = 'menu'; refresh(true); setupDialog('ai', d.play === 'oben' ? 4 : d.play === 'unden' ? 5 : d.play === 'coiffeur' ? 'coiffeur' : d.play === 'differenzler' ? 'differenzler' : null); }
+    else if(d.play === 'tschau'){ S.view = 'menu'; refresh(true); tsSetup(); }
+    else if(d.play === 'gaemsch'){ S.view = 'menu'; refresh(true); gsSetup(); }
+    else if(d.play){ S.view = 'menu'; refresh(true); setupDialog('ai', d.play === 'oben' ? 4 : d.play === 'unden' ? 5 : d.play === 'coiffeur' ? 'coiffeur' : d.play === 'differenzler' || d.play === 'handjass' || d.play === 'molotow' ? d.play : null); }
   });
 }
 
@@ -1902,7 +2290,7 @@ function init(){
   $('soundBtn').textContent = S.muted ? '🔇' : '🔊';
   $('soundBtn').onclick = function(){ S.muted = !S.muted; lsSet('jassen_mute', S.muted); $('soundBtn').textContent = S.muted ? '🔇' : '🔊'; if(!S.muted) ton('neu'); };
   window.__jassRedraw = function(){ refresh(true); };
-  bindGame(); bindBuch();
+  bindGame(); bindBuch(); bindTS(); bindGS();
   S.unsubFrei = API.freigabeWatch(function(f){ S.frei = f; refresh(true); });
   refresh(true);
   if(status().offen) startLobby();
