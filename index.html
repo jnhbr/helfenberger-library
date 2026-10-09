@@ -584,6 +584,12 @@
   .search-result-path{font-size:12px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px;margin-bottom:16px;}
   .homework-card{border-left:5px solid #4361EE;}
+  .heute-dran{border-left-color:#2E8B57;}
+  .chip-niv{display:inline-block;min-width:1.5em;text-align:center;padding:0 6px;border-radius:999px;font-size:.72em;font-weight:700;color:#fff;vertical-align:middle;}
+  .chip-niv-A{background:#2E8B57;} .chip-niv-B{background:#4361EE;} .chip-niv-C{background:#8B5CF6;}
+  .hd-zeile{display:flex;gap:10px;align-items:center;justify-content:space-between;padding:6px 0;border-top:1px solid rgba(128,128,128,.2);}
+  .hd-zeile:first-child{border-top:0;}
+  .hd-zeile span{min-width:0;}
   .cal-ferien-item{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:6px 14px 6px 17px;border-left:3px dashed var(--border);font-size:12.5px;color:var(--text-muted);}
   .cal-ferien-item b{color:var(--text);font-weight:600;}
   .eb-kal-tag{display:inline-block;margin-left:4px;padding:1px 8px;border-radius:999px;background:color-mix(in srgb, #D97706 15%, var(--surface));color:#B45309;font-weight:700;font-size:12.5px;}
@@ -2810,7 +2816,7 @@
   :root[data-design="neu"] .neu-mehr-btn{order:10;display:inline-flex;}
   :root[data-design="neu"] #settingsBtn{order:12;}
   :root[data-design="neu"] .topbar-offline{order:13;}
-  :root[data-design="neu"] #goLiveBtn{order:14;}
+  :root[data-design="neu"] #goLiveBtn
   :root[data-design="neu"] .topbar-todo-badge{background:var(--blau);color:#1D1D1B;}
   :root[data-design="neu"] .topbar-todo-badge.due{background:var(--bad);color:#FFFFFF;}
   :root[data-design="neu"] .neu-nav{display:flex;flex-wrap:wrap;gap:4px;order:20;flex:1 1 100%;}
@@ -3479,7 +3485,13 @@ function isLeitung(){ return !!(state.profile && state.profile.leitung); }
 // sind aber nur für Lehrpersonen sichtbar (Feld nurLehrer:true). Wie beim Lehrerbereich ein
 // Filter in der App — überall, wo Schüler:innen Übungen sehen, sowie in Lernstand/Prüfungen.
 function istLehrerHtml(r){ return !!(r && r.nurLehrer); }
-function fuerRolleSichtbar(r){ return !istLehrerHtml(r) || !!(state.profile && state.profile.role === 'teacher'); }
+function fuerRolleSichtbar(r){
+  var lehrer = !!(state.profile && state.profile.role === 'teacher');
+  if(istLehrerHtml(r) && !lehrer) return false;
+  // 🎯 Differenzierung: r.nurFuer = [uid, …] → nur diese Schüler:innen sehen die Übung.
+  if(r && Array.isArray(r.nurFuer) && !lehrer && !(state.user && r.nurFuer.indexOf(state.user.uid) >= 0)) return false;
+  return true;
+}
 /* ===================== 🎒 ANSICHT ALS SCHÜLER:IN (Lehrpersonen) =====================
    Lehrpersonen (nicht Schulleitung, nicht Praktikum/Zivi) können unter ⚙️ Einstellungen
    direkt in die Ansicht einer Schülerin / eines Schülers wechseln (welche:r, merkt sich
@@ -4183,23 +4195,55 @@ function uiCalendarEntryForm(existing, onSaved){
       }
       if(!existing) lsSet(fuerKey(), gid);
     }
-    try{
-      if(existing){
-        await setDoc(calendarEntryRef(existing), data, {merge:true});
-      } else {
-        data.createdAt = serverTimestamp();
-        data.createdBy = state.user.uid;
-        var newId = (isPrivate ? 'mine_' : 'cal_')+Date.now()+'_'+Math.random().toString(36).slice(2,8);
-        await setDoc(isPrivate ? doc(eigeneEintraegeCol(), newId) : kdoc('calendarEntries', newId), data);
+    async function speichern(){
+      try{
+        if(existing){
+          await setDoc(calendarEntryRef(existing), data, {merge:true});
+        } else {
+          data.createdAt = serverTimestamp();
+          data.createdBy = state.user.uid;
+          var newId = (isPrivate ? 'mine_' : 'cal_')+Date.now()+'_'+Math.random().toString(36).slice(2,8);
+          await setDoc(isPrivate ? doc(eigeneEintraegeCol(), newId) : kdoc('calendarEntries', newId), data);
+        }
+        closeModal();
+        toast(existing ? 'Eintrag aktualisiert.' : 'Eintrag hinzugefügt.');
+        onSaved();
+      }catch(err){
+        console.error(err);
+        errEl.textContent = 'Konnte nicht gespeichert werden.'; errEl.classList.add('show');
+        toast('Konnte nicht gespeichert werden.');
       }
-      closeModal();
-      toast(existing ? 'Eintrag aktualisiert.' : 'Eintrag hinzugefügt.');
-      onSaved();
-    }catch(err){
-      console.error(err);
-      errEl.textContent = 'Konnte nicht gespeichert werden.'; errEl.classList.add('show');
     }
+    // 📝 Prüfungs-Kollision: am selben Tag schon eine Prüfung oder in der Woche schon drei → Rückfrage.
+    if(type === 'pruefung' && !isPrivate && state.profile.role === 'teacher'){
+      try{
+        var warn = await pruefKollisionen(dueDate, existing && existing.id, data.gruppeId ? data.mitglieder : null);
+        if(warn){ uiConfirm('📝 Viele Prüfungen', warn, 'Trotzdem eintragen', speichern); return; }
+      }catch(err){ console.warn('Kollisionsprüfung', err); }
+    }
+    await speichern();
   });
+}
+// Liefert einen Warntext, wenn am Datum schon eine Prüfung der Klasse (bzw. der Gruppe) liegt
+// oder in derselben Woche (Mo–Fr) schon drei. Eigene Prüfungen mit `ausId` zählen nicht mit.
+async function pruefKollisionen(datum, ausId, mitglieder){
+  var d = new Date(datum + 'T12:00:00'), wt = (d.getDay() + 6) % 7;
+  var mo = new Date(d); mo.setDate(d.getDate() - wt);
+  var so = new Date(mo); so.setDate(mo.getDate() + 6);
+  var von = localDateStr(mo), bis = localDateStr(so);
+  var alle = await loadCalendarEntries(von);
+  var noch = alle.filter(function(e){
+    if(e.type !== 'pruefung' || e.id === ausId || !e.dueDate || e.dueDate > bis || e.private) return false;
+    if(mitglieder && e.mitglieder && !e.mitglieder.some(function(u){ return mitglieder.indexOf(u) >= 0; })) return false;
+    if(e.gruppeId && !mitglieder) return false;
+    return true;
+  });
+  var tag = noch.filter(function(e){ return e.dueDate === datum; });
+  var fmt = function(e){ return new Date(e.dueDate + 'T12:00:00').toLocaleDateString('de-CH', {weekday:'short', day:'numeric', month:'numeric'}) + ' ' + (e.title || 'Prüfung'); };
+  var t = [];
+  if(tag.length) t.push('Am selben Tag ist schon eine Prüfung eingetragen: ' + tag.map(fmt).join(', ') + '.');
+  if(noch.length >= 3) t.push('In dieser Woche sind schon ' + noch.length + ' Prüfungen eingetragen (' + noch.map(fmt).join('; ') + ').');
+  return t.length ? t.join(' ') + ' Mehr als eine pro Tag oder drei pro Woche gilt als zu viel.' : '';
 }
 
 // Einmal pro Klasse und 5 Minuten laden (wird an über zehn Stellen gebraucht);
@@ -10182,6 +10226,7 @@ function renderHome(){
   html += '<div id="aemtliBanner"></div>';
   html += '<div id="stpJetzt"></div>';
   html += '<div id="homeworkWidget"></div>';
+  html += '<div id="heuteDran"></div>';
   html += '<div class="subject-grid" id="subjectGrid">';
   var visibleSubjects = kachelnSichtbar(isTeacher);
   visibleSubjects.forEach(function(s){
@@ -10219,6 +10264,7 @@ function renderHome(){
   initKachelSort();
   renderStpJetzt();
   renderHomeworkWidget();
+  renderHeuteDran();
   renderAemtliBanner();
 
   // subscribe to all visible subjects' resource counts (light overview)
@@ -10250,6 +10296,83 @@ function renderHomeworkWidget(){
   }).catch(function(err){ console.error(err); });
 }
 
+/* ---------- 🔁 Heute dran (Startseite, nur Schüler:innen) ----------
+   Wiederholen nach Abständen, übergreifend über alle Übungen:
+   - Karteikarten: die fälligen Karten aus den Leitner-Boxen (progress/{uid}/resources/kk_<Set>.kk.boxen).
+   - Übungen: wer eine Übung länger nicht mehr geöffnet hat, bekommt sie wieder vorgeschlagen — nach
+     Abstand je nach letztem Ergebnis (unter 60 % → 2 Tage, unter 80 % → 5, unter 95 % → 10, sonst 21).
+   Eine Leseabfrage auf die eigenen Fortschritts-Dokumente, 10 Minuten zwischengespeichert.
+   Ausblendbar wie die anderen Startseiten-Widgets (start:heuteDran). */
+var heuteDranDaten = {uid:null, at:0, docs:null, promise:null};
+function heuteDranLaden(){
+  var uid = state.user.uid;
+  if(heuteDranDaten.uid === uid && heuteDranDaten.docs && Date.now() - heuteDranDaten.at < 10*60*1000) return Promise.resolve(heuteDranDaten.docs);
+  if(heuteDranDaten.uid === uid && heuteDranDaten.promise) return heuteDranDaten.promise;
+  var p = getDocs(collection(db, 'progress', uid, 'resources')).then(function(snap){
+    var out = []; snap.forEach(function(d){ out.push(Object.assign({id:d.id}, d.data())); });
+    heuteDranDaten = {uid:uid, at:Date.now(), docs:out, promise:null};
+    return out;
+  }).catch(function(err){ if(heuteDranDaten.promise === p) heuteDranDaten.promise = null; throw err; });
+  heuteDranDaten = {uid:uid, at:0, docs:null, promise:p};
+  return p;
+}
+function heuteDranRechnen(docs, kkSets, klassenUebungen){
+  var heute = todayStr(), jetzt = Date.now(), kk = [], uebungen = [];
+  docs.forEach(function(d){
+    if(d.id.indexOf('kkserie_') === 0) return;
+    if(d.id.indexOf('kk_') === 0){
+      var set = kkSets.filter(function(x){ return 'kk_' + x.id === d.id; })[0];
+      if(!set || !d.kk || !d.kk.boxen) return;
+      var n = 0; Object.keys(d.kk.boxen).forEach(function(k){ var b = d.kk.boxen[k]; if(b && (!b.f || b.f <= heute)) n++; });
+      if(n) kk.push({set:set, n:n});
+      return;
+    }
+    var res = klassenUebungen[d.id];
+    if(!res || res.imHub || !fuerRolleSichtbar(res)) return;
+    var sum = learnedSummary(d);
+    if(!sum || sum.kind !== 'quiz' || sum.pct == null) return;
+    var ms = d.updatedAt && d.updatedAt.toMillis ? d.updatedAt.toMillis() : 0;
+    if(!ms) return;
+    var tage = (jetzt - ms) / 86400000, abstand = sum.pct < 60 ? 2 : sum.pct < 80 ? 5 : sum.pct < 95 ? 10 : 21;
+    if(tage >= abstand) uebungen.push({res:res, pct:sum.pct, tage:Math.floor(tage), score:tage / abstand + (100 - sum.pct) / 200});
+  });
+  kk.sort(function(a, b){ return b.n - a.n; });
+  uebungen.sort(function(a, b){ return b.score - a.score; });
+  return {kk:kk.slice(0, 3), kkGesamt:kk.reduce(function(a, x){ return a + x.n; }, 0), uebungen:uebungen.slice(0, 3)};
+}
+function renderHeuteDran(){
+  var el = document.getElementById('heuteDran');
+  if(!el) return;
+  el.setAttribute('data-ausblendbar', 'start:heuteDran');
+  var aus = layoutIstAus('start:heuteDran');
+  el.classList.toggle('layout-aus', aus);
+  if(aus || !state.user || !state.profile || state.profile.role === 'teacher' || isLeitung() || !overview.snap){ if(!el.dataset.fest) el.innerHTML = ''; return; }
+  var uid = state.user.uid;
+  Promise.all([heuteDranLaden(), kkLoad()]).then(function(r){
+    var host = document.getElementById('heuteDran');
+    if(!host || !state.user || state.user.uid !== uid || !overview.snap) return;
+    var klassenU = {};
+    overview.snap.docs.forEach(function(d){ klassenU[d.id] = Object.assign({id:d.id}, d.data()); });
+    var z = heuteDranRechnen(r[0], r[1], klassenU);
+    if(!z.kk.length && !z.uebungen.length){ host.innerHTML = ''; return; }
+    var h = '<div class="card homework-card heute-dran"><h3 style="margin-top:0;">🔁 Heute dran</h3><p class="kz-intro" style="margin:0 0 8px;">Wiederholen hilft am meisten, wenn du es kurz vor dem Vergessen nochmals machst.</p><div class="hd-liste">';
+    z.kk.forEach(function(x){
+      h += '<div class="hd-zeile"><span>🗂️ <b>'+esc(x.set.titel)+'</b> · '+x.n+' Karte'+(x.n === 1 ? '' : 'n')+' fällig</span><button class="btn btn-primary btn-sm" type="button" data-hd="kk:'+esc(x.set.id)+'">Üben</button></div>';
+    });
+    z.uebungen.forEach(function(x){
+      h += '<div class="hd-zeile"><span>📘 <b>'+esc(String(x.res.title || x.res.fileName || 'Übung'))+'</b> · zuletzt vor '+x.tage+' Tag'+(x.tage === 1 ? '' : 'en')+', '+x.pct+' % richtig</span><button class="btn btn-ghost btn-sm" type="button" data-hd="res:'+esc(x.res.id)+'">Auffrischen</button></div>';
+    });
+    h += '</div></div>';
+    host.innerHTML = h;
+    host.onclick = function(e){
+      var b = e.target.closest('[data-hd]'); if(!b) return;
+      var a = b.getAttribute('data-hd'), i = a.indexOf(':'), art = a.slice(0, i), id = a.slice(i + 1);
+      if(art === 'kk'){ var set = kkSetById(id); if(set) goResource(kkRes(set)); }
+      else if(klassenU[id]) goResource(klassenU[id]);
+    };
+  }).catch(function(err){ console.warn('Heute dran', err); });
+}
+
 /* Übersicht auf der Startseite (Anzahl Übungen pro Fach): EIN Listener auf
    alle Übungen der offenen Klasse statt einer pro Fach. Er bleibt über
    Seitenwechsel hinweg bestehen (render() baut ihn nicht mehr ab) — zurück auf
@@ -10273,6 +10396,7 @@ function stopOverviewListener(){
 }
 function paintSubjectsOverview(){
   var proFach = {};
+  setTimeout(renderHeuteDran, 0);
   overview.snap.docs.forEach(function(d){
     var x = d.data();
     if(!fuerRolleSichtbar(x) || x.imHub) return;
@@ -14365,6 +14489,8 @@ function renderFolderContents(){
     if(replBtn) replBtn.addEventListener('click', function(){ pickReplacementFile(r); });
     var ueditBtn = document.getElementById('uedit-'+r.id);
     if(ueditBtn) ueditBtn.addEventListener('click', function(){ openUebungEditor(r); });
+    var zuBtn = document.getElementById('zu-'+r.id);
+    if(zuBtn) zuBtn.addEventListener('click', function(){ uebungZuweisenDialog(r); });
     var lpBtn = document.getElementById('lp-'+r.id);
     if(lpBtn) lpBtn.addEventListener('click', function(){
       lpBtn.disabled = true;
@@ -14634,6 +14760,63 @@ function toggleCurrent(resources, r){
   batch.commit().catch(function(err){ console.error(err); toast('Aktualisieren fehlgeschlagen.'); });
 }
 
+/* ---------- 🎯 Differenzierung: Niveau und Zuweisung pro Übung ----------
+   resources/{id}.niveau 'A' (Grundlagen) | 'B' (Standard) | 'C' (Vertiefung) → Abzeichen bei der Übung, für alle sichtbar.
+   resources/{id}.nurFuer [uid, …] → nur diese Schüler:innen sehen die Übung (Lehrpersonen immer alle).
+   Beides wird mit updateDoc/deleteField gesetzt bzw. entfernt (kein merge). Versteckt wird in der App
+   (fuerRolleSichtbar), nicht in den Regeln — es geht um Passung, nicht um Geheimhaltung. */
+var NIVEAU_TEXT = {A:'A · Grundlagen', B:'B · Standard', C:'C · Vertiefung'};
+function niveauChipHtml(r, isTeacher){
+  var h = '';
+  if(r.niveau && NIVEAU_TEXT[r.niveau]) h += ' <span class="chip-niv chip-niv-'+esc(r.niveau)+'" title="'+esc(NIVEAU_TEXT[r.niveau])+'">'+esc(r.niveau)+'</span>';
+  if(isTeacher && Array.isArray(r.nurFuer)) h += ' <span class="chip-lehrer" title="Nur diese Personen sehen die Übung">🎯 '+r.nurFuer.length+' Pers.</span>';
+  return h;
+}
+function uebungZuweisenDialog(r){
+  loadStudentRoster().then(function(roster){
+    roster = roster.filter(function(x){ return !x.gruppenGast; }).sort(function(a, b){ return String(a.displayName || a.username).localeCompare(String(b.displayName || b.username), 'de'); });
+    var gewaehlt = {}; (Array.isArray(r.nurFuer) ? r.nurFuer : []).forEach(function(u){ gewaehlt[u] = true; });
+    var auswahl = Array.isArray(r.nurFuer);
+    var h = '<h3>🎯 Zuweisen: '+esc(r.title || r.fileName)+'</h3>'+
+      '<label class="modal-label">Niveau (Abzeichen bei der Übung)</label><select id="zuNiv" class="modal-input">'+
+        '<option value="">– keins –</option>'+Object.keys(NIVEAU_TEXT).map(function(k){ return '<option value="'+k+'"'+(r.niveau === k ? ' selected' : '')+'>'+esc(NIVEAU_TEXT[k])+'</option>'; }).join('')+'</select>'+
+      '<label class="modal-label">Wer sieht diese Übung?</label>'+
+      '<label class="lp-check"><input type="radio" name="zuWer" value="alle"'+(auswahl ? '' : ' checked')+'> <span>Die ganze Klasse</span></label>'+
+      '<label class="lp-check"><input type="radio" name="zuWer" value="auswahl"'+(auswahl ? ' checked' : '')+'> <span>Nur ausgewählte Personen</span></label>'+
+      '<div id="zuListe" style="'+(auswahl ? '' : 'display:none;')+'margin:6px 0;"><div class="back-row" style="flex-wrap:wrap;margin:0 0 6px;"><button class="btn btn-ghost btn-sm" id="zuAlle" type="button">Alle</button><button class="btn btn-ghost btn-sm" id="zuKeine" type="button">Keine</button><span id="zuGruppen"></span></div>'+
+      '<div style="max-height:34vh;overflow:auto;">'+roster.map(function(x){
+        return '<label class="lp-check"><input type="checkbox" data-zu="'+esc(x.uid)+'"'+(gewaehlt[x.uid] ? ' checked' : '')+'> <span>'+esc(x.displayName || x.username)+'</span></label>';
+      }).join('')+'</div></div><p class="kz-intro" id="zuHinweis" style="margin:4px 0;"></p>'+
+      '<div class="modal-actions"><button class="btn btn-ghost btn-sm" id="modalCancel" type="button">Abbrechen</button><button class="btn btn-primary btn-sm" id="zuOk" type="button">Speichern</button></div>';
+    openModal(h);
+    var liste = document.getElementById('zuListe');
+    function boxen(){ return Array.prototype.slice.call(document.querySelectorAll('[data-zu]')); }
+    Array.prototype.forEach.call(document.querySelectorAll('[name=zuWer]'), function(rb){ rb.addEventListener('change', function(){ liste.style.display = document.querySelector('[name=zuWer]:checked').value === 'auswahl' ? '' : 'none'; }); });
+    document.getElementById('zuAlle').addEventListener('click', function(){ boxen().forEach(function(b){ b.checked = true; }); });
+    document.getElementById('zuKeine').addEventListener('click', function(){ boxen().forEach(function(b){ b.checked = false; }); });
+    document.getElementById('modalCancel').addEventListener('click', closeModal);
+    // Eigene 👥 Gruppen als Schnellwahl
+    if(!isLeitung()) loadMeineGruppen().then(function(gs){
+      var host = document.getElementById('zuGruppen'); if(!host) return;
+      gs.filter(function(g){ return gruppeHatFach(g, r.subject); }).slice(0, 6).forEach(function(g){
+        var b = document.createElement('button'); b.type = 'button'; b.className = 'btn btn-ghost btn-sm'; b.textContent = '👥 ' + g.name;
+        b.addEventListener('click', function(){ boxen().forEach(function(c){ if((g.mitglieder || []).indexOf(c.getAttribute('data-zu')) >= 0) c.checked = true; }); });
+        host.appendChild(b);
+      });
+    }).catch(function(){});
+    document.getElementById('zuOk').addEventListener('click', function(){
+      var nur = document.querySelector('[name=zuWer]:checked').value === 'auswahl';
+      var uids = boxen().filter(function(b){ return b.checked; }).map(function(b){ return b.getAttribute('data-zu'); });
+      if(nur && !uids.length){ document.getElementById('zuHinweis').textContent = 'Bitte mindestens eine Person wählen (oder «Die ganze Klasse»).'; return; }
+      var niv = document.getElementById('zuNiv').value;
+      var patch = {niveau: niv || deleteField(), nurFuer: nur ? uids : deleteField()};
+      updateDoc(kdoc('resources', r.id), patch).then(function(){
+        closeModal();
+        toast(nur ? '🎯 Nur '+uids.length+' Person'+(uids.length === 1 ? '' : 'en')+' sehen diese Übung.' : (niv ? 'Niveau ' + niv + ' gesetzt, die ganze Klasse sieht die Übung.' : 'Die ganze Klasse sieht die Übung.'));
+      }).catch(function(err){ console.error(err); toast('Hat nicht geklappt.'); });
+    });
+  }).catch(function(err){ console.error(err); toast('Klasse konnte nicht geladen werden.'); });
+}
 function resourceCardHtml(r, index, total, isTeacher){
   if(r.kzm) return kzmCardHtml(r);
   if(r.kzmPruef) return kzmPruefCardHtml(r);
@@ -14682,7 +14865,7 @@ function resourceCardHtml(r, index, total, isTeacher){
     html += '<button class="move-btn" id="down-'+r.id+'" type="button" title="Nach unten"'+(index===total-1?' disabled':'')+'><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></button>';
     html += '</div>';
   }
-  html += '<div class="resource-info"><h4>'+esc(r.title || r.fileName)+(r.current?' <span class="chip-current">Aktuell</span>':'')+(lp?' <span class="chip-lehrer">🔒 Nur Lehrpersonen</span>':'')+'</h4>';
+  html += '<div class="resource-info"><h4>'+esc(r.title || r.fileName)+(r.current?' <span class="chip-current">Aktuell</span>':'')+(lp?' <span class="chip-lehrer">🔒 Nur Lehrpersonen</span>':'')+niveauChipHtml(r, isTeacher)+'</h4>';
   if(!lp) html += '<div class="resource-bar"><span id="pbar-'+r.id+'" style="width:0%;background:var(--brand)"></span></div>';
   var metaStart = lp ? 'Lehrer-HTML · für Schüler:innen unsichtbar' : r.pdf ? '📄 PDF' : r.externalUrl ? '🔗 Link · öffnet in neuem Tab' : 'Noch nicht geübt';
   html += '<div class="resource-meta" id="pmeta-'+r.id+'">'+metaStart+(uploaded?' · hinzugefügt am '+uploaded:'')+'</div>';
@@ -14690,6 +14873,7 @@ function resourceCardHtml(r, index, total, isTeacher){
   html += '<div class="resource-actions">';
   html += '<button class="btn btn-primary btn-sm" id="open-'+r.id+'">Öffnen</button>';
   if(isTeacher){
+    if(!lp) html += '<button class="btn btn-sm btn-lehrer'+(r.niveau || Array.isArray(r.nurFuer) ? ' active' : '')+'" id="zu-'+r.id+'" type="button" title="Niveau A/B/C setzen und festlegen, wer diese Übung sieht">🎯 Zuweisen</button>';
     if(!r.externalUrl && !r.pdf) html += '<button class="btn btn-sm btn-lehrer'+(lp?' active':'')+'" id="lp-'+r.id+'" type="button" title="'+(lp?'Wieder für alle sichtbar machen':'Nur für Lehrpersonen sichtbar machen (z. B. Unterrichtsplanung)')+'">'+(lp?'🔓 Für alle sichtbar machen':'🔒 Nur Lehrpersonen')+'</button>';
     if(!r.externalUrl && !lp){
       html += '<button class="btn btn-sm btn-current'+(r.current?' active':'')+'" id="cur-'+r.id+'">'+(r.current?'Nicht mehr aktuell':'Als aktuell markieren')+'</button>';
@@ -21049,6 +21233,11 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-10-09-differenzierung', datum:'2026-10-09', fuer:'lehrer', text:'🎯 Differenzierung: Bei jeder Übung gibt es «🎯 Zuweisen». Du setzt ein Niveau (A Grundlagen, B Standard, C Vertiefung) als Abzeichen und kannst festlegen, dass nur ausgewählte Personen (oder eine deiner 👥 Gruppen) die Übung sehen. Lehrpersonen sehen immer alles, ein Chip «🎯 n Pers.» zeigt dir die Einschränkung.'},
+  {id:'2026-10-09-niveau', datum:'2026-10-09', fuer:'alle', text:'🎯 Manche Übungen haben ein Abzeichen A, B oder C: A sind die Grundlagen, B der Standard, C die Vertiefung. Deine Lehrperson kann Übungen auch gezielt einzelnen Personen zuteilen.'},
+  {id:'2026-10-09-heute-dran', datum:'2026-10-09', fuer:'alle', text:'🔁 Auf der Startseite gibt es «Heute dran»: Dort siehst du, welche Karteikarten heute fällig sind und welche Übungen du schon länger nicht mehr gemacht hast. Kurz wiederholen, kurz bevor man es vergisst, bringt am meisten. Mit dem Widget-Menü kannst du den Kasten ausblenden.'},
+  {id:'2026-10-09-pruef-kollision', datum:'2026-10-09', fuer:'lehrer', text:'📝 Kalender: Trägst du eine Prüfung ein, warnt dich die Library, wenn die Klasse am selben Tag schon eine Prüfung hat oder in der Woche schon drei. Du kannst trotzdem eintragen. Bei Gruppen zählen nur Prüfungen mit denselben Personen.'},
+  {id:'2026-10-09-zuschlag', datum:'2026-10-09', fuer:'lehrer', text:'♿ Prüfungen: Im Monitor gibt es «♿ Zeitzuschlag». Du gibst einzelnen Personen z. B. +25 % Zeit (Nachteilsausgleich), auch während die Prüfung läuft. Die Person sieht nur ihre eigene Zeit, im Monitor steht «♿ +25 %» dahinter. «Als Standard merken» belegt die Liste bei der nächsten Prüfung vor.'},
   {id:'2026-10-09-raetsel', datum:'2026-10-09', fuer:'alle', text:'🧩 Neues Fach «Rätsel & Logik»: Sudoku (von 4×4 bis Profi), Logikrätsel (Wer sitzt wo?, Wahrheit oder Lüge?, Codeschloss) und Kreuzworträtsel – alles in mehreren Schwierigkeitsstufen, jedes Rätsel mit genau einer Lösung. Mit «Prüfen» und «Tipp» kommst du weiter. Im Unterricht gesperrt (Mo–Fr 07:30–11:50 und 13:30–16:55); in den Pausen, über Mittag, nach der Schule, am Freitag ab 15:00 und am Wochenende offen.'},
   {id:'2026-10-09-raetsel-lp', datum:'2026-10-09', fuer:'lehrer', text:'🧩 Neues Fach «Rätsel & Logik» mit Sudoku, Logik- und Kreuzworträtseln in mehreren Stufen. Während der Unterrichtszeit ist es für Schüler:innen gesperrt – oben auf der Seite schaltest du unter «🔑 Lehrperson: Freischaltung» für 15, 30 oder 45 Minuten oder bis zum Ende der Lektion frei (eine Freigabe gilt für alle drei Rätselarten, auch für mehrere Klassen). Du selbst kannst immer rätseln.'},
   {id:'2026-10-09-schach-taktik', datum:'2026-10-09', fuer:'alle', text:'♟️ Schach-Üben hat zwei neue Übungen: Im Taktik-Trainer löst du Aufgaben in drei Stufen (Figuren gewinnen, Gabeln, Matt in 2). Bei Eröffnung: 10 Züge spielst du zehn Züge gegen den Computer und bekommst eine Auswertung nach den Eröffnungsgrundsätzen (Zentrum, Entwicklung, Rochade …).'},
@@ -30679,8 +30868,17 @@ function pruefFuerMich(p){
 function pruefLokal(pid, patch){ pruef.mine[pid] = Object.assign({}, pruef.mine[pid] || {}, patch); }
 // Zeitlimit (optional, p.zeitMin): läuft pro Person ab ihrem Start (startMs),
 // auch während einer Sperre weiter. Danach wird mit dem aktuellen Stand abgegeben.
-function pruefFrist(p, t){ return p && +p.zeitMin > 0 && t && t.startMs ? t.startMs + p.zeitMin * 60000 : null; }
-function pruefZeitUm(p, t){ var f = pruefFrist(p, t); return f != null && Date.now() >= f; }
+// ♿ Zeitzuschlag (Nachteilsausgleich): p.zuschlag = {uid: Prozent}, von der Lehrperson im Monitor gesetzt.
+// Gilt nicht für das Tastaturschreiben (dort zählt die Geschwindigkeit pro Minute).
+function pruefZuschlag(p, uid){
+  if(!p || !p.zuschlag || pruefArt(p) === 'tippen') return 0;
+  var z = +p.zuschlag[uid == null ? (state.user && state.user.uid) : uid];
+  return z > 0 ? Math.min(200, z) : 0;
+}
+function pruefZeitMinFuer(p, uid){ return Math.round((+p.zeitMin || 0) * (1 + pruefZuschlag(p, uid) / 100) * 10) / 10; }
+function pruefZeitMinText(p, uid){ var m = pruefZeitMinFuer(p, uid); return String(m).replace('.', ','); }
+function pruefFrist(p, t, uid){ return p && +p.zeitMin > 0 && t && t.startMs ? t.startMs + Math.round(pruefZeitMinFuer(p, uid) * 60000) : null; }
+function pruefZeitUm(p, t, uid){ var f = pruefFrist(p, t, uid); return f != null && Date.now() >= f; }
 function pruefZeitText(ms){ var s = Math.max(0, Math.ceil(ms / 1000)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); }
 function pruefIstLehrer(){ return !!(state.profile && state.profile.role === 'teacher'); }
 
@@ -31039,7 +31237,7 @@ function pruefStartDialog(p){
   if(pruefWartet(p)){ pruef.warteWeg[p.id] = false; pruefWarteBetreten(p, true); return; }
   openModal(
     '<h3>📝 '+esc(p.titel)+'</h3>'+
-    '<p><b>'+(pruefArt(p) === 'tippen' ? '⌨️ Tastaturschreiben' : esc(String(pruefAnzahl(p)))+(pruefArt(p) === 'sikore' ? ' Rechnungen auf Level '+esc(String((p.levels || {})[state.user.uid] || '')) : pruefArt(p) === 'mt' ? ' Aufgaben' : ' Fragen'))+(+p.zeitMin > 0 ? ', '+esc(String(p.zeitMin))+' Minuten Zeit' : '')+'.</b> Deine Antworten werden laufend gespeichert, du kannst vor- und zurückblättern.'+
+    '<p><b>'+(pruefArt(p) === 'tippen' ? '⌨️ Tastaturschreiben' : esc(String(pruefAnzahl(p)))+(pruefArt(p) === 'sikore' ? ' Rechnungen auf Level '+esc(String((p.levels || {})[state.user.uid] || '')) : pruefArt(p) === 'mt' ? ' Aufgaben' : ' Fragen'))+(+p.zeitMin > 0 ? ', '+esc(pruefZeitMinText(p))+' Minuten Zeit' : '')+'.</b> Deine Antworten werden laufend gespeichert, du kannst vor- und zurückblättern.'+
       (+p.zeitMin > 0 ? ' Ist die Zeit um, wird automatisch abgegeben — auch wenn du gerade gesperrt bist, läuft die Zeit weiter.' : '')+'</p>'+
     '<div class="pr-regeln">'+
       '<div>🖥️ Die Prüfung läuft im <b>Vollbild</b>.</div>'+
@@ -31233,7 +31431,7 @@ async function pruefStarten(p, weiter, vorschau){
         uiInfo('Prüfung konnte nicht gestartet werden', 'Bitte melde dich bei der Lehrperson. ('+(err && err.code || err && err.message || 'Fehler')+')');
       });
       docOk = true;
-      sess.frist = pruefFrist(p, {startMs:startMs});
+      sess.startMs = startMs; sess.frist = pruefFrist(p, {startMs:startMs});
     }
     var saved = (!vorschau && pruef.mine[p.id] && pruef.mine[p.id].antworten) || {};
     if(pruefArt(p) === 'bank'){ pruefBankStart(p, sess, ov, saved); pruefGezeigt(sess); return; }
@@ -31288,12 +31486,13 @@ function pruefGezeigt(sess){
 }
 function pruefLockBar(p, vorschau){
   return '<div class="pr-lock-bar"><b>📝 '+esc(p.titel)+'</b><span>'+esc(state.profile.displayName || '')+'</span>'+
-    (+p.zeitMin > 0 ? '<span class="pr-uhr" id="pruefUhr">⏱ '+esc(String(p.zeitMin))+':00</span>' : '')+
+    (+p.zeitMin > 0 ? '<span class="pr-uhr" id="pruefUhr">⏱ '+esc(vorschau ? String(p.zeitMin) : pruefZeitMinText(p).split(',')[0])+':00</span>' : '')+
     (vorschau ? '<span class="pr-lock-hint">Vorschau — nichts wird gespeichert</span><button class="btn btn-sm btn-ghost" id="pruefVorschauZu" type="button">Schliessen</button>'
               : '<span class="pr-lock-hint">🔒 Nicht verlassen, sonst wirst du gesperrt</span>')+'</div>';
 }
 function pruefUhrTick(){
   var s = pruef.sess; if(!s || !s.frist) return;
+  if(s.startMs && !s.vorschau){ var pp = pruefById(s.pid), nf = pp && pruefFrist(pp, {startMs:s.startMs}); if(nf) s.frist = nf; }
   var rest = s.frist - Date.now(), el = document.getElementById('pruefUhr');
   if(el){ el.textContent = '⏱ ' + pruefZeitText(rest); el.classList.toggle('knapp', rest < 60000); }
   if(rest <= 0 && !s.zeitUm){ s.zeitUm = true; toast('⏱ Die Zeit ist um — deine Prüfung wird abgegeben.'); pruefErzwingeAbgabe(); }
@@ -34384,6 +34583,7 @@ function pruefMonitorZeichnen(){
   if(!skPapier) h += '<button class="btn btn-ghost btn-sm" data-a="pip" type="button" title="Kleines Fenster, das immer im Vordergrund bleibt — auch wenn du in einem anderen Programm arbeitest">📌 Immer im Vordergrund</button>';
   if(!skPapier) h += '<button class="btn btn-sm '+(p.seb ? 'btn-primary' : 'btn-ghost')+'" data-a="seb" type="button" title="Die Prüfung lässt sich nur im Safe Exam Browser schreiben — er sperrt das ganze Gerät">🛡️ Safe Exam Browser: '+(p.seb ? 'an' : 'aus')+'</button>';
   if(!skPapier) h += '<button class="btn btn-ghost btn-sm" data-a="vorschau" type="button">👀 Ausprobieren</button>';
+  if(!skPapier && +p.zeitMin > 0 && pruefArt(p) !== 'tippen') h += '<button class="btn btn-sm '+(p.zuschlag && Object.keys(p.zuschlag).length ? 'btn-primary' : 'btn-ghost')+'" data-a="zuschlag" type="button" title="Nachteilsausgleich: einzelnen Personen mehr Zeit geben — auch während die Prüfung läuft">♿ Zeitzuschlag</button>';
   if(pruefArt(p) === 'sikore') h += '<button class="btn btn-ghost btn-sm" data-a="sikoreDruck" type="button">🖨️ Blätter drucken</button>';
   h += '<button class="btn btn-ghost btn-sm" data-a="bearbeiten" type="button">✏️ Bearbeiten</button>';
   h += '<button class="btn btn-ghost btn-sm" data-a="ablegen" type="button" title="In einem Ordner des Fachs ablegen – die Klasse sieht sie dort erst nach dem Freigeben">📁 Ablegen</button>';
@@ -34439,7 +34639,7 @@ function pruefMonitorZeichnen(){
     var t = r.t, st = r.st;
     var fort = !t ? '' : t.status === 'abgegeben'
       ? (r.erg ? (p.diktat ? (r.erg.max - r.erg.punkte)+' Fehler' : pruefArt(p) === 'tippen' ? r.erg.punkte+' Netto-Anschl./Min. · '+r.erg.fehler+' Fehler' : pruefZahlText(r.erg.punkte)+' / '+pruefZahlText(r.erg.max)+' Pkt')+' · Note <b>'+pruefNoteText(pruefNote(p, r.erg.punkte, r.erg.max))+'</b>' : 'wird korrigiert …')
-      : (p.diktat ? (t.beantwortet || 0)+' Wörter geschrieben' : pruefArt(p) === 'tippen' ? (t.beantwortet || 0)+' Zeichen getippt' : (t.beantwortet || 0)+' / '+anzahl+' beantwortet') + (pruefFrist(p, t) ? ' · ⏱ ' + (pruefZeitUm(p, t) ? 'Zeit um' : Math.ceil((pruefFrist(p, t) - Date.now()) / 60000) + ' Min. übrig') : '');
+      : (p.diktat ? (t.beantwortet || 0)+' Wörter geschrieben' : pruefArt(p) === 'tippen' ? (t.beantwortet || 0)+' Zeichen getippt' : (t.beantwortet || 0)+' / '+anzahl+' beantwortet') + (pruefFrist(p, t, r.uid) ? ' · ⏱ ' + (pruefZeitUm(p, t, r.uid) ? 'Zeit um' : Math.ceil((pruefFrist(p, t, r.uid) - Date.now()) / 60000) + ' Min. übrig') + (pruefZuschlag(p, r.uid) ? ' (♿ +' + pruefZuschlag(p, r.uid) + ' %)' : '') : '');
     var vs = t && t.verstoesse && t.verstoesse.length ? ' · <span class="pr-vs" title="'+esc(t.verstoesse.map(function(v){ return new Date(v.at).toLocaleTimeString('de-CH',{hour:'2-digit',minute:'2-digit'})+' '+v.grund; }).join('\n'))+'">⚠️ '+t.verstoesse.length+'× verlassen</span>' : '';
     var sebMark = !t ? '' : t.seb ? ' <span title="im Safe Exam Browser">🛡️</span>' : p.seb ? ' <small class="pr-vs">⚠️ ohne SEB</small>' : '';
     h += '<div class="pr-zeile '+st.cls+'"><div class="pr-name">'+esc(r.name)+sebMark+pruefSpracheMark(t)+(pruefArt(p) === 'sikore' && p.levels && p.levels[r.uid] ? ' <small>· Level '+esc(String(p.levels[r.uid]))+'</small>' : '')+'</div><div class="pr-st">'+esc(st.txt)+'</div><div class="pr-fort">'+fort+vs+'</div><div class="pr-akt">';
@@ -34516,6 +34716,35 @@ function pruefPipZeichnen(){
   });
   pipZeichnen('📝 ' + p.titel, pruefWartet(p) ? '⏳ ' + z0 + ' von ' + liste.length + ' im Warteraum' : '🟢 ' + z.laeuft + ' schreiben   🔒 ' + z.gesperrt + ' gesperrt   ✅ ' + z.ab + ' abgegeben', liste, 'Niemand in der Liste.');
 }
+/* ---------- ♿ Zeitzuschlag-Dialog ----------
+   Pro Person Prozent mehr Zeit. «Als Standard merken» legt die Liste auf diesem Gerät ab
+   (localStorage hl_zuschlag_<Klasse>), damit sie bei der nächsten Prüfung vorbelegt ist.
+   Wirkt sofort, auch bei laufender Prüfung (die Uhr der Person rechnet nach). */
+function pruefZuschlagDialog(p){
+  var teil = pruef.teil[p.id] || {}, roster = pruefRosterFuer(p);
+  if(!roster){ toast('Klasse wird noch geladen …'); return; }
+  var rows = pruefMonitorZeilen(p, teil, roster).sort(function(a,b){ return a.name.localeCompare(b.name, 'de'); });
+  var std = {}; try{ std = JSON.parse(lsGet('hl_zuschlag_'+pruefKl(p.id)) || '{}'); }catch(e){}
+  var jetzt = p.zuschlag || {}, leer = !Object.keys(jetzt).length;
+  var STUFEN = [0, 10, 25, 33, 50, 100];
+  var h = '<h3>♿ Zeitzuschlag</h3><p>Wer mehr Zeit bekommt, sieht nur die eigene längere Zeit. '+(+p.zeitMin)+' Minuten sind die Grundzeit. Die Änderung gilt sofort, auch wenn die Prüfung schon läuft.</p>'+
+    '<div style="max-height:46vh;overflow:auto;margin:8px 0;">';
+  rows.forEach(function(r){
+    var w = +(leer ? std[r.uid] : jetzt[r.uid]) || 0;
+    h += '<div style="display:flex;gap:8px;align-items:center;justify-content:space-between;padding:3px 0;"><span>'+esc(r.name)+'</span>'+
+      '<select class="modal-input" data-zu="'+esc(r.uid)+'" style="width:auto;margin:0;">'+STUFEN.map(function(n){ return '<option value="'+n+'"'+(n === w ? ' selected' : '')+'>'+(n ? '+'+n+' %' : 'keiner')+'</option>'; }).join('')+'</select></div>';
+  });
+  h += '</div><label style="display:flex;gap:6px;align-items:center;margin:6px 0;"><input type="checkbox" id="zuStd"> Als Standard für die nächsten Prüfungen merken (nur dieses Gerät)</label>'+
+    '<div class="modal-actions"><button class="btn btn-ghost btn-sm" id="modalCancel" type="button">Abbrechen</button><button class="btn btn-primary btn-sm" id="zuOk" type="button">Speichern</button></div>';
+  openModal(h);
+  document.getElementById('modalCancel').addEventListener('click', closeModal);
+  document.getElementById('zuOk').addEventListener('click', function(){
+    var map = {};
+    Array.prototype.forEach.call(document.querySelectorAll('[data-zu]'), function(sel){ var n = +sel.value; if(n > 0) map[sel.getAttribute('data-zu')] = n; });
+    if(document.getElementById('zuStd').checked) lsSet('hl_zuschlag_'+pruefKl(p.id), JSON.stringify(map));
+    updateDoc(pruefRef(p.id), {zuschlag:map}).then(function(){ closeModal(); toast(Object.keys(map).length ? '♿ Zeitzuschlag für '+Object.keys(map).length+' Person'+(Object.keys(map).length === 1 ? '' : 'en')+' gespeichert.' : 'Kein Zeitzuschlag mehr.'); }).catch(pruefFehler);
+  });
+}
 function pruefMonitorVerdrahten(p){
   var el = document.getElementById('prMon');
   el.onclick = function(e){
@@ -34555,6 +34784,7 @@ function pruefMonitorVerdrahten(p){
       }).catch(function(err){ b.disabled = false; pruefFehler(err); });
     }
     else if(a === 'pip') pipStarten('pruef', p.id);
+    else if(a === 'zuschlag') pruefZuschlagDialog(p);
     else if(a === 'bearbeiten'){ if(pruefArt(p) === 'sikore') sikoreEditor(p); else if(pruefArt(p) === 'tippen') tippPrEditor(p); else if(pruefArt(p) === 'mt') mtPrEditor(p); else if(p.rsw) rswPrEditor(p); else pruefEditor(p); }
     else if(a === 'sikoreDruck') sikoreDruckDialog(p);
     else if(a === 'punkte') pruefAufgabenPunkte(p);
@@ -41340,7 +41570,7 @@ var LEISTE_ITEMS = [
   {id:'linksBtn', label:'🔗 Links'},
   {id:'ferienInfo', label:'🚨 Ferien-Countdown'}
 ];
-var START_ITEMS = [ {id:'stpJetzt', label:'🗓️ Jetzt / Als Nächstes (Stundenplan)'} ];
+var START_ITEMS = [ {id:'stpJetzt', label:'🗓️ Jetzt / Als Nächstes (Stundenplan)'}, {id:'heuteDran', label:'🔁 Heute dran (Wiederholen)'} ];
 
 function layoutIstLehrer(){ return !!(state.profile && state.profile.role === 'teacher'); }
 function layoutRef(){ return doc(db, 'progress', state.user.uid, 'einstellungen', 'layout'); }

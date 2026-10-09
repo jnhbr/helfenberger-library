@@ -1,0 +1,59 @@
+# VORLAGE für .github/workflows/live-zurueck.yml im LIVE-Repo jnhbr/helfenberger-library.
+name: Live zurücksetzen
+
+# Macht die letzte Live-Schaltung rückgängig (git revert des letzten Commits
+# «Testseite live geschaltet …») und merkt sich in .github/rollback-pin den Stand
+# der Testseite, der zurückgenommen wurde. Die Nacht-Freigabe (nightly-release.yml)
+# schaltet genau diesen Stand NICHT erneut live; erst ein neuer Commit im Test-Repo
+# (oder manuelles Ausführen von «Testseite live schalten») tut es wieder.
+#
+# Auslösen: im Live-Repo unter Actions → «Live zurücksetzen» → Run workflow.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+
+concurrency:
+  group: nightly-release
+  cancel-in-progress: false
+
+jobs:
+  zurueck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: live
+          fetch-depth: 50
+
+      - uses: actions/checkout@v4
+        with:
+          repository: jnhbr/helfenberger-library-test
+          path: test
+
+      - name: Letzte Live-Schaltung zurücknehmen
+        id: undo
+        run: |
+          cd live
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          sha=$(git log --format='%H' --grep='^Testseite live geschaltet' -n 1)
+          if [ -z "$sha" ]; then echo "Keine Live-Schaltung gefunden."; echo "changed=false" >> "$GITHUB_OUTPUT"; exit 0; fi
+          if git log --format='%s' "$sha"..HEAD | grep -q "^Revert \"Testseite live geschaltet"; then
+            echo "Die letzte Live-Schaltung wurde schon zurückgenommen."; echo "changed=false" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          git revert --no-edit "$sha"
+          git -C ../test rev-parse HEAD > .github/rollback-pin
+          git add .github/rollback-pin
+          git commit --amend --no-edit
+          git push origin HEAD:main
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+      - name: GitHub Pages neu bauen
+        if: steps.undo.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api -X POST "repos/${{ github.repository }}/pages/builds" || true
