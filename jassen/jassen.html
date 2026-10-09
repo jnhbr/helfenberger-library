@@ -268,6 +268,24 @@ button:focus-visible{outline:2px solid var(--gold-soft); outline-offset:2px;}
 .credit{font-size:12px; color:var(--muted); margin-top:18px; line-height:1.45;}
 .page .credit{color:#6b5a3a;}
 .tw button[data-t="0"] svg,.tw button[data-t="1"] svg,.tw button[data-t="2"] svg,.tw button[data-t="3"] svg,.tw button[data-s] svg{background:#f6ecd3; border-radius:50%; padding:3px; width:38px; height:38px;}
+/* Handy quer: alles auf einen Blick, ohne Scrollen (steht absichtlich am Ende) */
+@media (orientation:landscape) and (max-height:520px){
+  :root{--cw:min(7.2vw,44px);}
+  #app{padding:6px 10px 16px;}
+  .top{margin-bottom:6px;} .stbar{padding:3px 10px; font-size:13.5px; margin-bottom:4px; line-height:1.25;} .stbar small{display:inline; font-size:11.5px; margin-left:6px;}
+  .jtable{grid-template-columns:96px minmax(0,1fr) 96px; grid-template-rows:auto auto auto; gap:2px 6px; padding:6px 8px 8px; border-radius:14px;}
+  .seat.top{grid-column:1/-1; grid-row:1; flex-direction:row; justify-content:center; gap:8px;} .seat.top .backs{display:none;}
+  .center{min-height:0; padding-top:0;} .trick{height:118px; width:min(100%,230px);} .trick .tc .jc{--cw:36px;}
+  .seat.left .backs .jc,.seat.right .backs .jc{--cw:22px; margin-top:-24px;} .backs .jc{--cw:26px; margin-left:-16px;}
+  .nm{font-size:12px; padding:2px 8px; white-space:normal; text-align:center; line-height:1.15;} .nm small{display:inline;}
+  .hand{padding-top:6px; min-height:calc(var(--ch) + 8px);} .hand .cardbtn{margin-left:calc(var(--cw)*-.34);}
+  .trumpbadge{font-size:11.5px; padding:2px 8px;} .trumpbadge svg{width:18px; height:18px;}
+  .topnav{margin:0 0 4px;} .topnav button{padding:3px 10px; font-size:12.5px;}
+  .top{gap:8px; margin-bottom:4px;} .logo{width:28px; height:28px; font-size:16px;} .brand h1{font-size:15px;} .brand small{display:none;} .iconbtn{width:30px; height:30px;}
+  .center>div[style*="text-align:center"]>div:first-child{display:none;}
+  .tw{gap:5px; margin-top:0;} .tw button{min-width:58px; padding:3px 6px; gap:0;} .tw button svg,.tw button[data-t="0"] svg,.tw button[data-t="1"] svg,.tw button[data-t="2"] svg,.tw button[data-t="3"] svg,.tw button[data-s] svg{width:24px; height:24px; padding:2px;} .tw button b{font-size:12px;} .tw button small{font-size:10px; line-height:1.1; min-height:11px;} .tw button[data-s] small{display:none;} .tw button{flex:0 0 auto;}
+  .ctrls{margin-top:6px;} .bubble{font-size:12px; padding:4px 8px; max-width:150px;}
+}
 </style>
 </head>
 <body>
@@ -489,7 +507,9 @@ function legal(hand, trick, m){
   return res.length ? res : trumps;
 }
 var COIFF = {0:2, 1:4, 2:1, 3:3, 4:5, 5:6};
-function multOf(t, cfg){ if(cfg.kind === 'coiffeur') return COIFF[t]; if(!cfg.mult) return 1; return t >= 4 ? 3 : MULTS[cfg.set][t]; }
+var COIFF_G = {0:3, 1:3, 2:3, 3:3, 4:3, 5:3};
+function coiffOf(t, cfg){ return (cfg && cfg.cf === 'g' ? COIFF_G : COIFF)[t]; }
+function multOf(t, cfg){ if(cfg.kind === 'coiffeur') return coiffOf(t, cfg); if(!cfg.mult) return 1; return t >= 4 ? 3 : MULTS[cfg.set][t]; }
 function sortHand(h, t){
   var order = function(c){ var s = suitOf(c), r = c % 9; var v = (t === 5 || t === 7) ? 8 - r : (t < 4 && s === t ? [0, 3, 5, 6, 7, 8, 1, 2, 4].indexOf(r) : r); if(t < 4 && s === t) v = -20 + (9 - TR[r]); return v; };
   var sorder = [0, 1, 2, 3];
@@ -694,7 +714,7 @@ function trumpScores(h, cfg){
 function aiTrump(rd, seat, lvl){
   var h = rd.hands[seat], sc = trumpScores(h, rd.cfg), best = null, ts = Object.keys(sc).map(Number), coif = rd.cfg.kind === 'coiffeur';
   if(rd.allowed) ts = ts.filter(function(t){ return rd.allowed.indexOf(t) >= 0; });
-  var wv = function(t){ return sc[t] + (coif ? 3 * COIFF[t] : 0); };
+  var wv = function(t){ return sc[t] + (coif ? 3 * coiffOf(t, rd.cfg) : 0); };
   ts.sort(function(a, b){ return wv(b) - wv(a); });
   best = ts[0];
   if(lvl === 1 && Math.random() < 0.4) best = pick(ts.slice(0, 4));
@@ -769,6 +789,7 @@ function heurM(rd, seat){
   for(i = 0; i < 36; i++) if(!known[i]) U++;
   U = Math.max(U, 1);
   var tcards = trick.map(function(x){ return x.card; }), last5 = rd.trickNo === 8 ? 5 : 0, best = null;
+  var tot = rd.tot || [0, 0, 0, 0], tgt = (rd.cfg && rd.cfg.target) || 300, mn = Math.min.apply(null, tot), lead = tot[seat] === mn && Math.max.apply(null, tot) > mn;
   L.forEach(function(c){
     var sets = rd.t == null && trick.length > 0 && suitOf(c) !== suitOf(trick[0].card), T = sets ? suitOf(c) : rd.t;
     var mm = effMode(T, rd.trickNo), cards = tcards.concat(c), rt = trick.concat({seat:seat, card:c}), wi = trickWinnerIdx(rt, mm), takes = rt[wi].seat === seat;
@@ -794,13 +815,24 @@ function heurM(rd, seat){
       if(!known[T * 9 + 3]) liab -= 4;
       if(!known[T * 9 + 5]) liab -= 3;
     }
-    var cost = pT * (tp + 6 * k + bon + near), gain = (1 - pT) * 0.35 * (cardPts(c, mm) + (takes ? 0 : bon)), sc = cost - gain + liab;
-    if(!best || sc < best.sc) best = {c:c, sc:sc, takes:takes, pT:pT, bon:bon, sets:sets, k:k};
+    /* Gesamtstand: wer vorne liegt, füttert die Person, die dem Spielende am nächsten ist (Spiel schneller zu Ende); wer hinten liegt, füttert die führende Person und vermeidet, dass jemand das Ziel erreicht */
+    var wF = 0.35, fed = '', cw = 1 + 1.2 * Math.pow(Math.min(1, tot[seat] / tgt), 2);
+    if(!takes){
+      var pw = rt[wi].seat, pf = 0.35, gp = tp + bon;
+      if(lead) pf = 0.35 + 0.65 * Math.min(1, tot[pw] / tgt);
+      else if(tot[pw] + gp >= tgt) pf = -0.5;
+      else if(tot[pw] === mn) pf = 0.9;
+      wF = k === 0 ? pf : 0.5 * 0.35 + 0.5 * pf;
+      if(k === 0 || Math.abs(pf - 0.35) > 0.3) fed = pf > 0.6 ? (lead ? 'Ich liege vorne – ich lege dem Stichnehmer Punkte dazu, damit das Spiel schneller zu Ende geht.' : 'Ich liege hinten – ich füttere die führende Person.') : pf < 0 ? 'Der Stichnehmer würde das Ziel erreichen – das will ich nicht, das Spiel soll weitergehen.' : '';
+    }
+    var cost = cw * pT * (tp + 6 * k + bon + near), gain = (1 - pT) * wF * (cardPts(c, mm) + (takes ? 0 : bon)), sc = cost - gain + liab;
+    if(!best || sc < best.sc) best = {c:c, sc:sc, takes:takes, pT:pT, bon:bon, sets:sets, k:k, fed:fed};
   });
   var why;
   if(best.sets) why = 'Ich muss abwerfen: Die Farbe wird Trumpf – ich wähle die, bei der ich am wenigsten Gefährliches auf der Hand habe.';
   else if(!rd.trick.length) why = 'Ich spiele klein aus, damit ich keinen Stich bekomme.';
   else if(best.pT > 0.6) why = best.k === 0 ? 'Ich muss den Stich nehmen – mit der Karte, die am wenigsten kostet.' : 'Der Stich wird wohl bei mir bleiben – ich gebe möglichst wenig Punkte dazu.';
+  else if(best.fed && !best.takes && best.k === 0) why = best.fed;
   else if(best.bon > 0 && !best.takes) why = 'Ich lege dazu: Der Weis/Stöck auf dem Tisch geht an jemand anderen.';
   else if(!best.takes) why = 'Ich bleibe unter dem Stich und werde eine punktreiche Karte los.';
   else why = 'Ich hoffe, dass jemand anderes den Stich nimmt.';
@@ -826,7 +858,7 @@ function heurD(rd, seat){
 }
 function cloneRd(rd, deal, seat){
   var c = {t:rd.t, trickNo:rd.trickNo, trick:rd.trick.slice(), seen:rd.seen.slice(), pts:rd.pts.slice(), tricksWon:rd.tricksWon.slice(), hands:rd.hands.map(function(h){ return h.slice(); }),
-    caller:rd.caller, turn:rd.turn, phase:'play', tricks:[], cfg:rd.cfg, orig:rd.orig, weis:[[], [], [], []], weisPts:[0, 0], stoeck:[0, 0], stoeckSeen:{}, spts:rd.spts ? rd.spts.slice() : null, ans:rd.ans ? rd.ans.slice() : null};
+    caller:rd.caller, turn:rd.turn, phase:'play', tricks:[], cfg:rd.cfg, orig:rd.orig, weis:[[], [], [], []], weisPts:[0, 0], stoeck:[0, 0], stoeckSeen:{}, spts:rd.spts ? rd.spts.slice() : null, ans:rd.ans ? rd.ans.slice() : null, tot:rd.tot};
   if(deal) for(var s = 0; s < 4; s++) if(s !== seat) c.hands[s] = deal[s].slice();
   return c;
 }
@@ -958,6 +990,7 @@ function coiffFree(G, team){
 function mkRound(G){
   var rd = newRound(seedFor(G, G.rno), (G.dealer0 + G.rno) % 4, G.cfg);
   if(G.cfg.kind === 'coiffeur') rd.allowed = coiffFree(G, rd.fore % 2);
+  if(G.cfg.kind === 'molotow') rd.tot = G.totals.length === 4 ? G.totals.slice() : [0, 0, 0, 0];
   return rd;
 }
 function docG(uid){
@@ -1068,7 +1101,7 @@ function newGame(base){
 }
 function kindCfg(cfg, fixed){
   var coif = fixed === 'coiffeur', dif = fixed === 'differenzler', hj = fixed === 'handjass', mo = fixed === 'molotow';
-  return Object.assign({}, cfg, hj ? {kind:'handjass', fixed:null, mult:false, weis:false, stoeck:false, slalom:false, target:7} : mo ? {kind:'molotow', fixed:null, mult:false, weis:false, stoeck:false, slalom:false, target:CFG.mTarget || 300} : dif ? {kind:'differenzler', fixed:null, mult:false, weis:false, stoeck:false, slalom:false, rounds:CFG.dRounds || 8} : coif ? {kind:'coiffeur', fixed:null, mult:true, slalom:false} : fixed != null ? {fixed:fixed, kind:null, mult:false, weis:false, stoeck:false} : {fixed:null, kind:null});
+  return Object.assign({}, cfg, hj ? {kind:'handjass', fixed:null, mult:false, weis:false, stoeck:false, slalom:false, target:7} : mo ? {kind:'molotow', fixed:null, mult:false, weis:false, stoeck:false, slalom:false, target:CFG.mTarget || 300} : dif ? {kind:'differenzler', fixed:null, mult:false, weis:false, stoeck:false, slalom:false, rounds:CFG.dRounds || 8} : coif ? {kind:'coiffeur', fixed:null, mult:true, slalom:false, cf:CFG.cf === 'g' ? 'g' : 'k'} : fixed != null ? {fixed:fixed, kind:null, mult:false, weis:false, stoeck:false} : {fixed:null, kind:null});
 }
 function kindLabel(o){ return o.kind === 'handjass' ? 'Handjass · 7 Striche' : o.kind === 'molotow' ? 'Molotow · Ziel ' + o.target : o.kind === 'coiffeur' ? 'Coiffeur' : o.kind === 'differenzler' ? 'Differenzler · ' + o.rounds + ' Runden' : 'Schieber · Ziel ' + o.target; }
 function startAI(cfg, fixed){
@@ -1259,10 +1292,10 @@ function tafelCoiff(G){
   var t = (G.mode === 'watch' ? 0 : G.my) % 2, rows = [0, 1, 2, 3, 4, 5], h = '<div class="tafel"><h4>Coiffeur-Tafel</h4><table><thead><tr><th>×</th><th>Wir</th><th>Sie</th></tr></thead><tbody>';
   rows.forEach(function(r){
     var cell = function(team){ var e = G.rounds.filter(function(x){ return x.tm === team && x.t === r; })[0]; return e ? e.f[team] : ''; };
-    h += '<tr><td>' + COIFF[r] + '</td><td>' + cell(t) + '</td><td>' + cell(1 - t) + '</td></tr>';
+    h += '<tr><td>' + coiffOf(r, G.cfg) + '</td><td>' + cell(t) + '</td><td>' + cell(1 - t) + '</td></tr>';
   });
   h += '</tbody><tfoot><tr><td>Σ</td><td>' + G.totals[t] + '</td><td>' + G.totals[1 - t] + '</td></tr></tfoot></table><div class="ziel">';
-  h += rows.map(function(r){ return COIFF[r] + '× ' + modeShort(r); }).join(' · ') + '</div></div>';
+  h += rows.map(function(r){ return coiffOf(r, G.cfg) + '× ' + modeShort(r); }).join(' · ') + '</div></div>';
   return h;
 }
 /* Jasstafel-Striche: Schieber 100 = langer Strich (je 5 mit Querstrich), 50 = Schrägstrich, 20 = kurzer Querstrich; Handjass = Strichliste in Fünfergruppen */
@@ -1497,6 +1530,7 @@ function setupDialog(kind, fixed){
     h += '<p class="muted">Du spielst gegen drei Computer, jeder für sich. Vor dem Spielen sagt jede Person an, wie viele Punkte sie holt – die kleinste Gesamtdifferenz gewinnt.</p><div class="field"><label class="t">Runden</label>' + seg('drounds', [[4, '4'], [8, '8'], [12, '12']], CFG.dRounds || 8) + '</div>';
   } else if(coif){
     h += '<p class="muted">12 Spiele: Jedes Team spielt jede Zeile der Tafel einmal. Vorhand wählt die Spielart, die dem eigenen Team noch fehlt; die Punkte zählen mal Faktor.</p>';
+    h += '<div class="field"><label class="t">Faktoren-Tafel</label>' + seg('ocf', [['k', 'Klassisch'], ['g', 'Alle ×3']], CFG.cf || 'k') + '<p class="muted" style="margin:6px 0 0">Klassisch: Ecke 1×, Herz 2×, Schaufel 3×, Kreuz 4×, Obenabe 5×, Undenufe 6×. Faktoren sind regional verschieden – <b>Alle ×3</b> ist die einfache Hausregel.</p></div>';
     h += optSwitch('oWeis', 'Weis', 'Reihen und Vierlinge zählen extra', CFG.weis) + optSwitch('oStoeck', 'Stöck', 'König + Ober/Dame vom Trumpf: 20 Punkte', CFG.stoeck);
   } else if(fixed == null){
     h += '<div class="field"><label class="t">Zielpunkte</label>' + seg('target', [[1000, '1000'], [1500, '1500'], [2500, '2500']], CFG.target) + '</div>';
@@ -1519,6 +1553,7 @@ function setupDialog(kind, fixed){
       if(q('oMult')){ CFG.mult = q('oMult').checked; CFG.weis = q('oWeis').checked; CFG.stoeck = q('oStoeck').checked; CFG.slalom = q('oSlalom').checked; CFG.guschti = q('oGuschti').checked; CFG.sws = q('oSws').checked; }
       var dr = m.querySelector('input[name="drounds"]:checked'); if(dr) CFG.dRounds = +dr.value;
       var mt = m.querySelector('input[name="mtarget"]:checked'); if(mt) CFG.mTarget = +mt.value;
+      var cf = m.querySelector('input[name="ocf"]:checked'); if(cf) CFG.cf = cf.value;
       if(q('lP')) CFG.lvlP = +q('lP').value; CFG.lvlG = +q('lG').value; CFG.hilfe = q('oHilfe').checked; CFG.tipp = q('oTipp').checked; CFG.live = q('oLive').checked;
       lsSet('jassen_cfg_v1', CFG);
       if(kind === 'online'){ var ok = m.querySelector('input[name="okind"]:checked'); CFG.okind = ok ? ok.value : 'schieber'; lsSet('jassen_cfg_v1', CFG); openTable(kindCfg(mkCfg(), CFG.okind === 'schieber' ? null : CFG.okind)); } else startAI(mkCfg(), fixed);
@@ -2161,7 +2196,7 @@ var PAGES = [
    var rows = [[0, 1], [1, 2], [2, 1], [3, 2]];
    return '<h2>Coiffeur</h2><p class="lead">Jede Spielart muss einmal gespielt werden.</p>' +
    '<p>Coiffeur wird mit zwei Teams zu je zwei Personen gespielt. Auf der <b>Coiffeur-Tafel</b> hat jedes Team eine Spalte mit allen Spielarten:</p><table class="t"><thead><tr><th class="l">Spielart</th><th>Faktor</th></tr></thead><tbody>' +
-   [2, 0, 3, 1].map(function(s){ return '<tr><td class="l">' + esc(suitName(s)) + ' Trumpf</td><td>' + COIFF[s] + '×</td></tr>'; }).join('') + '<tr><td class="l">Obenabe</td><td>5×</td></tr><tr><td class="l">Undenufe</td><td>6×</td></tr></tbody></table>' +
+   [2, 0, 3, 1].map(function(s){ return '<tr><td class="l">' + esc(suitName(s)) + ' Trumpf</td><td>' + COIFF[s] + '×</td></tr>'; }).join('') + '<tr><td class="l">Obenabe</td><td>5×</td></tr><tr><td class="l">Undenufe</td><td>6×</td></tr></tbody></table><p class="muted">Das ist die klassische Tafel. Die Faktoren sind regional verschieden; beim Start einer Partie kannst du auch <b>Alle ×3</b> wählen.</p>' +
    '<ul><li>Vorhand sagt <b>ohne zu schieben</b> an, welche Spielart gespielt wird – nur eine Zeile, die das eigene Team noch <b>nicht gespielt</b> hat.</li><li>Die erreichten Punkte (Stichpunkte + Weis + Stöck) des ansagenden Teams werden mit dem Faktor der Zeile multipliziert und in die Tafel eingetragen.</li><li>Jedes Team spielt jede Zeile <b>genau einmal</b> – das sind <b>12 Spiele</b>. Wer am Ende die höchste Summe hat, gewinnt.</li><li>Variante: Zusätzliche Zeilen wie <b>Slalom</b> (7×) und <b>Guschti</b> (8×) als «grosser Coiffeur».</li></ul>' +
    '<p><button class="btn sm" data-play="coiffeur" type="button">♦ Coiffeur gegen den Computer spielen</button></p>' +
    box('Tipp: Hebt euch die starken Spielarten (hohe Faktoren) für Runden mit guten Karten auf – und nehmt die kleinen Faktoren, wenn die Hand schwach ist.', 'tip') + box('Die Faktoren sind eine häufige Tafel – es gibt regionale Varianten.', 'warn');

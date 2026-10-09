@@ -200,6 +200,28 @@ table.rang tr.me td{background:#d9b25a1c;} table.rang td.pt{font-weight:700; col
   .card{padding:14px;}
 }
 button:focus-visible{outline:2px solid var(--gold-soft); outline-offset:2px;}
+
+/* ---------- Üben ---------- */
+.topnav{display:flex; gap:6px; flex-wrap:wrap; margin:0 0 14px;}
+.topnav button{padding:7px 14px; border-radius:999px; border:1px solid var(--line); background:#0005; font-size:14px;}
+.topnav button.on{background:linear-gradient(180deg,#f0d28a,var(--gold)); color:var(--ink); border-color:#6b4a14; font-weight:700;}
+.big2{font-family:var(--serif); font-size:34px; color:var(--gold);}
+.qbox{max-width:760px; margin:0 auto;}
+.qq{font-size:17px; margin:10px 0;} .qq .coord{font-family:var(--serif); font-size:26px; color:var(--gold-soft); letter-spacing:.06em;}
+.qopt{display:flex; flex-direction:column; gap:8px; margin:12px 0;} .qopt button{padding:11px 14px; text-align:left; border-radius:10px; border:1px solid var(--line); background:#0005; font-size:15.5px;}
+.qopt button:hover{border-color:var(--gold);} .qopt button.rich{border-color:#4caf50; background:#2e7d4f55;} .qopt button.falsch{border-color:#e8705f; background:#b3402f55;}
+.bar{height:8px; border-radius:99px; background:#0006; overflow:hidden; margin:8px 0;} .bar>i{display:block; height:100%; background:linear-gradient(90deg,var(--gold-2),var(--gold-soft));}
+.fb{margin:12px 0; padding:10px 14px; border-radius:10px; border:1px solid; font-size:15px;}
+.fb.good{border-color:#4caf50; background:#2e7d4f33;} .fb.bad{border-color:#e8705f; background:#b3402f33;}
+.uebox{--bs:min(calc(100vw - 80px), 430px); width:calc(var(--bs) + 28px); max-width:100%; margin:12px auto;}
+.ueb{touch-action:manipulation;} .ueb .sq{cursor:pointer;}
+.sq.ue-sel{box-shadow:inset 0 0 0 100px rgba(255,214,90,.62), inset 0 0 0 3px #f0b100;}
+.sq.ue-ok{box-shadow:inset 0 0 0 100px rgba(111,207,141,.65);}
+.sq.ue-bad{box-shadow:inset 0 0 0 100px rgba(232,112,95,.65);}
+.sq.ue-miss{box-shadow:inset 0 0 0 4px #f0b100;}
+.bigpc{width:150px; height:150px; margin:10px auto; border-radius:14px; display:grid; place-items:center; background:linear-gradient(135deg,#f1e0b9,var(--sq-l)); border:2px solid #1a0f08; box-shadow:0 10px 26px #0008;}
+.bigpc .pc{font-size:112px;}
+@media (max-width:560px){ .topnav{margin:0 0 8px;} .topnav button{padding:5px 12px; font-size:13px;} .bigpc{width:120px; height:120px;} .bigpc .pc{font-size:88px;} }
 </style>
 </head>
 <body>
@@ -210,9 +232,11 @@ button:focus-visible{outline:2px solid var(--gold-soft); outline-offset:2px;}
     <span class="chip" id="chip" hidden><i></i><span id="chipTxt"></span></span>
     <button class="iconbtn" id="soundBtn" type="button" title="Ton an/aus" aria-label="Ton an oder aus">&#128266;</button>
   </header>
+  <nav class="topnav" id="topnav" hidden></nav>
   <div id="gate" hidden></div>
   <details class="card teacher" id="teacher" hidden></details>
   <main id="menu"></main>
+  <main id="ueben" hidden></main>
   <main id="game" hidden></main>
 </div>
 <div class="modal" id="modal" hidden></div>
@@ -683,7 +707,7 @@ function status(){
    Zustand
    ===================================================================== */
 var S = {
-  lehrer:!!API.lehrer, frei:null, spieler:[], hydrated:false, resumeOnline:null,
+  view:'menu', lehrer:!!API.lehrer, frei:null, spieler:[], hydrated:false, resumeOnline:null,
   me:{name:API.name, stat:{w:0, d:0, l:0}, tisch:null, spiel:null},
   G:null, unsubLobby:null, unsubOpp:null, unsubFrei:null, hb:null, offen:null, muted:!!lsGet('schach_mute', false), ctx:null
 };
@@ -855,7 +879,7 @@ function ergebnisDialog(){
 function startGame(cfg){
   stopLobby();
   var G = newG(cfg); S.G = G;
-  $('menu').hidden = true; $('game').hidden = false;
+  $('menu').hidden = true; $('ueben').hidden = true; $('game').hidden = false; $('topnav').hidden = true;
   bauSpiel();
   if(cfg.replay){ cfg.replay.forEach(function(u){ var m = E.fromUci(G.pos, u); if(m) applyBare(G, m); }); if(G.clock && cfg.clock){ G.clock.w = cfg.clock.w; G.clock.b = cfg.clock.b; if(G.moves.length) { G.clock.run = true; G.clock.last = Date.now(); } } }
   ton('neu'); draw();
@@ -872,8 +896,8 @@ function verlassen(){
     else meWrite();
   } else speichernLokal();
   S.G = null; closeModal();
-  $('game').hidden = true; $('game').innerHTML = ''; $('menu').hidden = false;
-  renderMenu(); if(status().offen) startLobby();
+  $('game').hidden = true; $('game').innerHTML = '';
+  renderMenu(); refresh(true); if(status().offen) startLobby();
 }
 function speichernLokal(){
   var G = S.G; if(!G || G.mode === 'online') return;
@@ -1386,7 +1410,7 @@ function renderGate(st){
   var g = $('gate');
   var ende = st.u && st.u.bis ? st.u.bis : null;
   g.innerHTML = '<div class="card gate"><div class="lock"><b>' + glyph(6) + '</b><span>🔒</span></div><h2>Das Schachbrett ist geschlossen</h2>' +
-    '<p class="muted">Im Unterricht wird nicht gespielt.</p>' +
+    '<p class="muted">Im Unterricht wird nicht gespielt und nicht geübt.</p>' +
     '<div class="big" id="gateCount"></div><div class="muted" id="gateSub"></div>' +
     '<ul><li>Frei: vor 07:30, über Mittag (11:50–13:30) und ab 16:55</li><li>Freitag ab 15:00 (Freifach) und am Wochenende</li><li>Deine Lehrperson kann Schach für die Klasse freischalten</li></ul></div>';
   gateTick(st);
@@ -1430,11 +1454,297 @@ function renderTeacher(st){
   if(rs) rs.onclick = function(){ ask('Rangliste zurücksetzen?', 'Siege, Remis und Niederlagen aller Schüler:innen in ' + esc(API.klasse) + ' werden auf 0 gesetzt.', 'Zurücksetzen', function(){ Promise.resolve(API.statZuruecksetzen()).then(function(){ toast('Rangliste ist zurückgesetzt.'); }).catch(function(){ toast('Das hat nicht geklappt.'); }); }, true); };
 }
 
+/* =====================================================================
+   Üben (Koordinaten, Figuren, Züge, Schach/Matt/Patt, Matt in 1, Regel-Quiz)
+   Immer ohne Online-Anbindung; nutzt nur den Motor E zum Prüfen.
+   ===================================================================== */
+var UE = {kind:null, q:null, n:0, ok:0, total:10, sel:[], done:false, good:false, fb:'', order:[], clicked:-1};
+var PNAME = {1:'Bauer', 2:'Springer', 3:'Läufer', 4:'Turm', 5:'Dame', 6:'König'};
+var PWERT = {1:1, 2:3, 3:3, 4:5, 5:9};
+var PREGEL = {
+  1:'Der Bauer zieht ein Feld vorwärts (vom Start aus auch zwei) und schlägt schräg vorwärts.',
+  2:'Der Springer zieht in L-Form (zwei Felder und eines zur Seite) und darf über andere Figuren springen.',
+  3:'Der Läufer zieht beliebig weit schräg und bleibt immer auf der gleichen Feldfarbe.',
+  4:'Der Turm zieht beliebig weit gerade – vor, zurück oder seitwärts.',
+  5:'Die Dame zieht wie Turm und Läufer zusammen: beliebig weit gerade oder schräg.',
+  6:'Der König zieht ein Feld in jede Richtung.'
+};
+function rnd(n){ return Math.floor(Math.random() * n); }
+function pick(a){ return a[rnd(a.length)]; }
+function shuffle(a){ a = a.slice(); for(var i = a.length - 1; i > 0; i--){ var j = rnd(i + 1), t = a[i]; a[i] = a[j]; a[j] = t; } return a; }
+function randSq(){ return rnd(8) + rnd(8) * 16; }
+function sqLabel(sq){ return E.sqName(sq); }
+function wertText(t){ var w = PWERT[t]; return w + (w === 1 ? ' Bauer' : ' Bauern'); }
+
+/* Brett zum Üben: b = 128er-Feld (0x88), o = {flip, coords, cls:{sq:klasse}, hints:{sq:1|2}} */
+function ueBoard(b, o){
+  o = o || {}; var h = '';
+  for(var i = 0; i < 8; i++){
+    for(var j = 0; j < 8; j++){
+      var f = o.flip ? 7 - j : j, r = o.flip ? i : 7 - i, sq = r * 16 + f, pc = b[sq];
+      var cls = 'sq ' + (((r + f) % 2 === 0) ? 'd' : 'l') + (o.cls && o.cls[sq] ? ' ' + o.cls[sq] : '');
+      h += '<div class="' + cls + '" data-sq="' + sq + '"' + (o.coords && j === 0 ? ' data-r="' + (r + 1) + '"' : '') + (o.coords && i === 7 ? ' data-f="' + String.fromCharCode(97 + f) + '"' : '') + '>';
+      if(o.hints && o.hints[sq]) h += '<span class="hint' + (o.hints[sq] === 2 ? ' cap' : '') + '"></span>';
+      if(pc) h += '<span class="pc ' + (pc >> 3 ? 'b' : 'w') + '">' + glyph(pc & 7) + '</span>';
+      h += '</div>';
+    }
+  }
+  return '<div class="uebox"><div class="frame"><div class="board ueb" id="ueBoard">' + h + '</div></div></div>';
+}
+function emptyB(){ var b = []; for(var i = 0; i < 128; i++) b[i] = 0; return b; }
+
+/* Zugziele einer einzelnen Figur (leeres Brett mit ein paar Hindernissen), ohne Schach-Regeln */
+function ziele(b, sq, pc){
+  var t = pc & 7, side = pc >> 3, out = [], dirs, i, to;
+  function add(to){ if(to & 0x88) return false; var o = b[to]; if(o && (o >> 3) === side) return false; out.push(to); return !o; }
+  if(t === 1){
+    var dir = side ? -16 : 16, f1 = sq + dir, startRank = side ? 6 : 1;
+    if(!(f1 & 0x88) && !b[f1]){ out.push(f1); var f2 = f1 + dir; if((sq >> 4) === startRank && !b[f2]) out.push(f2); }
+    [dir - 1, dir + 1].forEach(function(d){ var c = sq + d; if(!(c & 0x88) && b[c] && (b[c] >> 3) !== side) out.push(c); });
+  } else if(t === 2){
+    [-33, -31, -18, -14, 14, 18, 31, 33].forEach(function(d){ add(sq + d); });
+  } else if(t === 6){
+    [-17, -16, -15, -1, 1, 15, 16, 17].forEach(function(d){ add(sq + d); });
+  } else {
+    dirs = t === 3 ? [-17, -15, 15, 17] : t === 4 ? [-16, -1, 1, 16] : [-17, -16, -15, -1, 1, 15, 16, 17];
+    dirs.forEach(function(d){ to = sq + d; while(!(to & 0x88)){ var o = b[to]; if(o && (o >> 3) === side) break; out.push(to); if(o) break; to += d; } });
+  }
+  return out;
+}
+
+/* ---------- Matt-in-1-Aufgaben und Patt-Stellungen (vom Motor geprüft) ---------- */
+var MATT1 = [
+  '6k1/5ppp/8/8/8/8/8/R3K3 w - - 0 1',
+  '7k/8/6K1/8/8/8/8/5Q2 w - - 0 1',
+  'r1bqkb1r/pppp1ppp/2n2n2/4p2Q/2B1P3/8/PPPP1PPP/RNB1K1NR w KQkq - 4 4',
+  'rnbqkbnr/pppp1ppp/8/4p3/6P1/5P2/PPPPP2P/RNBQKBNR b KQkq - 0 2',
+  '6rk/6pp/8/6N1/8/8/8/6K1 w - - 0 1',
+  '7k/R7/8/8/8/8/8/1R4K1 w - - 0 1',
+  'r5k1/8/8/8/8/8/5PPP/6K1 b - - 0 1',
+  '6k1/5ppp/8/8/8/8/5PPP/4R1K1 w - - 0 1',
+  '1k6/8/1K6/8/8/8/8/3Q4 w - - 0 1',
+  '8/8/8/8/8/5k2/5q2/7K b - - 0 1',
+  '3k4/R7/8/8/8/8/8/1R2K3 w - - 0 1'
+];
+var PATT = [
+  'k7/8/KQ6/8/8/8/8/8 b - - 0 1',
+  '7k/5Q2/6K1/8/8/8/8/8 b - - 0 1',
+  'k7/2Q5/1K6/8/8/8/8/8 b - - 0 1',
+  '5k2/5P2/5K2/8/8/8/8/8 b - - 0 1'
+];
+function mattet(p, m){ E.make(p, m); var r = E.inCheck(p) && !E.legal(p).length; E.unmake(p, m); return r; }
+function mattZuege(p){ return E.legal(p).filter(function(m){ return mattet(p, m); }); }
+function klassifiziere(p){
+  var n = E.legal(p).length, c = E.inCheck(p);
+  return !n ? (c ? 'matt' : 'patt') : (c ? 'schach' : 'nichts');
+}
+
+/* ---------- Regel-Quiz ---------- */
+var RQ = [
+  {q:'Welche Farbe beginnt eine Partie?', o:['Schwarz', 'Weiss', 'Die jüngere Person', 'Das wird ausgelost'], a:1, e:'Weiss zieht immer zuerst.'},
+  {q:'Wie viele Felder hat ein Schachbrett?', o:['48', '56', '64', '72'], a:2, e:'8 × 8 = 64 Felder, abwechselnd hell und dunkel.'},
+  {q:'Wie viele Figuren hat jede Seite am Anfang (mit den Bauern)?', o:['12', '14', '16', '18'], a:2, e:'8 Bauern und 8 Figuren: König, Dame, 2 Türme, 2 Läufer, 2 Springer.'},
+  {q:'Auf welchem Feld steht die weisse Dame am Anfang?', o:['d1 (helles Feld)', 'e1 (dunkles Feld)', 'a1', 'd2'], a:0, e:'Die Dame steht auf ihrer Farbe: weisse Dame auf d1, schwarze auf d8.'},
+  {q:'Welche Figur darf über andere Figuren springen?', o:['Der Läufer', 'Der Turm', 'Der Springer', 'Die Dame'], a:2, e:'Nur der Springer springt; alle anderen Figuren brauchen freie Wege.'},
+  {q:'Wie schlägt ein Bauer?', o:['Gerade nach vorn', 'Schräg nach vorn', 'In alle Richtungen', 'Seitwärts'], a:1, e:'Der Bauer zieht gerade, schlägt aber ein Feld schräg vorwärts.'},
+  {q:'Was passiert, wenn ein Bauer die letzte Reihe erreicht?', o:['Er bleibt stehen', 'Er wird zurückgesetzt', 'Er wird umgewandelt (meist in eine Dame)', 'Er wird zum König'], a:2, e:'Der Bauer wird in Dame, Turm, Läufer oder Springer umgewandelt.'},
+  {q:'Welche Figur ist (ausser dem König) die wertvollste?', o:['Der Turm', 'Die Dame', 'Der Springer', 'Der Läufer'], a:1, e:'Dame = 9 Punkte, Turm = 5, Läufer und Springer = 3, Bauer = 1.'},
+  {q:'Was ist die Rochade?', o:['Ein Zug mit König und Turm zusammen', 'Ein Zug mit zwei Bauern', 'Ein Schlagzug der Dame', 'Eine Umwandlung'], a:0, e:'Der König geht zwei Felder zum Turm hin, der Turm springt auf die andere Seite des Königs.'},
+  {q:'Wann ist die Rochade NICHT erlaubt?', o:['Wenn der König schon gezogen hat', 'Wenn die Dame noch steht', 'Wenn ein Bauer schon gezogen hat', 'Sie ist immer erlaubt'], a:0, e:'König und Turm dürfen noch nie gezogen haben, die Felder dazwischen müssen frei sein, und der König darf nicht im Schach stehen oder durch ein bedrohtes Feld ziehen.'},
+  {q:'Du stehst im Schach. Was darfst du NICHT tun?', o:['Den König wegziehen', 'Den Angreifer schlagen', 'Dazwischenziehen', 'Einfach etwas anderes ziehen'], a:3, e:'Du musst das Schach sofort beenden: ausweichen, schlagen oder (ausser beim Springer) dazwischenziehen.'},
+  {q:'Was bedeutet Schachmatt?', o:['Der König steht im Schach und kann nichts dagegen tun', 'Die Dame ist weg', 'Der König ist geschlagen', 'Beide Seiten haben gleich viele Figuren'], a:0, e:'Matt beendet die Partie – die Seite, die matt setzt, gewinnt. Der König wird nie wirklich geschlagen.'},
+  {q:'Was ist ein Patt?', o:['Die Seite am Zug steht nicht im Schach, hat aber keinen erlaubten Zug', 'Schach, das man abwehren kann', 'Ein Sieg für Weiss', 'Ein Zug mit dem Springer'], a:0, e:'Patt ist unentschieden (Remis) – ein häufiger Fehler, wenn man schon gewinnt!'},
+  {q:'Darf sich der König auf ein Feld stellen, das der Gegner bedroht?', o:['Ja, wenn er Mut hat', 'Nein, nie', 'Nur im Endspiel', 'Nur mit der Rochade'], a:1, e:'Der König darf sich nie selbst ins Schach stellen.'},
+  {q:'Wie viele Felder zieht ein Bauer aus der Grundstellung höchstens?', o:['Eines', 'Zwei', 'Drei', 'So viele er will'], a:1, e:'Vom Startfeld aus darf er einen oder zwei Schritte ziehen, danach immer nur einen.'},
+  {q:'Wie oft darf sich die gleiche Stellung wiederholen, ohne dass es Remis gibt?', o:['Nie', 'Einmal', 'Dreimal gibt Remis', 'So oft man will'], a:2, e:'Dreimalige Stellungswiederholung ist Remis (unentschieden).'},
+  {q:'Was ist «en passant»?', o:['Ein Bauer schlägt einen Bauern, der gerade zwei Felder vorgerückt ist, im Vorbeigehen', 'Eine Eröffnung', 'Ein Dameopfer', 'Eine Art der Rochade'], a:0, e:'Der Schlag ist nur direkt im nächsten Zug erlaubt, danach verfällt die Möglichkeit.'},
+  {q:'Wie zieht der Läufer?', o:['Gerade', 'Schräg, so weit er will', 'In L-Form', 'Ein Feld in alle Richtungen'], a:1, e:'Er bleibt dabei immer auf Feldern der gleichen Farbe.'},
+  {q:'Du berührst im Turnier eine Figur – was gilt?', o:['Nichts', 'Du musst mit ihr ziehen (wenn möglich)', 'Du darfst sie zurücksetzen', 'Du verlierst sofort'], a:1, e:'«Berührt – geführt»: Die berührte Figur muss gezogen werden, sofern es einen erlaubten Zug gibt.'}
+];
+
+/* ---------- Fragen erzeugen ---------- */
+var UE_ITEMS = [
+  ['koord', 'Koordinaten', 'Finde Felder wie e4 oder c7 blitzschnell'],
+  ['figur', 'Figuren kennen', 'Name und Wert jeder Figur'],
+  ['zuege', 'Wohin darf ich?', 'Alle erlaubten Felder einer Figur anklicken'],
+  ['status', 'Schach, Matt oder Patt?', 'Erkenne, was auf dem Brett los ist'],
+  ['matt1', 'Matt in einem Zug', 'Setze den König mit einem Zug matt'],
+  ['regeln', 'Regel-Quiz', 'Grundregeln, Rochade, en passant & Co.']
+];
+function ueQuestion(){
+  var k = UE.kind, q = {}, i;
+  if(k === 'koord'){
+    var sq = randSq(), mode = Math.random() < 0.5 ? 'find' : 'name', flip = Math.random() < 0.25;
+    if(mode === 'find') q = {mode:mode, sq:sq, flip:flip};
+    else {
+      var opts = {}; opts[sq] = 1; while(Object.keys(opts).length < 4) opts[randSq()] = 1;
+      q = {mode:mode, sq:sq, flip:flip, opts:shuffle(Object.keys(opts).map(Number))};
+    }
+  } else if(k === 'figur'){
+    var mode2 = Math.random() < 0.6 ? 'name' : 'wert', t = mode2 === 'wert' ? pick([1, 2, 3, 4, 5]) : pick([1, 2, 3, 4, 5, 6]);
+    q = {mode:mode2, t:t, side:rnd(2)};
+  } else if(k === 'zuege'){
+    var t2 = pick([1, 2, 2, 3, 3, 4, 4, 5, 6]), b = emptyB(), sq2, side = 0;
+    if(t2 === 1){
+      var r = 1 + rnd(5), f = rnd(8); sq2 = r * 16 + f; b[sq2] = 1;   // weisser Bauer, Reihen 2–6
+      var blk = Math.random() < 0.3, k2 = 1 + rnd(2);
+      if(blk) b[sq2 + 16] = 8 + pick([2, 3, 4]);
+      for(i = 0; i < k2; i++){ var d = pick([15, 17]), c = sq2 + d; if(!(c & 0x88) && !b[c]) b[c] = 8 + pick([1, 2, 3, 4]); }
+      side = 0;
+    } else {
+      sq2 = randSq(); b[sq2] = t2;
+      var n = t2 === 6 || t2 === 2 ? 1 + rnd(3) : 2 + rnd(3);
+      for(i = 0; i < n; i++){ var s3 = randSq(); if(s3 !== sq2 && !b[s3]) b[s3] = (Math.random() < 0.5 ? 8 : 0) + pick([2, 3, 4]); }
+    }
+    q = {t:t2, sq:sq2, b:b, side:side, ans:ziele(b, sq2, b[sq2])};
+  } else if(k === 'status'){
+    var want = pick(['matt', 'schach', 'patt', 'nichts']), p, tries = 0, fen;
+    q = null;
+    while(!q && tries++ < 40){
+      if(want === 'patt'){ fen = pick(PATT); p = E.fromFen(fen); }
+      else {
+        fen = pick(MATT1); p = E.fromFen(fen);
+        var ms = shuffle(E.legal(p)).filter(function(m){ E.make(p, m); var c = klassifiziere(p); E.unmake(p, m); return c === want; });
+        if(!ms.length) continue;
+        E.make(p, ms[0]);
+      }
+      if(klassifiziere(p) === want) q = {b:p.b.slice(), side:p.side, ans:want};
+    }
+    if(!q){ p = E.fromFen(PATT[0]); q = {b:p.b.slice(), side:p.side, ans:'patt'}; }
+  } else if(k === 'matt1'){
+    var fenM = UE.order[UE.n % UE.order.length], pm = E.fromFen(fenM);
+    q = {fen:fenM, side:pm.side, b:pm.b.slice(), sel:-1, ziel:[], loesung:E.san(pm, mattZuege(pm)[0])};
+  } else if(k === 'regeln'){ q = RQ[UE.order[UE.n % UE.order.length]]; }
+  UE.q = q; UE.sel = []; UE.done = false; UE.good = false; UE.fb = ''; UE.clicked = -1; UE.clickedS = null;
+}
+function ueStart(kind){
+  UE.kind = kind; UE.n = 0; UE.ok = 0; UE.q = null; UE.total = 10;
+  if(kind === 'matt1') UE.order = shuffle(MATT1).slice(0, Math.min(10, MATT1.length));
+  else if(kind === 'regeln') UE.order = shuffle(RQ.map(function(x, i){ return i; })).slice(0, 10);
+  else UE.order = [];
+  if(kind === 'matt1' || kind === 'regeln') UE.total = UE.order.length;
+}
+
+/* ---------- Ansicht ---------- */
+function ueMenu(){
+  return '<div class="card"><h2>Üben</h2><p class="muted">Kleine Übungen zu den Schach-Lernzielen – ohne Zeitdruck und ohne Rangliste.</p></div><div class="modes" style="margin-top:14px">' +
+    UE_ITEMS.map(function(i, n){ return '<button class="mode" data-uk="' + i[0] + '" type="button"><span class="pc">' + glyph([2, 6, 3, 5, 4, 1][n]) + '</span><b>' + i[1] + '</b><small>' + i[2] + '</small></button>'; }).join('') + '</div>';
+}
+function ueResult(el, total){
+  var pct = UE.ok / total;
+  el.innerHTML = '<div class="card qbox" style="text-align:center"><h2>Geschafft!</h2><div class="big2">' + UE.ok + ' / ' + total + '</div><p class="muted">' + (pct >= 0.8 ? 'Super – du denkst schon wie eine Schachspielerin oder ein Schachspieler!' : pct >= 0.5 ? 'Gut gemacht – noch etwas üben und es sitzt.' : 'Probier es gleich nochmals – mit jeder Runde wird es leichter.') + '</p><div class="row" style="justify-content:center"><button class="btn" data-a="again" type="button">Nochmals</button><button class="btn ghost" data-a="menu" type="button">Zurück</button></div></div>';
+  el.querySelector('[data-a="again"]').onclick = function(){ ueStart(UE.kind); renderUeben(); };
+  el.querySelector('[data-a="menu"]').onclick = function(){ UE.kind = null; renderUeben(); };
+}
+function renderUeben(){
+  var el = $('ueben');
+  if(!UE.kind){ el.innerHTML = ueMenu(); el.querySelectorAll('[data-uk]').forEach(function(b){ b.onclick = function(){ ueStart(b.dataset.uk); renderUeben(); }; }); return; }
+  var k = UE.kind, total = UE.total;
+  if(UE.n >= total){ ueResult(el, total); return; }
+  if(!UE.q) ueQuestion();
+  var q = UE.q, h = '<div class="card qbox"><div class="row" style="justify-content:space-between"><button class="btn sm ghost" data-a="menu" type="button">← Übungen</button><span class="muted">Frage ' + (UE.n + 1) + ' von ' + total + ' · richtig: ' + UE.ok + '</span></div><div class="bar"><i style="width:' + (UE.n / total * 100) + '%"></i></div>';
+  var cls = {}, hints = {}, i;
+  if(k === 'koord'){
+    if(q.mode === 'find'){
+      if(UE.done){ cls[q.sq] = 'ue-ok'; if(UE.clicked >= 0 && UE.clicked !== q.sq) cls[UE.clicked] = 'ue-bad'; }
+      h += '<div class="qq">Klick auf das Feld <b class="coord">' + esc(sqLabel(q.sq)) + '</b></div>' + ueBoard(emptyB(), {flip:q.flip, cls:cls});
+    } else {
+      cls[q.sq] = UE.done ? 'ue-ok' : 'ue-sel';
+      h += '<div class="qq">Wie heisst das markierte Feld?</div>' + ueBoard(emptyB(), {flip:q.flip, cls:cls}) + '<div class="qopt" style="flex-direction:row;flex-wrap:wrap;justify-content:center">' + q.opts.map(function(o){ return '<button type="button" data-o="' + o + '" class="' + (UE.done ? (o === q.sq ? 'rich' : (UE.clicked === o ? 'falsch' : '')) : '') + '" style="min-width:70px;text-align:center">' + esc(sqLabel(o)) + '</button>'; }).join('') + '</div>';
+    }
+    if(q.flip) h += '<p class="muted" style="text-align:center;margin:0">Das Brett ist gedreht – Schwarz sitzt unten.</p>';
+  } else if(k === 'figur'){
+    h += '<div class="qq">' + (q.mode === 'name' ? 'Wie heisst diese Figur?' : 'Wie viele Bauern ist ' + (q.t === 5 ? 'die ' : 'der ') + '<b>' + PNAME[q.t] + '</b> ungefähr wert?') + '</div>';
+    if(q.mode === 'name') h += '<div class="bigpc"><span class="pc ' + (q.side ? 'b' : 'w') + '">' + glyph(q.t) + '</span></div><div class="qopt" style="flex-direction:row;flex-wrap:wrap;justify-content:center">' + [1, 2, 3, 4, 5, 6].map(function(t){ return '<button type="button" data-o="' + t + '" class="' + (UE.done ? (t === q.t ? 'rich' : (UE.clicked === t ? 'falsch' : '')) : '') + '" style="min-width:110px;text-align:center">' + PNAME[t] + '</button>'; }).join('') + '</div>';
+    else h += '<div class="bigpc"><span class="pc ' + (q.side ? 'b' : 'w') + '">' + glyph(q.t) + '</span></div><div class="qopt" style="flex-direction:row;flex-wrap:wrap;justify-content:center">' + [1, 3, 5, 9].map(function(w){ return '<button type="button" data-o="' + w + '" class="' + (UE.done ? (w === PWERT[q.t] ? 'rich' : (UE.clicked === w ? 'falsch' : '')) : '') + '" style="min-width:90px;text-align:center">' + w + '</button>'; }).join('') + '</div>';
+  } else if(k === 'zuege'){
+    UE.sel.forEach(function(s){ cls[s] = 'ue-sel'; });
+    if(UE.done){
+      cls = {}; q.ans.forEach(function(s){ cls[s] = UE.sel.indexOf(s) >= 0 ? 'ue-ok' : 'ue-miss'; });
+      UE.sel.forEach(function(s){ if(q.ans.indexOf(s) < 0) cls[s] = 'ue-bad'; });
+    }
+    h += '<div class="qq">Klick <b>alle</b> Felder an, auf die ' + (q.t === 5 ? 'die ' : 'der ') + '<b>' + PNAME[q.t] + '</b> ' + '(hell) im nächsten Zug darf. Helle Figuren stehen im Weg, dunkle kannst du schlagen.</div>' + ueBoard(q.b, {coords:true, cls:cls}) + '<div class="row" style="justify-content:center"><button class="btn" data-a="check" type="button"' + (UE.done ? ' disabled' : '') + '>Prüfen</button></div>';
+  } else if(k === 'status'){
+    h += '<div class="qq">' + (q.side ? 'Schwarz' : 'Weiss') + ' ist am Zug. Was ist los auf dem Brett?</div>' + ueBoard(q.b, {coords:true, flip:false}) + '<div class="qopt" style="flex-direction:row;flex-wrap:wrap;justify-content:center">' + [['schach', 'Schach'], ['matt', 'Schachmatt'], ['patt', 'Patt'], ['nichts', 'Nichts davon']].map(function(o){ return '<button type="button" data-os="' + o[0] + '" class="' + (UE.done ? (o[0] === q.ans ? 'rich' : (UE.clickedS === o[0] ? 'falsch' : '')) : '') + '" style="min-width:120px;text-align:center">' + o[1] + '</button>'; }).join('') + '</div>';
+  } else if(k === 'matt1'){
+    if(q.sel >= 0) cls[q.sel] = 'ue-sel';
+    if(UE.done && UE.clicked >= 0){ cls[UE.clicked] = UE.good ? 'ue-ok' : 'ue-bad'; }
+    q.ziel.forEach(function(m){ hints[m.t] = (q.b[m.t] || m.fl === 2) ? 2 : 1; });
+    h += '<div class="qq">' + (q.side ? 'Schwarz' : 'Weiss') + ' ist am Zug und setzt in <b>einem</b> Zug matt. Klick erst die Figur, dann das Zielfeld.</div>' + ueBoard(q.b, {coords:true, flip:!!q.side, cls:cls, hints:UE.done ? null : hints});
+  } else if(k === 'regeln'){
+    h += '<div class="qq">' + esc(q.q) + '</div><div class="qopt">' + q.o.map(function(o, n){ return '<button type="button" data-o="' + n + '" class="' + (UE.done ? (n === q.a ? 'rich' : (UE.clicked === n ? 'falsch' : '')) : '') + '">' + esc(o) + '</button>'; }).join('') + '</div>';
+  }
+  if(UE.fb) h += '<div class="fb ' + (UE.good ? 'good' : 'bad') + '">' + UE.fb + '</div>';
+  if(UE.done) h += '<div class="row" style="justify-content:center"><button class="btn" data-a="next" type="button">' + (UE.n + 1 >= total ? 'Resultat' : 'Weiter') + '</button></div>';
+  el.innerHTML = h + '</div>';
+  el.querySelectorAll('[data-a="menu"]').forEach(function(b){ b.onclick = function(){ UE.kind = null; renderUeben(); }; });
+  var nx = el.querySelector('[data-a="next"]'); if(nx) nx.onclick = function(){ UE.n++; UE.q = null; renderUeben(); };
+  el.querySelectorAll('[data-o]').forEach(function(b){ b.onclick = function(){ ueAnswer(+b.dataset.o); }; });
+  el.querySelectorAll('[data-os]').forEach(function(b){ b.onclick = function(){ ueStatus(b.dataset.os); }; });
+  var ck = el.querySelector('[data-a="check"]'); if(ck) ck.onclick = ueCheckZuege;
+  var bd = el.querySelector('#ueBoard');
+  if(bd) bd.onclick = function(e){ var s = e.target.closest ? e.target.closest('.sq') : null; if(s) ueSquare(+s.dataset.sq); };
+}
+function ueFinish(good, ansTxt, extra){
+  if(UE.done) return; UE.done = true; UE.good = good; if(good) UE.ok++;
+  UE.fb = (good ? '✓ Richtig! ' : '✗ Leider nicht. ' + (ansTxt != null ? 'Richtig ist: <b>' + esc(ansTxt) + '</b>. ' : '')) + (extra || '');
+  ton(good ? 'neu' : 'zug');
+  renderUeben();
+}
+function ueAnswer(v){
+  var q = UE.q, k = UE.kind; if(UE.done) return;
+  UE.clicked = v;
+  if(k === 'koord') ueFinish(v === q.sq, sqLabel(q.sq));
+  else if(k === 'figur') ueFinish(q.mode === 'name' ? v === q.t : v === PWERT[q.t], q.mode === 'name' ? PNAME[q.t] : String(PWERT[q.t]), q.mode === 'name' ? PREGEL[q.t] : PNAME[q.t] + ' = ' + wertText(q.t) + '. Der König hat keinen Wert – wird er matt, ist die Partie verloren.');
+  else if(k === 'regeln') ueFinish(v === q.a, q.o[q.a], q.e);
+}
+function ueSquare(sq){
+  var q = UE.q, k = UE.kind; if(UE.done || !q) return;
+  if(k === 'koord' && q.mode === 'find'){ UE.clicked = sq; ueFinish(sq === q.sq, sqLabel(q.sq), sq === q.sq ? '' : 'Du hast ' + sqLabel(sq) + ' erwischt.'); }
+  else if(k === 'zuege'){ var i = UE.sel.indexOf(sq); if(i >= 0) UE.sel.splice(i, 1); else UE.sel.push(sq); renderUeben(); }
+  else if(k === 'matt1'){
+    var pc = q.b[sq];
+    if(q.sel >= 0){
+      var ms = q.ziel.filter(function(m){ return m.t === sq; });
+      if(ms.length){
+        var p = E.fromFen(q.fen), ok = ms.some(function(m){ return mattet(p, E.fromUci(p, E.uci(m))); });
+        UE.clicked = sq;
+        ueFinish(ok, q.loesung, ok ? 'Der König hat kein Feld mehr und kann das Schach nicht abwehren.' : 'Das war kein Schachmatt – der König kann sich noch retten oder das Schach abwehren.');
+        return;
+      }
+    }
+    if(pc && (pc >> 3) === q.side){
+      var p2 = E.fromFen(q.fen); q.sel = sq; q.ziel = E.legal(p2).filter(function(m){ return m.f === sq; }); renderUeben();
+    } else { q.sel = -1; q.ziel = []; renderUeben(); }
+  }
+}
+function ueCheckZuege(){
+  var q = UE.q; if(UE.done) return;
+  var a = q.ans.slice().sort(function(x, y){ return x - y; }), b = UE.sel.slice().sort(function(x, y){ return x - y; });
+  var good = a.length === b.length && a.every(function(x, i){ return x === b[i]; });
+  ueFinish(good, a.length ? a.map(sqLabel).join(', ') : 'kein Feld', PREGEL[q.t] + ' Grün = richtig, rot = zu viel, gelber Rand = vergessen.');
+}
+function ueStatus(v){
+  var q = UE.q; if(UE.done) return; UE.clickedS = v;
+  var txt = {matt:'Schachmatt', schach:'Schach', patt:'Patt', nichts:'nichts davon'};
+  var why = {matt:'Der König steht im Schach und hat keine Rettung – die Partie ist zu Ende.', schach:'Der König wird angegriffen, kann sich aber retten (ausweichen, schlagen oder dazwischenziehen).', patt:'Der König steht nicht im Schach, aber es gibt keinen erlaubten Zug: unentschieden.', nichts:'Der König steht nicht im Schach, und es gibt noch erlaubte Züge.'};
+  ueFinish(v === q.ans, txt[q.ans], why[q.ans]);
+}
+
+/* ---------- Ansichten ---------- */
+var UEBEN_OFFEN = false;   // true: Üben ist auch im Unterricht offen
+function renderNav(){
+  var n = $('topnav'); if(S.G){ n.hidden = true; return; } n.hidden = false;
+  var items = [['menu', '♟️ Spielen'], ['ueben', '🎯 Üben']];
+  n.innerHTML = items.map(function(i){ return '<button type="button" data-v="' + i[0] + '" class="' + (S.view === i[0] ? 'on' : '') + '">' + i[1] + '</button>'; }).join('');
+  n.querySelectorAll('[data-v]').forEach(function(b){ b.onclick = function(){ if(b.dataset.v === 'ueben' && S.view === 'ueben') UE.kind = null; S.view = b.dataset.v; refresh(true); }; });
+}
+
 /* ---------- Gesamtzustand ---------- */
 var lastKey = '';
 function refresh(force){
   var st = status();
-  var key = (st.offen ? 'o' : 'z') + (st.lehrer ? 'L' : '') + (st.frei ? st.frei.bis : '') + (S.G ? 'g' : '') + (st.u.zu ? 'u' : '');
+  var key = (st.offen ? 'o' : 'z') + (st.lehrer ? 'L' : '') + (st.frei ? st.frei.bis : '') + (S.G ? 'g' : '') + (st.u.zu ? 'u' : '') + S.view;
   var chip = $('chip'); chip.hidden = false; chip.classList.toggle('zu', !st.offen);
   var txt;
   if(st.lehrer) txt = !st.u.zu ? 'Offen' : (S.frei && S.frei.bis > Date.now() ? 'Freigeschaltet bis ' + hm(new Date(S.frei.bis)) : 'Schüler:innen: gesperrt bis ' + hm(st.u.bis));
@@ -1456,10 +1766,14 @@ function refresh(force){
   S.offen = st.offen;
   if(force || key !== lastKey){
     lastKey = key;
-    $('gate').hidden = st.offen;
-    if(!st.offen) renderGate(st);
-    $('menu').hidden = !st.offen || !!S.G;
+    var gesperrt = !st.offen && !(UEBEN_OFFEN && S.view === 'ueben');
+    $('gate').hidden = !gesperrt;
+    if(gesperrt) renderGate(st);
+    $('menu').hidden = gesperrt || !!S.G || S.view !== 'menu';
+    $('ueben').hidden = gesperrt || !!S.G || S.view !== 'ueben';
     $('game').hidden = !st.offen || !S.G;
+    renderNav();
+    if(!$('ueben').hidden) renderUeben();
     renderTeacher(st);
   } else if(!st.offen) gateTick(st);
 }
@@ -1474,7 +1788,7 @@ function init(){
   if(status().offen) startLobby();
   setInterval(refresh, 1000);
   setInterval(updateClocks, 200);
-  if(API.mock){ window.__schach = S; window.__schachUnterricht = unterricht; }   // nur zum Testen ausserhalb der Library
+  if(API.mock){ window.__schach = S; window.__schachUE = UE; window.__schachUnterricht = unterricht; }   // nur zum Testen ausserhalb der Library
 }
 init();
 })();
