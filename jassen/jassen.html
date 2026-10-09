@@ -266,6 +266,7 @@ button:focus-visible{outline:2px solid var(--gold-soft); outline-offset:2px;}
 .jc img{display:block; width:100%; height:100%; object-fit:contain; border-radius:6%; user-select:none; -webkit-user-drag:none;}
 .credit{font-size:12px; color:var(--muted); margin-top:18px; line-height:1.45;}
 .page .credit{color:#6b5a3a;}
+.tw button[data-t="0"] svg,.tw button[data-t="1"] svg,.tw button[data-t="2"] svg,.tw button[data-t="3"] svg,.tw button[data-s] svg{background:#f6ecd3; border-radius:50%; padding:3px; width:38px; height:38px;}
 </style>
 </head>
 <body>
@@ -1239,9 +1240,15 @@ function draw(){
   if(G.ts) return tsDraw();
   if(G.gs) return gsDrawUi();
   var h = '<div class="stage2"><div><div class="stbar" id="stbar">' + stbarHtml() + '</div><div class="jtable">' + seatHtml(G, 2) + seatHtml(G, 3) + '<div class="center">' + centerHtml(G) + '</div>' + seatHtml(G, 1) + seatHtml(G, 0) + '</div>' + weisChip(G) +
-    '<div class="ctrls">' + (G.mode !== 'watch' && CFG.tipp && myTurn(G) ? '<button class="btn sm" data-a="tipp" type="button">💡 Tipp</button>' : '') + '<button class="btn sm ghost" data-a="regeln" type="button">📖 Regeln</button><button class="btn sm ghost" data-a="ende" type="button">' + (G.mode === 'watch' ? 'Zuschauen beenden' : 'Partie beenden') + '</button></div></div>' +
+    '<div class="ctrls">' + takeoverBtn(G) + (G.mode !== 'watch' && CFG.tipp && myTurn(G) ? '<button class="btn sm" data-a="tipp" type="button">💡 Tipp</button>' : '') + '<button class="btn sm ghost" data-a="regeln" type="button">📖 Regeln</button><button class="btn sm ghost" data-a="ende" type="button">' + (G.mode === 'watch' ? 'Zuschauen beenden' : 'Partie beenden') + '</button></div></div>' +
     '<aside class="sidebox">' + tafelHtml(G) + liveHtml(G) + '</aside></div>';
   el.innerHTML = h;
+}
+function takeoverBtn(G){
+  if(G.mode !== 'online' || G.hostUid !== API.uid || G.rd.phase === 'done' || G.over) return '';
+  var seat = G.rd.turn, sp = G.seats[seat]; if(sp.type !== 'human' || seat === G.my) return '';
+  var d = docOf(sp.uid), gone = !d || !d.at || Date.now() - d.at > FRISCH || (d.g && d.g.left);
+  return gone ? '<button class="btn sm" data-a="takeover" data-seat="' + seat + '" type="button">🤖 Computer übernimmt für ' + esc(sp.name) + '</button>' : '';
 }
 function reasonIllegal(G, c){
   var rd = G.rd, m = effMode(rd.t, rd.trickNo); if(!rd.trick.length) return '';
@@ -1278,6 +1285,7 @@ function bindGame(){
     else if(b.dataset.s != null) humanAct('s');
     else if(b.dataset.weis != null){ G.weisOn = !G.weisOn; draw(); }
     else if(b.dataset.a === 'tipp') doTipp();
+    else if(b.dataset.a === 'takeover') takeover(+b.dataset.seat);
     else if(b.dataset.a === 'regeln'){ openBookInModal(); }
     else if(b.dataset.a === 'ende'){ if(G.mode === 'watch' || G.over) verlassen(); else ask('Partie beenden?', 'Die Partie wird abgebrochen' + (G.mode === 'online' ? ' – dein Tisch wird geschlossen.' : G.ts ? '.' : ' (sie bleibt gespeichert, bis du eine neue beginnst).'), 'Beenden', verlassen, true); }
   });
@@ -2294,7 +2302,7 @@ function init(){
   S.unsubFrei = API.freigabeWatch(function(f){ S.frei = f; refresh(true); });
   refresh(true);
   if(status().offen) startLobby();
-  setInterval(function(){ refresh(); if(S.G && S.G.showTrick && S.G.showTrick.until < Date.now() - 50 && S.G.showTrick.shown !== true){ S.G.showTrick.shown = true; draw(); } }, 1000);
+  setInterval(function(){ refresh(); if(S.G && S.G.mode === 'online' && S.G.rd){ var tk = takeoverBtn(S.G); if(tk !== S.G.lastTake){ S.G.lastTake = tk; draw(); } } if(S.G && S.G.showTrick && S.G.showTrick.until < Date.now() - 50 && S.G.showTrick.shown !== true){ S.G.showTrick.shown = true; draw(); } }, 1000);
   if(API.mock){ window.__jass = S; window.__jassTest = {newRound:newRound, applyAct:applyAct, legal:legal, findWeis:findWeis, aiAct:aiAct, cardPts:cardPts, trickWinnerIdx:trickWinnerIdx}; }
 }
 init();
