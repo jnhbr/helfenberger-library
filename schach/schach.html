@@ -1569,6 +1569,8 @@ var UE_ITEMS = [
   ['zuege', 'Wohin darf ich?', 'Alle erlaubten Felder einer Figur anklicken'],
   ['status', 'Schach, Matt oder Patt?', 'Erkenne, was auf dem Brett los ist'],
   ['matt1', 'Matt in einem Zug', 'Setze den König mit einem Zug matt'],
+  ['taktik', 'Taktik-Trainer', 'Gabeln, Figuren gewinnen, Matt in 2 – drei Stufen'],
+  ['eroeffnung', 'Eröffnung: 10 Züge', 'Spiele nach den Grundsätzen und lass dich auswerten'],
   ['regeln', 'Regel-Quiz', 'Grundregeln, Rochade, en passant & Co.']
 ];
 function ueQuestion(){
@@ -1614,11 +1616,14 @@ function ueQuestion(){
   } else if(k === 'matt1'){
     var fenM = UE.order[UE.n % UE.order.length], pm = E.fromFen(fenM);
     q = {fen:fenM, side:pm.side, b:pm.b.slice(), sel:-1, ziel:[], loesung:E.san(pm, mattZuege(pm)[0])};
+  } else if(k === 'taktik'){ q = tkQuestion(); UE.tkHint = false;
   } else if(k === 'regeln'){ q = RQ[UE.order[UE.n % UE.order.length]]; }
   UE.q = q; UE.sel = []; UE.done = false; UE.good = false; UE.fb = ''; UE.clicked = -1; UE.clickedS = null;
 }
 function ueStart(kind){
   UE.kind = kind; UE.n = 0; UE.ok = 0; UE.q = null; UE.total = 10;
+  if(kind === 'taktik'){ if(!UE.keepLv) UE.tkLv = null; UE.keepLv = false; UE.tkHint = false; if(UE.tkLv) tkStart(UE.tkLv); return; }
+  if(kind === 'eroeffnung'){ eoStart(); return; }
   if(kind === 'matt1') UE.order = shuffle(MATT1).slice(0, Math.min(10, MATT1.length));
   else if(kind === 'regeln') UE.order = shuffle(RQ.map(function(x, i){ return i; })).slice(0, 10);
   else UE.order = [];
@@ -1628,18 +1633,25 @@ function ueStart(kind){
 /* ---------- Ansicht ---------- */
 function ueMenu(){
   return '<div class="card"><h2>Üben</h2><p class="muted">Kleine Übungen zu den Schach-Lernzielen – ohne Zeitdruck und ohne Rangliste.</p></div><div class="modes" style="margin-top:14px">' +
-    UE_ITEMS.map(function(i, n){ return '<button class="mode" data-uk="' + i[0] + '" type="button"><span class="pc">' + glyph([2, 6, 3, 5, 4, 1][n]) + '</span><b>' + i[1] + '</b><small>' + i[2] + '</small></button>'; }).join('') + '</div>';
+    UE_ITEMS.map(function(i, n){ return '<button class="mode" data-uk="' + i[0] + '" type="button"><span class="pc">' + glyph([2, 6, 3, 5, 4, 2, 3, 1][n]) + '</span><b>' + i[1] + '</b><small>' + i[2] + '</small></button>'; }).join('') + '</div>';
 }
 function ueResult(el, total){
   var pct = UE.ok / total;
   el.innerHTML = '<div class="card qbox" style="text-align:center"><h2>Geschafft!</h2><div class="big2">' + UE.ok + ' / ' + total + '</div><p class="muted">' + (pct >= 0.8 ? 'Super – du denkst schon wie eine Schachspielerin oder ein Schachspieler!' : pct >= 0.5 ? 'Gut gemacht – noch etwas üben und es sitzt.' : 'Probier es gleich nochmals – mit jeder Runde wird es leichter.') + '</p><div class="row" style="justify-content:center"><button class="btn" data-a="again" type="button">Nochmals</button><button class="btn ghost" data-a="menu" type="button">Zurück</button></div></div>';
-  el.querySelector('[data-a="again"]').onclick = function(){ ueStart(UE.kind); renderUeben(); };
+  el.querySelector('[data-a="again"]').onclick = function(){ UE.keepLv = true; ueStart(UE.kind); renderUeben(); };
   el.querySelector('[data-a="menu"]').onclick = function(){ UE.kind = null; renderUeben(); };
 }
 function renderUeben(){
   var el = $('ueben');
   if(!UE.kind){ el.innerHTML = ueMenu(); el.querySelectorAll('[data-uk]').forEach(function(b){ b.onclick = function(){ ueStart(b.dataset.uk); renderUeben(); }; }); return; }
   var k = UE.kind, total = UE.total;
+  if(k === 'eroeffnung'){ renderEroeffnung(el); return; }
+  if(k === 'taktik' && !UE.tkLv){
+    el.innerHTML = tkMenu();
+    el.querySelectorAll('[data-tl]').forEach(function(b){ b.onclick = function(){ tkStart(+b.dataset.tl); renderUeben(); }; });
+    el.querySelectorAll('[data-a="menu"]').forEach(function(b){ b.onclick = function(){ UE.kind = null; renderUeben(); }; });
+    return;
+  }
   if(UE.n >= total){ ueResult(el, total); return; }
   if(!UE.q) ueQuestion();
   var q = UE.q, h = '<div class="card qbox"><div class="row" style="justify-content:space-between"><button class="btn sm ghost" data-a="menu" type="button">← Übungen</button><span class="muted">Frage ' + (UE.n + 1) + ' von ' + total + ' · richtig: ' + UE.ok + '</span></div><div class="bar"><i style="width:' + (UE.n / total * 100) + '%"></i></div>';
@@ -1671,6 +1683,8 @@ function renderUeben(){
     if(UE.done && UE.clicked >= 0){ cls[UE.clicked] = UE.good ? 'ue-ok' : 'ue-bad'; }
     q.ziel.forEach(function(m){ hints[m.t] = (q.b[m.t] || m.fl === 2) ? 2 : 1; });
     h += '<div class="qq">' + (q.side ? 'Schwarz' : 'Weiss') + ' ist am Zug und setzt in <b>einem</b> Zug matt. Klick erst die Figur, dann das Zielfeld.</div>' + ueBoard(q.b, {coords:true, flip:!!q.side, cls:cls, hints:UE.done ? null : hints});
+  } else if(k === 'taktik'){
+    h += tkHtml(q);
   } else if(k === 'regeln'){
     h += '<div class="qq">' + esc(q.q) + '</div><div class="qopt">' + q.o.map(function(o, n){ return '<button type="button" data-o="' + n + '" class="' + (UE.done ? (n === q.a ? 'rich' : (UE.clicked === n ? 'falsch' : '')) : '') + '">' + esc(o) + '</button>'; }).join('') + '</div>';
   }
@@ -1682,6 +1696,7 @@ function renderUeben(){
   el.querySelectorAll('[data-o]').forEach(function(b){ b.onclick = function(){ ueAnswer(+b.dataset.o); }; });
   el.querySelectorAll('[data-os]').forEach(function(b){ b.onclick = function(){ ueStatus(b.dataset.os); }; });
   var ck = el.querySelector('[data-a="check"]'); if(ck) ck.onclick = ueCheckZuege;
+  var hb = el.querySelector('[data-a="hint"]'); if(hb) hb.onclick = function(){ UE.tkHint = true; renderUeben(); };
   var bd = el.querySelector('#ueBoard');
   if(bd) bd.onclick = function(e){ var s = e.target.closest ? e.target.closest('.sq') : null; if(s) ueSquare(+s.dataset.sq); };
 }
@@ -1701,6 +1716,7 @@ function ueAnswer(v){
 function ueSquare(sq){
   var q = UE.q, k = UE.kind; if(UE.done || !q) return;
   if(k === 'koord' && q.mode === 'find'){ UE.clicked = sq; ueFinish(sq === q.sq, sqLabel(q.sq), sq === q.sq ? '' : 'Du hast ' + sqLabel(sq) + ' erwischt.'); }
+  else if(k === 'taktik') tkSquare(sq);
   else if(k === 'zuege'){ var i = UE.sel.indexOf(sq); if(i >= 0) UE.sel.splice(i, 1); else UE.sel.push(sq); renderUeben(); }
   else if(k === 'matt1'){
     var pc = q.b[sq];
@@ -1729,6 +1745,152 @@ function ueStatus(v){
   var txt = {matt:'Schachmatt', schach:'Schach', patt:'Patt', nichts:'nichts davon'};
   var why = {matt:'Der König steht im Schach und hat keine Rettung – die Partie ist zu Ende.', schach:'Der König wird angegriffen, kann sich aber retten (ausweichen, schlagen oder dazwischenziehen).', patt:'Der König steht nicht im Schach, aber es gibt keinen erlaubten Zug: unentschieden.', nichts:'Der König steht nicht im Schach, und es gibt noch erlaubte Züge.'};
   ueFinish(v === q.ans, txt[q.ans], why[q.ans]);
+}
+
+/* ---------- Taktik-Trainer: Aufgaben (vom Motor geprüft: Zug eindeutig, Matt in 2 erzwungen) ----------
+   [Stellung, Stufe 1–3, Art (m = Material gewinnen, m2 = Matt in 2), Lösungszüge, Erklärung, Beispiel-Variante] */
+var TAKTIK = [["4r1k1/4npp1/pq5p/P7/3P4/1Br2N1P/5PP1/1K1R4 b - - 0 1",1,"m","b6b3","Ungedeckte Figur: Der gegnerische Läufer auf b3 wird von nichts gedeckt – du nimmst ihn einfach mit. Prüfe vor jedem Zug, welche Figuren ungedeckt stehen!","Dxb3+ – Ka1 – Da3+"],["r1b1k2r/1ppp1pb1/2nQp1q1/pB2P3/P2P2P1/7P/1PP2P1R/R1B3K1 b - - 0 1",1,"m","c7d6","Gewinnender Tausch: Du schlägst mit dem Bauer eine wertvollere Figur (Dame). Selbst wenn zurückgeschlagen wird, kommst du vorne heraus.","cxd6 – Ld3 – f5"],["r3k2r/ppq1bpp1/2p1b3/3p3p/QP1Pp1n1/N3PP2/PRPBB1P1/3K3R w - - 0 1",1,"m","f3g4","Gewinnender Tausch: Du schlägst mit dem Bauer eine wertvollere Figur (Springer). Selbst wenn zurückgeschlagen wird, kommst du vorne heraus.","fxg4 – h4 – c4"],["2rk1b1r/1Qp2pp1/p2pP3/4pP2/6nP/P4NK1/1PPN4/R1B1R3 w - - 0 1",1,"m","g3g4","Ungedeckte Figur: Der gegnerische Springer auf g4 wird von nichts gedeckt – du nimmst ihn einfach mit. Prüfe vor jedem Zug, welche Figuren ungedeckt stehen!","Kxg4 – fxe6 – fxe6"],["r1b2rk1/p1p1qpp1/5n1p/1p2p3/3NP3/3P4/PP1N1PPP/1RBK1B1R b - - 0 1",1,"m","e5d4","Ungedeckte Figur: Der gegnerische Springer auf d4 wird von nichts gedeckt – du nimmst ihn einfach mit. Prüfe vor jedem Zug, welche Figuren ungedeckt stehen!","exd4 – Ta1 – b4"],["1r2kbr1/1p3p2/3p3p/p1p5/4P1qQ/2NB3P/PPP2P2/R4K1R w - - 0 1",1,"m","h3g4","Gewinnender Tausch: Du schlägst mit dem Bauer eine wertvollere Figur (Dame). Selbst wenn zurückgeschlagen wird, kommst du vorne heraus.","hxg4 – Kd7 – Tb1"],["Q1b1kb1r/2q1n2p/pp1p1p2/n3p3/1P2P3/2N3Pp/P1P2P1P/R1B1KBR1 b Qk - 0 1",1,"m","c7c3","Ungedeckte Figur: Der gegnerische Springer auf c3 wird von nichts gedeckt – du nimmst ihn einfach mit. Prüfe vor jedem Zug, welche Figuren ungedeckt stehen!","Dxc3+ – Kd1 – Dxa1"],["1rb2rk1/ppp3p1/7p/3pnpb1/3N3Q/PN2P2P/KPP2P2/3R1BR1 b - - 0 1",1,"m","g5h4","Ungedeckte Figur: Die gegnerische Dame auf h4 wird von nichts gedeckt – du nimmst sie einfach mit. Prüfe vor jedem Zug, welche Figuren ungedeckt stehen!","Lxh4 – Td2 – Lf6"],["2r3k1/6Bp/p7/3N3P/2p1p1P1/P7/2rb1P2/R5K1 b - - 0 1",1,"m","g8g7","Ungedeckte Figur: Der gegnerische Läufer auf g7 wird von nichts gedeckt – du nimmst ihn einfach mit. Prüfe vor jedem Zug, welche Figuren ungedeckt stehen!","Kxg7 – Tb1 – Tc1+"],["6kr/b4p1p/p3p3/3pQ1p1/q4RP1/P7/1PPK2PP/R1B5 w - g6 0 1",1,"m","f4a4","Ungedeckte Figur: Die gegnerische Dame auf a4 wird von nichts gedeckt – du nimmst sie einfach mit. Prüfe vor jedem Zug, welche Figuren ungedeckt stehen!","Txa4 – Lg1 – Tb1"],["4rrk1/1p3ppp/p1p1bn2/3pp1B1/1P1bP3/P1NP3P/2P1KPP1/2R2B1R b - - 0 1",1,"m","d4c3","Ungedeckte Figur: Der gegnerische Springer auf c3 wird von nichts gedeckt – du nimmst ihn einfach mit. Prüfe vor jedem Zug, welche Figuren ungedeckt stehen!","Lxc3 – Tb1 – Ld4"],["4rb1r/pbpk2pp/4p3/2p2p2/3PNP2/P2P4/1PP3K1/R1B4R b - - 0 1",1,"m","f5e4","Gewinnender Tausch: Du schlägst mit dem Bauer eine wertvollere Figur (Springer). Selbst wenn zurückgeschlagen wird, kommst du vorne heraus.","fxe4 – Tg1 – e3+"],["2B1r1k1/5ppp/5n2/p2p1Q2/1p2P3/7P/PP2KPP1/1q4R1 b - - 0 1",1,"m","b1g1","Ungedeckte Figur: Der gegnerische Turm auf g1 wird von nichts gedeckt – du nimmst ihn einfach mit. Prüfe vor jedem Zug, welche Figuren ungedeckt stehen!","Dxg1 – a3 – Dc1"],["1Nq1kbr1/2p1pppp/1p3n2/4Nb2/2PP4/P6P/RP3BP1/4KB1R b - - 0 1",1,"m","c8b8","Ungedeckte Figur: Der gegnerische Springer auf b8 wird von nichts gedeckt – du nimmst ihn einfach mit. Prüfe vor jedem Zug, welche Figuren ungedeckt stehen!","Dxb8 – Kd2 – Le4"],["1rr3k1/1pN2pp1/2p2n2/p2p2p1/4q3/4BP2/1PP4P/1R3R1K b - - 0 1",1,"m","e4e3","Ungedeckte Figur: Der gegnerische Läufer auf e3 wird von nichts gedeckt – du nimmst ihn einfach mit. Prüfe vor jedem Zug, welche Figuren ungedeckt stehen!","Dxe3 – Ta1 – Db6"],["2rqkr2/pppbbppp/5n2/3p4/3P1P2/N4N2/nPP1Q1PP/R1B1KB1R w KQ - 0 1",1,"m","a1a2","Ungedeckte Figur: Der gegnerische Springer auf a2 wird von nichts gedeckt – du nimmst ihn einfach mit. Prüfe vor jedem Zug, welche Figuren ungedeckt stehen!","Txa2 – Se4 – Ld2"],["r3kbr1/pp1nppp1/2pqbn1p/1Q1p4/3P4/P1N1PNP1/1PP1BP1P/1RBR2K1 b q - 0 1",1,"m","c6b5","Gewinnender Tausch: Du schlägst mit dem Bauer eine wertvollere Figur (Dame). Selbst wenn zurückgeschlagen wird, kommst du vorne heraus.","cxb5 – Lxb5 – Dc7"],["4k2r/5ppp/p3p3/1q1pn3/6P1/P1Q5/RPP2bPP/2BK3R w k - 0 1",1,"m","c3e5","Ungedeckte Figur: Der gegnerische Springer auf e5 wird von nichts gedeckt – du nimmst ihn einfach mit. Prüfe vor jedem Zug, welche Figuren ungedeckt stehen!","Dxe5 – Kf8 – Ld2"],["r6r/p1k1n1p1/b2N1p2/1pNp3p/5Q1P/8/PPPB1PP1/R3K2R w KQ - 0 1",1,"m","c5a6","Ungedeckte Figur: Der gegnerische Läufer auf a6 wird von nichts gedeckt – du nimmst ihn einfach mit. Prüfe vor jedem Zug, welche Figuren ungedeckt stehen!","Sxa6+ – Kb6 – Db4"],["r1b1k2r/1p2q1pp/5p2/p1ppP3/1bQ5/3BB3/PP2KPPP/1n4R1 b kq - 0 1",1,"m","d5c4","Gewinnender Tausch: Du schlägst mit dem Bauer eine wertvollere Figur (Dame). Selbst wenn zurückgeschlagen wird, kommst du vorne heraus.","dxc4 – Lxb1 – Dxe5"],["r1br2k1/pppp1p2/4q3/3P2p1/1PP1PpQp/P2B4/R4PPP/5RK1 w - - 0 1",1,"m","d5e6","Gewinnender Tausch: Du schlägst mit dem Bauer eine wertvollere Figur (Dame). Selbst wenn zurückgeschlagen wird, kommst du vorne heraus.","dxe6 – f6 – e7"],["3r1rk1/2p2pp1/p4n1p/B2p1Q2/8/3RP2P/1p3PP1/R5K1 b - - 0 1",1,"m","b2a1q","Ungedeckte Figur: Der gegnerische Turm auf a1 wird von nichts gedeckt – du nimmst ihn einfach mit. Prüfe vor jedem Zug, welche Figuren ungedeckt stehen!","bxa1=D+ – Kh2 – Dxa5"],["7r/2prkppp/2qbp3/1p6/p1nP3P/2P2N2/PP1Q1PP1/R1B2KR1 b - - 0 1",1,"m","c4d2","Gewinnender Tausch: Du schlägst mit dem Springer eine wertvollere Figur (Dame). Selbst wenn zurückgeschlagen wird, kommst du vorne heraus.","Sxd2+ – Lxd2 – a3"],["1r1k1b2/1pp1q3/4b2r/2N2BQp/p6P/P4n1K/1PP2P2/R1B1R3 b - - 0 1",1,"m","f3g5","Gewinnender Tausch: Du schlägst mit dem Springer eine wertvollere Figur (Dame). Selbst wenn zurückgeschlagen wird, kommst du vorne heraus.","Sxg5+ – Lxg5 – Lxf5+"],["r1b1k2r/ppp2pbp/7p/3p3P/P1nN4/8/1PK1PnP1/1R3B2 b kq - 0 1",1,"m","g7d4","Ungedeckte Figur: Der gegnerische Springer auf d4 wird von nichts gedeckt – du nimmst ihn einfach mit. Prüfe vor jedem Zug, welche Figuren ungedeckt stehen!","Lxd4 – Ta1 – Sxb2"],["2k2b1r/1p1np1p1/8/1PpB3p/4b2P/P7/4KP2/4R3 b - - 0 1",1,"m","e4d5","Ungedeckte Figur: Der gegnerische Läufer auf d5 wird von nichts gedeckt – du nimmst ihn einfach mit. Prüfe vor jedem Zug, welche Figuren ungedeckt stehen!","Lxd5 – Tc1 – c4"],["r4rk1/p4ppp/1pnB1n2/8/8/7P/PPq1BKP1/1R5R b - - 0 1",2,"m","f6e4","Gabel mit Schach: Dein Springer auf e4 gibt Schach und greift gleichzeitig den Läufer auf d6 an. Der König muss reagieren – danach fällt die Figur.","Se4+ – Ke3 – Sxd6"],["r1b1kb1r/1pp1q1p1/p1n1p3/4Np2/P2Pp2p/4P1BP/1PPQ1PP1/1K1R1B1R w kq - 0 1",2,"m","e5g6","Gabel: Dein Springer auf g6 greift die Dame auf e7 und den Turm auf h8 gleichzeitig an. Der Gegner kann nur eines retten.","Sg6 – Dg5 – Sxh8"],["2kr1b1r/1ppbqppp/5n2/2np4/1Q1NpP2/4P3/PB1P2PP/R3KB1R b KQ - 0 1",2,"m","c5d3","Gabel mit Schach: Dein Springer auf d3 gibt Schach und greift gleichzeitig die Dame auf b4 an. Der König muss reagieren – danach fällt die Figur.","Sd3+ – Lxd3 – Dxb4"],["1r1qk1r1/2p1bpp1/3np2p/p2pN3/3P2P1/PP2B3/2P2P1P/1RQ1K1R1 w - a6 0 1",2,"m","e5c6","Gabel: Dein Springer auf c6 greift die Dame auf d8 und den Turm auf b8 gleichzeitig an. Der Gegner kann nur eines retten.","Sc6 – Dc8 – Sxb8"],["3r4/kpq2ppp/1bn3b1/p7/P3P2P/2NP4/1P2K1P1/1R3B1R w - - 0 1",2,"m","c3b5","Gabel mit Schach: Dein Springer auf b5 gibt Schach und greift gleichzeitig die Dame auf c7 an. Der König muss reagieren – danach fällt die Figur.","Sb5+ – Kb8 – Sxc7"],["r1b2rk1/ppbp1ppp/3p4/3P1n2/4B3/B3PN1q/PPP2P1P/R3Q1KR b - - 0 1",2,"m","h3g4","Gabel mit Schach: Deine Dame auf g4 gibt Schach und greift gleichzeitig den Läufer auf e4 an. Der König muss reagieren – danach fällt die Figur.","Dg4+ – Kf1 – Dxe4"],["1r2r1k1/p1p1qpp1/8/8/6P1/b1N4P/1pP5/3R1K1b b - - 0 1",2,"m","e7f6","Gabel mit Schach: Deine Dame auf f6 gibt Schach und greift gleichzeitig den Springer auf c3 an. Der König muss reagieren – danach fällt die Figur.","Df6+ – Kg1 – Dxc3"],["r2r2k1/2p1qppp/2p1pn2/p1PpNb2/1P6/2P1P3/P3QPPP/R1B2RK1 w - - 0 1",2,"m","e5c6","Gabel: Dein Springer auf c6 greift die Dame auf e7 und den Turm auf d8 gleichzeitig an. Der Gegner kann nur eines retten.","Sxc6 – Df8 – Sxd8"],["r2k3r/ppp1pp1p/8/1B1pN3/1P2q3/2P3P1/PQ5P/R5Kb w - - 0 1",2,"m","e5f7","Gabel mit Schach: Dein Springer auf f7 gibt Schach und greift gleichzeitig den Turm auf h8 an. Der König muss reagieren – danach fällt die Figur.","Sxf7+ – Kc8 – Sxh8"],["8/1pp1kp2/p6p/3n4/3P4/2q5/P3KPPP/1R3BR1 b - - 0 1",2,"m","c3c2","Gabel mit Schach: Deine Dame auf c2 gibt Schach und greift gleichzeitig den Turm auf b1 an. Der König muss reagieren – danach fällt die Figur.","Dc2+ – Kf3 – Dxb1"],["r2qkb1r/1ppb1ppp/5n2/2np4/1Q2p3/4P3/PBNP1PPP/R3KB1R b KQkq - 0 1",2,"m","c5d3","Gabel mit Schach: Dein Springer auf d3 gibt Schach und greift gleichzeitig die Dame auf b4 an. Der König muss reagieren – danach fällt die Figur.","Sd3+ – Lxd3 – Lxb4"],["1r2kb1r/1pp1pppp/2n1qn2/p2p4/Q2PP3/2NP1N2/PP1B1PPP/4RRK1 w k a6 0 1",2,"m","e4d5","Gabel: Dein Bauer auf d5 greift die Dame auf e6 und den Springer auf c6 gleichzeitig an. Der Gegner kann nur eines retten.","exd5 – Dd7 – dxc6"],["r3kb1r/pppbppp1/2n1qn2/1N5p/3P4/P2BBN2/1PP2PPP/R2QK2R w KQkq - 0 1",2,"m","b5c7","Gabel mit Schach: Dein Springer auf c7 gibt Schach und greift gleichzeitig die Dame auf e6 an. Der König muss reagieren – danach fällt die Figur.","Sxc7+ – Kd8 – Sxe6+"],["r1b1r1k1/pp1p1p1p/3b2p1/2pNP3/2B5/2B3Pq/PPP1Q2P/3RK1R1 w - - 0 1",2,"m","d5f6","Gabel mit Schach: Dein Springer auf f6 gibt Schach und greift gleichzeitig den Turm auf e8 an. Der König muss reagieren – danach fällt die Figur.","Sf6+ – Kf8 – Sxe8"],["1rb5/pp4p1/4k3/5p1p/q1pp1P1P/P5P1/1P2K3/1R6 b - - 0 1",2,"m","a4c2","Gabel mit Schach: Deine Dame auf c2 gibt Schach und greift gleichzeitig den Turm auf b1 an. Der König muss reagieren – danach fällt die Figur.","Dc2+ – Kf1 – Dxb1+"],["6kr/1pp2ppp/6n1/5bN1/NP1R1n1P/P7/5P2/6K1 b - - 0 1",2,"m","f4e2","Gabel mit Schach: Dein Springer auf e2 gibt Schach und greift gleichzeitig den Turm auf d4 an. Der König muss reagieren – danach fällt die Figur.","Se2+ – Kh2 – Sxd4"],["r3k2r/ppp1bppp/3qbn2/3p4/5P2/P1N1Q2P/1PP1P1P1/R3KBNR b KQkq - 0 1",2,"m","d5d4","Gabel: Dein Bauer auf d4 greift die Dame auf e3 und den Springer auf c3 gleichzeitig an. Der Gegner kann nur eines retten.","d4 – Dd2 – dxc3"],["r1qk3r/n1b5/R7/2Pp2Np/7Q/3B4/1PPB1PP1/3K3R w - - 0 1",2,"m","g5f7","Gabel mit Schach: Dein Springer auf f7 gibt Schach und greift gleichzeitig den Turm auf h8 an. Der König muss reagieren – danach fällt die Figur.","Sf7+ – Ke8 – Sxh8"],["2r1kb1r/ppp1nppp/2n1q3/3pp3/P5PP/2N1BP2/1PPKP3/2RQ1BNR b k - 0 1",2,"m","d5d4","Gabel: Dein Bauer auf d4 greift den Springer auf c3 und den Läufer auf e3 gleichzeitig an. Der Gegner kann nur eines retten.","d4 – Tb1 – dxc3+"],["1nq3nr/rpp1kpp1/2b4p/3p4/3P4/P1Q1BN2/2PR1PPP/2K2B1R w - - 0 1",2,"m","c3c5","Gabel mit Schach: Deine Dame auf c5 gibt Schach und greift gleichzeitig den Turm auf a7 an. Der König muss reagieren – danach fällt die Figur.","Dc5+ – Kf6 – Dxa7"],["5k2/1pp2p2/p1q4p/3n4/3P4/8/P2K1PPP/R4BR1 b - - 0 1",2,"m","c6c3","Gabel mit Schach: Deine Dame auf c3 gibt Schach und greift gleichzeitig den Turm auf a1 an. Der König muss reagieren – danach fällt die Figur.","Dc3+ – Kd1 – Dxa1+"],["1r4k1/1pp1r1p1/4b2p/p7/P3P1n1/1PP3N1/2P4P/1R1K3R b - - 0 1",2,"m","g4f2","Gabel mit Schach: Dein Springer auf f2 gibt Schach und greift gleichzeitig den Turm auf h1 an. Der König muss reagieren – danach fällt die Figur.","Sf2+ – Ke2 – Sxh1"],["r1b1kbr1/ppp1p1p1/4q3/n4pBp/Pn3P2/R2Pp2N/2P3PP/1N2KB1R b Kq - 0 1",2,"m","b4c2","Gabel mit Schach: Dein Springer auf c2 gibt Schach und greift gleichzeitig den Turm auf a3 an. Der König muss reagieren – danach fällt die Figur.","Sxc2+ – Kd1 – Sxa3"],["4r3/Np1Rnpk1/p1p3p1/2P4P/4nq1P/Pp6/2P2P2/5RK1 b - - 0 1",2,"m","f4g4","Gabel mit Schach: Deine Dame auf g4 gibt Schach und greift gleichzeitig den Turm auf d7 an. Der König muss reagieren – danach fällt die Figur.","Dg4+ – Kh2 – Dxd7"],["3r4/2p1bpk1/2bqp3/1p1p3p/3PnP1P/1P2P3/PQ1B2P1/5RKR b - - 0 1",2,"m","e4g3","Gabel: Dein Springer auf g3 greift den Turm auf f1 und den Turm auf h1 gleichzeitig an. Der Gegner kann nur eines retten.","Sg3 – Kf2 – Sxf1"],["r2k3r/pbp2ppp/2p1p3/2qn2N1/1b3B2/2P4P/PP1Q1PP1/R1K1R3 w - - 0 1",2,"m","g5f7","Gabel mit Schach: Dein Springer auf f7 gibt Schach und greift gleichzeitig den Turm auf h8 an. Der König muss reagieren – danach fällt die Figur.","Sxf7+ – Ke7 – Sxh8"],["r2qk2r/p1p2pp1/1p1p3p/Q1bN4/4n3/4PBPb/PPP1KP1P/R1B4R w kq - 0 1",2,"m","a5a4","Gabel mit Schach: Deine Dame auf a4 gibt Schach und greift gleichzeitig den Springer auf e4 an. Der König muss reagieren – danach fällt die Figur.","Da4+ – b5 – Dxe4+"],["5rkr/2pb1p1p/1p1b1p2/pB1P1n2/3N1P2/2P2K2/PP4PP/R6R b - - 0 1",2,"m","f5d4","Gabel mit Schach: Dein Springer auf d4 gibt Schach und greift gleichzeitig den Läufer auf b5 an. Der König muss reagieren – danach fällt die Figur.","Sxd4+ – cxd4 – Lxb5"],["7k/rp2rp1p/p7/P2R4/1q4n1/1P1R4/2P3P1/5BK1 w - - 0 1",2,"m","d3d4","Gabel: Dein Turm auf d4 greift die Dame auf b4 und den Springer auf g4 gleichzeitig an. Der Gegner kann nur eines retten.","T3d4 – Da3 – Txg4"],["rk3b1r/p4p1p/1p2p3/3p1p2/1q1N4/4B3/PPP2PPP/R1KQ3R w - - 0 1",2,"m","d4c6","Gabel mit Schach: Dein Springer auf c6 gibt Schach und greift gleichzeitig die Dame auf b4 an. Der König muss reagieren – danach fällt die Figur.","Sc6+ – Kc7 – Sxb4"],["1rb2knr/1pp3p1/5p2/p7/2P5/8/PP1P1PK1/R1Bq4 b - - 0 1",3,"m2","d1g4","Der erste Zug nimmt dem König die Fluchtfelder oder zwingt ihn zu einer bestimmten Antwort – danach folgt das Matt.",""],["1r6/pppkn1q1/3p4/5p2/P2P3P/3p4/1P1P1P2/R1B2R1K b - h3 0 1",3,"m2","b8g8 b8h8","Der erste Zug nimmt dem König die Fluchtfelder oder zwingt ihn zu einer bestimmten Antwort – danach folgt das Matt.",""],["r1r5/1ppb1pk1/5R2/p1n1q1BQ/2P1P2p/PB5P/1P4P1/4R1K1 w - - 0 1",3,"m2","h5f7 f6f7","Der erste Zug nimmt dem König die Fluchtfelder oder zwingt ihn zu einer bestimmten Antwort – danach folgt das Matt.",""],["3k1n1r/4R3/N2pP2p/p3p3/7P/P4QP1/1PPK2P1/2R5 w - - 0 1",3,"m2","f3b7","Der erste Zug nimmt dem König die Fluchtfelder oder zwingt ihn zu einer bestimmten Antwort – danach folgt das Matt.",""],["2r1rk2/2p4p/pp4Q1/4pP1P/2Pp4/3R4/PPPR4/2K2B2 w - - 0 1",3,"m2","g6f6","Der erste Zug nimmt dem König die Fluchtfelder oder zwingt ihn zu einer bestimmten Antwort – danach folgt das Matt.",""],["r4b1r/4pp1p/2P2n2/p4kp1/3Q4/2N5/PPP2PPP/R1B1RK2 w - g6 0 1",3,"m2","d4e5","Der erste Zug nimmt dem König die Fluchtfelder oder zwingt ihn zu einer bestimmten Antwort – danach folgt das Matt.",""],["r4kr1/1pp2p1p/pb3p2/8/1K1n1PbP/1P6/P1q3P1/5B1R b - - 0 1",3,"m2","c2c5 b6c5","Der erste Zug nimmt dem König die Fluchtfelder oder zwingt ihn zu einer bestimmten Antwort – danach folgt das Matt.",""],["7k/p1pr3p/3r1p2/2b5/2P2Q2/1P1P4/P4PRP/1R3K2 w - - 0 1",3,"m2","f4g3 f4g4","Der erste Zug nimmt dem König die Fluchtfelder oder zwingt ihn zu einer bestimmten Antwort – danach folgt das Matt.",""],["4r2r/pN1kn1p1/N4p2/1p1p3p/5Q1P/8/PPPB1PP1/R3K2R w KQ - 0 1",3,"m2","f4d6 b7c5","Der erste Zug nimmt dem König die Fluchtfelder oder zwingt ihn zu einer bestimmten Antwort – danach folgt das Matt.",""],["1r6/2pbkpp1/1p6/b2pP1Pp/3P3P/1Pq2N2/4KP2/3Q4 b - - 0 1",3,"m2","d7b5","Der erste Zug nimmt dem König die Fluchtfelder oder zwingt ihn zu einer bestimmten Antwort – danach folgt das Matt.",""],["3r1rk1/pppq2pp/2n5/2b1pp2/P3nP2/3P1B2/1PP3PP/1RBQ1K1R b - a3 0 1",3,"m","e4f2","Gabel: Dein Springer auf f2 greift die Dame auf d1 und den Turm auf h1 gleichzeitig an. Der Gegner kann nur eines retten.","Sf2 – De2 – Sxh1"],["r3k3/pppb1p1p/2n1p2p/3p4/1PNPq3/8/P1PQ1PrP/RNB2R1K b q - 0 1",3,"m2","g2f2","Der erste Zug nimmt dem König die Fluchtfelder oder zwingt ihn zu einer bestimmten Antwort – danach folgt das Matt.",""],["r2k3r/1pp2ppp/p1n2q2/P7/1P2PbbP/3B4/2P5/R1B2K1R b - b3 0 1",3,"m2","f4e3","Der erste Zug nimmt dem König die Fluchtfelder oder zwingt ihn zu einer bestimmten Antwort – danach folgt das Matt.",""],["4rkr1/ppp2p1p/3b3P/2qPn3/P3PQ2/2P5/1P2K3/1RB4q b - - 0 1",3,"m2","c5c4 g8g2","Der erste Zug nimmt dem König die Fluchtfelder oder zwingt ihn zu einer bestimmten Antwort – danach folgt das Matt.",""],["r2k1b1r/p4ppp/2p1p3/RP1p4/3Pq3/3nP3/3N2P1/2B2KR1 b - - 0 1",3,"m2","e4e3","Der erste Zug nimmt dem König die Fluchtfelder oder zwingt ihn zu einer bestimmten Antwort – danach folgt das Matt.",""],["8/p4Qpp/1pk5/1p1pp2P/P2P1B2/5N2/1P3PP1/6KR w - - 0 1",3,"m2","f3e5","Der erste Zug nimmt dem König die Fluchtfelder oder zwingt ihn zu einer bestimmten Antwort – danach folgt das Matt.",""],["r4k2/1ppb1p1p/pb3p2/5n2/1P4rP/3q4/PK4P1/7R b - - 0 1",3,"m2","g4g2 g4b4","Der erste Zug nimmt dem König die Fluchtfelder oder zwingt ihn zu einer bestimmten Antwort – danach folgt das Matt.",""],["2r5/pppkbQ1p/4p1p1/3pR3/8/3P4/5PPP/1q1B2K1 b - - 0 1",3,"m2","b1d1","Der erste Zug nimmt dem König die Fluchtfelder oder zwingt ihn zu einer bestimmten Antwort – danach folgt das Matt.",""]];
+var TK_LV = [[1, 'Leicht', 'Ungedeckte Figuren und gewinnende Tausche'], [2, 'Mittel', 'Gabeln und kleine Kombinationen'], [3, 'Schwer', 'Tiefere Taktik und Matt in 2']];
+var TK_HINT = {
+  1:'Schau dir alle gegnerischen Figuren an: Welche steht ungedeckt oder ist mehr wert als deine schlagende Figur?',
+  2:'Welche Figur von dir kann gleichzeitig zwei Figuren angreifen (Gabel)? Oder gibt ein Schach Tempo?',
+  3:'Rechne ein paar Züge voraus: Welcher Zug zwingt den Gegner zu einer Antwort, nach der du etwas gewinnst?',
+  m2:'Matt in 2: Nimm dem König zuerst die Fluchtfelder weg oder gib Schach, sodass er nur noch einen Zug hat.'
+};
+function tkSolved(){ return lsGet('schach_taktik_v1', {}) || {}; }
+function tkMark(f){ var s = tkSolved(); s[f.split(' ')[0] + f.split(' ')[1]] = 1; lsSet('schach_taktik_v1', s); }
+function tkIsSolved(f){ return !!tkSolved()[f.split(' ')[0] + f.split(' ')[1]]; }
+function tkPool(l){ return TAKTIK.filter(function(t){ return t[1] === l; }); }
+function tkMenu(){
+  var h = '<div class="card"><button class="btn sm ghost" data-a="menu" type="button">← Übungen</button><h2 style="margin-top:10px">Taktik-Trainer</h2><p class="muted">Finde den besten Zug: Material gewinnen oder in zwei Zügen matt setzen. Gelöste Aufgaben werden auf diesem Gerät gemerkt.</p></div><div class="modes" style="margin-top:14px">';
+  TK_LV.forEach(function(l){ var pool = tkPool(l[0]), done = pool.filter(function(t){ return tkIsSolved(t[0]); }).length; h += '<button class="mode" data-tl="' + l[0] + '" type="button"><span class="pc">' + glyph([2, 3, 5][l[0] - 1]) + '</span><b>' + l[1] + '</b><small>' + l[2] + '<br>' + done + ' von ' + pool.length + ' gelöst</small></button>'; });
+  return h + '</div>';
+}
+function tkStart(l){
+  UE.tkLv = l; UE.n = 0; UE.ok = 0; UE.q = null;
+  var pool = shuffle(tkPool(l)), open = pool.filter(function(t){ return !tkIsSolved(t[0]); }), rest = pool.filter(function(t){ return tkIsSolved(t[0]); });
+  UE.order = open.concat(rest).slice(0, 8); UE.total = UE.order.length;
+}
+function tkQuestion(){
+  var t = UE.order[UE.n], pos = E.fromFen(t[0]), keys = t[3].split(' ');
+  var legalMs = E.legal(pos), sans = keys.map(function(u){ var m = E.fromUci(pos, u); return m ? E.san(pos, m, legalMs) : u; });
+  return {f:t[0], lv:t[1], typ:t[2], keys:keys, sans:sans, expl:t[4], line:t[5], pos:pos, b:pos.b.slice(), side:pos.side, sel:-1, ziel:[], step:1, msg:'', fen:t[0]};
+}
+function tkMoveText(pos, m){ return E.san(pos, m, E.legal(pos)); }
+function tkPlay(m){
+  var q = UE.q, pos = q.pos, uci = E.uci(m), san = tkMoveText(pos, m);
+  if(q.typ === 'm'){
+    var good = q.keys.indexOf(uci) >= 0; UE.clicked = m.t;
+    if(good) tkMark(q.f);
+    ueFinish(good, q.sans[0], (good ? '' : 'Dein Zug war ' + esc(san) + '. ') + esc(q.expl) + (q.line ? ' <span class="muted">Zum Beispiel: ' + esc(q.line) + '.</span>' : ''));
+    return;
+  }
+  if(q.step === 1){
+    if(q.keys.indexOf(uci) < 0){ UE.clicked = m.t; ueFinish(false, q.sans[0], 'Dein Zug war ' + esc(san) + '. Der Gegner hätte sich danach retten können. ' + esc(q.expl)); return; }
+    q.s1 = san; E.make(pos, m);
+    var replies = E.legal(pos); var r = replies[rnd(replies.length)];
+    q.reply = E.san(pos, r, replies); E.make(pos, r); q.b = pos.b.slice(); q.sel = -1; q.ziel = [];
+    q.mates = mattZuege(pos); q.step = 2; q.msg = 'Richtig! ' + q.s1 + ' – der Gegner antwortet ' + q.reply + '. Jetzt setzt du matt!'; renderUeben(); return;
+  }
+  var ok = mattet(pos, m); UE.clicked = m.t;
+  if(ok){ tkMark(q.f); ueFinish(true, null, 'Matt in 2: ' + esc(q.s1) + ' ' + esc(q.reply) + ' ' + esc(san) + '. ' + esc(q.expl)); }
+  else ueFinish(false, q.mates.length ? tkMoveText(pos, q.mates[0]) : '–', 'Das war kein Matt. ' + esc(q.expl));
+}
+function tkSquare(sq){
+  var q = UE.q; if(UE.done || !q) return;
+  var pos = q.pos, pc = pos.b[sq];
+  if(q.sel >= 0){
+    var ms = q.ziel.filter(function(m){ return m.t === sq; });
+    if(ms.length){ tkPlay(ms.length > 1 ? (ms.filter(function(x){ return x.pr === 5; })[0] || ms[0]) : ms[0]); return; }
+  }
+  if(pc && (pc >> 3) === pos.side){ q.sel = sq; q.ziel = E.legal(pos).filter(function(m){ return m.f === sq; }); }
+  else { q.sel = -1; q.ziel = []; }
+  renderUeben();
+}
+function tkHtml(q){
+  var cls = {}, hints = {};
+  if(q.sel >= 0) cls[q.sel] = 'ue-sel';
+  if(UE.done && UE.clicked >= 0) cls[UE.clicked] = UE.good ? 'ue-ok' : 'ue-bad';
+  q.ziel.forEach(function(m){ hints[m.t] = (q.b[m.t] || m.fl === 2) ? 2 : 1; });
+  var aufg = q.typ === 'm2' ? 'setzt in <b>zwei Zügen</b> matt' : 'kann <b>Material gewinnen</b>';
+  var h = '<div class="qq">' + (q.side ? 'Schwarz' : 'Weiss') + ' ist am Zug und ' + aufg + '. ' + (q.step === 2 ? 'Setze jetzt matt!' : 'Klick erst die Figur, dann das Zielfeld.') + '</div>';
+  if(q.msg && !UE.done) h += '<div class="fb good">' + esc(q.msg) + '</div>';
+  h += ueBoard(q.b, {coords:true, flip:!!q.side, cls:cls, hints:UE.done ? null : hints});
+  if(!UE.done) h += '<div class="row" style="justify-content:center"><button class="btn sm ghost" data-a="hint" type="button">💡 Hinweis</button></div>' + (UE.tkHint ? '<div class="fb bad" style="border-color:#f0b100;background:#f0b10022">' + esc(TK_HINT[q.typ === 'm2' ? 'm2' : q.lv]) + '</div>' : '');
+  return h;
+}
+
+/* ---------- Eröffnung: 10 Züge mit Auswertung der Grundsätze ---------- */
+var EO = null;
+var EO_TIPPS = ['Besetze das Zentrum mit einem Bauern (e4 oder d4).', 'Entwickle Springer und Läufer – am besten zum Zentrum hin.', 'Rochiere früh: Der König ist dann sicher, und der Turm kommt ins Spiel.', 'Hol die Dame nicht zu früh heraus – sie wird sonst gejagt.', 'Zieh mit einer Figur nicht zweimal, solange andere noch zuhause stehen.', 'Prüfe vor jedem Zug: Steht eine meiner Figuren ungedeckt im Angriff?'];
+function eoStart(){ EO = {pos:E.start(), mv:[], ids:{}, cnt:{}, sel:-1, ziel:[], busy:false, over:null, n:0, cap:0}; for(var s = 0; s < 128; s++){ if(!(s & 0x88) && EO.pos.b[s] && (EO.pos.b[s] >> 3) === 0) EO.ids[s] = s; } }
+function eoMoveApply(m){
+  var side = EO.pos.side;
+  if(side === 0){ var id = EO.ids[m.f]; delete EO.ids[m.f]; if(m.fl === 3 || m.fl === 4){ var rf = m.fl === 3 ? m.f + 3 : m.f - 4, rt = m.fl === 3 ? m.f + 1 : m.f - 1; EO.ids[rt] = EO.ids[rf]; delete EO.ids[rf]; EO.castled = true; } EO.ids[m.t] = id; EO.cnt[id] = (EO.cnt[id] || 0) + 1; EO.mv.push({p:EO.pos.b[m.f] & 7, f:m.f, t:m.t, id:id, c:!!m.c}); EO.n++; }
+  else if(m.c){ if(m.fl === 2) delete EO.ids[m.t + 16]; else delete EO.ids[m.t]; }
+  E.make(EO.pos, m);
+}
+function eoSquare(sq){
+  if(!EO || EO.busy || EO.over) return;
+  var pos = EO.pos, pc = pos.b[sq];
+  if(EO.sel >= 0){
+    var ms = EO.ziel.filter(function(m){ return m.t === sq; });
+    if(ms.length){
+      var m = ms.length > 1 ? (ms.filter(function(x){ return x.pr === 5; })[0] || ms[0]) : ms[0];
+      eoMoveApply(m); EO.sel = -1; EO.ziel = [];
+      var ls = E.legal(pos);
+      if(!ls.length){ EO.over = true; renderUeben(); return; }
+      if(EO.n >= 10){ EO.over = true; renderUeben(); return; }
+      EO.busy = true; renderUeben();
+      setTimeout(function(){ var r = E.choose(pos, 2, 350); if(r){ eoMoveApply(r); } EO.busy = false; if(!E.legal(pos).length) EO.over = true; renderUeben(); }, 450);
+      return;
+    }
+  }
+  if(pc && (pc >> 3) === 0){ EO.sel = sq; EO.ziel = E.legal(pos).filter(function(m){ return m.f === sq; }); } else { EO.sel = -1; EO.ziel = []; }
+  renderUeben();
+}
+function eoAnalyse(){
+  var pos = EO.pos, b = pos.b, out = [], pt = 0, i;
+  var d4 = 3 * 16 + 3, e4 = 3 * 16 + 4, d5 = 4 * 16 + 3, e5 = 4 * 16 + 4;
+  var centerPawns = [d4, e4, d5, e5].filter(function(s){ return b[s] === 1; }).length;
+  var played = EO.mv.some(function(m){ return m.p === 1 && (m.t === d4 || m.t === e4); }), cOk = centerPawns >= 1 || played;
+  out.push([cOk, 'Zentrum', cOk ? (centerPawns >= 1 ? 'Du hast ' + (centerPawns === 2 ? 'zwei Bauern' : 'einen Bauern') + ' im Zentrum' : 'Du hast früh einen Bauern ins Zentrum gestellt (er wurde später getauscht)') + ' – das gibt deinen Figuren Platz.' : 'Du hast keinen Bauern im Zentrum. Die Felder d4 und e4 sind wichtig: Von dort kontrollieren deine Bauern viele Felder.']);
+  var home = [[1, 2], [6, 2], [2, 3], [5, 3]], dev = home.filter(function(h){ return b[h[0]] !== h[1]; }).length;
+  var dOk = dev >= 3;
+  out.push([dOk, 'Entwicklung', dOk ? dev + ' von 4 Leichtfiguren sind entwickelt.' : 'Nur ' + dev + ' von 4 Springern und Läufern stehen im Spiel. Hol sie früh heraus – sie gehören ins Zentrum, nicht in die Ecke.']);
+  var rOk = !!EO.castled || b[6] === 6 || b[2] === 6;
+  out.push([rOk, 'Rochade', rOk ? 'Du hast rochiert – dein König ist sicher.' : 'Du hast noch nicht rochiert. Räum dazu die Felder zwischen König und Turm (Springer und Läufer entwickeln) und rochiere früh.']);
+  var qEarly = EO.mv.slice(0, 5).some(function(m){ return m.p === 5 && !m.c; }), qOk = !qEarly;
+  out.push([qOk, 'Dame', qOk ? 'Du hast die Dame nicht zu früh ausgespielt.' : 'Deine Dame war schon in den ersten fünf Zügen unterwegs. Der Gegner gewinnt so Tempo, indem er sie mit kleinen Figuren jagt.']);
+  var twice = []; Object.keys(EO.cnt).forEach(function(id){ var p0 = +id, pcs = [2, 3, 4, 5, 6]; var mv = EO.mv.filter(function(m){ return m.id === p0 && m.p !== 1; }); if(mv.length >= 3) twice.push(mv[0].p); });
+  var tOk = twice.length === 0;
+  out.push([tOk, 'Keine Zeitverschwendung', tOk ? 'Keine Figur wurde in deinen zehn Zügen mehr als zweimal gezogen.' : 'Eine Figur wurde dreimal oder öfter gezogen, während andere noch zuhause standen. In der Eröffnung zählt Tempo.']);
+  var V = [0, 1, 3, 3, 5, 9, 0], mat = 0; for(i = 0; i < 128; i++){ if(i & 0x88){ i += 7; continue; } if(b[i]) mat += (b[i] >> 3 ? -1 : 1) * V[b[i] & 7]; }
+  var mOk = mat >= -1;
+  out.push([mOk, 'Keine Figur eingestellt', mOk ? 'Material ausgeglichen oder besser (' + (mat > 0 ? '+' : '') + mat + ').' : 'Du hast ' + (-mat) + ' Bauernwerte weniger als der Computer. Prüfe vor jedem Zug, ob eine deiner Figuren ungedeckt angegriffen wird.']);
+  out.forEach(function(o){ if(o[0]) pt++; });
+  return {list:out, pt:pt};
+}
+function renderEroeffnung(el){
+  if(!EO) eoStart();
+  var h = '', bd = EO.pos.b, cls = {}, hints = {};
+  if(EO.over){
+    var an = eoAnalyse(), n = an.list.length;
+    h = '<div class="card qbox"><button class="btn sm ghost" data-a="menu" type="button">← Übungen</button><h2 style="margin-top:10px">Auswertung deiner Eröffnung</h2><div class="big2" style="text-align:center">' + an.pt + ' / ' + n + '</div>' +
+      an.list.map(function(o){ return '<div class="fb ' + (o[0] ? 'good' : 'bad') + '"><b>' + (o[0] ? '✓ ' : '✗ ') + esc(o[1]) + '</b> – ' + esc(o[2]) + '</div>'; }).join('') +
+      '<p class="muted" style="text-align:center">Merksatz: <b>Zentrum besetzen · Figuren entwickeln · rochieren.</b></p>' + ueBoard(bd, {coords:true}) +
+      '<div class="row" style="justify-content:center"><button class="btn" data-a="again" type="button">Nochmals</button><button class="btn ghost" data-a="menu" type="button">Zurück</button></div></div>';
+  } else {
+    if(EO.sel >= 0) cls[EO.sel] = 'ue-sel';
+    EO.ziel.forEach(function(m){ hints[m.t] = (bd[m.t] || m.fl === 2) ? 2 : 1; });
+    h = '<div class="card qbox"><div class="row" style="justify-content:space-between"><button class="btn sm ghost" data-a="menu" type="button">← Übungen</button><span class="muted">Dein Zug ' + Math.min(EO.n + 1, 10) + ' von 10</span></div><div class="bar"><i style="width:' + (EO.n / 10 * 100) + '%"></i></div>' +
+      '<div class="qq">Du spielst <b>Weiss</b> gegen den Computer. Spiele die ersten 10 Züge nach den Eröffnungsgrundsätzen – danach bekommst du eine Auswertung.</div>' + ueBoard(bd, {coords:true, cls:cls, hints:hints}) +
+      '<div class="fb good" style="border-color:#f0b100;background:#f0b10022">💡 ' + esc(EO_TIPPS[EO.n % EO_TIPPS.length]) + '</div>' + (EO.busy ? '<p class="muted" style="text-align:center">Der Computer überlegt …</p>' : '') + '</div>';
+  }
+  el.innerHTML = h;
+  el.querySelectorAll('[data-a="menu"]').forEach(function(b){ b.onclick = function(){ EO = null; UE.kind = null; renderUeben(); }; });
+  var ag = el.querySelector('[data-a="again"]'); if(ag) ag.onclick = function(){ eoStart(); renderUeben(); };
+  var bo = el.querySelector('#ueBoard'); if(bo && !EO.over) bo.onclick = function(e){ var s = e.target.closest ? e.target.closest('.sq') : null; if(s) eoSquare(+s.dataset.sq); };
 }
 
 /* ---------- Ansichten ---------- */

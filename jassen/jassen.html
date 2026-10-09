@@ -2311,6 +2311,7 @@ function ueQuestion(){
     var v = cs.map(function(c){ return cardPts(c, m4); }), expr = v[0] + ops[0].replace('×', '*').replace('−', '-') + v[1] + ops[1].replace('×', '*').replace('−', '-') + v[2], res;
     try{ res = Function('return ' + expr)(); }catch(e){ res = 0; }
     q = {m:m4, cs:cs, ops:ops, ans:res};
+  } else if(k === 'taktik'){ q = tkQuestion(UE.n);
   } else if(k === 'regeln'){ q = RQ[UE.ri % RQ.length]; }
   UE.q = q; UE.sel = []; UE.done = false; UE.fb = '';
 }
@@ -2341,14 +2342,170 @@ var RAETSEL = [
   function(){ return ['Ich zähle nie Punkte – ich bin die Sieben der Farbe ' + suitName(0) + '.', C(0, 7)]; },
   function(){ return ['Ich bin die Neun: In der Trumpffarbe heisse ich Nell. Meine Farbe: ' + suitName(1) + '.', C(1, 5)]; }
 ];
+/* ---------- Taktik-Aufgaben (Schieber): «Welche Karte spielst du?» ----------
+   Jede Aufgabe entsteht aus einer Regel, der Spielstand wird zufällig gebaut und die Lösung mit der Jass-Motor-Logik (legal, cstr) berechnet.
+   Ich sitze immer unten (Platz 0); im Stich sitzt rechts Platz 1, der Partner ist Platz 2, links Platz 3 (gespielt wird gegen den Uhrzeigersinn). */
+var TK_STAERKE = {3:9, 5:8, 0:7, 1:6, 2:5, 4:4, 6:3, 7:2, 8:1};   // Trumpfrang eines Rangs (Buur zuoberst)
+var TK_PLATZ = ['Du', 'Gegner rechts', 'Partner', 'Gegner links'];
+function tkNew(){
+  var perm = shuffle([0, 1, 2, 3]), used = {};
+  return {
+    s:function(a){ return perm[a]; },
+    c:function(a, r){ return perm[a] * 9 + r; },
+    mark:function(c){ used[c] = 1; return c; },
+    free:function(c){ return !used[c]; },
+    any:function(a, lo, hi){ var self = this, rs = []; for(var r = (lo == null ? 0 : lo); r <= (hi == null ? 8 : hi); r++) if(self.free(self.c(a, r))) rs.push(r); if(!rs.length) return null; var r2 = pick(rs), c = self.c(a, r2); used[c] = 1; return c; }
+  };
+}
+function tkSort(h, m){ return sortHand(h, m); }
+function tkPts(c, m){ return cardPts(c, m); }
+function tkMaxPts(cards, m){ var mx = -1; cards.forEach(function(c){ mx = Math.max(mx, tkPts(c, m)); }); return cards.filter(function(c){ return tkPts(c, m) === mx; }); }
+function tkTrickPts(trick, m){ var t = 0; trick.forEach(function(x){ t += cardPts(x.card, m); }); return t; }
+function tkBase(b, thema, frage, m, trick, hand, ans, why, played){
+  hand = tkSort(hand, m);
+  return {thema:thema, frage:frage, m:m, trick:trick, hand:hand, ans:ans, why:why, played:played || [], legalOk:legal(hand, trick, m)};
+}
+var TK_GEN = {
+  schmieren:function(){
+    for(var tries = 0; tries < 60; tries++){
+      var b = tkNew(), m = b.s(0), L = 1, pr = pick([0, 1, 2, 3]);
+      var P = b.c(L, pr); b.mark(P);
+      var a = b.any(L, pr + 1, 8), z = b.any(L, pr + 1, 8); if(a == null || z == null) continue;
+      var mine = []; for(var i = 0; i < 2 + rnd(2); i++){ var c = b.any(L, 0, 8); if(c != null) mine.push(c); } if(mine.length < 2) continue;
+      var oth = []; for(i = 0; i < 2 + rnd(3); i++){ var o = b.any(pick([2, 3]), 0, 8); if(o != null) oth.push(o); }
+      var trick = [{seat:1, card:a}, {seat:2, card:P}, {seat:3, card:z}], hand = mine.concat(oth), lg = legal(hand, trick, m);
+      var ans = tkMaxPts(lg, m); if(ans.length !== 1 || tkPts(ans[0], m) <= 0) continue;
+      var t4 = trick.concat([{seat:0, card:ans[0]}]), seatW = t4[trickWinnerIdx(t4, m)].seat;
+      if(seatW !== 2 && seatW !== 0) continue;
+      return tkBase(b, 'Schmieren', 'Du spielst als Letzte:r. Welche Karte gibst du?', m, trick, hand, ans,
+        'Dein Partner liegt mit ' + cardName(P) + ' vorn, die beiden Gegner haben schon gespielt – der Stich gehört euch. Wer als Letzte:r sicher ist, <b>schmiert</b>: Gib die Karte mit den meisten Punkten zu (' + cardName(ans[0]) + ', ' + tkPts(ans[0], m) + ' Punkte).');
+    }
+  },
+  billig:function(){
+    for(var tries = 0; tries < 60; tries++){
+      var b = tkNew(), m = b.s(0), L = 1, w = pick([3, 4, 5, 6]);
+      var W = b.c(L, w); b.mark(W);
+      var x = b.any(L, w + 1, 8), y = b.any(L, w + 1, 8); if(x == null || y == null) continue;
+      var up = []; for(var r = 0; r < w; r++){ if(b.free(b.c(L, r))) up.push(r); } if(up.length < 2) continue;
+      up = shuffle(up).slice(0, 2).sort(function(p, q){ return p - q; }); up.forEach(function(r){ b.mark(b.c(L, r)); });
+      var low = b.any(L, w + 1, 8), hand = [b.c(L, up[0]), b.c(L, up[1])]; if(low != null) hand.push(low);
+      var t = b.any(0, 0, 8); if(t != null) hand.push(t);
+      var o = b.any(pick([2, 3]), 0, 8); if(o != null) hand.push(o);
+      var trick = [{seat:1, card:x}, {seat:2, card:y}, {seat:3, card:W}];
+      var cheap = hand[1], dear = hand[0];            // up[1] = höherer Rang-Index = schwächer
+      var win = trickWinnerIdx(trick.concat([{seat:0, card:cheap}]), m); if(win !== 3) continue;
+      var win2 = trickWinnerIdx(trick.concat([{seat:0, card:dear}]), m); if(win2 !== 3) continue;
+      return tkBase(b, 'So billig wie möglich gewinnen', 'Ein Gegner liegt vorn. Welche Karte spielst du?', m, trick, hand, [cheap],
+        'Du bist Letzte:r und kannst den Stich gewinnen. Nimm dafür die <b>schwächere</b> der beiden Karten (' + cardName(cheap) + '): Die stärkere (' + cardName(dear) + ') bleibt dir für einen späteren Stich. Trumpf lohnt sich hier nicht – du gewinnst auch so.');
+    }
+  },
+  stechen:function(){
+    for(var tries = 0; tries < 80; tries++){
+      var b = tkNew(), m = b.s(0), L = 1, wr = pick([0, 4]);
+      var W = b.c(L, wr); b.mark(W);
+      var x = b.any(L, 1, 8), y = b.any(L, 5, 8); if(x == null || y == null) continue;
+      var trick = [{seat:1, card:x}, {seat:2, card:y}, {seat:3, card:W}];
+      if(trickWinnerIdx(trick, m) !== 2) continue;                // Gegner links gewinnt
+      var P = tkTrickPts(trick, m); if(P < 13) continue;
+      var hand = [], names = [3, 0, 2, 4, 1, 5, 6, 7, 8], nt = 2 + rnd(2), got = 0;
+      var cand = shuffle(names); if(Math.random() < 0.6) cand.unshift(3);
+      cand.forEach(function(r){ if(got < nt && hand.indexOf(b.c(0, r)) < 0 && b.free(b.c(0, r))){ hand.push(b.mark(b.c(0, r))); got++; } });
+      if(got < 2) continue;
+      for(var i = 0; i < 2; i++){ var o = b.any(pick([2, 3]), 0, 8); if(o != null) hand.push(o); }
+      var trs = hand.filter(function(c){ return suitOf(c) === m; }).sort(function(p, q){ return TK_STAERKE[p % 9] - TK_STAERKE[q % 9]; });
+      var ans = [trs[0]];
+      return tkBase(b, 'Mit dem kleinsten Trumpf stechen', 'Du hast die Farbe nicht. Was spielst du?', m, trick, hand, ans,
+        'Der Stich ist <b>' + P + ' Punkte</b> wert und der Gegner liegt vorn. Stich mit dem <b>kleinsten Trumpf</b> (' + cardName(ans[0]) + ') – so gewinnst du den Stich, und die starken Trümpfe bleiben für später.');
+    }
+  },
+  abwerfen:function(){
+    for(var tries = 0; tries < 80; tries++){
+      var b = tkNew(), m = b.s(0), L = 1;
+      var W = b.c(L, 0); b.mark(W);
+      var x = b.any(L, 1, 8), y = b.any(L, 5, 8); if(x == null || y == null) continue;
+      var trick = [{seat:1, card:x}, {seat:2, card:y}, {seat:3, card:W}];
+      if(trickWinnerIdx(trick, m) !== 2) continue;
+      var hand = [], n = 5 + rnd(2);
+      for(var i = 0; i < n; i++){ var c = b.any(pick([2, 3]), 0, 8); if(c != null) hand.push(c); }
+      var pts = hand.map(function(c){ return tkPts(c, m); });
+      if(!pts.some(function(p){ return p >= 10; }) || pts.filter(function(p){ return p === 0; }).length < 2) continue;
+      var ans = hand.filter(function(c){ return tkPts(c, m) === 0; });
+      return tkBase(b, 'Wertlos abwerfen', 'Du hast weder die Farbe noch Trumpf. Was wirfst du ab?', m, trick, hand, ans,
+        'Der Gegner gewinnt den Stich mit dem Ass, du kannst ihn nicht mehr schlagen. Wirf eine <b>wertlose Karte</b> ab (0 Punkte) – Karten mit Punkten (Ass, Zehn, König …) würdest du den Gegnern schenken.');
+    }
+  },
+  untertrumpf:function(){
+    for(var tries = 0; tries < 80; tries++){
+      var b = tkNew(), m = b.s(0), L = 1, rt = pick([5, 0, 1, 2, 4]);
+      var T = b.c(0, rt); b.mark(T);
+      var x = b.any(L, 0, 8), y = b.any(L, 5, 8); if(x == null || y == null) continue;
+      var weaker = [3, 5, 0, 1, 2, 4, 6, 7, 8].filter(function(r){ return TK_STAERKE[r] < TK_STAERKE[rt] && b.free(b.c(0, r)); });
+      if(!weaker.length) continue;
+      var mt = b.c(0, pick(weaker)); b.mark(mt);
+      var trick = [{seat:1, card:x}, {seat:2, card:y}, {seat:3, card:T}];
+      var hand = [mt]; for(var i = 0; i < 4; i++){ var c = b.any(pick([2, 3]), 0, 8); if(c != null) hand.push(c); }
+      var non = hand.filter(function(c){ return suitOf(c) !== m; }), pts = non.map(function(c){ return tkPts(c, m); });
+      if(!pts.some(function(p){ return p >= 10; }) || pts.filter(function(p){ return p === 0; }).length < 1) continue;
+      var lg = legal(tkSort(hand, m), trick, m); if(lg.indexOf(mt) >= 0) continue;
+      var ans = lg.filter(function(c){ return tkPts(c, m) === 0; }); if(!ans.length) continue;
+      return tkBase(b, 'Nicht untertrumpfen', 'Der Gegner hat gestochen. Welche Karte darfst du – und sollst du – spielen?', m, trick, hand, ans,
+        'Dein Trumpf (' + cardName(mt) + ') ist kleiner als der, der schon liegt: <b>Untertrumpfen ist verboten</b>, solange du eine andere Karte hast. Du musst also etwas anderes spielen – und da der Stich verloren ist, wirfst du eine <b>wertlose</b> Karte ab.');
+    }
+  },
+  buur:function(){
+    for(var tries = 0; tries < 60; tries++){
+      var b = tkNew(), m = b.s(0), hand = [b.mark(b.c(0, 3)), b.mark(b.c(0, 5))];
+      var extra = b.any(0, 0, 8); if(extra == null) continue; hand.push(extra);
+      for(var i = 0; i < 3 + rnd(2); i++){ var c = b.any(pick([1, 2, 3]), 0, 8); if(c != null) hand.push(c); }
+      var buur = b.c(0, 3), nell = b.c(0, 5);
+      return tkBase(b, 'Trumpf ziehen', 'Ihr habt Trumpf gemacht und du spielst aus. Womit beginnst du?', m, [], hand, [buur],
+        'Mit <b>Buur und Nell</b> beginnst du mit dem <b>Buur</b>: Er ist unschlagbar, die Gegner müssen Trumpf zugeben, und dein Nell (14 Punkte) ist danach der höchste Trumpf. Würdest du den Nell zuerst spielen, könnte ihn ein Gegner mit dem Buur stechen.');
+    }
+  },
+  master:function(){
+    for(var tries = 0; tries < 80; tries++){
+      var b = tkNew(), m = b.s(0), played = [b.mark(b.c(0, 3)), b.mark(b.c(0, 5))];
+      var top = b.mark(b.c(0, 0)), hand = [top];
+      for(var i = 0; i < 2 + rnd(2); i++){ var k = b.any(0, 1, 2); if(k != null && Math.random() < 0.3 && played.length < 3) played.push(k); }
+      var side = b.mark(b.c(1, 0)); hand.push(side);
+      for(i = 0; i < 2 + rnd(2); i++){ var c = b.any(pick([1, 2, 3]), 1, 8); if(c != null) hand.push(c); }
+      for(i = 0; i < 4 + rnd(3); i++){ var p = b.any(pick([1, 2, 3]), 0, 8); if(p != null) played.push(p); }
+      var unseen = 9 - played.filter(function(c){ return suitOf(c) === m; }).length - hand.filter(function(c){ return suitOf(c) === m; }).length;
+      if(unseen < 1) continue;
+      return tkBase(b, 'Karten zählen', 'Du spielst aus. Was ist der sicherste Anspiel?', m, [], hand, [top],
+        'Buur und Nell sind schon gefallen – dein <b>Trumpf-Ass ist jetzt der höchste Trumpf</b>. Spiel ihn aus: Der Stich gehört dir sicher, und du ziehst den Gegnern die letzten Trümpfe. Ein Ass einer Nebenfarbe könnte noch gestochen werden.', played);
+    }
+  },
+  partnerstecht:function(){
+    for(var tries = 0; tries < 80; tries++){
+      var b = tkNew(), m = b.s(0), L = 1, rt = pick([5, 0, 1, 2, 4, 6, 7, 8]);
+      var T = b.mark(b.c(0, rt)), x = b.any(L, 0, 8), y = b.any(L, 0, 8); if(x == null || y == null) continue;
+      var buur = b.mark(b.c(0, 3)), hand = [buur];
+      for(var i = 0; i < 4; i++){ var c = b.any(pick([2, 3]), 0, 8); if(c != null) hand.push(c); }
+      var trick = [{seat:1, card:x}, {seat:2, card:T}, {seat:3, card:y}];
+      var lg = legal(tkSort(hand, m), trick, m), non = lg.filter(function(c){ return suitOf(c) !== m; }), ans = tkMaxPts(non, m);
+      if(ans.length !== 1 || tkPts(ans[0], m) <= 0) continue;
+      return tkBase(b, 'Schmieren statt übertrumpfen', 'Dein Partner hat gestochen. Was spielst du?', m, trick, hand, ans,
+        'Dein Partner hat mit ' + cardName(T) + ' gestochen, und weil du Letzte:r bist, kann ihn niemand mehr schlagen. Den Buur zu spielen wäre Verschwendung – <b>schmier</b> stattdessen die wertvollste Karte (' + cardName(ans[0]) + ', ' + tkPts(ans[0], m) + ' Punkte).');
+    }
+  }
+};
+var TK_KEYS = ['schmieren', 'billig', 'stechen', 'abwerfen', 'untertrumpf', 'buur', 'master', 'partnerstecht'];
+function tkQuestion(n){
+  if(n === 0 || !UE.tkOrder) UE.tkOrder = shuffle(TK_KEYS);
+  var q = null, k = UE.tkOrder[n % UE.tkOrder.length], t = 0;
+  while(!q && t++ < 5) q = TK_GEN[k]();
+  return q || TK_GEN.schmieren();
+}
+
 function ueMenu(){
-  var items = [['wert', 'Kartenwerte', 'Wie viele Punkte zählt die Karte?'], ['sticht', 'Wer sticht?', 'Welche Karte gewinnt den Stich?'], ['darf', 'Welche Karte darf ich spielen?', 'Farbe bedienen, stechen, nicht untertrumpfen'], ['mathi1', 'Jass-Mathi I', 'Plus und Minus mit Kartenwerten'], ['mathi2', 'Jass-Mathi II', 'Auch mal und – Punkt vor Strich!'], ['raetsel', 'Jass-Rätsel', 'Finde die gesuchte Karte'], ['regeln', 'Regel-Quiz', RQ.length + ' Fragen zum Schieber']];
+  var items = [['wert', 'Kartenwerte', 'Wie viele Punkte zählt die Karte?'], ['sticht', 'Wer sticht?', 'Welche Karte gewinnt den Stich?'], ['darf', 'Welche Karte darf ich spielen?', 'Farbe bedienen, stechen, nicht untertrumpfen'], ['mathi1', 'Jass-Mathi I', 'Plus und Minus mit Kartenwerten'], ['mathi2', 'Jass-Mathi II', 'Auch mal und – Punkt vor Strich!'], ['taktik', 'Taktik: Welche Karte spielst du?', 'Schmieren, billig stechen, abwerfen, Karten zählen'], ['raetsel', 'Jass-Rätsel', 'Finde die gesuchte Karte'], ['regeln', 'Regel-Quiz', RQ.length + ' Fragen zum Schieber']];
   return '<div class="card"><h2>Üben</h2><p class="muted">Kleine Übungen zu den Jass-Lernzielen. Die Karten wechseln mit dem Blatt (Deutsch/Französisch).</p></div><div class="modes" style="margin-top:14px">' + items.map(function(i){ return '<button class="mode" data-uk="' + i[0] + '" type="button"><b>' + i[1] + '</b><small>' + i[2] + '</small></button>'; }).join('') + '</div>';
 }
 function renderUeben(){
   var el = $('ueben');
   if(!UE.kind){ el.innerHTML = ueMenu(); el.querySelectorAll('[data-uk]').forEach(function(b){ b.onclick = function(){ UE.kind = b.dataset.uk; UE.n = 0; UE.ok = 0; UE.ri = rnd(RQ.length); UE.q = null; renderUeben(); }; }); return; }
-  var k = UE.kind, total = k === 'raetsel' ? RAETSEL.length : k === 'regeln' ? RQ.length : UE.total;
+  var k = UE.kind, total = k === 'raetsel' ? RAETSEL.length : k === 'regeln' ? RQ.length : k === 'taktik' ? TK_KEYS.length : UE.total;
   if(UE.n >= total){
     el.innerHTML = '<div class="card qbox" style="text-align:center"><h2>Geschafft!</h2><div class="big2">' + UE.ok + ' / ' + total + '</div><p class="muted">' + (UE.ok >= total * 0.8 ? 'Super – du bist ein echter Jasser!' : UE.ok >= total * 0.5 ? 'Gut gemacht – noch etwas üben und es sitzt.' : 'Lies noch einmal im Erklärbuch nach und versuch es nochmals.') + '</p><div class="row" style="justify-content:center"><button class="btn" data-a="again" type="button">Nochmals</button><button class="btn ghost" data-a="menu" type="button">Zurück</button><button class="btn ghost" data-a="buch" type="button">📖 Erklärbuch</button></div></div>';
     el.querySelector('[data-a="again"]').onclick = function(){ UE.n = 0; UE.ok = 0; UE.q = null; UE.ri = rnd(RQ.length); renderUeben(); };
@@ -2369,6 +2526,14 @@ function renderUeben(){
     h += '<div class="qq">🔎 ' + esc(q.t) + '</div><div class="kgrid">';
     for(var s = 0; s < 4; s++) for(var rr = 0; rr < 9; rr++){ var cc = C(s, rr); h += '<button type="button" data-o="' + cc + '" class="' + (UE.sel[0] === cc ? 'sel' : '') + '" style="color:#000" aria-label="' + esc(cardName(cc)) + '">' + cardHtml(cc) + '</button>'; }
     h += '</div>';
+  } else if(k === 'taktik'){
+    h += '<div class="qq"><b>' + esc(q.thema) + '</b> · ' + esc(modeLabel(q.m)) + '</div>';
+    if(q.played.length) h += '<div class="muted" style="font-size:13px">Schon gespielt (frühere Stiche):</div>' + cardsRow(q.played, 'xs');
+    if(q.trick.length) h += '<div class="muted" style="font-size:13px">Auf dem Tisch (in dieser Reihenfolge gespielt):</div><div class="cardrow">' + q.trick.map(function(x){ return '<span style="text-align:center">' + cardHtml(x.card, 'sm') + '<div class="muted" style="font-size:12px">' + TK_PLATZ[x.seat] + '</div></span>'; }).join('') + '</div>';
+    else h += '<div class="muted" style="font-size:13px">Der Tisch ist leer – du spielst aus.</div>';
+    h += '<div class="qq">' + esc(q.frage) + '</div><div class="cardrow">' + q.hand.map(function(c){
+      var st = UE.done ? (q.ans.indexOf(c) >= 0 ? 'outline:3px solid #2e7d4f;outline-offset:2px;border-radius:6px' : (UE.sel[0] === c ? 'outline:3px solid #d1503f;outline-offset:2px;border-radius:6px' : '')) : '';
+      return '<button type="button" class="cardbtn ok" data-o="' + c + '" style="' + st + '" aria-label="' + esc(cardName(c)) + '">' + cardHtml(c, 'sm') + '</button>'; }).join('') + '</div>';
   } else if(k === 'regeln'){
     h += '<div class="qq">' + esc(q.q) + '</div><div class="qopt">' + q.o.map(function(o, i){ return '<button type="button" data-o="' + i + '" class="' + (UE.done ? (i === q.a ? 'rich' : (UE.sel[0] === i ? 'falsch' : '')) : '') + '">' + esc(o) + '</button>'; }).join('') + '</div>';
   }
@@ -2395,6 +2560,10 @@ function ueAnswer(v){
   else if(k === 'sticht') ueFinish(v === q.ans, (q.ans + 1) + '. Karte (' + cardName(q.cards[q.ans]) + ')', 'Die höchste Trumpfkarte gewinnt, sonst die höchste Karte der Anspielfarbe.');
   else if(k === 'darf'){ var i = UE.sel.indexOf(v); if(i >= 0) UE.sel.splice(i, 1); else UE.sel.push(v); renderUeben(); }
   else if(k === 'raetsel'){ UE.sel = [v]; ueFinish(v === q.ans, cardName(q.ans)); }
+  else if(k === 'taktik'){
+    if(q.legalOk.indexOf(v) < 0){ toast('Diese Karte darfst du nicht spielen – bediene die Farbe, stich oder wirf ab, wie es die Regeln erlauben.'); return; }
+    UE.sel = [v]; ueFinish(q.ans.indexOf(v) >= 0, q.ans.map(cardName).join(' oder '), q.why);
+  }
   else if(k === 'regeln'){ UE.sel = [v]; ueFinish(v === q.a, q.o[q.a], q.e); }
 }
 function ueCheckDarf(){
@@ -2422,7 +2591,7 @@ function init(){
   refresh(true);
   if(status().offen) startLobby();
   setInterval(function(){ refresh(); if(S.G && S.G.mode === 'online' && S.G.rd){ var tk = takeoverBtn(S.G); if(tk !== S.G.lastTake){ S.G.lastTake = tk; draw(); } } if(S.G && S.G.showTrick && S.G.showTrick.until < Date.now() - 50 && S.G.showTrick.shown !== true){ S.G.showTrick.shown = true; draw(); } }, 1000);
-  if(API.mock){ window.__jass = S; window.__jassTest = {newRound:newRound, applyAct:applyAct, legal:legal, findWeis:findWeis, aiAct:aiAct, cardPts:cardPts, trickWinnerIdx:trickWinnerIdx}; }
+  if(API.mock){ window.__jass = S; window.__jassTest = {UE:UE, newRound:newRound, applyAct:applyAct, legal:legal, findWeis:findWeis, aiAct:aiAct, cardPts:cardPts, trickWinnerIdx:trickWinnerIdx}; }
 }
 init();
 })();

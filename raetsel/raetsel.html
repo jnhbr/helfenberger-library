@@ -1,0 +1,1224 @@
+<!doctype html>
+<html lang="de-CH">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rätsel &amp; Logik</title>
+<style>
+:root{
+  --bg-1:#16304f; --bg-2:#0e1f36; --bg-3:#08121f;
+  --panel:#122339; --panel-2:#17304d; --line:#2f5079; --line-soft:#223c5c;
+  --gold:#e0b95a; --gold-2:#a8782a; --gold-soft:#f3dca0;
+  --teal:#3aa6b0; --ivory:#f4efe2; --muted:#9db3cc; --ink:#10233a;
+  --ok:#6fcf8d; --bad:#ee7a68; --warn:#f0b650;
+  --paper:#f8f4e8; --paper-2:#ece5d0; --pline:#b9ae8f;
+  --serif:"Iowan Old Style","Palatino Linotype",Palatino,"Book Antiqua",Georgia,"Times New Roman",serif;
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --bs:min(calc(100vw - 36px), calc(100vh - 250px), 540px);
+}
+*{box-sizing:border-box;}
+html,body{margin:0;min-height:100%;}
+body{font-family:var(--sans); color:var(--ivory); font-size:16px; line-height:1.4; -webkit-text-size-adjust:100%;
+  background:radial-gradient(1200px 700px at 50% -10%, var(--bg-1) 0%, var(--bg-2) 50%, var(--bg-3) 100%); background-attachment:fixed;}
+button{font:inherit; color:inherit; cursor:pointer;}
+[hidden]{display:none !important;}
+#app{max-width:1000px; margin:0 auto; padding:14px 16px 40px;}
+.top{display:flex; align-items:center; gap:12px; margin-bottom:14px;}
+.logo{width:44px; height:44px; border-radius:50%; display:grid; place-items:center; flex:none; font-size:24px; color:var(--ink);
+  background:radial-gradient(circle at 35% 30%, #f6e2a8, var(--gold) 55%, var(--gold-2)); box-shadow:0 2px 0 #6b4a14, 0 6px 14px #0008;}
+.brand{flex:1; min-width:0;}
+.brand h1{margin:0; font-family:var(--serif); font-size:24px; letter-spacing:.12em; text-transform:uppercase; color:var(--gold-soft); line-height:1.05;}
+.brand small{display:block; color:var(--muted); font-size:12.5px; letter-spacing:.04em;}
+.chip{display:inline-flex; align-items:center; gap:6px; padding:6px 12px; border-radius:999px; font-size:13px; font-weight:600; border:1px solid var(--line); background:#0006; white-space:nowrap;}
+.chip i{width:9px; height:9px; border-radius:50%; background:var(--ok); box-shadow:0 0 8px var(--ok);}
+.chip.zu i{background:var(--bad); box-shadow:0 0 8px var(--bad);}
+.card{background:linear-gradient(180deg,var(--panel-2),var(--panel)); border:1px solid var(--line); border-radius:14px; padding:16px 18px; box-shadow:0 10px 26px #0006, inset 0 1px 0 #ffffff12;}
+.card h2,.card h3{font-family:var(--serif); margin:0 0 8px; color:var(--gold-soft); letter-spacing:.04em;}
+.card h2{font-size:20px;} .card h3{font-size:17px;}
+.muted{color:var(--muted);}
+.btn{border:1px solid #6b4a14; border-radius:10px; padding:10px 16px; font-weight:700; color:var(--ink);
+  background:linear-gradient(180deg,#f3dc9c,var(--gold) 50%,var(--gold-2)); box-shadow:0 2px 0 #5a3d0e, 0 6px 14px #0006; transition:transform .08s, filter .15s;}
+.btn:hover{filter:brightness(1.07);} .btn:active{transform:translateY(1px);}
+.btn.ghost{background:transparent; color:var(--ivory); border-color:var(--line); box-shadow:none;}
+.btn.ghost:hover{border-color:var(--gold); color:var(--gold-soft);}
+.btn.danger{background:linear-gradient(180deg,#f29a8a,#d1503f 55%,#a63427); color:#fff; border-color:#6e1f15;}
+.btn.sm{padding:6px 12px; font-size:14px; border-radius:8px;}
+.btn[disabled]{opacity:.45; cursor:default;}
+.row{display:flex; gap:8px; flex-wrap:wrap; align-items:center;}
+button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--gold-soft); outline-offset:2px;}
+.iconbtn{width:40px; height:40px; border-radius:50%; border:1px solid var(--line); background:#0006; font-size:18px; display:grid; place-items:center;}
+
+.topnav{display:flex; gap:6px; flex-wrap:wrap; margin:0 0 14px;}
+.topnav button{padding:8px 15px; border-radius:999px; border:1px solid var(--line); background:#0005; font-size:14.5px;}
+.topnav button.on{background:linear-gradient(180deg,#f3dc9c,var(--gold)); color:var(--ink); border-color:#6b4a14; font-weight:700;}
+.lvls{display:flex; gap:6px; flex-wrap:wrap; margin:0 0 12px;}
+.lvls button{padding:6px 13px; border-radius:9px; border:1px solid var(--line); background:#0005; font-size:14px;}
+.lvls button.on{background:var(--teal); color:#04222a; border-color:#1d6a72; font-weight:700;}
+
+/* Gesperrt */
+.gate{text-align:center; padding:34px 22px 30px; max-width:560px; margin:24px auto;}
+.gate .lock{font-size:70px; line-height:1;}
+.gate h2{font-size:24px; margin-top:8px;}
+.gate .big{font-family:var(--serif); font-size:34px; color:var(--gold-soft); margin:6px 0 2px; font-variant-numeric:tabular-nums;}
+.gate ul{list-style:none; padding:0; margin:16px auto 0; max-width:380px; text-align:left; color:var(--muted); font-size:14.5px;}
+.gate li{padding:4px 0 4px 24px; position:relative;} .gate li::before{content:"🧩"; position:absolute; left:0; font-size:13px;}
+.teacher{margin-bottom:16px; padding:0;}
+.teacher summary{list-style:none; cursor:pointer; padding:12px 18px; display:flex; align-items:center; gap:10px; font-family:var(--serif); color:var(--gold-soft); letter-spacing:.04em; font-size:17px;}
+.teacher summary::-webkit-details-marker{display:none;}
+.teacher summary .sub{margin-left:auto; font-family:var(--sans); font-size:13px; color:var(--muted); letter-spacing:0;}
+.teacher .body{padding:2px 18px 16px; border-top:1px solid var(--line-soft);}
+.teacher .klassen{display:flex; flex-wrap:wrap; gap:6px 12px; margin:8px 0 2px; font-size:14px;}
+.teacher label{display:inline-flex; align-items:center; gap:5px; color:var(--muted);}
+
+/* Dialog, Toast */
+.modal{position:fixed; inset:0; z-index:100; background:rgba(3,8,16,.74); display:grid; place-items:center; padding:16px; overflow:auto;}
+.dlg{width:min(520px,100%); max-height:100%; overflow:auto;} .dlg h2{font-size:22px;}
+.dlg .actions{display:flex; gap:8px; justify-content:flex-end; margin-top:18px; flex-wrap:wrap;}
+#toast{position:fixed; left:50%; bottom:22px; transform:translateX(-50%) translateY(20px); background:#06101df0; border:1px solid var(--gold); color:var(--ivory); padding:10px 16px; border-radius:10px; opacity:0; pointer-events:none; transition:.2s; z-index:200; max-width:90vw; text-align:center;}
+#toast.show{opacity:1; transform:translateX(-50%);}
+.bar{height:8px; border-radius:99px; background:#0006; overflow:hidden; margin:8px 0;} .bar>i{display:block; height:100%; background:linear-gradient(90deg,var(--gold-2),var(--gold-soft));}
+
+/* Rätsel-Kopf */
+.ph{display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:0 0 10px;}
+.ph .grow{flex:1;} .ph .stat{font-variant-numeric:tabular-nums; color:var(--muted); font-size:14px;}
+.help{font-size:14.5px; color:var(--muted); margin:0 0 10px;}
+.win{margin:12px 0; padding:12px 16px; border-radius:12px; border:1px solid var(--ok); background:#2e7d4f33; text-align:center; font-size:17px;}
+.win b{color:var(--gold-soft);}
+.paper{background:var(--paper); color:var(--ink); border-radius:12px; border:1px solid var(--pline); box-shadow:0 8px 20px #0007;}
+
+/* Sudoku */
+.sd-wrap{display:flex; gap:18px; flex-wrap:wrap; justify-content:center; align-items:flex-start;}
+.sd-board{display:grid; background:var(--ink); border:3px solid var(--ink); border-radius:6px; gap:0; width:var(--bs); height:var(--bs); user-select:none; touch-action:manipulation;}
+.sd-c{position:relative; background:var(--paper); display:grid; place-items:center; font-size:calc(var(--bs) / var(--n) * .58); font-family:var(--serif); color:#1c4f8f; cursor:pointer; border:0; padding:0; line-height:1; color-scheme:light;}
+.sd-c.g{color:var(--ink); font-weight:700;}
+.sd-c.peer{background:#e7e0c8;} .sd-c.same{background:#f4d98a;} .sd-c.sel{background:#7fd0d8; box-shadow:inset 0 0 0 3px var(--teal);}
+.sd-c.err{color:#c0301f !important; background:#f8d0c8;}
+.sd-c.hint{color:#2e7d4f;}
+.sd-c .nt{position:absolute; inset:2px; display:grid; font-size:calc(var(--bs) / var(--n) * .22); font-family:var(--sans); color:#4a5a70; line-height:1; text-align:center; align-content:center;}
+.sd-c .nt i{font-style:normal;}
+.sd-pad{display:grid; gap:8px; width:min(var(--bs), 280px); margin:0 auto;}
+.sd-pad button{padding:10px 0; border-radius:10px; border:1px solid var(--line); background:#0007; font-size:20px; font-family:var(--serif);}
+.sd-pad button:hover{border-color:var(--gold);} .sd-pad button.done{opacity:.3;}
+.sd-tools{display:flex; flex-wrap:wrap; gap:6px; justify-content:center; width:min(var(--bs), 340px); margin:10px auto 0;}
+.sd-tools button.on{background:var(--teal); color:#04222a; border-color:#1d6a72;}
+
+/* Logik */
+.lg-clues{counter-reset:cl; list-style:none; padding:0; margin:0;}
+.lg-clues li{counter-increment:cl; padding:7px 10px 7px 38px; position:relative; border-bottom:1px dashed var(--pline);}
+.lg-clues li::before{content:counter(cl); position:absolute; left:8px; top:6px; width:22px; height:22px; border-radius:50%; background:var(--ink); color:var(--gold-soft); display:grid; place-items:center; font-size:12.5px; font-weight:700;}
+.lg-clues li.x{opacity:.45; text-decoration:line-through;}
+.lg-tab{border-collapse:collapse; width:100%; margin:6px 0;}
+.lg-tab th,.lg-tab td{border:1px solid var(--pline); padding:5px 6px; text-align:center;}
+.lg-tab th{background:var(--paper-2); font-size:14px;}
+.lg-tab th.cat{text-align:left; white-space:nowrap;}
+.lg-tab select{width:100%; min-width:84px; padding:6px 4px; border-radius:8px; border:1px solid var(--pline); background:#fff; color:var(--ink); font-size:15px;}
+.lg-tab select.err{border-color:#c0301f; background:#fbe0da;} .lg-tab select.ok{border-color:#2e7d4f; background:#dff1e4;}
+.lg-two{display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.25fr); gap:14px;} .lg-two>*{min-width:0;} @media (max-width:760px){.lg-two{grid-template-columns:minmax(0,1fr);}}
+.lg-people{display:grid; gap:8px;}
+.lg-p{display:flex; gap:10px; align-items:center; padding:8px 10px; border:1px solid var(--pline); border-radius:10px; background:#fff;}
+.lg-p .who{font-weight:700; width:92px; flex:none;} .lg-p .st{flex:1; font-size:15.5px;}
+.lg-p .ch{display:flex; gap:5px;} .lg-p .ch button{padding:6px 10px; border-radius:8px; border:1px solid var(--pline); background:var(--paper-2); color:var(--ink); font-size:14px;}
+.lg-p .ch button.on{background:var(--teal); color:#04222a; border-color:#1d6a72; font-weight:700;}
+.lg-p.err{border-color:#c0301f; background:#fbe0da;} .lg-p.ok{border-color:#2e7d4f; background:#dff1e4;}
+.zs-g{padding:7px 10px; border-bottom:1px dashed var(--pline); display:flex; gap:12px; align-items:center; flex-wrap:wrap;}
+.zs-d{display:inline-flex; gap:4px;} .zs-d b{width:34px; height:40px; display:grid; place-items:center; background:var(--ink); color:var(--gold-soft); border-radius:7px; font-size:21px; font-family:var(--serif);}
+.zs-code{display:flex; gap:8px; justify-content:center; margin:10px 0;} .zs-code input{width:52px; height:60px; text-align:center; font-size:30px; border-radius:10px; border:2px solid var(--pline); background:#fff; color:var(--ink); font-family:var(--serif);}
+.zs-code input.err{border-color:#c0301f; background:#fbe0da;} .zs-code input.ok{border-color:#2e7d4f; background:#dff1e4;}
+
+/* Kreuzworträtsel */
+.cw-wrap{display:grid; grid-template-columns:minmax(0,auto) minmax(0,1fr); gap:16px; align-items:start;} .cw-wrap>*{min-width:0;} @media (max-width:880px){.cw-wrap{grid-template-columns:minmax(0,1fr);}}
+.cw-board{display:grid; gap:0; background:var(--ink); border:3px solid var(--ink); border-radius:6px; user-select:none; touch-action:manipulation; width:fit-content; max-width:100%;}
+.cw-c{position:relative; width:var(--cs); height:var(--cs); background:var(--ink); border:0; padding:0;}
+.cw-c.w{background:var(--paper); cursor:pointer; box-shadow:inset 0 0 0 .5px #8a8466; color:var(--ink);}
+.cw-c.w.inw{background:#cfe9ec;} .cw-c.w.cur{background:#f4d98a; box-shadow:inset 0 0 0 3px #d49a14;}
+.cw-c .n{position:absolute; left:2px; top:0; font-size:calc(var(--cs) * .27); color:#4a5a70; line-height:1.2; font-family:var(--sans);}
+.cw-c .l{position:absolute; inset:0; display:grid; place-items:center; font-size:calc(var(--cs) * .56); font-family:var(--serif); font-weight:700; color:#1c4f8f; padding-top:calc(var(--cs) * .08);}
+.cw-c.bad .l{color:#c0301f; background:#f8d0c8;} .cw-c.good .l{color:#2e7d4f;} .cw-c.lk .l{color:var(--ink);}
+.cw-cl h3{margin:8px 0 6px;} .cw-cl ol{margin:0 0 6px; padding:0; list-style:none;}
+.cw-cl li{padding:5px 8px; border-radius:8px; cursor:pointer; font-size:15px; display:flex; gap:8px;} .cw-cl li b{min-width:26px; color:var(--gold-soft);}
+.cw-cl li.act{background:#f4d98a33; outline:1px solid var(--gold);} .cw-cl li.inw{background:#3aa6b022;} .cw-cl li.fertig{opacity:.5;}
+.cw-cl li small{color:var(--muted);}
+.cw-key{position:fixed; left:-300px; top:0; width:10px; opacity:0;}
+.cw-cur{padding:8px 12px; border-radius:10px; background:#0006; border:1px solid var(--line); margin:0 0 10px; min-height:40px;}
+
+@media (max-width:560px){
+  #app{padding:10px 10px 32px;} .logo{width:38px;height:38px;font-size:21px;} .brand h1{font-size:18px; letter-spacing:.08em;} .brand small{display:none;}
+  .top{flex-wrap:wrap;} .chip{order:10; flex:1 1 100%; justify-content:center; font-size:12.5px;} .card{padding:14px;}
+  .topnav button{padding:6px 12px; font-size:13.5px;}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none !important; transition:none !important;}}
+</style>
+</head>
+<body>
+<div id="app">
+  <header class="top">
+    <div class="logo" aria-hidden="true">🧩</div>
+    <div class="brand"><h1>Rätsel &amp; Logik</h1><small>Helfenberger&rsquo;s Library &middot; Sudoku, Logikrätsel, Kreuzworträtsel</small></div>
+    <span class="chip" id="chip" hidden><i></i><span id="chipTxt"></span></span>
+  </header>
+  <nav class="topnav" id="topnav" hidden></nav>
+  <div id="gate" hidden></div>
+  <details class="card teacher" id="teacher" hidden></details>
+  <main id="main"></main>
+</div>
+<div class="modal" id="modal" hidden></div>
+<div id="toast" role="status"></div>
+<script>
+(function(){
+'use strict';
+var $ = function(id){ return document.getElementById(id); };
+function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+function pad(n){ return (n < 10 ? '0' : '') + n; }
+function hm(d){ return pad(d.getHours()) + ':' + pad(d.getMinutes()); }
+function dstr(d){ return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
+function rnd(n){ return Math.floor(Math.random() * n); }
+function pick(a){ return a[rnd(a.length)]; }
+function shuffle(a){ a = a.slice(); for(var i = a.length - 1; i > 0; i--){ var j = rnd(i + 1), t = a[i]; a[i] = a[j]; a[j] = t; } return a; }
+function fmtT(s){ s = Math.max(0, Math.round(s)); return Math.floor(s / 60) + ':' + pad(s % 60); }
+var QS = new URLSearchParams(location.search);
+var T0 = Date.now();
+/* lokaler Speicher: nie mit hl_ beginnen, nie clear() */
+function lsGet(k, def){ try{ var v = localStorage.getItem(k); return v == null ? def : JSON.parse(v); }catch(e){ return def; } }
+function lsSet(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
+function lsDel(k){ try{ localStorage.removeItem(k); }catch(e){} }
+
+/* ---------- API: in der Library von der Hülle (window.parent.__hlRaetsel), allein geöffnet eine Attrappe ---------- */
+function mockApi(){
+  var FKEY = 'raetsel_mock_frei', lehrer = /lehrer/.test(location.search + location.hash);
+  function read(k){ try{ return JSON.parse(localStorage.getItem(k) || 'null') || {}; }catch(e){ return {}; } }
+  return {
+    mock:true, uid:'u1', name:lehrer ? 'Herr Test' : 'Schüler Test', klasse:'G3b', lehrer:lehrer,
+    klassen:[{id:'G3a', label:'G3a'}, {id:'G3b', label:'G3b'}],
+    ferien:function(){ return false; },
+    freigabeWatch:function(cb){ var last = null; function go(){ var s = JSON.stringify(read(FKEY)); if(s !== last){ last = s; var o = JSON.parse(s); cb(o && o.bis ? o : null); } } go(); var iv = setInterval(go, 400); return function(){ clearInterval(iv); }; },
+    freigabeSetzen:function(klassen, bis){ localStorage.setItem(FKEY, JSON.stringify({bis:bis, von:'Test'})); return Promise.resolve(); }
+  };
+}
+var API = null;
+try{ if(window.parent && window.parent !== window && typeof window.parent.__hlRaetsel === 'function') API = window.parent.__hlRaetsel(); }catch(e){}
+if(!API) API = mockApi();
+
+/* ---------- Unterrichtszeit: Mo–Fr 07:30–11:50 und 13:30–16:55 gesperrt (Freitag ab 15:00 frei), Wochenende/Ferien frei ---------- */
+function jetzt(){
+  if(API.mock && QS.get('jetzt')){ var d = new Date(QS.get('jetzt')); if(!isNaN(d)) return new Date(d.getTime() + (Date.now() - T0)); }
+  return new Date();
+}
+function minToDate(d, min){ var x = new Date(d); x.setHours(Math.floor(min / 60), min % 60, 0, 0); return x; }
+function unterricht(d){
+  var day = d.getDay(), m = d.getHours() * 60 + d.getMinutes();
+  if(day === 0 || day === 6) return {zu:false};
+  try{ if(API.ferien && API.ferien(dstr(d))) return {zu:false, ferien:true}; }catch(e){}
+  var bl = [[450, 710], [810, day === 5 ? 900 : 1015]], next = null;
+  for(var i = 0; i < bl.length; i++){
+    if(m >= bl[i][0] && m < bl[i][1]) return {zu:true, bis:minToDate(d, bl[i][1])};
+    if(m < bl[i][0] && next == null) next = bl[i][0];
+  }
+  return {zu:false, ab:next == null ? null : minToDate(d, next)};
+}
+var S = {view:'sudoku', lehrer:!!API.lehrer, frei:null, offen:null};
+function status(){
+  var d = jetzt(), u = unterricht(d);
+  if(S.lehrer) return {offen:true, lehrer:true, u:u, d:d};
+  if(!u.zu) return {offen:true, u:u, d:d};
+  if(S.frei && S.frei.bis > Date.now()) return {offen:true, frei:S.frei, u:u, d:d};
+  return {offen:false, u:u, d:d};
+}
+var toastTimer = null;
+function toast(msg){ var t = $('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(function(){ t.classList.remove('show'); }, 2800); }
+function modal(html, bind){
+  var m = $('modal'); m.innerHTML = '<div class="card dlg" role="dialog" aria-modal="true">' + html + '</div>'; m.hidden = false;
+  if(bind) bind(m);
+  var f = m.querySelector('button.btn'); if(f) try{ f.focus({preventScroll:true}); }catch(e){}
+}
+function closeModal(){ var m = $('modal'); m.hidden = true; m.innerHTML = ''; }
+function ask(titel, text, okLabel, cb, gefahr){
+  modal('<h2>' + esc(titel) + '</h2><p class="muted">' + text + '</p><div class="actions"><button class="btn ghost" data-a="no" type="button">Abbrechen</button><button class="btn' + (gefahr ? ' danger' : '') + '" data-a="ok" type="button">' + esc(okLabel) + '</button></div>', function(m){
+    m.querySelector('[data-a="no"]').onclick = closeModal;
+    m.querySelector('[data-a="ok"]').onclick = function(){ closeModal(); cb(); };
+  });
+}
+$('modal').addEventListener('click', function(e){ if(e.target === $('modal')) closeModal(); });
+/* =====================================================================
+   SUDOKU – Erzeugen (eindeutig lösbar, Schwierigkeit über Hinweise und nötige Technik) und Lösen
+   ===================================================================== */
+var SD_LV = [
+  {id:'e4', name:'Einsteiger 4×4', n:4, bw:2, bh:2, givens:8, tech:'naked'},
+  {id:'l6', name:'Leicht 6×6', n:6, bw:3, bh:2, givens:17, tech:'naked'},
+  {id:'l9', name:'Leicht', n:9, bw:3, bh:3, givens:42, tech:'naked'},
+  {id:'m9', name:'Mittel', n:9, bw:3, bh:3, givens:33, tech:'hidden'},
+  {id:'s9', name:'Schwer', n:9, bw:3, bh:3, givens:26, tech:'hidden'},
+  {id:'p9', name:'Profi', n:9, bw:3, bh:3, givens:24, tech:null}
+];
+function sdLv(id){ return SD_LV.filter(function(l){ return l.id === id; })[0] || SD_LV[2]; }
+function sdPop(m){ var c = 0; while(m){ m &= m - 1; c++; } return c; }
+function sdUnits(cfg){
+  if(cfg._u) return cfg._u;
+  var n = cfg.n, rows = [], cols = [], boxes = [], i, r, c;
+  for(i = 0; i < n; i++){ rows.push([]); cols.push([]); boxes.push([]); }
+  for(r = 0; r < n; r++) for(c = 0; c < n; c++){ var ix = r * n + c; rows[r].push(ix); cols[c].push(ix); boxes[(r / cfg.bh | 0) * (n / cfg.bw) + (c / cfg.bw | 0)].push(ix); }
+  var peers = [];
+  for(r = 0; r < n; r++) for(c = 0; c < n; c++){
+    var set = {}, bx = (r / cfg.bh | 0) * (n / cfg.bw) + (c / cfg.bw | 0);
+    rows[r].concat(cols[c], boxes[bx]).forEach(function(x){ set[x] = 1; }); delete set[r * n + c];
+    peers.push(Object.keys(set).map(Number));
+  }
+  cfg._u = {rows:rows, cols:cols, boxes:boxes, peers:peers, all:rows.concat(cols, boxes)};
+  return cfg._u;
+}
+function sdCands(g, cfg){
+  var n = cfg.n, U = sdUnits(cfg), full = (1 << n) - 1, out = new Array(n * n);
+  for(var i = 0; i < n * n; i++){
+    if(g[i]){ out[i] = 0; continue; }
+    var used = 0, p = U.peers[i];
+    for(var k = 0; k < p.length; k++) if(g[p[k]]) used |= 1 << (g[p[k]] - 1);
+    out[i] = full & ~used;
+  }
+  return out;
+}
+/* zählt Lösungen bis limit (mit «minimale Kandidaten zuerst») */
+function sdCount(g, cfg, limit){
+  var n = cfg.n, found = 0;
+  function rec(){
+    var cand = sdCands(g, cfg), best = -1, bc = 99, i;
+    for(i = 0; i < n * n; i++){ if(!g[i]){ var pc = sdPop(cand[i]); if(pc === 0) return; if(pc < bc){ bc = pc; best = i; if(pc === 1) break; } } }
+    if(best < 0){ found++; return; }
+    for(var d = 1; d <= n; d++){ if(cand[best] & (1 << (d - 1))){ g[best] = d; rec(); g[best] = 0; if(found >= limit) return; } }
+  }
+  rec(); return found;
+}
+function sdSolveOne(g, cfg, randomOrder){
+  var n = cfg.n, res = null;
+  function rec(){
+    var cand = sdCands(g, cfg), best = -1, bc = 99, i;
+    for(i = 0; i < n * n; i++){ if(!g[i]){ var pc = sdPop(cand[i]); if(pc === 0) return false; if(pc < bc){ bc = pc; best = i; } } }
+    if(best < 0){ res = g.slice(); return true; }
+    var ds = []; for(var d = 1; d <= n; d++) if(cand[best] & (1 << (d - 1))) ds.push(d);
+    if(randomOrder) ds = shuffle(ds);
+    for(var k = 0; k < ds.length; k++){ g[best] = ds[k]; if(rec()) { g[best] = 0; return true; } g[best] = 0; }
+    return false;
+  }
+  rec(); return res;
+}
+/* löst nur mit Einzelkandidaten (naked) bzw. zusätzlich versteckten Einzelnen (hidden) */
+function sdSingles(g0, cfg, hidden){
+  var g = g0.slice(), n = cfg.n, U = sdUnits(cfg), prog = true, i;
+  while(prog){
+    prog = false;
+    var cand = sdCands(g, cfg);
+    for(i = 0; i < n * n; i++) if(!g[i] && sdPop(cand[i]) === 1){ g[i] = Math.log2(cand[i]) + 1; prog = true; break; }
+    if(prog) continue;
+    if(hidden){
+      for(var u = 0; u < U.all.length && !prog; u++){
+        for(var d = 1; d <= n && !prog; d++){
+          var cells = U.all[u].filter(function(ix){ return !g[ix] && (cand[ix] & (1 << (d - 1))); });
+          var placed = U.all[u].some(function(ix){ return g[ix] === d; });
+          if(!placed && cells.length === 1){ g[cells[0]] = d; prog = true; }
+        }
+      }
+    }
+  }
+  return g.every(function(x){ return x; });
+}
+function sdGenerate(lvId){
+  var p, cfg0 = sdLv(lvId);
+  for(var tries = 0; tries < 6; tries++){
+    p = sdGenerate1(lvId);
+    if(cfg0.tech !== 'hidden' || !sdSingles(p.given, cfg0, false)) break;     // Mittel/Schwer: nur mit versteckten Einzelnen lösbar
+  }
+  return p;
+}
+function sdGenerate1(lvId){
+  var cfg = sdLv(lvId), n = cfg.n, N = n * n, sol = sdSolveOne(new Array(N).fill(0), cfg, true), g = sol.slice(), clues = N;
+  var order = shuffle(Array.apply(null, {length:N}).map(function(_, i){ return i; })), t0 = Date.now();
+  for(var k = 0; k < order.length && clues > cfg.givens; k++){
+    var ix = order[k], keep = g[ix]; g[ix] = 0;
+    var ok = sdCount(g, cfg, 2) === 1 && (!cfg.tech || sdSingles(g, cfg, cfg.tech === 'hidden'));
+    if(!ok) g[ix] = keep; else clues--;
+    if(Date.now() - t0 > 2500) break;
+  }
+  return {lv:lvId, given:g.map(function(x){ return x; }), sol:sol};
+}
+/* ---------- Sudoku: Oberfläche ---------- */
+var SD = {lv:lsGet('raetsel_sd_lv', 'l9'), p:null, sel:-1, notes:false, live:lsGet('raetsel_sd_live', false), flags:{}, undo:[], t:0, won:false};
+function sdSave(){ if(!SD.p) return; lsSet('raetsel_sd_' + SD.lv, {given:SD.p.given, sol:SD.p.sol, val:SD.p.val, nt:SD.p.nt, el:SD.p.el, hints:SD.p.hints, hintAt:SD.p.hintAt, won:SD.won}); lsSet('raetsel_sd_lv', SD.lv); }
+function sdNew(lv){
+  SD.lv = lv; var q = sdGenerate(lv), n = sdLv(lv).n;
+  SD.p = {given:q.given, sol:q.sol, val:q.given.slice(), nt:new Array(n * n).fill(0), el:0, hints:0, hintAt:{}};
+  SD.sel = -1; SD.flags = {}; SD.undo = []; SD.won = false; SD.t = Date.now(); sdSave();
+}
+function sdLoad(lv){
+  SD.lv = lv; var o = lsGet('raetsel_sd_' + lv, null), n = sdLv(lv).n;
+  if(o && o.given && o.given.length === n * n && o.val && o.val.length === n * n){
+    SD.p = {given:o.given, sol:o.sol, val:o.val, nt:o.nt || new Array(n * n).fill(0), el:o.el || 0, hints:o.hints || 0, hintAt:o.hintAt || {}};
+    SD.won = !!o.won; SD.sel = -1; SD.flags = {}; SD.undo = []; SD.t = Date.now();
+  } else sdNew(lv);
+}
+function sdElapsed(){ return SD.p ? SD.p.el + (SD.won ? 0 : (Date.now() - SD.t) / 1000) : 0; }
+function sdCommitTime(){ if(SD.p && !SD.won){ SD.p.el = sdElapsed(); SD.t = Date.now(); } }
+function sdWinCheck(){
+  if(SD.won) return;
+  if(SD.p.val.every(function(v, i){ return v === SD.p.sol[i]; })){ sdCommitTime(); SD.won = true; sdSave(); }
+}
+function sdSet(ix, d, noUndo){
+  var p = SD.p; if(p.given[ix]) return;
+  if(!noUndo) SD.undo.push({ix:ix, v:p.val[ix], nt:p.nt[ix]});
+  p.val[ix] = d; if(d) p.nt[ix] = 0;
+  delete SD.flags[ix];
+  if(d){ // Notizen der Nachbarn bereinigen
+    var cfg = sdLv(SD.lv), peers = sdUnits(cfg).peers[ix];
+    peers.forEach(function(q){ p.nt[q] &= ~(1 << (d - 1)); });
+  }
+  sdWinCheck(); sdSave();
+}
+function sdNote(ix, d){
+  var p = SD.p; if(p.given[ix] || p.val[ix]) return;
+  SD.undo.push({ix:ix, v:p.val[ix], nt:p.nt[ix]});
+  p.nt[ix] ^= 1 << (d - 1); sdSave();
+}
+function sdBoardHtml(){
+  var cfg = sdLv(SD.lv), n = cfg.n, p = SD.p, U = sdUnits(cfg), h = '', sv = SD.sel >= 0 ? p.val[SD.sel] : 0;
+  for(var i = 0; i < n * n; i++){
+    var r = i / n | 0, c = i % n, cls = 'sd-c', v = p.val[i];
+    if(p.given[i]) cls += ' g';
+    if(SD.sel === i) cls += ' sel';
+    else if(SD.sel >= 0 && U.peers[SD.sel].indexOf(i) >= 0) cls += ' peer';
+    if(sv && v === sv && SD.sel !== i) cls += ' same';
+    if(!p.given[i] && v && ((SD.live && v !== p.sol[i]) || SD.flags[i])) cls += ' err';
+    if(p.hintAt[i]) cls += ' hint';
+    var st = '', bx = c % cfg.bw === cfg.bw - 1 && c < n - 1, by = r % cfg.bh === cfg.bh - 1 && r < n - 1;
+    st = 'border-right:' + (c < n - 1 ? (bx ? '3px solid var(--ink)' : '1px solid var(--pline)') : '0') + ';border-bottom:' + (r < n - 1 ? (by ? '3px solid var(--ink)' : '1px solid var(--pline)') : '0');
+    var inner = v ? v : '';
+    if(!v && p.nt[i]){ var cols = n === 4 ? 2 : 3, ns = ''; for(var d = 1; d <= n; d++) ns += '<i>' + ((p.nt[i] & (1 << (d - 1))) ? d : '') + '</i>'; inner = '<span class="nt" style="grid-template-columns:repeat(' + cols + ',1fr)">' + ns + '</span>'; }
+    h += '<button type="button" class="' + cls + '" data-i="' + i + '" style="' + st + '" aria-label="Feld Reihe ' + (r + 1) + ' Spalte ' + (c + 1) + (v ? ', ' + v : ', leer') + '">' + inner + '</button>';
+  }
+  return h;
+}
+function sdRender(){
+  var m = $('main'), cfg = sdLv(SD.lv), n = cfg.n, p = SD.p;
+  var cnt = {}; p.val.forEach(function(v){ if(v) cnt[v] = (cnt[v] || 0) + 1; });
+  var h = '<div class="lvls">' + SD_LV.map(function(l){ return '<button type="button" data-lv="' + l.id + '" class="' + (l.id === SD.lv ? 'on' : '') + '">' + esc(l.name) + '</button>'; }).join('') + '</div>';
+  h += '<div class="card"><div class="ph"><b class="grow">🔢 Sudoku · ' + esc(cfg.name) + '</b><span class="stat" id="sdTime">⏱ ' + fmtT(sdElapsed()) + '</span><span class="stat">💡 ' + p.hints + '</span></div>';
+  h += '<p class="help">' + (n === 4 ? 'Fülle das Gitter so, dass in jeder Reihe, jeder Spalte und jedem 2×2-Block die Zahlen 1 bis 4 genau einmal vorkommen.' : n === 6 ? 'Jede Reihe, jede Spalte und jeder 3×2-Block enthält die Zahlen 1 bis 6 genau einmal.' : 'Jede Reihe, jede Spalte und jeder 3×3-Block enthält die Zahlen 1 bis 9 genau einmal. Du musst nie raten – es gibt immer eine Zahl, die sicher ist.') + '</p>';
+  if(SD.won) h += '<div class="win">🎉 Geschafft! <b>' + fmtT(p.el) + '</b> Minuten' + (p.hints ? ' mit ' + p.hints + (p.hints === 1 ? ' Tipp' : ' Tipps') : ' ohne Tipp') + '.<div class="row" style="justify-content:center;margin-top:8px"><button class="btn" data-a="neu" type="button">Neues Rätsel</button></div></div>';
+  h += '<div class="sd-wrap"><div class="sd-board" id="sdBoard" style="--n:' + n + ';grid-template-columns:repeat(' + n + ',1fr);grid-template-rows:repeat(' + n + ',1fr)">' + sdBoardHtml() + '</div><div>';
+  h += '<div class="sd-pad" style="grid-template-columns:repeat(' + (n === 9 ? 5 : n === 6 ? 3 : 4) + ',1fr)">';
+  for(var d = 1; d <= n; d++) h += '<button type="button" data-d="' + d + '" class="' + ((cnt[d] || 0) >= n ? 'done' : '') + '">' + d + '</button>';
+  h += '<button type="button" data-d="0" aria-label="Löschen">⌫</button></div>';
+  h += '<div class="sd-tools"><button type="button" class="btn sm ghost' + (SD.notes ? ' on' : '') + '" data-a="notes">✏️ Notizen ' + (SD.notes ? 'an' : 'aus') + '</button><button type="button" class="btn sm ghost" data-a="undo">↩︎ Zurück</button><button type="button" class="btn sm ghost" data-a="check">✔️ Prüfen</button><button type="button" class="btn sm ghost" data-a="tipp">💡 Tipp</button><button type="button" class="btn sm ghost' + (SD.live ? ' on' : '') + '" data-a="live">Fehler sofort ' + (SD.live ? 'an' : 'aus') + '</button><button type="button" class="btn sm ghost" data-a="reset">🔄 Von vorn</button><button type="button" class="btn sm" data-a="neu">🎲 Neues Rätsel</button></div></div></div></div>';
+  m.innerHTML = h;
+  bindSd();
+}
+function sdRefresh(){
+  var b = $('sdBoard'); if(!b){ sdRender(); return; }
+  b.innerHTML = sdBoardHtml();
+  var cnt = {}; SD.p.val.forEach(function(v){ if(v) cnt[v] = (cnt[v] || 0) + 1; }); var n = sdLv(SD.lv).n;
+  document.querySelectorAll('.sd-pad [data-d]').forEach(function(bt){ var d = +bt.dataset.d; bt.classList.toggle('done', d > 0 && (cnt[d] || 0) >= n); });
+  if(SD.won) sdRender();
+}
+function sdDigit(d){
+  if(SD.sel < 0){ toast('Tippe zuerst ein Feld an.'); return; }
+  var ix = SD.sel, p = SD.p; if(p.given[ix]){ toast('Dieses Feld ist vorgegeben.'); return; }
+  if(d === 0){ if(p.val[ix] || p.nt[ix]){ SD.undo.push({ix:ix, v:p.val[ix], nt:p.nt[ix]}); p.val[ix] = 0; p.nt[ix] = 0; delete SD.flags[ix]; sdSave(); } }
+  else if(SD.notes) sdNote(ix, d);
+  else sdSet(ix, p.val[ix] === d ? 0 : d);
+  sdRefresh();
+}
+function sdMove(dr, dc){
+  var n = sdLv(SD.lv).n; if(SD.sel < 0){ SD.sel = 0; sdRefresh(); return; }
+  var r = Math.max(0, Math.min(n - 1, (SD.sel / n | 0) + dr)), c = Math.max(0, Math.min(n - 1, SD.sel % n + dc)); SD.sel = r * n + c; sdRefresh();
+}
+function bindSd(){
+  var m = $('main');
+  m.querySelectorAll('[data-lv]').forEach(function(b){ b.onclick = function(){ sdCommitTime(); sdSave(); sdLoad(b.dataset.lv); sdRender(); }; });
+  $('sdBoard').onclick = function(e){ var c = e.target.closest ? e.target.closest('.sd-c') : null; if(c){ SD.sel = +c.dataset.i; sdRefresh(); } };
+  m.querySelectorAll('[data-d]').forEach(function(b){ b.onclick = function(){ sdDigit(+b.dataset.d); }; });
+  m.querySelectorAll('[data-a]').forEach(function(b){ b.onclick = function(){
+    var a = b.dataset.a, p = SD.p;
+    if(a === 'notes'){ SD.notes = !SD.notes; sdRender(); }
+    else if(a === 'live'){ SD.live = !SD.live; lsSet('raetsel_sd_live', SD.live); sdRender(); }
+    else if(a === 'undo'){ var u = SD.undo.pop(); if(u){ p.val[u.ix] = u.v; p.nt[u.ix] = u.nt; delete SD.flags[u.ix]; sdSave(); sdRefresh(); } else toast('Nichts zum Zurücknehmen.'); }
+    else if(a === 'check'){
+      var bad = 0; SD.flags = {}; p.val.forEach(function(v, i){ if(v && !p.given[i] && v !== p.sol[i]){ SD.flags[i] = 1; bad++; } });
+      toast(bad ? bad + (bad === 1 ? ' Zahl ist falsch (rot).' : ' Zahlen sind falsch (rot).') : (p.val.every(Boolean) ? 'Alles stimmt!' : 'Bis jetzt stimmt alles – weiter so!')); sdRefresh();
+    }
+    else if(a === 'tipp'){
+      var ix = SD.sel >= 0 && !p.given[SD.sel] && p.val[SD.sel] !== p.sol[SD.sel] ? SD.sel : -1;
+      if(ix < 0){ var cand = []; p.val.forEach(function(v, i){ if(!p.given[i] && v !== p.sol[i]) cand.push(i); }); if(!cand.length){ toast('Es gibt nichts mehr zu verraten.'); return; } ix = pick(cand); }
+      sdSet(ix, p.sol[ix]); p.hints++; p.hintAt[ix] = 1; SD.sel = ix; sdSave(); toast('Tipp: Hier gehört die ' + p.sol[ix] + ' hin.'); sdRender();
+    }
+    else if(a === 'reset') ask('Von vorn beginnen?', 'Deine Eingaben in diesem Rätsel werden gelöscht. Das Rätsel bleibt gleich.', 'Von vorn', function(){ p.val = p.given.slice(); p.nt = p.nt.map(function(){ return 0; }); p.el = 0; p.hints = 0; p.hintAt = {}; SD.flags = {}; SD.undo = []; SD.won = false; SD.t = Date.now(); sdSave(); sdRender(); });
+    else if(a === 'neu'){ var go = function(){ sdNew(SD.lv); sdRender(); }; if(!SD.won && p.val.some(function(v, i){ return v && !p.given[i]; })) ask('Neues Rätsel?', 'Dein angefangenes Rätsel geht verloren.', 'Neues Rätsel', go, true); else go(); }
+  }; });
+}
+document.addEventListener('keydown', function(e){
+  if(S.view !== 'sudoku' || !$('sdBoard') || !$('modal').hidden || e.ctrlKey || e.metaKey) return;
+  var k = e.key, n = sdLv(SD.lv).n;
+  if(k >= '1' && k <= String(n)){ sdDigit(+k); e.preventDefault(); }
+  else if(k === 'Backspace' || k === 'Delete' || k === '0'){ sdDigit(0); e.preventDefault(); }
+  else if(k === 'ArrowUp'){ sdMove(-1, 0); e.preventDefault(); } else if(k === 'ArrowDown'){ sdMove(1, 0); e.preventDefault(); }
+  else if(k === 'ArrowLeft'){ sdMove(0, -1); e.preventDefault(); } else if(k === 'ArrowRight'){ sdMove(0, 1); e.preventDefault(); }
+  else if(k === 'n' || k === 'N'){ SD.notes = !SD.notes; sdRender(); }
+});
+function showSudoku(){ if(!SD.p) sdLoad(SD.lv); sdRender(); }
+/* =====================================================================
+   LOGIKRÄTSEL – Generatoren
+   1) Zuordnungsrätsel (wer sitzt wo, wer hat was) · 2) Wahrheit oder Lüge · 3) Codeschloss
+   Jede Aufgabe wird beim Erzeugen auf genau EINE Lösung geprüft.
+   ===================================================================== */
+var ZU_CATS = [
+  {id:'name', label:'Name', items:[
+    {t:'Anna'}, {t:'Ben'}, {t:'Chiara'}, {t:'David'}, {t:'Elif'}, {t:'Finn'}, {t:'Gina'}, {t:'Hugo'}, {t:'Ida'}, {t:'Jonas'}]},
+  {id:'fach', label:'Lieblingsfach', items:[
+    {t:'Mathe', w:'mit dem Lieblingsfach Mathe', v:'hat das Lieblingsfach Mathe', n:'hat nicht das Lieblingsfach Mathe'},
+    {t:'Deutsch', w:'mit dem Lieblingsfach Deutsch', v:'hat das Lieblingsfach Deutsch', n:'hat nicht das Lieblingsfach Deutsch'},
+    {t:'Sport', w:'mit dem Lieblingsfach Sport', v:'hat das Lieblingsfach Sport', n:'hat nicht das Lieblingsfach Sport'},
+    {t:'Musik', w:'mit dem Lieblingsfach Musik', v:'hat das Lieblingsfach Musik', n:'hat nicht das Lieblingsfach Musik'},
+    {t:'Geografie', w:'mit dem Lieblingsfach Geografie', v:'hat das Lieblingsfach Geografie', n:'hat nicht das Lieblingsfach Geografie'}]},
+  {id:'tier', label:'Haustier', items:[
+    {t:'Hund', w:'mit dem Haustier Hund', v:'hat das Haustier Hund', n:'hat nicht das Haustier Hund'},
+    {t:'Katze', w:'mit dem Haustier Katze', v:'hat das Haustier Katze', n:'hat nicht das Haustier Katze'},
+    {t:'Hase', w:'mit dem Haustier Hase', v:'hat das Haustier Hase', n:'hat nicht das Haustier Hase'},
+    {t:'Fisch', w:'mit dem Haustier Fisch', v:'hat das Haustier Fisch', n:'hat nicht das Haustier Fisch'},
+    {t:'Vogel', w:'mit dem Haustier Vogel', v:'hat das Haustier Vogel', n:'hat nicht das Haustier Vogel'}]},
+  {id:'hobby', label:'Hobby', items:[
+    {t:'Fussball', w:'mit dem Hobby Fussball', v:'hat das Hobby Fussball', n:'hat nicht das Hobby Fussball'},
+    {t:'Zeichnen', w:'mit dem Hobby Zeichnen', v:'hat das Hobby Zeichnen', n:'hat nicht das Hobby Zeichnen'},
+    {t:'Lesen', w:'mit dem Hobby Lesen', v:'hat das Hobby Lesen', n:'hat nicht das Hobby Lesen'},
+    {t:'Tanzen', w:'mit dem Hobby Tanzen', v:'hat das Hobby Tanzen', n:'hat nicht das Hobby Tanzen'},
+    {t:'Schach', w:'mit dem Hobby Schach', v:'hat das Hobby Schach', n:'hat nicht das Hobby Schach'}]},
+  {id:'getraenk', label:'Lieblingsgetränk', items:[
+    {t:'Tee', w:'mit dem Lieblingsgetränk Tee', v:'trinkt am liebsten Tee', n:'trinkt nicht am liebsten Tee'},
+    {t:'Milch', w:'mit dem Lieblingsgetränk Milch', v:'trinkt am liebsten Milch', n:'trinkt nicht am liebsten Milch'},
+    {t:'Sirup', w:'mit dem Lieblingsgetränk Sirup', v:'trinkt am liebsten Sirup', n:'trinkt nicht am liebsten Sirup'},
+    {t:'Wasser', w:'mit dem Lieblingsgetränk Wasser', v:'trinkt am liebsten Wasser', n:'trinkt nicht am liebsten Wasser'},
+    {t:'Apfelsaft', w:'mit dem Lieblingsgetränk Apfelsaft', v:'trinkt am liebsten Apfelsaft', n:'trinkt nicht am liebsten Apfelsaft'}]},
+  {id:'farbe', label:'Rucksack', items:[
+    {t:'rot', w:'mit dem roten Rucksack', v:'hat einen roten Rucksack', n:'hat keinen roten Rucksack'},
+    {t:'blau', w:'mit dem blauen Rucksack', v:'hat einen blauen Rucksack', n:'hat keinen blauen Rucksack'},
+    {t:'grün', w:'mit dem grünen Rucksack', v:'hat einen grünen Rucksack', n:'hat keinen grünen Rucksack'},
+    {t:'gelb', w:'mit dem gelben Rucksack', v:'hat einen gelben Rucksack', n:'hat keinen gelben Rucksack'},
+    {t:'schwarz', w:'mit dem schwarzen Rucksack', v:'hat einen schwarzen Rucksack', n:'hat keinen schwarzen Rucksack'}]}
+];
+var ZU_LV = [
+  {id:'z1', name:'Leicht', n:3, k:3, types:['same', 'pos', 'nb', 'notsame']},
+  {id:'z2', name:'Mittel', n:4, k:3, types:['same', 'pos', 'nb', 'notsame', 'left', 'dleft']},
+  {id:'z3', name:'Schwer', n:4, k:4, types:['same', 'pos', 'nb', 'notsame', 'left', 'dleft', 'notnb']},
+  {id:'z4', name:'Profi', n:5, k:4, types:['same', 'pos', 'nb', 'notsame', 'left', 'dleft', 'notnb']}
+];
+function zuLv(id){ return ZU_LV.filter(function(l){ return l.id === id; })[0] || ZU_LV[0]; }
+function zuPerms(n){
+  var out = [];
+  (function rec(cur, rest){ if(!rest.length){ out.push(cur); return; } for(var i = 0; i < rest.length; i++) rec(cur.concat([rest[i]]), rest.slice(0, i).concat(rest.slice(i + 1))); })([], Array.apply(null, {length:n}).map(function(_, i){ return i; }));
+  return out;
+}
+var ZU_PERMS = {};
+function zuHolds(c, pos){            // pos[cat][item] = Platz; Clue nur prüfen, wenn alle beteiligten Kategorien belegt
+  var a = pos[c.a[0]] && pos[c.a[0]][c.a[1]], b = c.b ? (pos[c.b[0]] && pos[c.b[0]][c.b[1]]) : 0;
+  if(a == null || (c.b && b == null)) return true;
+  switch(c.t){
+    case 'same': return a === b; case 'notsame': return a !== b;
+    case 'pos': return a === c.p; case 'nb': return Math.abs(a - b) === 1; case 'notnb': return Math.abs(a - b) !== 1;
+    case 'left': return a < b; case 'dleft': return b - a === 1;
+  }
+  return true;
+}
+function zuCount(clues, n, k, limit){
+  var perms = ZU_PERMS[n] || (ZU_PERMS[n] = zuPerms(n)), pos = [], found = 0;
+  function rec(cat){
+    if(found >= limit) return;
+    if(cat === k){ found++; return; }
+    for(var i = 0; i < perms.length; i++){
+      pos[cat] = perms[i]; var ok = true;
+      for(var j = 0; j < clues.length && ok; j++){ var c = clues[j]; if(Math.max(c.a[0], c.b ? c.b[0] : 0) === cat && !zuHolds(c, pos)) ok = false; }
+      if(ok) rec(cat + 1);
+      if(found >= limit) break;
+    }
+    pos[cat] = null;
+  }
+  rec(0); return found;
+}
+function zuRandomClue(sol, n, k, types){
+  var t = pick(types), a = [rnd(k), rnd(n)], b;
+  do { b = [rnd(k), rnd(n)]; } while(b[0] === a[0]);
+  var pa = sol[a[0]][a[1]], pb = sol[b[0]][b[1]];
+  if(t === 'pos') return {t:'pos', a:a, p:pa};
+  if(t === 'same') return {t:'same', a:a, b:sol[a[0]][a[1]] === pb ? b : [b[0], sol[b[0]].indexOf(pa)]};
+  if(t === 'notsame'){ if(pa === pb) return null; return {t:'notsame', a:a, b:b}; }
+  if(t === 'nb'){ if(Math.abs(pa - pb) !== 1) return null; return {t:'nb', a:a, b:b}; }
+  if(t === 'notnb'){ if(Math.abs(pa - pb) === 1 || pa === pb) return null; return {t:'notnb', a:a, b:b}; }
+  if(t === 'left'){ if(pa >= pb) return null; return {t:'left', a:a, b:b}; }
+  if(t === 'dleft'){ if(pb - pa !== 1) return null; return {t:'dleft', a:a, b:b}; }
+  return null;
+}
+function zuGenerate(lvId){
+  var lv = zuLv(lvId), n = lv.n, k = lv.k;
+  for(var attempt = 0; attempt < 8; attempt++){
+    // Kategorien wählen: Name immer dabei
+    var others = shuffle([1, 2, 3, 4, 5]).slice(0, k - 1), cats = [0].concat(others);
+    var names = shuffle(ZU_CATS[0].items.map(function(x, i){ return i; })).slice(0, n);
+    var catItems = cats.map(function(ci, idx){ return idx === 0 ? names : shuffle([0, 1, 2, 3, 4]).slice(0, n); });
+    var perms = ZU_PERMS[n] || (ZU_PERMS[n] = zuPerms(n));
+    var sol = cats.map(function(){ return pick(perms); });          // sol[cat][itemIndex] = Platz
+    var clues = [], tries = 0;
+    while(tries++ < 400){
+      var c = zuRandomClue(sol, n, k, lv.types); if(!c) continue;
+      if(clues.some(function(d){ return JSON.stringify(d) === JSON.stringify(c); })) continue;
+      clues.push(c);
+      if(clues.length >= (n > 4 ? 10 : 3) && zuCount(clues, n, k, 2) === 1) break;
+    }
+    if(zuCount(clues, n, k, 2) !== 1) continue;
+    // überflüssige Hinweise streichen
+    var order = shuffle(clues.map(function(_, i){ return i; })), tEnd = Date.now() + 900;
+    order.forEach(function(ix){ var c = clues[ix]; if(!c || Date.now() > tEnd) return; clues[ix] = null; var rest = clues.filter(Boolean); if(zuCount(rest, n, k, 2) !== 1) clues[ix] = c; });
+    clues = clues.filter(Boolean);
+    return {lv:lvId, n:n, k:k, cats:cats, items:catItems, sol:sol, clues:shuffle(clues)};
+  }
+  return null;
+}
+function zuItem(p, ref){ var cat = ZU_CATS[p.cats[ref[0]]], it = cat.items[p.items[ref[0]][ref[1]]]; return {cat:cat, it:it, isName:cat.id === 'name'}; }
+function zuSubj(p, ref){ var x = zuItem(p, ref); return x.isName ? x.it.t : 'Die Person ' + x.it.w; }
+function zuObj(p, ref){ var x = zuItem(p, ref); return x.isName ? x.it.t : 'der Person ' + x.it.w; }
+function zuVp(p, ref, neg){ var x = zuItem(p, ref); return x.isName ? (neg ? 'heisst nicht ' : 'heisst ') + x.it.t : (neg ? x.it.n : x.it.v); }
+function zuText(p, c){
+  var n = p.n;
+  if(c.t === 'pos'){ var pl = c.p === 0 ? 'ganz links (Platz 1)' : c.p === n - 1 ? 'ganz rechts (Platz ' + n + ')' : (n % 2 === 1 && c.p === (n - 1) / 2 ? 'in der Mitte (Platz ' + (c.p + 1) + ')' : 'auf Platz ' + (c.p + 1)); return zuSubj(p, c.a) + ' sitzt ' + pl + '.'; }
+  if(c.t === 'same') return zuSubj(p, c.a) + ' ' + zuVp(p, c.b, false) + '.';
+  if(c.t === 'notsame') return zuSubj(p, c.a) + ' ' + zuVp(p, c.b, true) + '.';
+  if(c.t === 'nb') return zuSubj(p, c.a) + ' sitzt direkt neben ' + zuObj(p, c.b) + '.';
+  if(c.t === 'notnb') return zuSubj(p, c.a) + ' sitzt nicht direkt neben ' + zuObj(p, c.b) + '.';
+  if(c.t === 'left') return zuSubj(p, c.a) + ' sitzt irgendwo links von ' + zuObj(p, c.b) + '.';
+  if(c.t === 'dleft') return zuSubj(p, c.a) + ' sitzt direkt links von ' + zuObj(p, c.b) + '.';
+  return '';
+}
+
+/* ---------- Wahrheit oder Lüge ---------- */
+var WL_LV = [
+  {id:'w1', name:'Leicht', n:3, types:['is', 'same', 'both']},
+  {id:'w2', name:'Mittel', n:4, types:['is', 'both', 'same']},
+  {id:'w3', name:'Schwer', n:5, types:['is', 'both', 'same', 'count', 'any']},
+  {id:'w4', name:'Profi', n:6, types:['is', 'both', 'same', 'count', 'any', 'diff']}
+];
+var WL_NAMES = ['Anna', 'Ben', 'Chiara', 'David', 'Elif', 'Finn', 'Gina', 'Hugo'];
+function wlLv(id){ return WL_LV.filter(function(l){ return l.id === id; })[0] || WL_LV[0]; }
+function wlTrue(s, t){       // t[i] = true: ehrlich; Wahrheitswert der Aussage s unter Belegung t
+  var n = t.length, liars = t.filter(function(x){ return !x; }).length;
+  switch(s.k){
+    case 'is': return t[s.j] === s.v;
+    case 'both': return t[s.j] === s.v && t[s.l] === s.v;
+    case 'any': return !t[s.j] || !t[s.l];
+    case 'same': return t[s.j] === t[s.l];
+    case 'diff': return t[s.j] !== t[s.l];
+    case 'count': return s.m === 'eq' ? liars === s.c : liars >= s.c;
+  }
+  return false;
+}
+function wlSolutions(stm){
+  var n = stm.length, out = [];
+  for(var mask = 0; mask < (1 << n); mask++){
+    var t = []; for(var i = 0; i < n; i++) t.push(!!(mask & (1 << i)));
+    if(stm.every(function(s, i){ return wlTrue(s, t) === t[i]; })) out.push(t);
+  }
+  return out;
+}
+function wlGenerate(lvId){
+  var lv = wlLv(lvId), n = lv.n;
+  for(var attempt = 0; attempt < 4000; attempt++){
+    var stm = [];
+    for(var i = 0; i < n; i++){
+      var k = pick(lv.types), j, l;
+      do { j = rnd(n); } while(j === i);
+      do { l = rnd(n); } while(l === i || l === j);
+      var s = {k:k, j:j, l:l, v:Math.random() < 0.5, m:Math.random() < 0.5 ? 'eq' : 'ge', c:1 + rnd(Math.max(1, n - 2))};
+      if(k === 'count' && s.m === 'ge' && s.c > n - 1) s.c = n - 1;
+      stm.push(s);
+    }
+    var sols = wlSolutions(stm);
+    if(sols.length !== 1) continue;
+    var t = sols[0], liars = t.filter(function(x){ return !x; }).length;
+    if(liars === 0 || liars === n) continue;
+    return {lv:lvId, n:n, names:shuffle(WL_NAMES).slice(0, n), stm:stm, sol:t};
+  }
+  return null;
+}
+function wlText(p, i){
+  var s = p.stm[i], N = p.names, w = function(v){ return v ? 'sagt die Wahrheit' : 'lügt'; };
+  switch(s.k){
+    case 'is': return '«' + N[s.j] + ' ' + w(s.v) + '.»';
+    case 'both': return '«' + N[s.j] + ' und ' + N[s.l] + ' ' + (s.v ? 'sagen beide die Wahrheit' : 'lügen beide') + '.»';
+    case 'any': return '«Mindestens eine Person von ' + N[s.j] + ' und ' + N[s.l] + ' lügt.»';
+    case 'same': return '«' + N[s.j] + ' und ' + N[s.l] + ' sind vom gleichen Typ (beide ehrlich oder beide Lügner).»';
+    case 'diff': return '«' + N[s.j] + ' und ' + N[s.l] + ' sind nicht vom gleichen Typ.»';
+    case 'count': return '«Von uns ' + p.n + ' ' + (s.m === 'eq' ? (s.c === 1 ? 'lügt genau eine Person' : 'lügen genau ' + s.c + ' Personen') : (s.c === 1 ? 'lügt mindestens eine Person' : 'lügen mindestens ' + s.c + ' Personen')) + '.»';
+  }
+  return '';
+}
+
+/* ---------- Codeschloss ---------- */
+var CS_LV = [
+  {id:'c1', name:'Leicht', len:3},
+  {id:'c2', name:'Mittel', len:4},
+  {id:'c3', name:'Schwer', len:5}
+];
+function csLv(id){ return CS_LV.filter(function(l){ return l.id === id; })[0] || CS_LV[0]; }
+function csFeedback(code, guess){
+  var a = 0, b = 0, i;
+  for(i = 0; i < code.length; i++){ if(code[i] === guess[i]) a++; else if(code.indexOf(guess[i]) >= 0) b++; }
+  return {a:a, b:b};
+}
+function csAll(len){
+  var out = [];
+  (function rec(cur){ if(cur.length === len){ out.push(cur); return; } for(var d = 0; d <= 9; d++) if(cur.indexOf(d) < 0) rec(cur.concat([d])); })([]);
+  return out;
+}
+var CS_ALL = {};
+function csCountSol(hints, len, limit){
+  var all = CS_ALL[len] || (CS_ALL[len] = csAll(len)), n = 0;
+  for(var i = 0; i < all.length; i++){
+    var c = all[i], ok = true;
+    for(var j = 0; j < hints.length && ok; j++){ var f = csFeedback(c, hints[j].g); if(f.a !== hints[j].a || f.b !== hints[j].b) ok = false; }
+    if(ok && ++n >= limit) return n;
+  }
+  return n;
+}
+function csGenerate(lvId){
+  var len = csLv(lvId).len, all = CS_ALL[len] || (CS_ALL[len] = csAll(len)), code = pick(all), hints = [], tries = 0;
+  while(tries++ < 80){
+    var g = pick(all); if(g.join('') === code.join('')) continue;
+    var f = csFeedback(code, g);
+    if(hints.some(function(h){ return h.g.join('') === g.join(''); })) continue;
+    // nur Hinweise, die den Raum wirklich verkleinern
+    var before = csCountSol(hints, len, 100000);
+    hints.push({g:g, a:f.a, b:f.b});
+    if(csCountSol(hints, len, 100000) >= before){ hints.pop(); continue; }
+    if(csCountSol(hints, len, 2) === 1) break;
+  }
+  if(csCountSol(hints, len, 2) !== 1) return csGenerate(lvId);
+  var order = shuffle(hints.map(function(_, i){ return i; }));
+  order.forEach(function(ix){ var h = hints[ix]; if(!h) return; hints[ix] = null; if(csCountSol(hints.filter(Boolean), len, 2) !== 1) hints[ix] = h; });
+  hints = hints.filter(Boolean);
+  return {lv:lvId, len:len, code:code, hints:hints};
+}
+/* ---------- Logikrätsel: Oberfläche ---------- */
+var LG = {sub:lsGet('raetsel_lg_sub', 'z'), z:{lv:lsGet('raetsel_lg_zlv', 'z1')}, w:{lv:lsGet('raetsel_lg_wlv', 'w1')}, c:{lv:lsGet('raetsel_lg_clv', 'c1')}};
+var LG_SUBS = [['z', '🏠 Wer sitzt wo?', ZU_LV, 'raetsel_lg_zlv'], ['w', '🗣️ Wahrheit oder Lüge?', WL_LV, 'raetsel_lg_wlv'], ['c', '🔐 Codeschloss', CS_LV, 'raetsel_lg_clv']];
+function lgKey(sub){ return 'raetsel_lg_' + sub + '_' + LG[sub].lv; }
+function lgSave(sub){ var s = LG[sub]; lsSet(lgKey(sub), {p:s.p, ans:s.ans, cross:s.cross, hints:s.hints, el:s.el, won:s.won, tries:s.tries}); }
+function lgElapsed(s){ return s.el + (s.won ? 0 : (Date.now() - s.t) / 1000); }
+function lgCommit(sub){ var s = LG[sub]; if(s && s.p && !s.won){ s.el = lgElapsed(s); s.t = Date.now(); } }
+function lgNew(sub){
+  var s = LG[sub], p = sub === 'z' ? zuGenerate(s.lv) : sub === 'w' ? wlGenerate(s.lv) : csGenerate(s.lv);
+  if(!p){ toast('Das Rätsel konnte nicht erstellt werden – bitte nochmals.'); return false; }
+  s.p = p; s.ans = sub === 'z' ? p.cats.map(function(){ return new Array(p.n).fill(0); }) : sub === 'w' ? new Array(p.n).fill(null) : new Array(p.len).fill('');
+  s.cross = {}; s.hints = 0; s.el = 0; s.t = Date.now(); s.won = false; s.tries = 0; s.flags = null; lgSave(sub); return true;
+}
+function lgLoad(sub){
+  var s = LG[sub], o = lsGet(lgKey(sub), null), ok = o && o.p && (sub === 'z' ? o.p.sol : sub === 'w' ? o.p.stm : o.p.hints);
+  if(ok){ s.p = o.p; s.ans = o.ans; s.cross = o.cross || {}; s.hints = o.hints || 0; s.el = o.el || 0; s.won = !!o.won; s.tries = o.tries || 0; s.t = Date.now(); s.flags = null; }
+  else lgNew(sub);
+}
+function lgHead(sub){
+  var s = LG[sub];
+  var h = '<div class="topnav" style="margin-bottom:10px">' + LG_SUBS.map(function(x){ return '<button type="button" data-sub="' + x[0] + '" class="' + (x[0] === LG.sub ? 'on' : '') + '">' + x[1] + '</button>'; }).join('') + '</div>';
+  var lvs = LG_SUBS.filter(function(x){ return x[0] === sub; })[0][2];
+  h += '<div class="lvls">' + lvs.map(function(l){ return '<button type="button" data-lv="' + l.id + '" class="' + (l.id === s.lv ? 'on' : '') + '">' + esc(l.name) + '</button>'; }).join('') + '</div>';
+  return h;
+}
+function lgBind(sub){
+  var m = $('main');
+  m.querySelectorAll('[data-sub]').forEach(function(b){ b.onclick = function(){ lgCommit(LG.sub); lgSave(LG.sub); LG.sub = b.dataset.sub; lsSet('raetsel_lg_sub', LG.sub); showLogik(); }; });
+  m.querySelectorAll('[data-lv]').forEach(function(b){ b.onclick = function(){ lgCommit(sub); lgSave(sub); LG[sub].lv = b.dataset.lv; lsSet(LG_SUBS.filter(function(x){ return x[0] === sub; })[0][3], LG[sub].lv); LG[sub].p = null; showLogik(); }; });
+  m.querySelectorAll('[data-a]').forEach(function(b){ b.onclick = function(){ lgAction(sub, b.dataset.a); }; });
+}
+function lgAction(sub, a){
+  var s = LG[sub], p = s.p;
+  if(a === 'neu'){ var go = function(){ if(lgNew(sub)) showLogik(); }; if(!s.won && lgTouched(sub)) ask('Neues Rätsel?', 'Dein angefangenes Rätsel geht verloren.', 'Neues Rätsel', go, true); else go(); }
+  else if(a === 'reset') ask('Von vorn beginnen?', 'Deine Eingaben werden gelöscht, das Rätsel bleibt gleich.', 'Von vorn', function(){ s.ans = sub === 'z' ? p.cats.map(function(){ return new Array(p.n).fill(0); }) : sub === 'w' ? new Array(p.n).fill(null) : new Array(p.len).fill(''); s.cross = {}; s.hints = 0; s.el = 0; s.t = Date.now(); s.won = false; s.tries = 0; s.flags = null; lgSave(sub); showLogik(); });
+  else if(a === 'check') lgCheck(sub);
+  else if(a === 'tipp') lgTipp(sub);
+}
+function lgTouched(sub){ var s = LG[sub]; return sub === 'z' ? s.ans.some(function(r){ return r.some(Boolean); }) : sub === 'w' ? s.ans.some(function(x){ return x != null; }) : s.ans.some(Boolean); }
+function lgWin(sub){
+  var s = LG[sub]; lgCommit(sub); s.won = true; lgSave(sub);
+}
+function lgWinBox(sub){
+  var s = LG[sub]; if(!s.won) return '';
+  return '<div class="win">🎉 Gelöst! <b>' + fmtT(s.el) + '</b> Minuten' + (s.hints ? ' mit ' + s.hints + (s.hints === 1 ? ' Tipp' : ' Tipps') : ' ohne Tipp') + (sub === 'c' && s.tries ? ' · ' + s.tries + (s.tries === 1 ? ' Versuch' : ' Versuche') : '') + '.<div class="row" style="justify-content:center;margin-top:8px"><button class="btn" data-a="neu" type="button">Neues Rätsel</button></div></div>';
+}
+function lgTools(sub){
+  return '<div class="row" style="margin-top:12px"><button class="btn" data-a="check" type="button">✔️ Prüfen</button><button class="btn sm ghost" data-a="tipp" type="button">💡 Tipp</button><button class="btn sm ghost" data-a="reset" type="button">🔄 Von vorn</button><button class="btn sm" data-a="neu" type="button">🎲 Neues Rätsel</button></div>';
+}
+
+/* ----- Wer sitzt wo? ----- */
+function zuRender(){
+  var s = LG.z, p = s.p, m = $('main'), n = p.n;
+  var h = lgHead('z') + '<div class="card"><div class="ph"><b class="grow">🏠 Wer sitzt wo? · ' + esc(zuLv(s.lv).name) + '</b><span class="stat" id="lgTime">⏱ ' + fmtT(lgElapsed(s)) + '</span><span class="stat">💡 ' + s.hints + '</span></div>';
+  h += '<p class="help">' + n + ' Personen sitzen nebeneinander in einer Reihe. Platz 1 ist ganz links. Lies die Hinweise (tippe einen an, um ihn durchzustreichen) und trage in der Tabelle ein, wer wo sitzt und was jede Person hat. Alle Angaben stimmen – und es gibt nur eine einzige Lösung.</p>' + lgWinBox('z');
+  h += '<div class="lg-two"><div class="paper" style="padding:10px 6px"><h3 style="color:var(--ink);margin:2px 10px 6px">Hinweise</h3><ol class="lg-clues">' + p.clues.map(function(c, i){ return '<li data-x="' + i + '" class="' + (s.cross[i] ? 'x' : '') + '">' + esc(zuText(p, c)) + '</li>'; }).join('') + '</ol></div>';
+  h += '<div class="paper" style="padding:10px"><h3 style="color:var(--ink);margin:2px 2px 6px">Lösungstabelle</h3><div style="overflow-x:auto"><table class="lg-tab"><tr><th></th>' + Array.apply(null, {length:n}).map(function(_, i){ return '<th>Platz ' + (i + 1) + '</th>'; }).join('') + '</tr>';
+  p.cats.forEach(function(ci, ki){
+    h += '<tr><th class="cat">' + esc(ZU_CATS[ci].label) + '</th>';
+    for(var pos = 0; pos < n; pos++){
+      var cls = s.flags && s.flags[ki + '_' + pos] ? s.flags[ki + '_' + pos] : '';
+      h += '<td><select data-k="' + ki + '" data-p="' + pos + '" class="' + cls + '" aria-label="' + esc(ZU_CATS[ci].label) + ' auf Platz ' + (pos + 1) + '"><option value="0">–</option>' + p.items[ki].map(function(ii, idx){ return '<option value="' + (idx + 1) + '"' + (s.ans[ki][pos] === idx + 1 ? ' selected' : '') + '>' + esc(ZU_CATS[ci].items[ii].t) + '</option>'; }).join('') + '</select></td>';
+    }
+    h += '</tr>';
+  });
+  h += '</table></div></div></div>' + lgTools('z') + '</div>';
+  m.innerHTML = h; lgBind('z');
+  m.querySelectorAll('[data-x]').forEach(function(li){ li.onclick = function(){ var i = +li.dataset.x; s.cross[i] = !s.cross[i]; li.classList.toggle('x', !!s.cross[i]); lgSave('z'); }; });
+  m.querySelectorAll('select[data-k]').forEach(function(sel){ sel.onchange = function(){ s.ans[+sel.dataset.k][+sel.dataset.p] = +sel.value; s.flags = null; sel.className = ''; lgSave('z'); }; });
+}
+function zuCheck(){
+  var s = LG.z, p = s.p, n = p.n, flags = {}, bad = 0, filled = 0, all = true;
+  p.cats.forEach(function(ci, ki){ for(var pos = 0; pos < n; pos++){
+    var v = s.ans[ki][pos]; if(!v){ all = false; continue; } filled++;
+    var right = p.sol[ki].indexOf(pos) + 1; if(v === right) flags[ki + '_' + pos] = 'ok'; else { flags[ki + '_' + pos] = 'err'; bad++; }
+  } });
+  s.flags = flags;
+  if(!bad && all){ lgWin('z'); zuRender(); return; }
+  toast(!filled ? 'Trag zuerst etwas ein.' : bad ? bad + (bad === 1 ? ' Eintrag ist falsch (rot).' : ' Einträge sind falsch (rot).') : 'Bis jetzt alles richtig (grün) – mach weiter!');
+  zuRender();
+}
+function zuTipp(){
+  var s = LG.z, p = s.p, n = p.n, cand = [];
+  p.cats.forEach(function(ci, ki){ for(var pos = 0; pos < n; pos++) if(s.ans[ki][pos] !== p.sol[ki].indexOf(pos) + 1) cand.push([ki, pos]); });
+  if(!cand.length){ toast('Es gibt nichts mehr zu verraten.'); return; }
+  var c = pick(cand), right = p.sol[c[0]].indexOf(c[1]) + 1; s.ans[c[0]][c[1]] = right; s.hints++;
+  toast('Tipp: ' + ZU_CATS[p.cats[c[0]]].label + ' auf Platz ' + (c[1] + 1) + ' ist ' + ZU_CATS[p.cats[c[0]]].items[p.items[c[0]][right - 1]].t + '.');
+  lgSave('z'); zuRender();
+  if(s.ans.every(function(r, ki){ return r.every(function(v, pos){ return v === p.sol[ki].indexOf(pos) + 1; }); })){ lgWin('z'); zuRender(); }
+}
+
+/* ----- Wahrheit oder Lüge? ----- */
+function wlRender(){
+  var s = LG.w, p = s.p, m = $('main');
+  var h = lgHead('w') + '<div class="card"><div class="ph"><b class="grow">🗣️ Wahrheit oder Lüge? · ' + esc(wlLv(s.lv).name) + '</b><span class="stat" id="lgTime">⏱ ' + fmtT(lgElapsed(s)) + '</span><span class="stat">💡 ' + s.hints + '</span></div>';
+  h += '<p class="help">Auf der Insel gibt es zwei Sorten von Leuten: <b>Ehrliche</b> sagen immer die Wahrheit, <b>Lügner</b> sagen immer etwas Falsches. Jede Person macht eine Aussage. Wer ist ehrlich, wer lügt? Es gibt nur eine Lösung. Tipp: Probiere bei einer Person «ehrlich» und schau, ob das zu den anderen Aussagen passt.</p>' + lgWinBox('w');
+  h += '<div class="lg-people">';
+  p.names.forEach(function(nm, i){
+    var f = s.flags ? s.flags[i] : '', v = s.ans[i];
+    h += '<div class="lg-p paper ' + (f || '') + '"><span class="who">' + esc(nm) + '</span><span class="st">' + esc(wlText(p, i)) + '</span><span class="ch"><button type="button" data-w="' + i + '" data-v="1" class="' + (v === true ? 'on' : '') + '">✅ ehrlich</button><button type="button" data-w="' + i + '" data-v="0" class="' + (v === false ? 'on' : '') + '">🤥 Lügner</button></span></div>';
+  });
+  h += '</div>' + lgTools('w') + '</div>';
+  m.innerHTML = h; lgBind('w');
+  m.querySelectorAll('[data-w]').forEach(function(b){ b.onclick = function(){ var i = +b.dataset.w, v = b.dataset.v === '1'; s.ans[i] = s.ans[i] === v ? null : v; s.flags = null; lgSave('w'); wlRender(); }; });
+}
+function wlCheck(){
+  var s = LG.w, p = s.p, flags = {}, bad = 0, all = true;
+  p.sol.forEach(function(v, i){ var a = s.ans[i]; if(a == null){ all = false; return; } if(a === v) flags[i] = 'ok'; else { flags[i] = 'err'; bad++; } });
+  s.flags = flags;
+  if(!bad && all){ lgWin('w'); wlRender(); return; }
+  toast(!Object.keys(flags).length ? 'Wähle zuerst für jede Person ehrlich oder Lügner.' : bad ? bad + (bad === 1 ? ' Person ist falsch eingeordnet (rot).' : ' Personen sind falsch eingeordnet (rot).') : 'Bis jetzt stimmt alles (grün).');
+  wlRender();
+}
+function wlTipp(){
+  var s = LG.w, p = s.p, cand = []; p.sol.forEach(function(v, i){ if(s.ans[i] !== v) cand.push(i); });
+  if(!cand.length){ toast('Es gibt nichts mehr zu verraten.'); return; }
+  var i = pick(cand); s.ans[i] = p.sol[i]; s.hints++; toast('Tipp: ' + p.names[i] + ' ist ' + (p.sol[i] ? 'ehrlich' : 'ein Lügner') + '.'); lgSave('w'); wlRender();
+  if(s.ans.every(function(v, j){ return v === p.sol[j]; })){ lgWin('w'); wlRender(); }
+}
+
+/* ----- Codeschloss ----- */
+function csHintText(h){
+  if(!h.a && !h.b) return 'keine Ziffer ist richtig';
+  var t = []; if(h.a) t.push(h.a + (h.a === 1 ? ' Ziffer richtig und am richtigen Platz' : ' Ziffern richtig und am richtigen Platz')); if(h.b) t.push(h.b + (h.b === 1 ? ' Ziffer richtig, aber am falschen Platz' : ' Ziffern richtig, aber am falschen Platz'));
+  return t.join(' · ');
+}
+function csRender(){
+  var s = LG.c, p = s.p, m = $('main');
+  var h = lgHead('c') + '<div class="card"><div class="ph"><b class="grow">🔐 Codeschloss · ' + esc(csLv(s.lv).name) + '</b><span class="stat" id="lgTime">⏱ ' + fmtT(lgElapsed(s)) + '</span><span class="stat">💡 ' + s.hints + '</span></div>';
+  h += '<p class="help">Der Tresor hat einen Code aus <b>' + p.len + ' verschiedenen Ziffern</b> (0–9). Jeder Hinweis ist ein Versuch, der schon geprüft wurde: Er sagt dir, wie viele Ziffern stimmen – am richtigen oder am falschen Platz. Knack den Code!</p>' + lgWinBox('c');
+  h += '<div class="paper" style="padding:8px 6px">' + p.hints.map(function(x){ return '<div class="zs-g"><span class="zs-d">' + x.g.map(function(d){ return '<b>' + d + '</b>'; }).join('') + '</span><span>' + esc(csHintText(x)) + '</span></div>'; }).join('') + '</div>';
+  h += '<div class="zs-code" id="csCode">' + p.code.map(function(_, i){ var f = s.flags ? s.flags[i] : ''; return '<input type="text" inputmode="numeric" maxlength="1" pattern="[0-9]" data-i="' + i + '" value="' + esc(s.ans[i]) + '" class="' + (f || '') + '" aria-label="Ziffer ' + (i + 1) + '">'; }).join('') + '</div>';
+  h += lgTools('c') + '</div>';
+  m.innerHTML = h; lgBind('c');
+  var ins = m.querySelectorAll('#csCode input');
+  ins.forEach(function(inp, i){
+    inp.oninput = function(){ inp.value = inp.value.replace(/[^0-9]/g, '').slice(-1); s.ans[i] = inp.value; s.flags = null; ins.forEach(function(x){ x.classList.remove('ok', 'err'); }); lgSave('c'); if(inp.value && ins[i + 1]) ins[i + 1].focus(); };
+    inp.onkeydown = function(e){ if(e.key === 'Backspace' && !inp.value && ins[i - 1]) ins[i - 1].focus(); if(e.key === 'Enter') lgCheck('c'); };
+    inp.onfocus = function(){ inp.select(); };
+  });
+}
+function csCheck(){
+  var s = LG.c, p = s.p;
+  if(s.ans.some(function(x){ return x === ''; })){ toast('Trag alle ' + p.len + ' Ziffern ein.'); return; }
+  s.tries++; var g = s.ans.map(Number), right = g.every(function(d, i){ return d === p.code[i]; });
+  if(right){ lgWin('c'); csRender(); return; }
+  var f = csFeedback(p.code, g), dup = g.some(function(d, i){ return g.indexOf(d) !== i; });
+  lgSave('c'); toast(dup ? 'Im Code kommt jede Ziffer nur einmal vor.' : 'Das ist nicht der Code. Prüfe die Hinweise nochmals.');
+}
+function csTipp(){
+  var s = LG.c, p = s.p, cand = []; p.code.forEach(function(d, i){ if(s.ans[i] !== String(d)) cand.push(i); });
+  if(!cand.length){ toast('Es gibt nichts mehr zu verraten.'); return; }
+  var i = pick(cand); s.ans[i] = String(p.code[i]); s.hints++; lgSave('c'); toast('Tipp: Die Ziffer an Stelle ' + (i + 1) + ' ist ' + p.code[i] + '.'); csRender();
+}
+function lgCheck(sub){ if(sub === 'z') zuCheck(); else if(sub === 'w') wlCheck(); else csCheck(); }
+function lgTipp(sub){ if(sub === 'z') zuTipp(); else if(sub === 'w') wlTipp(); else csTipp(); }
+function showLogik(){
+  var sub = LG.sub; if(!LG[sub].p) lgLoad(sub);
+  if(sub === 'z') zuRender(); else if(sub === 'w') wlRender(); else csRender();
+}
+/* =====================================================================
+   KREUZWORTRÄTSEL – Wortlisten (Umlaute als AE/OE/UE, kein ß)
+   ===================================================================== */
+var CW_WORDS = {
+  leicht:[
+    ['KATZE', 'Haustier, das miaut'], ['HUND', 'Bester Freund des Menschen, bellt'], ['APFEL', 'Frucht, die am Baum wächst'], ['SONNE', 'Sie scheint am Tag'],
+    ['MOND', 'Er leuchtet nachts'], ['BROT', 'Wird beim Bäcker gekauft'], ['KAESE', 'Schweizer Spezialität mit Löchern (Emmentaler)'], ['SEE', 'Grosses stehendes Gewässer'],
+    ['BERG', 'Das Matterhorn ist einer'], ['WALD', 'Viele Bäume zusammen'], ['SCHULE', 'Hier lernst du jeden Tag'], ['BUCH', 'Hat Seiten und Kapitel'],
+    ['STUHL', 'Darauf sitzt man'], ['TISCH', 'Möbel zum Essen oder Arbeiten'], ['HAUS', 'Hier wohnt man'], ['AUTO', 'Hat vier Räder und einen Motor'],
+    ['ZUG', 'Fährt auf Schienen'], ['VELO', 'Schweizer Wort für Fahrrad'], ['FISCH', 'Schwimmt im Wasser'], ['VOGEL', 'Hat Federn und kann fliegen'],
+    ['BLUME', 'Rose oder Tulpe'], ['SCHNEE', 'Weiss und fällt im Winter'], ['REGEN', 'Tropfen vom Himmel'], ['WIND', 'Bewegte Luft'],
+    ['FEUER', 'Heiss und leuchtend'], ['WASSER', 'Chemisch H2O'], ['ERDE', 'Unser Planet'], ['ROT', 'Farbe der Schweizer Flagge neben Weiss'],
+    ['GELB', 'Farbe einer Zitrone'], ['BLAU', 'Farbe des Himmels'], ['GRUEN', 'Farbe des Grases'], ['MILCH', 'Die Kuh liefert sie'],
+    ['BANANE', 'Gelbe, krumme Frucht'], ['TOMATE', 'Rotes Gemüse für den Salat'], ['ZAHN', 'Wird mit Zahnpasta geputzt'], ['HAND', 'Hat fünf Finger'],
+    ['FUSS', 'Damit läuft man'], ['KOPF', 'Darauf sitzt der Hut'], ['AUGE', 'Damit sieht man'], ['OHR', 'Damit hört man'],
+    ['NASE', 'Damit riecht man'], ['MUND', 'Damit spricht man'], ['HERZ', 'Es pumpt das Blut durch den Körper'], ['BALL', 'Rund und wird getreten'],
+    ['TOR', 'Ziel beim Fussball'], ['LEHRER', 'Unterrichtet in der Schule'], ['UHR', 'Zeigt dir die Zeit'], ['GELD', 'Franken und Rappen'],
+    ['BANK', 'Hier liegt Geld, oder man sitzt darauf'], ['STADT', 'Grösser als ein Dorf'], ['DORF', 'Kleiner als eine Stadt'], ['STRASSE', 'Darauf fahren die Autos'],
+    ['BRUECKE', 'Führt über einen Fluss'], ['FLUSS', 'Fliesst zum Meer, z. B. der Rhein'], ['MEER', 'Salzwasser, so weit man schaut'], ['INSEL', 'Land mit Wasser rundherum'],
+    ['WOLKE', 'Weiss am Himmel, bringt Regen'], ['STERN', 'Nachts am Himmel; die Sonne ist einer'], ['SCHAF', 'Liefert Wolle'], ['KUH', 'Sie macht muh'],
+    ['PFERD', 'Darauf kann man reiten'], ['HASE', 'Langohr, bringt Ostereier'], ['TASCHE', 'Darin trägt man seine Sachen'], ['STIFT', 'Damit schreibt man'],
+    ['KLASSE', 'Alle Kinder, die gemeinsam unterrichtet werden'], ['FERIEN', 'Schulfrei!']
+  ],
+  mittel:[
+    ['SCHWEIZ', 'Land mit Bundesstadt Bern'], ['BERN', 'Bundesstadt der Schweiz'], ['RHEIN', 'Fluss, der durch Basel fliesst'], ['BODENSEE', 'See bei Altnau, Grenze zu Deutschland und Österreich'],
+    ['MATTERHORN', 'Berühmter Berg bei Zermatt'], ['THURGAU', 'Kanton, in dem Altnau liegt'], ['KONSTANZ', 'Deutsche Stadt am Bodensee'], ['ZUERICH', 'Grösste Stadt der Schweiz'],
+    ['GENF', 'Stadt am Genfersee, Sitz vieler internationaler Organisationen'], ['LUZERN', 'Stadt mit der Kapellbrücke'], ['ALPEN', 'Gebirge im Süden der Schweiz'], ['GLETSCHER', 'Eisstrom in den Bergen'],
+    ['KONTINENT', 'Europa ist einer'], ['AFRIKA', 'Kontinent mit der Sahara'], ['ASIEN', 'Grösster Kontinent der Erde'], ['AEQUATOR', 'Gedachter Kreis um die Erdmitte'],
+    ['KLIMA', 'Durchschnittliches Wetter über viele Jahre'], ['VULKAN', 'Spuckt Lava'], ['ERDBEBEN', 'Der Boden wackelt'], ['SKELETT', 'Alle Knochen des Körpers'],
+    ['LUNGE', 'Atmungsorgan'], ['MAGEN', 'Hier wird die Nahrung mit Säure vermischt'], ['DARM', 'Lang und gewunden; nimmt Nährstoffe auf'], ['BLUT', 'Rote Flüssigkeit im Körper'],
+    ['MUSKEL', 'Macht Bewegung möglich'], ['PROTEIN', 'Eiweiss in der Fachsprache'], ['VITAMIN', 'Wichtig für die Gesundheit, z. B. C'], ['ENERGIE', 'Man braucht sie zum Laufen, Heizen und Denken'],
+    ['STROM', 'Fliesst durch Kabel'], ['BATTERIE', 'Speichert elektrische Energie'], ['MAGNET', 'Zieht Eisen an'], ['ATOM', 'Kleinster Baustein eines Elements'],
+    ['ELEMENT', 'Sauerstoff ist eines im Periodensystem'], ['INDUSTRIE', 'Fabriken und Massenproduktion'], ['RITTER', 'Kämpfer in Rüstung im Mittelalter'], ['BURG', 'Wohnsitz der Ritter'],
+    ['KOLOSSEUM', 'Riesige Arena im alten Rom'], ['PHARAO', 'Herrscher im alten Ägypten'], ['PYRAMIDE', 'Grabmal der Pharaonen'], ['VERB', 'Tätigkeitswort'],
+    ['NOMEN', 'Hauptwort'], ['ADJEKTIV', 'Wiewort'], ['SATZ', 'Beginnt gross und endet mit einem Punkt'], ['KOMMA', 'Satzzeichen, das Teile eines Satzes trennt'],
+    ['DIKTAT', 'Text, der vorgelesen und aufgeschrieben wird'], ['GEDICHT', 'Text mit Strophen und oft mit Reimen'], ['ADDITION', 'Rechnen mit plus'], ['BRUCH', 'Zahl wie ein Halb oder ein Drittel'],
+    ['DREIECK', 'Figur mit drei Ecken'], ['KREIS', 'Hat Radius und Durchmesser'], ['PROZENT', 'Hundertstel'], ['DIAGONALE', 'Verbindung zweier gegenüberliegender Ecken'],
+    ['ENGLISCH', 'Sprache in London'], ['VOLLEYBALL', 'Ballspiel über ein Netz, der Ball darf nicht den Boden berühren'], ['GITARRE', 'Saiteninstrument mit sechs Saiten'], ['KLAVIER', 'Instrument mit schwarzen und weissen Tasten'],
+    ['SCHOKOLADE', 'Süsses aus Kakao, Schweizer Exportschlager'], ['KARTOFFEL', 'Knolle, aus der Pommes frites gemacht werden'], ['COMPUTER', 'Elektronischer Rechner'], ['TASTATUR', 'Darauf tippt man die Buchstaben'],
+    ['JAHRHUNDERT', 'Hundert Jahre'], ['WINTER', 'Kälteste Jahreszeit'], ['FRUEHLING', 'Jahreszeit, in der alles blüht'], ['MITTELMEER', 'Meer zwischen Europa und Afrika']
+  ],
+  schwer:[
+    ['DEMOKRATIE', 'Herrschaft des Volkes'], ['BUNDESRAT', 'Siebenköpfige Regierung der Schweiz'], ['ABSTIMMUNG', 'Hier entscheidet das Volk direkt'], ['REFERENDUM', 'Volksabstimmung über ein beschlossenes Gesetz'],
+    ['PARLAMENT', 'Hier werden Gesetze beschlossen'], ['VERFASSUNG', 'Grundgesetz eines Staates'], ['LEGISLATIVE', 'Gesetzgebende Gewalt'], ['EXEKUTIVE', 'Ausführende Gewalt, die Regierung'],
+    ['JUDIKATIVE', 'Richterliche Gewalt'], ['NEUTRALITAET', 'Die Schweiz hält sich aus fremden Kriegen heraus'], ['KANTON', 'Teilstaat der Schweiz'], ['GEMEINDE', 'Kleinste politische Einheit'],
+    ['REVOLUTION', 'Gewaltsamer Umsturz'], ['AUFKLAERUNG', 'Epoche des Denkens mit Vernunft'], ['RENAISSANCE', 'Wiedergeburt der Antike'], ['MITTELALTER', 'Zeit zwischen Antike und Neuzeit'],
+    ['WELTKRIEG', 'Es gab zwei davon'], ['PHOTOSYNTHESE', 'Pflanzen machen daraus Zucker und Sauerstoff'], ['CHLOROPHYLL', 'Grüner Farbstoff der Blätter'], ['OEKOSYSTEM', 'Lebensgemeinschaft samt Lebensraum'],
+    ['KLIMAWANDEL', 'Erwärmung der Erde'], ['VERDAUUNG', 'Aufspaltung der Nahrung im Körper'], ['KOHLENHYDRATE', 'Zucker und Stärke gehören dazu'], ['MINERALSTOFFE', 'Calcium und Eisen sind welche'],
+    ['STOFFWECHSEL', 'Alle chemischen Vorgänge im Körper'], ['GEWITTER', 'Blitz und Donner'], ['ATMOSPHAERE', 'Lufthülle der Erde'], ['LAWINE', 'Schneemassen stürzen ins Tal'],
+    ['FOEHN', 'Warmer Fallwind in den Alpen'], ['MORAENE', 'Schutt, den ein Gletscher ablagert'], ['TEKTONIK', 'Lehre von den Plattenbewegungen der Erdkruste'], ['PERIODENSYSTEM', 'Tabelle aller chemischen Elemente'],
+    ['MOLEKUEL', 'Verbindung mehrerer Atome'], ['LOESUNG', 'Salz in Wasser ergibt eine'], ['KONJUNKTION', 'Bindewort wie «weil» oder «dass»'], ['PRAEPOSITION', 'Verhältniswort wie «auf» oder «unter»'],
+    ['SYNONYM', 'Wort mit gleicher Bedeutung'], ['METAPHER', 'Bildhafter Ausdruck ohne «wie»'], ['HYPOTENUSE', 'Längste Seite im rechtwinkligen Dreieck'], ['KATHETE', 'Seite, die am rechten Winkel anliegt'],
+    ['PYTHAGORAS', 'Griechischer Mathematiker mit berühmtem Satz'], ['PARABEL', 'Graph einer quadratischen Funktion'], ['GLEICHUNG', 'Hat ein Gleichheitszeichen und oft eine Unbekannte'], ['VOLUMEN', 'Rauminhalt'],
+    ['KOORDINATE', 'Angabe der Lage eines Punktes'], ['DIVISION', 'Rechenart: teilen'], ['MULTIPLIKATION', 'Rechenart: mal nehmen'], ['EXPONENT', 'Hochzahl'],
+    ['GRUNDWERT', 'In der Prozentrechnung die 100 Prozent'], ['ARBEITERBEWEGUNG', 'Zusammenschluss für bessere Löhne und Rechte'], ['FRANZOESISCH', 'Landessprache der Romandie']
+  ]
+};
+var CW_LV = [
+  {id:'leicht', name:'Leicht', words:8, minL:3, maxL:7, size:11},
+  {id:'mittel', name:'Mittel', words:11, minL:4, maxL:10, size:14},
+  {id:'schwer', name:'Schwer', words:14, minL:5, maxL:15, size:17}
+];
+function cwLv(id){ return CW_LV.filter(function(l){ return l.id === id; })[0] || CW_LV[0]; }
+/* ---------- Kreuzworträtsel: Gitter erzeugen ---------- */
+function cwLayout(words, lv){
+  var cells = {}, placed = [];
+  function key(r, c){ return r + ',' + c; }
+  function get(r, c){ return cells[key(r, c)]; }
+  function can(w, r, c, dir){
+    var dr = dir === 'h' ? 0 : 1, dc = dir === 'h' ? 1 : 0, len = w.length, cross = 0, k;
+    if(get(r - dr, c - dc) || get(r + dr * len, c + dc * len)) return -1;
+    for(k = 0; k < len; k++){
+      var rr = r + dr * k, cc = c + dc * k, cell = get(rr, cc);
+      if(cell){ if(cell.ch !== w[k] || cell[dir]) return -1; cross++; }
+      else if(get(rr + dc, cc + dr) || get(rr - dc, cc - dr)) return -1;
+    }
+    return cross;
+  }
+  function put(w, r, c, dir, idx){
+    var dr = dir === 'h' ? 0 : 1, dc = dir === 'h' ? 1 : 0;
+    for(var k = 0; k < w.length; k++){ var kk = key(r + dr * k, c + dc * k); (cells[kk] = cells[kk] || {ch:w[k]})[dir] = idx; }
+    placed.push({w:w, r:r, c:c, dir:dir});
+  }
+  put(words[0].w, 0, 0, 'h', 0);
+  for(var i = 1; i < words.length && placed.length < lv.words; i++){
+    var w = words[i].w, opts = [];
+    for(var pi = 0; pi < placed.length; pi++){
+      var pw = placed[pi], dir = pw.dir === 'h' ? 'v' : 'h';
+      for(var a = 0; a < pw.w.length; a++) for(var b = 0; b < w.length; b++){
+        if(pw.w[a] !== w[b]) continue;
+        var cr = pw.dir === 'h' ? pw.r : pw.r + a, cc2 = pw.dir === 'h' ? pw.c + a : pw.c;
+        var r0 = dir === 'v' ? cr - b : cr, c0 = dir === 'v' ? cc2 : cc2 - b, x = can(w, r0, c0, dir);
+        if(x >= 1) opts.push({r:r0, c:c0, dir:dir, x:x});
+      }
+    }
+    if(!opts.length) continue;
+    opts.sort(function(p, q){ return q.x - p.x; });
+    var top = opts.filter(function(o){ return o.x === opts[0].x; }), o = top[rnd(top.length)];
+    // Platzierung nur nehmen, wenn das Gitter nicht über die Grösse hinauswächst
+    var minR = 0, maxR = 0, minC = 0, maxC = 0;
+    placed.concat([{w:w, r:o.r, c:o.c, dir:o.dir}]).forEach(function(q){ var er = q.dir === 'v' ? q.r + q.w.length - 1 : q.r, ec = q.dir === 'h' ? q.c + q.w.length - 1 : q.c; minR = Math.min(minR, q.r); minC = Math.min(minC, q.c); maxR = Math.max(maxR, er); maxC = Math.max(maxC, ec); });
+    if(maxR - minR + 1 > lv.size || maxC - minC + 1 > lv.size) continue;
+    put(w, o.r, o.c, o.dir, placed.length);
+  }
+  return placed;
+}
+function cwBuild(lvId){
+  var lv = cwLv(lvId), pool = CW_WORDS[lvId].filter(function(x){ return x[0].length >= lv.minL && x[0].length <= lv.maxL; }), best = null, bestScore = -1;
+  for(var at = 0; at < 60; at++){
+    var cand = shuffle(pool).slice(0, lv.words * 3), longest = cand.slice().sort(function(a, b){ return b[0].length - a[0].length; })[0];
+    cand = [longest].concat(cand.filter(function(x){ return x !== longest; }).sort(function(a, b){ return (b[0].length + Math.random() * 3) - (a[0].length + Math.random() * 3); }));
+    var words = cand.map(function(x){ return {w:x[0], c:x[1]}; }), pl = cwLayout(words, lv);
+    var minR = 1e9, minC = 1e9, maxR = -1e9, maxC = -1e9;
+    pl.forEach(function(q){ var er = q.dir === 'v' ? q.r + q.w.length - 1 : q.r, ec = q.dir === 'h' ? q.c + q.w.length - 1 : q.c; minR = Math.min(minR, q.r); minC = Math.min(minC, q.c); maxR = Math.max(maxR, er); maxC = Math.max(maxC, ec); });
+    var area = (maxR - minR + 1) * (maxC - minC + 1), score = pl.length * 1000 - area;
+    if(pl.length >= lv.words) score += 5000;
+    if(score > bestScore){ bestScore = score; best = {pl:pl, minR:minR, minC:minC, rows:maxR - minR + 1, cols:maxC - minC + 1, words:words}; }
+    if(pl.length >= lv.words && area <= (lv.size * lv.size) * 0.62) break;
+  }
+  // Nummerierung (zeilenweise) und Hinweise
+  var clueOf = {}; best.words.forEach(function(x){ clueOf[x.w] = x.c; });
+  var items = best.pl.map(function(q){ return {w:q.w, r:q.r - best.minR, c:q.c - best.minC, dir:q.dir, clue:clueOf[q.w]}; });
+  var starts = {}; items.forEach(function(it){ starts[it.r + ',' + it.c] = 1; });
+  var order = Object.keys(starts).map(function(k){ var p = k.split(','); return [+p[0], +p[1]]; }).sort(function(a, b){ return a[0] - b[0] || a[1] - b[1]; }), num = {};
+  order.forEach(function(p, i){ num[p[0] + ',' + p[1]] = i + 1; });
+  items.forEach(function(it){ it.n = num[it.r + ',' + it.c]; });
+  items.sort(function(a, b){ return a.n - b.n; });
+  return {lv:lvId, rows:best.rows, cols:best.cols, items:items};
+}
+/* ---------- Kreuzworträtsel: Oberfläche ---------- */
+var CW = {lv:lsGet('raetsel_cw_lv', 'leicht'), p:null, sel:null, dir:'h', letters:{}, flags:null, hints:0, el:0, t:0, won:false};
+function cwSave(){ if(!CW.p) return; lsSet('raetsel_cw_' + CW.lv, {p:CW.p, letters:CW.letters, hints:CW.hints, el:CW.el, won:CW.won}); lsSet('raetsel_cw_lv', CW.lv); }
+function cwNew(lv){ CW.lv = lv; CW.p = cwBuild(lv); CW.letters = {}; CW.hints = 0; CW.el = 0; CW.t = Date.now(); CW.won = false; CW.flags = null; CW.sel = null; CW.dir = 'h'; cwSave(); }
+function cwLoad(lv){
+  CW.lv = lv; var o = lsGet('raetsel_cw_' + lv, null);
+  if(o && o.p && o.p.items){ CW.p = o.p; CW.letters = o.letters || {}; CW.hints = o.hints || 0; CW.el = o.el || 0; CW.t = Date.now(); CW.won = !!o.won; CW.flags = null; CW.sel = null; CW.dir = 'h'; }
+  else cwNew(lv);
+}
+function cwElapsed(){ return CW.el + (CW.won ? 0 : (Date.now() - CW.t) / 1000); }
+function cwCommit(){ if(CW.p && !CW.won){ CW.el = cwElapsed(); CW.t = Date.now(); } }
+function cwGrid(){
+  var p = CW.p, g = {};
+  p.items.forEach(function(it, i){ for(var k = 0; k < it.w.length; k++){ var r = it.r + (it.dir === 'v' ? k : 0), c = it.c + (it.dir === 'h' ? k : 0), key = r + ',' + c; g[key] = g[key] || {ch:it.w[k]}; g[key][it.dir] = i; if(k === 0) g[key].n = it.n; } });
+  return g;
+}
+function cwWord(r, c, dir){ var g = CW.grid[r + ',' + c]; return g && g[dir] != null ? CW.p.items[g[dir]] : null; }
+function cwCells(it){ var out = []; for(var k = 0; k < it.w.length; k++) out.push([it.r + (it.dir === 'v' ? k : 0), it.c + (it.dir === 'h' ? k : 0)]); return out; }
+function cwRender(){
+  var p = CW.p, m = $('main'); CW.grid = cwGrid();
+  var h = '<div class="lvls">' + CW_LV.map(function(l){ return '<button type="button" data-lv="' + l.id + '" class="' + (l.id === CW.lv ? 'on' : '') + '">' + esc(l.name) + '</button>'; }).join('') + '</div>';
+  h += '<div class="card"><div class="ph"><b class="grow">✏️ Kreuzworträtsel · ' + esc(cwLv(CW.lv).name) + '</b><span class="stat" id="cwTime">⏱ ' + fmtT(cwElapsed()) + '</span><span class="stat">💡 ' + CW.hints + '</span></div>';
+  h += '<p class="help">Tippe ein Feld an und schreibe das Lösungswort. Tippst du dasselbe Feld nochmals, wechselst du zwischen waagrecht und senkrecht. <b>Umlaute</b> schreibst du als AE, OE, UE – ein ß gibt es nicht.</p><div id="cwWin"></div>';
+  h += '<div class="cw-wrap"><div><div class="cw-cur" id="cwCur"></div><div style="overflow-x:auto;padding-bottom:4px"><div id="cwBoard" class="cw-board" style="--cs:max(26px,min(40px,calc((100vw - 56px) / ' + p.cols + '),calc(560px / ' + p.cols + ')));grid-template-columns:repeat(' + p.cols + ',var(--cs))">' + cwBoardHtml() + '</div></div>';
+  h += '<div class="row" style="margin-top:12px"><button class="btn" data-a="check" type="button">✔️ Prüfen</button><button class="btn sm ghost" data-a="letter" type="button">💡 Buchstabe</button><button class="btn sm ghost" data-a="wort" type="button">💡 Wort</button><button class="btn sm ghost" data-a="clear" type="button">🧹 Alles löschen</button><button class="btn sm" data-a="neu" type="button">🎲 Neues Rätsel</button></div></div>';
+  h += '<div class="cw-cl" id="cwClues">' + cwCluesHtml() + '</div></div></div><input class="cw-key" id="cwKey" type="text" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" aria-label="Eingabe für das Kreuzworträtsel">';
+  m.innerHTML = h; cwBind(); cwInfo(); cwWinBox();
+}
+function cwBoardHtml(){
+  var p = CW.p, h = '', cur = CW.sel ? cwWord(CW.sel[0], CW.sel[1], CW.dir) : null, inw = {};
+  if(cur) cwCells(cur).forEach(function(x){ inw[x[0] + ',' + x[1]] = 1; });
+  for(var r = 0; r < p.rows; r++) for(var c = 0; c < p.cols; c++){
+    var k = r + ',' + c, g = CW.grid[k];
+    if(!g){ h += '<div class="cw-c"></div>'; continue; }
+    var cls = 'cw-c w' + (inw[k] ? ' inw' : '') + (CW.sel && CW.sel[0] === r && CW.sel[1] === c ? ' cur' : '') + (CW.flags && CW.flags[k] ? ' ' + CW.flags[k] : '');
+    h += '<div class="' + cls + '" data-r="' + r + '" data-c="' + c + '">' + (g.n ? '<span class="n">' + g.n + '</span>' : '') + '<span class="l">' + esc(CW.letters[k] || '') + '</span></div>';
+  }
+  return h;
+}
+function cwCluesHtml(){
+  var p = CW.p, cur = CW.sel ? cwWord(CW.sel[0], CW.sel[1], CW.dir) : null, other = CW.sel ? cwWord(CW.sel[0], CW.sel[1], CW.dir === 'h' ? 'v' : 'h') : null, h = '';
+  [['h', 'Waagrecht →'], ['v', 'Senkrecht ↓']].forEach(function(d){
+    h += '<h3>' + d[1] + '</h3><ol>';
+    p.items.forEach(function(it, i){
+      if(it.dir !== d[0]) return;
+      var done = cwCells(it).every(function(x){ return CW.letters[x[0] + ',' + x[1]]; });
+      h += '<li data-i="' + i + '" class="' + (it === cur ? 'act' : it === other ? 'inw' : '') + (done ? ' fertig' : '') + '"><b>' + it.n + '</b><span>' + esc(it.clue) + ' <small>(' + it.w.length + ')</small></span></li>';
+    });
+    h += '</ol>';
+  });
+  return h;
+}
+function cwInfo(){
+  var el = $('cwCur'); if(!el) return;
+  var it = CW.sel ? cwWord(CW.sel[0], CW.sel[1], CW.dir) : null;
+  el.innerHTML = it ? '<b style="color:var(--gold-soft)">' + it.n + (it.dir === 'h' ? ' waagrecht' : ' senkrecht') + '</b> · ' + esc(it.clue) + ' <span class="muted">(' + it.w.length + ' Buchstaben)</span>' : '<span class="muted">Tippe ein Feld oder einen Hinweis an.</span>';
+}
+function cwWinBox(){
+  var el = $('cwWin'); if(!el) return;
+  el.innerHTML = CW.won ? '<div class="win">🎉 Gelöst! <b>' + fmtT(CW.el) + '</b> Minuten' + (CW.hints ? ' mit ' + CW.hints + (CW.hints === 1 ? ' Tipp' : ' Tipps') : ' ohne Tipp') + '.<div class="row" style="justify-content:center;margin-top:8px"><button class="btn" data-a="neu" type="button">Neues Rätsel</button></div></div>' : '';
+  el.querySelectorAll('[data-a]').forEach(function(b){ b.onclick = function(){ cwAction(b.dataset.a); }; });
+}
+function cwRefresh(){
+  var b = $('cwBoard'); if(!b) return; b.innerHTML = cwBoardHtml(); $('cwClues').innerHTML = cwCluesHtml(); cwBindClues(); cwInfo(); cwWinBox();
+}
+function cwSelect(r, c, dir){
+  CW.sel = [r, c];
+  if(dir) CW.dir = dir; else if(!cwWord(r, c, CW.dir)) CW.dir = CW.dir === 'h' ? 'v' : 'h';
+  CW.flags = null; cwRefresh();
+  var k = $('cwKey'); if(k){ try{ k.focus({preventScroll:true}); }catch(e){} }
+}
+function cwCheckWin(){
+  if(CW.won) return;
+  var ok = true; Object.keys(CW.grid).forEach(function(k){ if(CW.letters[k] !== CW.grid[k].ch) ok = false; });
+  if(ok){ cwCommit(); CW.won = true; cwSave(); }
+}
+function cwType(ch){
+  if(!CW.sel || CW.won) return;
+  var k = CW.sel[0] + ',' + CW.sel[1]; CW.letters[k] = ch; CW.flags = null;
+  var it = cwWord(CW.sel[0], CW.sel[1], CW.dir), cells = it ? cwCells(it) : [], i = cells.findIndex(function(x){ return x[0] === CW.sel[0] && x[1] === CW.sel[1]; });
+  if(i >= 0 && cells[i + 1]) CW.sel = cells[i + 1];
+  cwCheckWin(); cwSave(); cwRefresh();
+}
+function cwBack(){
+  if(!CW.sel || CW.won) return;
+  var k = CW.sel[0] + ',' + CW.sel[1];
+  if(CW.letters[k]){ delete CW.letters[k]; }
+  else { var it = cwWord(CW.sel[0], CW.sel[1], CW.dir), cells = it ? cwCells(it) : [], i = cells.findIndex(function(x){ return x[0] === CW.sel[0] && x[1] === CW.sel[1]; }); if(i > 0){ CW.sel = cells[i - 1]; delete CW.letters[CW.sel[0] + ',' + CW.sel[1]]; } }
+  CW.flags = null; cwSave(); cwRefresh();
+}
+function cwMoveArrow(dr, dc){
+  if(!CW.sel){ var f = CW.p.items[0]; cwSelect(f.r, f.c, f.dir); return; }
+  var r = CW.sel[0] + dr, c = CW.sel[1] + dc;
+  while(r >= 0 && c >= 0 && r < CW.p.rows && c < CW.p.cols && !CW.grid[r + ',' + c]){ r += dr; c += dc; }
+  if(r >= 0 && c >= 0 && r < CW.p.rows && c < CW.p.cols){ CW.sel = [r, c]; if(!cwWord(r, c, CW.dir)) CW.dir = CW.dir === 'h' ? 'v' : 'h'; CW.flags = null; cwRefresh(); }
+}
+function cwNextWord(back){
+  var items = CW.p.items, cur = CW.sel ? cwWord(CW.sel[0], CW.sel[1], CW.dir) : null, i = cur ? items.indexOf(cur) : -1;
+  var nx = items[(i + (back ? -1 : 1) + items.length) % items.length]; cwSelect(nx.r, nx.c, nx.dir);
+}
+function cwAction(a){
+  var p = CW.p;
+  if(a === 'neu'){ var go = function(){ cwNew(CW.lv); cwRender(); }; if(!CW.won && Object.keys(CW.letters).length) ask('Neues Rätsel?', 'Dein angefangenes Rätsel geht verloren.', 'Neues Rätsel', go, true); else go(); }
+  else if(a === 'clear') ask('Alles löschen?', 'Alle deine Buchstaben in diesem Rätsel werden gelöscht.', 'Löschen', function(){ CW.letters = {}; CW.flags = null; CW.won = false; CW.el = 0; CW.t = Date.now(); CW.hints = 0; cwSave(); cwRender(); });
+  else if(a === 'check'){
+    var bad = 0, filled = 0; CW.flags = {};
+    Object.keys(CW.grid).forEach(function(k){ var l = CW.letters[k]; if(!l) return; filled++; if(l !== CW.grid[k].ch){ CW.flags[k] = 'bad'; bad++; } });
+    toast(!filled ? 'Schreibe zuerst etwas ein.' : bad ? bad + (bad === 1 ? ' Buchstabe ist falsch (rot).' : ' Buchstaben sind falsch (rot).') : 'Bis jetzt stimmt alles!'); cwRefresh();
+  }
+  else if(a === 'letter' || a === 'wort'){
+    if(!CW.sel){ toast('Tippe zuerst ein Feld an.'); return; }
+    var it = cwWord(CW.sel[0], CW.sel[1], CW.dir), todo = a === 'letter' ? [CW.sel] : (it ? cwCells(it) : []), n = 0;
+    todo.forEach(function(x){ var k = x[0] + ',' + x[1]; if(CW.letters[k] !== CW.grid[k].ch){ CW.letters[k] = CW.grid[k].ch; n++; } });
+    if(n){ CW.hints += a === 'letter' ? 1 : 2; CW.flags = null; cwCheckWin(); cwSave(); cwRefresh(); } else toast('Das stimmt schon.');
+  }
+}
+function cwBindClues(){
+  document.querySelectorAll('#cwClues li').forEach(function(li){ li.onclick = function(){ var it = CW.p.items[+li.dataset.i]; cwSelect(it.r, it.c, it.dir); }; });
+}
+function cwBind(){
+  var m = $('main');
+  m.querySelectorAll('[data-lv]').forEach(function(b){ b.onclick = function(){ cwCommit(); cwSave(); cwLoad(b.dataset.lv); cwRender(); }; });
+  m.querySelectorAll('.row [data-a]').forEach(function(b){ b.onclick = function(){ cwAction(b.dataset.a); }; });
+  $('cwBoard').onclick = function(e){
+    var c = e.target.closest ? e.target.closest('.cw-c.w') : null; if(!c) return;
+    var r = +c.dataset.r, cc = +c.dataset.c;
+    if(CW.sel && CW.sel[0] === r && CW.sel[1] === cc){ var o = CW.dir === 'h' ? 'v' : 'h'; if(cwWord(r, cc, o)) CW.dir = o; cwSelect(r, cc, CW.dir); }
+    else cwSelect(r, cc);
+  };
+  cwBindClues();
+  var k = $('cwKey');
+  k.oninput = function(){
+    var v = (k.value || '').toUpperCase(); k.value = '';
+    v = v.replace(/Ä/g, 'AE').replace(/Ö/g, 'OE').replace(/Ü/g, 'UE').replace(/ß/g, 'SS');
+    for(var i = 0; i < v.length; i++) if(v[i] >= 'A' && v[i] <= 'Z') cwType(v[i]);
+  };
+  k.onkeydown = function(e){
+    if(e.key === 'Backspace'){ cwBack(); e.preventDefault(); }
+    else if(e.key === 'ArrowUp'){ cwMoveArrow(-1, 0); e.preventDefault(); } else if(e.key === 'ArrowDown'){ cwMoveArrow(1, 0); e.preventDefault(); }
+    else if(e.key === 'ArrowLeft'){ cwMoveArrow(0, -1); e.preventDefault(); } else if(e.key === 'ArrowRight'){ cwMoveArrow(0, 1); e.preventDefault(); }
+    else if(e.key === 'Tab'){ cwNextWord(e.shiftKey); e.preventDefault(); }
+    else if(e.key === 'Enter' || e.key === ' '){ if(CW.sel){ var o = CW.dir === 'h' ? 'v' : 'h'; if(cwWord(CW.sel[0], CW.sel[1], o)){ CW.dir = o; cwRefresh(); } } e.preventDefault(); }
+  };
+}
+function showKreuz(){ if(!CW.p) cwLoad(CW.lv); cwRender(); }
+/* =====================================================================
+   Gesperrt / Lehrperson / Navigation / Start
+   ===================================================================== */
+function renderGate(st){
+  var g = $('gate'), nm = $('gateCount');
+  g.innerHTML = '<div class="card gate"><div class="lock">🔒</div><h2>Die Rätsel sind geschlossen</h2><p class="muted">Im Unterricht wird nicht geknobelt – ausser deine Lehrperson schaltet es frei.</p>' +
+    '<div class="big" id="gateCount"></div><div class="muted" id="gateSub"></div>' +
+    '<ul><li>Frei: vor 07:30, über Mittag (11:50–13:30) und ab 16:55</li><li>Freitag ab 15:00 (Freifach) und am Wochenende</li><li>Deine Lehrperson kann Sudoku, Logik- und Kreuzworträtsel für die Klasse freischalten</li></ul></div>';
+  gateTick(st);
+}
+function gateTick(st){
+  var c = $('gateCount'); if(!c) return;
+  var ende = st.u && st.u.bis;
+  if(ende){
+    var s = Math.max(0, Math.round((ende - jetzt()) / 1000)), hh = Math.floor(s / 3600), mm = Math.floor(s % 3600 / 60);
+    c.textContent = (hh ? hh + ':' + pad(mm) : mm) + ':' + pad(s % 60);
+    $('gateSub').textContent = 'bis ' + hm(ende) + ' Uhr geschlossen';
+  }
+}
+function renderTeacher(st){
+  var t = $('teacher');
+  if(!S.lehrer){ t.hidden = true; return; }
+  t.hidden = false;
+  var open = t.open, u = st.u, kl = API.klassen || [], sel = lsGet('raetsel_klassen', [API.klasse]);
+  var f = S.frei && S.frei.bis > Date.now() ? S.frei : null;
+  var sub = f ? '🔓 freigeschaltet bis ' + hm(new Date(f.bis)) : (u.zu ? '🔒 für Schüler:innen gesperrt bis ' + hm(u.bis) : '🟢 gerade ohnehin offen');
+  var h = '<summary><span>🔑</span> Lehrperson: Freischaltung <span class="sub">' + esc(sub) + '</span></summary><div class="body">';
+  h += '<p class="muted" style="margin:10px 0 8px">Im Unterricht (Mo–Fr 07:30–11:50 und 13:30–16:55, Freitag ab 15:00 frei) sind Sudoku, Logikrätsel und Kreuzworträtsel für Schüler:innen gesperrt. Hier schaltest du sie für <b>' + esc(API.klasse) + '</b>' + (kl.length > 1 ? ' (und gewählte Klassen)' : '') + ' frei. Du selbst kannst immer rätseln.</p><div class="row">';
+  [15, 30, 45].forEach(function(m){ h += '<button class="btn sm" data-fr="' + m + '" type="button">🔓 ' + m + ' Min</button>'; });
+  if(u.zu) h += '<button class="btn sm" data-fr="ende" type="button">🔓 Bis ' + hm(u.bis) + '</button>';
+  h += '<button class="btn sm ghost" data-fr="0" type="button">🔒 Wieder sperren</button></div>';
+  if(kl.length > 1) h += '<div class="klassen"><span class="muted">Auch für:</span>' + kl.map(function(k){ return '<label><input type="checkbox" data-k="' + esc(k.id) + '"' + (sel.indexOf(k.id) >= 0 || k.id === API.klasse ? ' checked' : '') + (k.id === API.klasse ? ' disabled' : '') + '> ' + esc(k.label) + '</label>'; }).join('') + '</div>';
+  h += '</div>';
+  t.innerHTML = h; t.open = open;
+  t.querySelectorAll('[data-fr]').forEach(function(b){ b.onclick = function(){
+    var v = b.dataset.fr, bis;
+    if(v === 'ende') bis = Date.now() + (st.u.bis - jetzt()); else if(v === '0') bis = 0; else bis = Date.now() + (+v) * 60000;
+    var ks = [API.klasse]; t.querySelectorAll('[data-k]').forEach(function(c){ if(c.checked && ks.indexOf(c.dataset.k) < 0) ks.push(c.dataset.k); });
+    lsSet('raetsel_klassen', ks);
+    Promise.resolve(API.freigabeSetzen(ks, bis)).then(function(){ toast(bis ? 'Die Rätsel sind freigeschaltet.' : 'Die Rätsel sind wieder gesperrt.'); }).catch(function(e){ console.error(e); toast('Das hat nicht geklappt.'); });
+  }; });
+}
+var NAV = [['sudoku', '🔢 Sudoku'], ['logik', '🕵️ Logikrätsel'], ['kreuz', '✏️ Kreuzworträtsel']];
+function renderNav(){
+  var n = $('topnav'); n.hidden = false;
+  n.innerHTML = NAV.map(function(i){ return '<button type="button" data-v="' + i[0] + '" class="' + (S.view === i[0] ? 'on' : '') + '">' + i[1] + '</button>'; }).join('');
+  n.querySelectorAll('[data-v]').forEach(function(b){ b.onclick = function(){ leaveView(); S.view = b.dataset.v; lsSet('raetsel_view', S.view); lastKey = ''; refresh(true); }; });
+}
+function leaveView(){ if(S.view === 'sudoku'){ sdCommitTime(); sdSave(); } else if(S.view === 'logik'){ lgCommit(LG.sub); lgSave(LG.sub); } else if(S.view === 'kreuz'){ cwCommit(); cwSave(); } }
+function showView(){ if(S.view === 'sudoku') showSudoku(); else if(S.view === 'logik') showLogik(); else showKreuz(); }
+var lastKey = '';
+function refresh(force){
+  var st = status(), key = (st.offen ? 'o' : 'z') + (st.lehrer ? 'L' : '') + (st.frei ? st.frei.bis : '') + S.view;
+  var chip = $('chip'); chip.hidden = false; chip.classList.toggle('zu', !st.offen);
+  var txt;
+  if(st.lehrer) txt = !st.u.zu ? 'Offen' : (S.frei && S.frei.bis > Date.now() ? 'Freigeschaltet bis ' + hm(new Date(S.frei.bis)) : 'Schüler:innen: gesperrt bis ' + hm(st.u.bis));
+  else if(!st.offen) txt = 'Gesperrt bis ' + hm(st.u.bis);
+  else if(st.frei) txt = 'Freigeschaltet bis ' + hm(new Date(st.frei.bis));
+  else txt = st.u.ab ? 'Offen bis ' + hm(st.u.ab) : 'Offen';
+  $('chipTxt').textContent = txt;
+  if(!st.offen && S.offen !== false && S.offen !== null) leaveView();    // Sperre beginnt: Stand sichern
+  S.offen = st.offen;
+  if(force || key !== lastKey){
+    var wasOffen = lastKey.charAt(0) === 'o', nowOffen = st.offen;
+    lastKey = key;
+    $('gate').hidden = st.offen;
+    if(!st.offen){ renderGate(st); $('main').innerHTML = ''; $('topnav').hidden = true; }
+    else { renderNav(); if(!wasOffen || force || $('main').innerHTML === '') showView(); else if(!document.activeElement || document.activeElement.tagName === 'BODY') { /* nichts */ } }
+    renderTeacher(st);
+  } else if(!st.offen) gateTick(st);
+}
+function tickTimes(){
+  var e;
+  if(S.view === 'sudoku' && SD.p && (e = $('sdTime'))) e.textContent = '⏱ ' + fmtT(sdElapsed());
+  else if(S.view === 'logik' && (e = $('lgTime')) && LG[LG.sub].p) e.textContent = '⏱ ' + fmtT(lgElapsed(LG[LG.sub]));
+  else if(S.view === 'kreuz' && CW.p && (e = $('cwTime'))) e.textContent = '⏱ ' + fmtT(cwElapsed());
+}
+function init(){
+  var v = lsGet('raetsel_view', 'sudoku'); if(['sudoku', 'logik', 'kreuz'].indexOf(v) >= 0) S.view = v;
+  API.freigabeWatch(function(f){ S.frei = f; refresh(true); });
+  refresh(true);
+  setInterval(function(){ refresh(); tickTimes(); }, 1000);
+  window.addEventListener('pagehide', leaveView);
+  if(API.mock){ window.__raetsel = {S:S, SD:SD, LG:LG, CW:CW}; }
+}
+init();
+})();
+</script>
+</body>
+</html>

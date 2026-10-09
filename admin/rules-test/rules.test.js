@@ -538,6 +538,13 @@ test('Jassen: nur die Lehrperson schaltet frei, die Klasse liest die Freigabe, a
   await assertFails(setDoc(doc(db.sus(), 'klassen/G3b/quizSessions/jassen'), { art: 'jassen', bis: 9999999999999 }));
   await assertFails(getDoc(doc(db.susA(), 'klassen/G3b/quizSessions/jassen')));
 });
+// ---------- 🧩 Rätsel & Logik (quizSessions/raetsel: nur die Freigabe durch die Lehrperson, bestehende Regeln) ----------
+test('Rätsel: nur die Lehrperson schaltet frei, die Klasse liest die Freigabe, andere Klassen nicht', async () => {
+  await assertSucceeds(setDoc(doc(db.jan(), 'klassen/G3b/quizSessions/raetsel'), { art: 'raetsel', bis: 123, von: 'J' }));
+  await assertSucceeds(getDoc(doc(db.sus(), 'klassen/G3b/quizSessions/raetsel')));
+  await assertFails(setDoc(doc(db.sus(), 'klassen/G3b/quizSessions/raetsel'), { art: 'raetsel', bis: 9999999999999 }));
+  await assertFails(getDoc(doc(db.susA(), 'klassen/G3b/quizSessions/raetsel')));
+});
 test('Jassen: eigener Spieler-Eintrag (score 0) schreiben, die Klasse liest ihn, fremde nicht schreiben', async () => {
   const p = 'klassen/G3b/quizSessions/jassen/spieler/';
   await assertSucceeds(setDoc(doc(db.sus(), p + 'sus'), { score: 0, name: 'S', at: 1, stat: { w: 0, d: 0, l: 0 }, tisch: { id: 'sus-1', status: 'offen', seats: ['sus', null, null, null], names: ['S', '', '', ''], o: { target: 1000, mult: true } } }));
