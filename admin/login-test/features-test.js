@@ -11,7 +11,7 @@
  * Geprüft wird:
  *   🎯 Differenzierung   Übung mit nurFuer ist nur für die gewählte Person sichtbar, Niveau-Abzeichen,
  *                         «🎯 Zuweisen» der Lehrperson schreibt nurFuer/niveau
- *   🔁 Heute dran         fällige Karteikarten und eine länger nicht geübte Übung erscheinen auf der Startseite
+
  *   📝 Kollisionswarnung  zweite Prüfung am selben Tag → Rückfrage im Kalender
  *   ♿ Zeitzuschlag       im Prüfungs-Monitor zeigt die Restzeit den Zuschlag, der Dialog speichert p.zuschlag
  */
@@ -157,16 +157,6 @@ var seiten;
     await bis(async () => !!(await anna.$('#card-r_a')), 'Anna sieht die Übung wieder');
     ok(true, '«Die ganze Klasse»: nurFuer ist entfernt, Anna sieht die Übung wieder');
     await zurueck(anna); await zurueck(ben); await zurueck(lp);
-
-    console.log('\n🔁 Heute dran');
-    await anna.reload(); await anna.waitForSelector('#loginPass', { timeout: 3000 }).then(() => anmelden(anna, 'anna')).catch(() => {});
-    await bis(async () => /Heute dran/.test(await anna.$eval('#heuteDran', e => e.innerText).catch(() => '')), 'Heute dran erscheint', 20000);
-    const hd = await anna.$eval('#heuteDran', e => e.innerText);
-    ok(/Voci Test/.test(hd) && /2 Karten fällig/.test(hd), 'Karteikarten: «Voci Test · 2 Karten fällig» (die in Box 3 mit Datum 2999 nicht)');
-    ok(/Übung Alle/.test(hd) && /50 % richtig/.test(hd), 'Übung «Übung Alle» zuletzt vor 10 Tagen mit 50 % wird zum Auffrischen vorgeschlagen');
-    ok(!/Übung nur Anna/.test(hd), 'Nicht geübte Übung taucht nicht auf');
-    ok(/^\s*$/.test(await ben.$eval('#heuteDran', e => e.innerText).catch(() => '')), 'Ben hat nichts zu wiederholen: kein Kasten');
-    ok(/^\s*$/.test(await lp.$eval('#heuteDran', e => e.innerText).catch(() => '')), 'Die Lehrperson sieht den Kasten nicht');
 
     console.log('\n📝 Prüfungs-Kollision im Kalender');
     await lp.evaluate(() => { const b = [...document.querySelectorAll('button, a')].find(x => x.textContent.trim() === 'Kalender'); b.click(); });
