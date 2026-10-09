@@ -988,10 +988,15 @@ function newGame(base){
   var G = Object.assign({rno:0, totals:[0, 0], rounds:[], acts:[[], [], [], []], over:false, bubble:null, showTrick:null, msg:'', weisOn:true, hint:null, hintN:0, endShown:false, stuck:null}, base);
   G.rd = mkRound(G); return G;
 }
+function kindCfg(cfg, fixed){
+  var coif = fixed === 'coiffeur', dif = fixed === 'differenzler';
+  return Object.assign({}, cfg, dif ? {kind:'differenzler', fixed:null, mult:false, weis:false, stoeck:false, slalom:false, rounds:CFG.dRounds || 8} : coif ? {kind:'coiffeur', fixed:null, mult:true, slalom:false} : fixed != null ? {fixed:fixed, kind:null, mult:false, weis:false, stoeck:false} : {fixed:null, kind:null});
+}
+function kindLabel(o){ return o.kind === 'coiffeur' ? 'Coiffeur' : o.kind === 'differenzler' ? 'Differenzler · ' + o.rounds + ' Runden' : 'Schieber · Ziel ' + o.target; }
 function startAI(cfg, fixed){
   closeModal();
-  var coif = fixed === 'coiffeur', dif = fixed === 'differenzler';
-  cfg = Object.assign({}, cfg, dif ? {kind:'differenzler', fixed:null, mult:false, weis:false, stoeck:false, slalom:false, rounds:CFG.dRounds || 8} : coif ? {kind:'coiffeur', fixed:null, mult:true, slalom:false} : fixed != null ? {fixed:fixed, kind:null, mult:false, weis:false, stoeck:false} : {fixed:null, kind:null}); fixed = coif || dif ? null : fixed;
+  var dif = fixed === 'differenzler';
+  cfg = kindCfg(cfg, fixed); fixed = cfg.fixed;
   var G = newGame({id:'a' + Date.now(), mode:'ai', cfg:cfg, my:0, hostUid:API.uid, seed0:(Math.random() * 4294967296) >>> 0, dealer0:rnd(4), seats:aiSeats(cfg, 0)});
   if(dif) G.totals = [0, 0, 0, 0];
   S.G = G; S.view = 'game'; lsDel('jassen_save_v1'); saveLocal(); refresh(true); pump();
@@ -1033,6 +1038,7 @@ function roundEnd(){
   if(!G.counted || G.counted !== G.rno + 1){
     G.counted = G.rno + 1; G.totals[0] += res.final[0]; G.totals[1] += res.final[1]; G.rounds.push({f:res.final.slice(), t:rd.t, tm:rd.fore % 2});
     if(G.mode === 'ai') saveLocal();
+    else if(G.mode === 'online' && G.hostUid === API.uid && S.me.g){ S.me.g.tot = G.totals.slice(); meWrite(); }
   }
   var tot = G.totals, my = [tot[t], tot[1 - t]], target = G.cfg.target;
   var coif = G.cfg.kind === 'coiffeur';
@@ -1050,12 +1056,12 @@ function roundEnd(){
     var w = m.querySelector('[data-a="weiter"]'), n = m.querySelector('[data-a="neu"]'), e = m.querySelector('[data-a="ende"]');
     if(w){ if(G.mode === 'online' || G.mode === 'watch'){ w.disabled = true; setTimeout(function(){ w.disabled = false; }, 1800); } w.onclick = function(){ closeModal(); nextRound(); }; }
     if(e) e.onclick = function(){ verlassen(); };
-    if(n) n.onclick = function(){ var c = G.cfg, fx = c.fixed; closeModal(); if(G.mode === 'ai'){ startAI(c, fx); } else verlassen(); };
+    if(n) n.onclick = function(){ var c = G.cfg, fx = c.kind === 'coiffeur' ? 'coiffeur' : c.fixed; closeModal(); if(G.mode === 'ai'){ startAI(c, fx); } else verlassen(); };
   }, true);
 }
 function roundEndDiff(G){
   var rd = G.rd, res = rd.result;
-  if(!G.counted || G.counted !== G.rno + 1){ G.counted = G.rno + 1; res.final.forEach(function(d, i){ G.totals[i] += d; }); G.rounds.push({f:res.final.slice(), d:true}); saveLocal(); }
+  if(!G.counted || G.counted !== G.rno + 1){ G.counted = G.rno + 1; res.final.forEach(function(d, i){ G.totals[i] += d; }); G.rounds.push({f:res.final.slice(), d:true}); if(G.mode === 'ai') saveLocal(); else if(G.mode === 'online' && G.hostUid === API.uid && S.me.g){ S.me.g.tot = G.totals.slice(); meWrite(); } }
   var over = G.rounds.length >= G.cfg.rounds; G.over = over; if(over) saveLocalClear();
   var best = Math.min.apply(null, G.totals), winners = [0, 1, 2, 3].filter(function(s){ return G.totals[s] === best; });
   var me = G.my, head = over ? (winners.indexOf(me) >= 0 ? '🏆 ' + (winners.length > 1 ? 'Geteilter Sieg!' : 'Gewonnen!') : 'Gewonnen hat ' + esc(G.seats[winners[0]].name)) : 'Runde ' + (G.rno + 1) + ' von ' + G.cfg.rounds + ' fertig';
@@ -1065,12 +1071,12 @@ function roundEndDiff(G){
     '<tr><td>Geholt</td>' + order.map(function(s){ return '<td>' + res.spts[s] + '</td>'; }).join('') + '</tr>' +
     '<tr><td><b>Differenz</b></td>' + order.map(function(s){ return '<td><b>' + res.final[s] + '</b></td>'; }).join('') + '</tr>' +
     '<tr><td>Total</td>' + order.map(function(s){ return '<td>' + G.totals[s] + '</td>'; }).join('') + '</tr></tbody></table>';
-  if(over) ton('ende');
+  if(over){ ton('ende'); if(G.mode === 'online') overStat(winners.indexOf(me) >= 0 ? 0 : 1); }
   modal('<div class="resbox"><h2>' + head + '</h2><p class="muted" style="margin:0 0 4px">Trumpf: ' + esc(suitName(rd.t)) + ' · wer die kleinste Gesamtdifferenz hat, gewinnt</p>' + tb + '</div><div class="actions">' + (over ? '<button class="btn ghost" data-a="neu" type="button">Neue Partie</button><button class="btn" data-a="ende" type="button">Zum Menü</button>' : '<button class="btn" data-a="weiter" type="button">Nächste Runde</button>') + '</div>', function(m){
     var w = m.querySelector('[data-a="weiter"]'), n = m.querySelector('[data-a="neu"]'), e = m.querySelector('[data-a="ende"]');
-    if(w) w.onclick = function(){ closeModal(); nextRound(); };
+    if(w){ if(G.mode !== 'ai'){ w.disabled = true; setTimeout(function(){ w.disabled = false; }, 1800); } w.onclick = function(){ closeModal(); nextRound(); }; }
     if(e) e.onclick = function(){ verlassen(); };
-    if(n) n.onclick = function(){ var c = G.cfg; closeModal(); startAI(c, 'differenzler'); };
+    if(n) n.onclick = function(){ var c = G.cfg; closeModal(); if(G.mode === 'ai') startAI(c, 'differenzler'); else verlassen(); };
   }, true);
 }
 function saveLocalClear(){ if(S.G && S.G.mode === 'ai') lsDel('jassen_save_v1'); }
@@ -1303,7 +1309,7 @@ function syncOnline(){
 }
 function openTable(cfg){
   closeModal();
-  var T = {id:API.uid + '-' + Date.now(), o:Object.assign({}, cfg, {fixed:null}), seats:[API.uid, null, null, null], names:[API.name, '', '', ''], status:'offen', t:Date.now()};
+  var T = {id:API.uid + '-' + Date.now(), o:Object.assign({}, cfg), seats:[API.uid, null, null, null], names:[API.name, '', '', ''], status:'offen', t:Date.now()};
   S.me.tisch = T; S.me.want = null; S.me.g = null; meWrite(); startHeartbeat(); S.view = 'wait'; refresh(true);
 }
 function joinTable(hd, seat){
@@ -1316,11 +1322,11 @@ function hostStartGame(){
   var T = S.me.tisch; if(!T || T.status !== 'offen') return;
   var o = T.o;
   for(var s = 0; s < 4; s++) if(!T.seats[s]){
-    var lvl = s % 2 === 0 ? o.lvlP : o.lvlG, used = T.names.slice(), nm = pick(AINAMES[lvl].filter(function(n){ return used.indexOf(n) < 0; }).concat(AINAMES[lvl]));
+    var lvl = o.kind === 'differenzler' || s % 2 !== 0 ? o.lvlG : o.lvlP, used = T.names.slice(), nm = pick(AINAMES[lvl].filter(function(n){ return used.indexOf(n) < 0; }).concat(AINAMES[lvl]));
     T.seats[s] = 'ai' + lvl; T.names[s] = nm;
   }
   T.status = 'laeuft'; T.seed0 = (Math.random() * 4294967296) >>> 0; T.dealer0 = rnd(4);
-  S.me.g = {id:T.id, rno:0, a:[], ai:{}, tot:[0, 0]};
+  S.me.g = {id:T.id, rno:0, a:[], ai:{}, tot:o.kind === 'differenzler' ? [0, 0, 0, 0] : [0, 0]};
   meWrite(); startOnlineGame(T, 0, API.uid);
 }
 function startOnlineGame(T, seat, hostUid){
@@ -1329,6 +1335,7 @@ function startOnlineGame(T, seat, hostUid){
   if(hostUid !== API.uid) S.me.g = {id:T.id, rno:0, a:[], ai:{}};
   S.me.want = hostUid !== API.uid ? S.me.want : null;
   var G = newGame({id:T.id, mode:'online', cfg:cfg, my:seat, hostUid:hostUid, seed0:T.seed0, dealer0:T.dealer0, seats:seats});
+  if(cfg.kind === 'differenzler') G.totals = [0, 0, 0, 0];
   S.G = G; S.view = 'game'; meWrite(); startHeartbeat(); refresh(true); pump();
 }
 function watchTable(hd){
@@ -1356,7 +1363,11 @@ function setupDialog(kind, fixed){
   var coif = fixed === 'coiffeur', dif = fixed === 'differenzler';
   var t = kind === 'online' ? 'Online-Tisch eröffnen' : dif ? 'Differenzler gegen den Computer' : coif ? 'Coiffeur gegen den Computer' : fixed === 4 ? 'Obenabe-Jass' : fixed === 5 ? 'Undenufe / Hindenufe' : 'Schieber gegen den Computer';
   var h = '<h2>' + t + '</h2>';
-  if(dif){
+  if(kind === 'online') h += '<div class="field"><label class="t">Spielart</label>' + seg('okind', [['schieber', 'Schieber'], ['coiffeur', 'Coiffeur'], ['differenzler', 'Differenzler']], CFG.okind || 'schieber') + '</div>';
+  if(kind === 'online'){
+    h += '<div class="field"><label class="t">Zielpunkte (Schieber)</label>' + seg('target', [[1000, '1000'], [1500, '1500'], [2500, '2500']], CFG.target) + '</div><div class="field"><label class="t">Runden (Differenzler)</label>' + seg('drounds', [[4, '4'], [8, '8'], [12, '12']], CFG.dRounds || 8) + '</div>';
+    h += optSwitch('oMult', 'Faktoren (Schieber)', 'Trumpfarten zählen 1×, 2× oder 3×', CFG.mult) + optSwitch('oWeis', 'Weis (Schieber, Coiffeur)', 'Reihen und Vierlinge zählen extra', CFG.weis) + optSwitch('oStoeck', 'Stöck (Schieber, Coiffeur)', 'König + Ober/Dame vom Trumpf: 20 Punkte', CFG.stoeck) + optSwitch('oSlalom', 'Slalom zuschalten (Schieber)', 'Abwechselnd Obenabe und Undenufe', CFG.slalom);
+  } else if(dif){
     h += '<p class="muted">Du spielst gegen drei Computer, jeder für sich. Vor dem Spielen sagt jede Person an, wie viele Punkte sie holt – die kleinste Gesamtdifferenz gewinnt.</p><div class="field"><label class="t">Runden</label>' + seg('drounds', [[4, '4'], [8, '8'], [12, '12']], CFG.dRounds || 8) + '</div>';
   } else if(coif){
     h += '<p class="muted">12 Spiele: Jedes Team spielt jede Zeile der Tafel einmal. Vorhand wählt die Spielart, die dem eigenen Team noch fehlt; die Punkte zählen mal Faktor.</p>';
@@ -1369,7 +1380,7 @@ function setupDialog(kind, fixed){
     h += optSwitch('oSlalom', 'Slalom zuschalten', 'Abwechselnd Obenabe und Undenufe', CFG.slalom);
   } else h += '<p class="muted">Sechs Runden, keine Trumpfwahl. ' + (fixed === 4 ? 'Das Ass ist die stärkste Karte, die 8 zählt 8 Punkte.' : 'Die 6 ist die stärkste Karte (11 Punkte), das Ass ist wertlos.') + '</p>';
   if(!dif) h += '<div class="field"><label class="t">Dein Partner (Platz oben)</label>' + lvlSel('lP', CFG.lvlP) + '</div>';
-  h += '<div class="field"><label class="t">' + (dif ? 'Die drei Computer' : 'Gegner') + '</label>' + lvlSel('lG', CFG.lvlG) + '</div>';
+  h += '<div class="field"><label class="t">' + (dif ? 'Die drei Computer' : 'Gegner (und leere Plätze)') + '</label>' + lvlSel('lG', CFG.lvlG) + '</div>';
   h += '<div style="margin-top:8px">' + optSwitch('oHilfe', 'Erlaubte Karten markieren', 'Nicht spielbare Karten werden abgedunkelt', CFG.hilfe) + optSwitch('oTipp', 'Tipp-Knopf', 'Der Computer schlägt dir einen Zug vor', CFG.tipp) + optSwitch('oLive', 'Punkte live anzeigen', 'Stichpunkte der Runde neben dem Tisch', CFG.live) + '</div>';
   h += '<div class="actions"><button class="btn ghost" data-a="no" type="button">Abbrechen</button><button class="btn" data-a="go" type="button">' + (kind === 'online' ? 'Tisch eröffnen' : 'Spiel starten') + '</button></div>';
   modal(h, function(m){
@@ -1383,7 +1394,7 @@ function setupDialog(kind, fixed){
       var dr = m.querySelector('input[name="drounds"]:checked'); if(dr) CFG.dRounds = +dr.value;
       if(q('lP')) CFG.lvlP = +q('lP').value; CFG.lvlG = +q('lG').value; CFG.hilfe = q('oHilfe').checked; CFG.tipp = q('oTipp').checked; CFG.live = q('oLive').checked;
       lsSet('jassen_cfg_v1', CFG);
-      if(kind === 'online') openTable(mkCfg()); else startAI(mkCfg(), fixed);
+      if(kind === 'online'){ var ok = m.querySelector('input[name="okind"]:checked'); CFG.okind = ok ? ok.value : 'schieber'; lsSet('jassen_cfg_v1', CFG); openTable(kindCfg(mkCfg(), CFG.okind === 'schieber' ? null : CFG.okind)); } else startAI(mkCfg(), fixed);
     };
   });
 }
@@ -1418,7 +1429,7 @@ function renderLobbyTeile(){
   var tische = S.spieler.filter(function(d){ return d.uid !== API.uid && d.tisch && frisch(d) && (d.tisch.status === 'offen' || d.tisch.status === 'laeuft'); });
   tische.forEach(function(d){
     var T = d.tisch, n = T.seats.filter(function(s){ return s && String(s).indexOf('ai') !== 0; }).length, free = tableFree(T);
-    th += '<div class="tisch"><span class="dot b">♠</span><div class="info"><b>' + esc(d.name) + '</b><small>' + (T.status === 'laeuft' ? 'Partie läuft · ' + n + ' Menschen' : n + ' von 4 Plätzen besetzt · Ziel ' + T.o.target) + '</small></div>' +
+    th += '<div class="tisch"><span class="dot b">♠</span><div class="info"><b>' + esc(d.name) + '</b><small>' + (T.status === 'laeuft' ? 'Partie läuft · ' + n + ' Menschen' : n + ' von 4 Plätzen besetzt · ' + kindLabel(T.o)) + '</small></div>' +
       (T.status === 'offen' && free.length ? '<button class="btn sm" data-j="' + esc(d.uid) + '" type="button">Mitspielen</button>' : '<button class="btn sm ghost" data-w="' + esc(d.uid) + '" type="button">Zuschauen</button>') + '</div>';
   });
   if(!tische.length) th += '<p class="empty">Gerade ist kein Tisch offen. Eröffne selbst einen – oben bei «Online».</p>';
@@ -1436,9 +1447,9 @@ function renderWait(){
   var el = $('wait'), T = S.me.tisch, host = true, hd = null;
   if(!T){ var W = S.me.want; if(!W){ S.view = 'menu'; return renderView(); } hd = docOf(W.host); T = hd && hd.tisch; host = false; }
   if(!T){ el.innerHTML = '<div class="card"><h3>Tisch wird gesucht …</h3><button class="btn ghost" data-a="leave" type="button">Abbrechen</button></div>'; el.querySelector('[data-a="leave"]').onclick = leaveWant; return; }
-  var h = '<div class="card"><h2>' + (host ? 'Dein Tisch ist offen' : 'Am Tisch von ' + esc(T.names[0])) + '</h2><p class="muted">Ziel ' + T.o.target + ' Punkte · ' + (T.o.set === 'f' ? 'Französisches' : 'Deutsches') + ' Blatt · Plätze 1 &amp; 3 = Team A, Plätze 2 &amp; 4 = Team B · leere Plätze füllt der Computer.</p><div class="seatpick">';
-  var lab = ['Platz 1 (Gastgeber:in)', 'Platz 2 (Gegner)', 'Platz 3 (Partner)', 'Platz 4 (Gegner)'];
-  for(var i = 0; i < 4; i++){ var s = T.seats[i]; h += '<div class="sp1 team' + (i % 2) + '"><b>' + lab[i] + '</b>' + (s ? esc(T.names[i]) + (s === API.uid ? ' (du)' : '') : '<span class="muted">frei – Computer (' + LVLN[i % 2 === 0 ? T.o.lvlP : T.o.lvlG] + ')</span>') + '</div>'; }
+  var h = '<div class="card"><h2>' + (host ? 'Dein Tisch ist offen' : 'Am Tisch von ' + esc(T.names[0])) + '</h2><p class="muted">' + kindLabel(T.o) + ' · ' + (T.o.set === 'f' ? 'Französisches' : 'Deutsches') + ' Blatt · ' + (T.o.kind === 'differenzler' ? 'jeder für sich' : 'Plätze 1 &amp; 3 = Team A, Plätze 2 &amp; 4 = Team B') + ' · leere Plätze füllt der Computer.</p><div class="seatpick">';
+  var dz = T.o.kind === 'differenzler', lab = dz ? ['Platz 1 (Gastgeber:in)', 'Platz 2', 'Platz 3', 'Platz 4'] : ['Platz 1 (Gastgeber:in)', 'Platz 2 (Gegner)', 'Platz 3 (Partner)', 'Platz 4 (Gegner)'];
+  for(var i = 0; i < 4; i++){ var s = T.seats[i]; h += '<div class="sp1 team' + (i % 2) + '"><b>' + lab[i] + '</b>' + (s ? esc(T.names[i]) + (s === API.uid ? ' (du)' : '') : '<span class="muted">frei – Computer (' + LVLN[dz || i % 2 !== 0 ? T.o.lvlG : T.o.lvlP] + ')</span>') + '</div>'; }
   h += '</div><div class="actions">' + (host ? '<button class="btn danger" data-a="close" type="button">Tisch schliessen</button><button class="btn" data-a="start" type="button">Los geht’s!</button>' : '<button class="btn ghost" data-a="leave" type="button">Platz verlassen</button>') + '</div>' + (host ? '' : '<p class="muted">Warte, bis die Gastgeberin oder der Gastgeber startet …</p>') + '</div>';
   el.innerHTML = h;
   var q = function(a){ return el.querySelector('[data-a="' + a + '"]'); };
