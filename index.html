@@ -9289,6 +9289,10 @@ var KIB_WISSEN = [
    a:'In der Leiste steht der 🚨 Ferien-Countdown: Er zeigt, wie viele Tage es noch bis zu den nächsten Ferien sind.'},
   {id:'links', fuer:'alle', f:'Wo finde ich wichtige Links?', w:'link links webseiten seiten adresse url',
    a:'Unter 🔗 Links (in der Leiste unter «Mehr») stehen wichtige Seiten mit einem Klick. Bei Schüler:innen erscheint das Symbol nur, wenn die Lehrperson Links geteilt hat.'},
+  {id:'schach', fuer:'sus', f:'Wann kann ich Schach spielen?', w:'schach spielen spiel gesperrt gesperrt freischalten freifach pause mittag online computer rangliste jassen',
+   a:'Im Fach «Schach & Jassen» findest du das Schachbrett. Gesperrt ist es im Unterricht (Mo–Fr 07:30–11:50 und 13:30–16:55). Offen ist es vor der Schule, über Mittag, nach 16:55, am Freitag ab 15:00 und am Wochenende. Möchte deine Lehrperson im Unterricht Schach spielen lassen, schaltet sie es frei.\nDu kannst gegen den Computer spielen oder einen Tisch eröffnen und online gegen eine Mitschülerin oder einen Mitschüler antreten.'},
+  {id:'lp-schach', fuer:'lp', f:'Wie schalte ich Schach im Unterricht frei?', w:'schach freischalten sperre unterricht jassen schachuhr rangliste spielen klasse',
+   a:'Im Fach «Schach & Jassen» auf «♟️ Schach» tippen und oben «🔑 Lehrperson: Freischaltung» öffnen: 15, 30 oder 45 Minuten oder bis zum Ende der Lektion – auf Wunsch auch für weitere Klassen. «Wieder sperren» beendet die Freigabe sofort. Dort setzt du auch die Rangliste zurück. Du selbst kannst jederzeit spielen.'},
   {id:'stundenplan', fuer:'sus', f:'Wo sehe ich meinen Stundenplan?', w:'stundenplan lektion lektionen freilektion zimmer wann schule unterricht heute morgen', ziel:'stundenplan',
    a:'Unter 🗓️ Stundenplan in der Leiste siehst du deinen eigenen Plan mit Gruppen, Wahlfächern, Zimmer und Lehrperson. Mit ◀ ▶ blätterst du durch die Wochen. Stimmt etwas nicht, tippst du die Lektion an und änderst sie für dich. Auf der Startseite steht, was jetzt und als Nächstes kommt.'},
 
@@ -10486,7 +10490,7 @@ function lmvzMerge(){
   var v = state.lmvzV;
   state.folders = state.folders.filter(function(f){ return !f.virtual; });
   state.resources = state.resources.filter(function(r){ return !r.virtual; }).concat(tippVirtuell(state.route.subject))
-    .concat(mtVirtuell(state.route.subject)).concat(kkVirtuell(state.route.subject)).concat(kzmVirtuell(state.route.subject)).concat(svaVirtuell(state.route.subject));
+    .concat(mtVirtuell(state.route.subject)).concat(kkVirtuell(state.route.subject)).concat(kzmVirtuell(state.route.subject)).concat(svaVirtuell(state.route.subject)).concat(schachVirtuell(state.route.subject));
   if(state.route.subject !== LMVZ_SUBJECT) return;
   var sv = sikoreVirtuell();
   state.folders = state.folders.concat(sv.folders);
@@ -13122,6 +13126,19 @@ function svaVirtuell(subject){
     {id:SVA_PROJ_ID, subject:'sva', folderId:null, order:-1999, virtual:true, svaWerk:true, statisch:'sva/mein-projekt.html',
     title:'📓 Mein SVA-Projekt – Grobkonzept, Journal, Rapport, Ausstellung', meta:'Thema und Grobkonzept · Arbeitsjournal mit Stundenzähler · Rapport an die Lehrperson · Ausstellung planen'}];
 }
+/* ===================== ♟️ SCHACH =====================
+   Statische Seite schach/schach.html als virtuelle Übung im Fach «Schach & Jassen» (wie die SVA-Werkstatt).
+   Die Seite läuft im Viewer (srcdoc, gleicher Origin) und holt sich über window.parent.__hlSchach() die Datenbank-Brücke.
+   Daten: klassen/{k}/quizSessions/schach = Freigabe durch die Lehrperson {bis}; …/schach/spieler/{uid} = Tisch, Partie, Bilanz
+   (bestehende quizSessions-Regeln: Lehrperson schreibt die Sitzung, jede:r nur den eigenen Spieler-Eintrag mit score 0 – keine neue Regel).
+   Gesperrt ist Schach für Schüler:innen Mo–Fr 07:30–11:50 und 13:30–16:55 (Freitag ab 15:00 frei, Wochenende und Ferien frei),
+   ausser die Lehrperson schaltet frei. Zeiten stehen in schach/schach.html (unterricht()). */
+var SCHACH_ID = 'schach_spiel';
+function schachVirtuell(subject){
+  if(subject !== 'schach-jassen') return [];
+  return [{id:SCHACH_ID, subject:'schach-jassen', folderId:null, order:-2000, virtual:true, schach:true, statisch:'schach/schach.html',
+    title:'♟️ Schach – gegen den Computer oder online gegeneinander', meta:'Drei Computerstufen · Tische mit Mitschüler:innen · Schachuhr, Zugliste, Hinweise optional · im Unterricht gesperrt, die Lehrperson kann freischalten'}];
+}
 function svaDatum(t){
   var wt = ['So','Mo','Di','Mi','Do','Fr','Sa'], a = new Date(t.d+'T12:00:00');
   var s = wt[a.getDay()]+' '+a.getDate()+'.'+(a.getMonth()+1)+'.';
@@ -13880,6 +13897,41 @@ async function svaEinwurf(art, blatt){
 }
 window.__svaEinwurf = function(art, blatt){ return svaEinwurf(art, blatt); };
 
+/* ♟️ Brücke für schach/schach.html (siehe SCHACH weiter oben). Gibt null zurück, solange niemand angemeldet ist. */
+window.__hlSchach = function(){
+  var cu = auth.currentUser, p = state.profile, k = state.klasse;
+  if(!cu || !p || !k) return null;
+  var lehrer = p.role === 'teacher', uid = cu.uid, name = p.displayName || p.username || 'Spieler:in';
+  var sess = function(kl){ return doc(db, 'klassen', kl || k, 'quizSessions', 'schach'); };
+  var spieler = function(){ return collection(db, 'klassen', k, 'quizSessions', 'schach', 'spieler'); };
+  return {
+    uid:uid, name:name, klasse:k, lehrer:lehrer,
+    klassen: lehrer ? KLASSEN.filter(function(x){ return x.art === 'klasse'; }).map(function(x){ return {id:x.id, label:x.id}; }) : [],
+    ferien:function(s){ try{ return !!rbuFerien(s); }catch(e){ return false; } },
+    freigabeWatch:function(cb){
+      return onSnapshot(sess(), function(s){ var d = s.exists() ? s.data() : null; cb(d && typeof d.bis === 'number' ? d : null); }, function(){ cb(null); });
+    },
+    freigabeSetzen:function(klassen, bis){
+      return Promise.all((klassen && klassen.length ? klassen : [k]).map(function(kl){
+        return setDoc(sess(kl), {art:'schach', bis:bis, von:name, at:Date.now()});
+      }));
+    },
+    spielerWatch:function(cb){
+      return onSnapshot(spieler(), function(snap){ var a = []; snap.forEach(function(d){ a.push(Object.assign({uid:d.id}, d.data())); }); cb(a); }, function(err){ console.warn('Schach: Spieler', err); cb([]); });
+    },
+    spielerDocWatch:function(u, cb){
+      return onSnapshot(doc(db, 'klassen', k, 'quizSessions', 'schach', 'spieler', u), function(s){ cb(s.exists() ? Object.assign({uid:u}, s.data()) : null); }, function(err){ console.warn('Schach: Gegner', err); });
+    },
+    // bewusst fsSetDoc: wird alle paar Sekunden aufgerufen, ohne «Richtige Klasse?»-Rückfrage
+    ichSchreiben:function(data){ return fsSetDoc(doc(db, 'klassen', k, 'quizSessions', 'schach', 'spieler', uid), Object.assign({}, data, {score:0})); },
+    statZuruecksetzen:function(){
+      return getDocs(spieler()).then(function(snap){
+        return Promise.all(snap.docs.map(function(d){ return fsUpdateDoc(d.ref, {stat:{w:0, d:0, l:0}}); }));
+      });
+    }
+  };
+};
+
 /* 📝 Beurteilungsraster (41 Punkte) für die offene Klasse */
 var svaBeurt = {daten:{}, roster:[], uid:null};
 function svaBeurtRef(){ return kdoc('klassenzimmer', 'svaBeurteilung'); }
@@ -14510,7 +14562,7 @@ function resourceCardHtml(r, index, total, isTeacher){
       '<div class="resource-meta">Blind tippen lernen · Lektion für Lektion · Tempo und Genauigkeit</div></div>'+
       '<span class="sk-karte-pfeil" aria-hidden="true">›</span></button>';
   }
-  if(r.svaWerk){
+  if(r.svaWerk || r.schach){
     return '<button type="button" class="resource-card sk-karte" id="open-'+r.id+'"><div class="resource-info"><h4>'+esc(r.title)+'</h4>'+
       '<div class="resource-meta">'+esc(r.meta || '')+'</div></div>'+
       '<span class="sk-karte-pfeil" aria-hidden="true">›</span></button>';
@@ -20911,6 +20963,8 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-10-09-schach', datum:'2026-10-09', fuer:'alle', text:'♟️ Neu im Fach «Schach & Jassen»: Schach! Spiel gegen den Computer (drei Stufen) oder online gegen Mitschüler:innen – mit Rangliste. Schachuhr, Zugliste und Hinweise zu möglichen Zügen kannst du beim Start ein- oder ausschalten. Im Unterricht ist Schach gesperrt (Mo–Fr 07:30–11:50 und 13:30–16:55); in den Pausen, über Mittag, nach der Schule und am Freitag ab 15:00 ist es offen. Deine Lehrperson kann es für die Klasse freischalten.'},
+  {id:'2026-10-09-schach-lp', datum:'2026-10-09', fuer:'lehrer', text:'♟️ Schach für die Klasse: Im Fach «Schach & Jassen» gibt es das Schachbrett. Während der Unterrichtszeit ist es für Schüler:innen gesperrt – oben im Schachclub schaltest du unter «🔑 Lehrperson: Freischaltung» für 15, 30 oder 45 Minuten oder bis zum Ende der Lektion frei (auch für mehrere Klassen), und setzt die Rangliste zurück. Du selbst kannst immer spielen.'},
   {id:'2026-10-08-faecher-ausblenden', datum:'2026-10-08', fuer:'alle', text:'🧩 Du kannst jetzt auch Fächer ausblenden, die du nicht brauchst: «✏️ Anordnen» antippen (oder lange auf eine Kachel drücken) und beim Fach auf «−». Unter den Kacheln steht dann «… ausgeblendet · anzeigen» – so holst du sie jederzeit zurück.'},
   {id:'2026-10-08-wer-macht-mit', datum:'2026-10-08', fuer:'lehrer', text:'👥 Neu im 🏫 Klassenzimmer: «Wer macht mit?» (Knopf oben rechts in 🎲 Zufall, ⏱ Ruhephase und 👥 Gruppen & Partner). Mische ganze Klassen aus der ganzen Schule, deine 👥 Gruppen und einzelne Schüler:innen – z. B. die G2b und drei aus der E3a. Die Auswahl gilt für Glücksrad, Wer ist dran?, Gruppen & Partner und die Flüsterliste und ersetzt den Knopf «👭 Gäste».'},
   {id:'2026-10-08-lernstand-ordner', datum:'2026-10-08', fuer:'lehrer', text:'📈 Die Lernstand-Übersicht ist neu nach Fach und Ordner geordnet, wie in der Fachansicht – mit Suchfeld. SIKORE, alle Übungstrainer, Karteikarten, Werkstatt, Lesereise, Voci und die Diktat-Auswertung stehen dort, wo die Übung liegt. Der Stand wird erst beim Aufklappen geladen, darum öffnet die Seite viel schneller.'},
@@ -29977,7 +30031,7 @@ function updateLernphaseBanner(){
 function lphUebungOeffnen(){
   var n = lph.aktiv && lph.aktiv.nurUebung;
   if(!n || !n.id) return;
-  var v = sikoreVirtuell().resources.concat(tippVirtuell(TIPP_SUBJECT)).concat(mtVirtuellAlle()).concat(kkAlleRes()).concat(svaVirtuell('sva')).filter(function(r){ return r.id === n.id; })[0];
+  var v = sikoreVirtuell().resources.concat(tippVirtuell(TIPP_SUBJECT)).concat(mtVirtuellAlle()).concat(kkAlleRes()).concat(svaVirtuell('sva')).concat(schachVirtuell('schach-jassen')).filter(function(r){ return r.id === n.id; })[0];
   if(v){ goResource(v); return; }
   getDoc(kdoc('resources', n.id)).then(function(d){
     if(!d.exists()){ toast('Die Übung «' + (n.titel || '') + '» wurde nicht gefunden.'); return; }
@@ -30353,7 +30407,7 @@ function openLernphase(){
     snap.forEach(function(d){ dazu(Object.assign({id:d.id}, d.data())); });
     // Virtuelle Trainer einzeln absichern: fällt einer aus, sollen die übrigen Übungen trotzdem erscheinen.
     [function(){ return sikoreVirtuell().resources; }, function(){ return tippVirtuell(TIPP_SUBJECT); },
-     function(){ return mtVirtuellAlle(); }, function(){ return kkAlleRes(); }, function(){ return svaVirtuell('sva'); }].forEach(function(fn){
+     function(){ return mtVirtuellAlle(); }, function(){ return kkAlleRes(); }, function(){ return svaVirtuell('sva'); }, function(){ return schachVirtuell('schach-jassen'); }].forEach(function(fn){
       try{ (fn() || []).forEach(dazu); }catch(e){ console.error('Lernphase: virtuelle Übungen', e); }
     });
     SUBJECTS.map(function(f){ return f.id; }).concat(Object.keys(proFach)).filter(function(f, i, a){ return proFach[f] && a.indexOf(f) === i; }).forEach(function(f){
