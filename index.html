@@ -3687,7 +3687,7 @@ const SUBJECTS = [
   {id:'sport', name:'Sport', gruppe:'neben', color:'#5FA829', soft:'#E4F3D9', img:'assets/subject-sport.webp'},
   {id:'werken', name:'Werken', gruppe:'neben', color:'#A9642E', soft:'#F1E1D2', img:'assets/subject-werken.webp'},
   {id:'textiles-werken', name:'TTG', gruppe:'neben', color:'#DB6A8F', soft:'#FBE3EB', img:'assets/subject-textiles-werken.webp'},
-  {id:'wah', name:'WAH', gruppe:'neben', color:'#D97706', soft:'#FBEBD3', img:'assets/subject-wah.webp', full:true},
+  {id:'wah', name:'WAH', gruppe:'neben', color:'#D97706', soft:'#FBEBD3', img:'assets/subject-wah.webp'},
   {id:'berufswahl', name:'Berufswahl', gruppe:'neben', color:'#E8752C', soft:'#FBE4D4', img:'assets/subject-berufswahl.webp'},
   {id:'sva', name:'SVA', gruppe:'neben', color:'#3046C9', soft:'#E3E7FB', img:'assets/subject-sva.webp'},
   {id:'gtz', name:'GTZ', gruppe:'frei', color:'#3D6A8A', soft:'#DCE8EF', img:'assets/subject-gtz.webp'},
@@ -3704,7 +3704,7 @@ const SUBJECTS = [
   {id:'schach-jassen', name:'Schach & Jassen', gruppe:'frei', color:'#1F2937', soft:'#E2E4E8', img:'assets/subject-schach-jassen.webp'},
   {id:'raetsel-logik', name:'Rätsel & Logik', gruppe:'frei', color:'#1E3A5F', soft:'#DCE6F2', img:'assets/subject-raetsel-logik.webp'}
 ];
-SUBJECTS.forEach(function(s){ s.icon = subjectVisual(s); });
+SUBJECTS.forEach(function(s){ if(s.img) s.img += '?v=20261011'; s.icon = subjectVisual(s); });
 function subjectById(id){ return SUBJECTS.find(function(s){return s.id===id;}); }
 
 /* ===================== KALENDER (Hausaufgaben, Abgaben, Erinnerungen, Prüfungen) =====================
@@ -21149,6 +21149,8 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-10-11-neue-fachbilder', datum:'2026-10-11', fuer:'alle', text:'🎨 Alle Fächer haben neue, einheitliche Bildchen bekommen.'},
+  {id:'2026-10-11-pruefung-aktuell', datum:'2026-10-11', fuer:'lehrer', text:'🧩 Nach dem Baukasten zeigen 🖨️ Drucken (PDF/Word) und 🧮 Aufgaben & Punkte immer die bearbeitete Fassung der Prüfung, nicht mehr die ursprüngliche.'},
   {id:'2026-10-09-differenzierung', datum:'2026-10-09', fuer:'lehrer', text:'🎯 Differenzierung: Bei jeder Übung gibt es «🎯 Zuweisen». Du setzt ein Niveau (A Grundlagen, B Standard, C Vertiefung) als Abzeichen und kannst festlegen, dass nur ausgewählte Personen (oder eine deiner 👥 Gruppen) die Übung sehen. Lehrpersonen sehen immer alles, ein Chip «🎯 n Pers.» zeigt dir die Einschränkung.'},
   {id:'2026-10-09-niveau', datum:'2026-10-09', fuer:'alle', text:'🎯 Manche Übungen haben ein Abzeichen A, B oder C: A sind die Grundlagen, B der Standard, C die Vertiefung. Deine Lehrperson kann Übungen auch gezielt einzelnen Personen zuteilen.'},
   {id:'2026-10-09-pruef-kollision', datum:'2026-10-09', fuer:'lehrer', text:'📝 Kalender: Trägst du eine Prüfung ein, warnt dich die Library, wenn die Klasse am selben Tag schon eine Prüfung hat oder in der Woche schon drei. Du kannst trotzdem eintragen. Bei Gruppen zählen nur Prüfungen mit denselben Personen.'},
@@ -32208,6 +32210,16 @@ function pruefBankZiehen(info, kats, anzahl, seed, bloomPct, formPct){
 
 /* ---------- Bank-Prüfung korrigieren (Gerät der Lehrperson) ---------- */
 
+// Frischer Stand vom Server (Aufgaben + Lösungen): nach dem 🧩 Baukasten darf nie eine ältere Fassung gedruckt oder bepunktet werden.
+async function pruefFrisch(p){
+  try{
+    var s = await getDoc(pruefRef(p.id));
+    if(s.exists()) p = Object.assign({}, p, s.data(), {id:p.id});
+    var l = await getDoc(loesRef(p.id));
+    if(l.exists()) pruef.loes[p.id] = l.data().loesungen || {};
+  }catch(err){ console.error(err); }
+  return p;
+}
 function pruefLoesungLaden(pid){
   if(pruef.loes[pid]) return Promise.resolve(pruef.loes[pid]);
   return getDoc(loesRef(pid)).then(function(snap){
@@ -33275,6 +33287,7 @@ async function pruefEditor(p, vorwahl){
    anpassen. Geht auch nach der Freigabe; bereits eingetragene Noten werden
    nachgeführt. */
 async function pruefAufgabenPunkte(p){
+  p = await pruefFrisch(p);
   var loes = {};
   try{ loes = await pruefLoesungLaden(p.id); }catch(err){ console.error(err); }
   var fr = (p.fragen || []).map(function(q){
@@ -33628,6 +33641,7 @@ function pruefAusConfig(cfg){
 }
 
 async function pruefBaukasten(p){
+  p = await pruefFrisch(p);
   openModal('<h3>🧩 Baukasten</h3><p class="pr-hinweis">Übung und Lösungen werden geladen …</p>', 'pr-modal pr-modal-breit');
   var loes = {}, gestartet = 0;
   try{ loes = await pruefLoesungLaden(p.id); }catch(err){ console.error(err); }
@@ -34285,6 +34299,7 @@ function pruefDruckKopfZeile3(cfg){
 }
 
 async function pruefDrucken(p, word, mitL, tab){
+  p = await pruefFrisch(p);
   var loes = pruefArt(p) === 'bank' ? await pruefLoesungLaden(p.id) : {};
   var cfg = pruefDruckConfig(p, loes), name = pruefDruckName(p, mitL);
   if(!word){
@@ -40491,6 +40506,7 @@ function rswAufgabeTyp(q){
   return t.some(function(x){ return x && typeof x === 'object' && !x.o; }) ? 'schreiben' : 'wahl';
 }
 async function rswBaukasten(p){
+  p = await pruefFrisch(p);
   openModal('<h3>🧩 Baukasten</h3><p class="pr-hinweis">Aufgaben und Werkstatt werden geladen …</p>', 'pr-modal pr-modal-breit');
   var loes = {}, gestartet = 0, quellen = null;
   try{ loes = await pruefLoesungLaden(p.id); }catch(err){ console.error(err); }
