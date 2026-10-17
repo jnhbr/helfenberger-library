@@ -274,6 +274,16 @@
   .subject-card h3{font-size:18px;}
   /* iOS-Safari färbt Button-Text sonst systemblau – Fachnamen immer in Textfarbe */
   .subject-card, .subject-card h3{color:var(--text);}
+  /* ✨ Bewegung beim Anklicken: Kachel sinkt wie eine Taste ein, die Illustration fliegt in den Fachkopf (View Transitions) */
+  .subject-card:active,.subject-card.gedrueckt{transform:translateY(3px) scale(.985);box-shadow:0 3px 8px -6px rgba(20,20,40,.35);transition-duration:.07s;}
+  :root[data-design="neu"] .subject-card:active,:root[data-design="neu"] .subject-card.gedrueckt{transform:translateY(5px);box-shadow:0 1px 0 var(--fach, var(--kontur));}
+  body.wackeln .subject-card:active{transform:none;}
+  ::view-transition-group(fach-bild){animation-duration:.34s;animation-timing-function:cubic-bezier(.22,1,.36,1);}
+  ::view-transition-old(root),::view-transition-new(root){animation-duration:.2s;}
+  @media (prefers-reduced-motion: reduce){
+    .subject-card:active,.subject-card.gedrueckt{transform:none;}
+    ::view-transition-group(*),::view-transition-old(*),::view-transition-new(*){animation:none !important;}
+  }
   .subject-meta{font-size:12.5px;color:var(--text-muted);}
   .subject-bar{height:7px;border-radius:99px;background:var(--surface-2);overflow:hidden;}
   .subject-bar span{display:block;height:100%;border-radius:99px;transition:width .4s ease;}
@@ -2150,6 +2160,18 @@
   .mt-blatt{display:flex;flex-direction:column;gap:10px;}
   .mt-karte{display:flex;gap:12px;align-items:flex-start;background:var(--surface);border:1px solid var(--border);border-left:5px solid var(--border);border-radius:var(--radius-sm);padding:12px 14px;box-shadow:var(--shadow);}
   .mt-karte.ok{border-left-color:var(--good);background:linear-gradient(90deg,var(--good-soft),var(--surface) 55%);}
+  /* ✨ frisch ausgewertet: richtige Karten poppen nacheinander, der Haken zeichnet sich */
+  .mt-frisch .mt-karte.ok{animation:mtKartePop .32s cubic-bezier(.34,1.56,.64,1) both;animation-delay:calc(var(--i, 0) * 55ms);}
+  .mt-frisch .mt-karte.ok .mt-nr{background:var(--good);color:#fff;}
+  .mt-frisch .mt-ok .mt-in,.mt-frisch .mt-ok .mt-wahl-b.an{animation:mtFeldPop .28s cubic-bezier(.34,1.56,.64,1) both;animation-delay:calc(var(--i, 0) * 55ms + 90ms);}
+  .mt-haken{width:16px;height:16px;fill:none;stroke:#fff;stroke-width:3.2;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:24;stroke-dashoffset:24;animation:mtHaken .3s ease-out forwards;animation-delay:calc(var(--i, 0) * 55ms + 120ms);}
+  @keyframes mtKartePop{0%{transform:scale(.97);}60%{transform:scale(1.015);}100%{transform:scale(1);}}
+  @keyframes mtFeldPop{0%{transform:scale(1);}50%{transform:scale(1.08);}100%{transform:scale(1);}}
+  @keyframes mtHaken{to{stroke-dashoffset:0;}}
+  @media (prefers-reduced-motion: reduce){
+    .mt-frisch .mt-karte.ok,.mt-frisch .mt-ok .mt-in,.mt-frisch .mt-ok .mt-wahl-b.an{animation:none;}
+    .mt-haken{animation:none;stroke-dashoffset:0;}
+  }
   .mt-karte.bad{border-left-color:var(--bad);}
   .mt-nr{flex:0 0 26px;height:26px;border-radius:50%;background:var(--surface-2);color:var(--text-muted);display:flex;align-items:center;justify-content:center;font-size:12.5px;font-weight:800;}
   .mt-body{flex:1;min-width:0;}
@@ -8464,6 +8486,36 @@ function verlaufVor(){
   state.route = r; render();
 }
 function goHome(){ state.route = {name:'home'}; render(); }
+// ✨ Fach-Kachel: kurz eindrücken, dann die Illustration per View Transition in den Fachkopf fliegen lassen.
+// Ohne View Transitions (ältere Browser) oder mit «Bewegung reduzieren» öffnet das Fach wie bisher.
+function bewegungReduziert(){ try{ return window.matchMedia('(prefers-reduced-motion: reduce)').matches; }catch(e){ return false; } }
+function mitFachUebergang(vonBild, wechsel, zielSelektor){
+  if(!document.startViewTransition || !vonBild || bewegungReduziert()){ wechsel(); return; }
+  vonBild.style.viewTransitionName = 'fach-bild';
+  var ue;
+  try{
+    ue = document.startViewTransition(function(){
+      wechsel();
+      var ziel = document.querySelector(zielSelektor);
+      if(ziel) ziel.style.viewTransitionName = 'fach-bild';
+    });
+  }catch(e){ vonBild.style.viewTransitionName = ''; wechsel(); return; }
+  ue.finished.finally(function(){
+    var ziel = document.querySelector(zielSelektor);
+    if(ziel) ziel.style.viewTransitionName = '';
+  });
+}
+function fachKachelOeffnen(btn){
+  if(btn.classList.contains('gedrueckt')) return;
+  var id = btn.getAttribute('data-subject');
+  var los = function(){ mitFachUebergang(btn.querySelector('.subject-visual'), function(){ goSubject(id); }, '.subject-head .subject-visual'); };
+  if(bewegungReduziert()){ los(); return; }
+  btn.classList.add('gedrueckt');
+  setTimeout(los, 90);
+}
+function fachZurueck(subjectId){
+  mitFachUebergang(document.querySelector('.subject-head .subject-visual'), goHome, '.subject-card[data-subject="'+subjectId+'"] .subject-visual');
+}
 function goSubject(id, folderId){
   var sameSubject = state.route.name === 'subject' && state.route.subject === id;
   state.route = {name:'subject', subject:id, folderId: folderId || null};
@@ -10273,7 +10325,7 @@ function renderHome(){
   var fachAusBtn = document.getElementById('fachAusBtn');
   if(fachAusBtn) fachAusBtn.addEventListener('click', openWidgetDrawer);
   Array.prototype.forEach.call(document.querySelectorAll('.subject-card'), function(btn){
-    btn.addEventListener('click', function(){ goSubject(btn.getAttribute('data-subject')); });
+    btn.addEventListener('click', function(){ fachKachelOeffnen(btn); });
   });
   var lernstandBtn = document.getElementById('lernstandBtn');
   if(lernstandBtn){
@@ -14220,7 +14272,7 @@ function renderSubject(subjectId, folderId){
   html += '<div id="bkListe" class="resource-list bk-liste bk-unten"></div>';
 
   renderChrome(html);
-  document.getElementById('backBtn').addEventListener('click', goHome);
+  document.getElementById('backBtn').addEventListener('click', function(){ fachZurueck(subjectId); });
   if(subjectId === 'sva'){ svaKopfVerdrahten(); svaPrivatZeigen(); svaAchtungZeigen(); svaBkNachfuehren(); }
   var diktatAnalyseBtn = document.getElementById('diktatAnalyseBtn');
   if(diktatAnalyseBtn){
@@ -21179,6 +21231,7 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-10-17-bewegung-klick', datum:'2026-10-17', fuer:'alle', text:'✨ Mehr Schwung: Fach-Kacheln drücken sich beim Antippen ein wie eine Taste, und das Fachbild fliegt mit auf die Fachseite. Im ⚡ Übungstrainer poppen richtige Aufgaben nach dem Auswerten mit einem Haken auf, und dein Wochenziel-Ring füllt sich sichtbar.'},
   {id:'2026-10-17-kz-ordner-zu', datum:'2026-10-17', fuer:'lehrer', text:'📁 Im 🏫 Klassenzimmer lassen sich jetzt auch die Ordner innerhalb eines Fachs auf- und zuklappen. Beim Öffnen einer Liste ist alles eingeklappt – du siehst zuerst nur die Fächer.'},
   {id:'2026-10-17-kz-nach-fach', datum:'2026-10-17', fuer:'lehrer', text:'🗂️ Ordnung im 🏫 Klassenzimmer: Klassen-Quiz, Spiel- und Schätz-Sets, Karteikarten, gespeicherte Wortwolken und Blitzumfragen, Prüfungen und die Fragen-Auswahl der Spiele stehen jetzt nach Fach und darin nach Ordner, je Fach ein- und ausklappbar (beim Öffnen ist alles eingeklappt). Neu gibt es das Fach «🎲 Trivia» für Allgemeinwissen-Quizze und Spiel-Sets ohne Fachbezug – beim Anlegen oder mit «📁 Ablegen» wählen. Abstimmungen sind nach offen / geschlossen geordnet.'},
   {id:'2026-10-17-abgabe-kacheln', datum:'2026-10-17', fuer:'lehrer', text:'✅ Abgabe-Checkliste: Statt Kästchen gibt es jetzt Namens-Kacheln – antippen, und sie wird grün mit Haken. Alle Namen bleiben in einem Fenster sichtbar.'},
@@ -39337,8 +39390,10 @@ function mtPruefen(){
   if(!t || !t.fragen.length || t.erg) return;
   var erg = t.erg = mtAuswerten();
   var ms = t.t0 ? Date.now() - t.t0 : null;
+  var zielVorher = t.stats ? mtStatsNorm(t.stats).wRichtig : 0;
   var gebucht = mtBuchen(erg, ms);
   document.getElementById('mtBlatt').innerHTML = mtBlattHtml(erg.marks);
+  mtRichtigFeiern(zielVorher);
   document.getElementById('mtPruefen').disabled = true;
   var perfekt = erg.richtig === erg.total, anteil = erg.total ? erg.richtig / erg.total : 0;
   var serie = perfekt ? mtSerie(1) : (mtSerie(null), 0);
@@ -39361,6 +39416,7 @@ function mtPruefen(){
   h += '<button class="btn '+(perfekt ? 'btn-ghost' : 'btn-primary')+' btn-sm" data-mt="neu" type="button">🔄 Neue Aufgaben</button></div></div></div>';
   var res = document.getElementById('mtResultat');
   res.innerHTML = h;
+  mtZahlHochzaehlen();
   res.onclick = function(e){
     var b = e.target.closest('[data-mt]'); if(!b) return;
     var a = b.getAttribute('data-mt');
@@ -39371,6 +39427,47 @@ function mtPruefen(){
     if(bl) bl.scrollIntoView({behavior:'smooth', block:'start'});
   };
   try{ res.scrollIntoView({behavior:'smooth', block:'nearest'}); }catch(err){}
+}
+// ✨ Nach dem Auswerten: richtige Karten poppen nacheinander, im Nummernkreis zeichnet sich ein Haken,
+// der Wochenziel-Ring füllt sich vom alten auf den neuen Stand, die Zahl im Resultat zählt hoch.
+function mtRichtigFeiern(zielVorher){
+  if(bewegungReduziert()) return;
+  var blatt = document.getElementById('mtBlatt');
+  if(blatt){
+    blatt.classList.add('mt-frisch');
+    var n = 0;
+    Array.prototype.forEach.call(blatt.querySelectorAll('.mt-karte.ok'), function(k){
+      k.style.setProperty('--i', Math.min(n++, 12));
+      var nr = k.querySelector('.mt-nr');
+      if(nr){ nr.setAttribute('aria-label', 'Aufgabe '+nr.textContent+' richtig'); nr.innerHTML = '<svg class="mt-haken" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>'; }
+      Array.prototype.forEach.call(k.querySelectorAll('.mt-in,.mt-wahl-b'), function(f){ f.style.setProperty('--i', Math.min(n - 1, 12)); });
+    });
+    // beim nächsten Blatt (🔄 Neue Aufgaben) nicht nochmals abspielen
+    setTimeout(function(){ blatt.classList.remove('mt-frisch'); }, 1600);
+  }
+  var t = mtT, ring = document.querySelector('#mtZiel .sk-ring-fg');
+  if(ring && t && t.stats && t.stats.ziel){
+    var u = parseFloat(ring.getAttribute('stroke-dasharray')), ziel = ring.getAttribute('stroke-dashoffset');
+    ring.style.transition = 'none';
+    ring.style.strokeDashoffset = (u * (1 - Math.min(1, zielVorher / t.stats.ziel))).toFixed(1);
+    ring.getBoundingClientRect();
+    ring.style.transition = 'stroke-dashoffset .8s cubic-bezier(.22,1,.36,1)';
+    requestAnimationFrame(function(){ ring.style.strokeDashoffset = ziel; });
+  }
+}
+function mtZahlHochzaehlen(){
+  var b = document.querySelector('#mtResultat .sk-res-zahl b');
+  if(!b || bewegungReduziert()) return;
+  var ende = parseInt(b.textContent, 10) || 0, t0 = null, dauer = Math.min(700, 120 + ende * 40);
+  if(ende < 2) return;
+  function schritt(ts){
+    if(t0 === null) t0 = ts;
+    var p = Math.min(1, (ts - t0) / dauer);
+    b.textContent = Math.round(ende * (1 - Math.pow(1 - p, 3)));
+    if(p < 1) requestAnimationFrame(schritt);
+  }
+  b.textContent = '0';
+  requestAnimationFrame(schritt);
 }
 function mtZielZeichnen(){
   var t = mtT, el = document.getElementById('mtZiel');
