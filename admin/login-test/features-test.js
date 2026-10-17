@@ -42,6 +42,23 @@ const TS = admin.firestore.FieldValue.serverTimestamp();
 
 const heute = new Date();
 const ds = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+// Listen im Klassenzimmer stehen nach Fach/Ordner eingeklappt (17.10.2026): die Abschnitte
+// über dem gesuchten Element aufklappen wie eine Lehrperson (Klick auf die Überschrift).
+async function aufklappen(p, sel){
+  await p.waitForSelector(sel, { state: 'attached' });
+  for(let i = 0; i < 4; i++){
+    const h = await p.evaluateHandle(q => {
+      const e = document.querySelector(q);
+      let d = e && e.closest('details:not([open])'), aussen = d;
+      while(aussen && aussen.parentElement && (aussen = aussen.parentElement.closest('details:not([open])'))) d = aussen;
+      return d ? d.querySelector(':scope > summary') : null;
+    }, sel);
+    const el = h.asElement(); if(!el) break;
+    await el.click();
+  }
+  await p.waitForSelector(sel);
+}
+
 function kkHash(s){ let h = 5381; for(let i = 0; i < s.length; i++) h = ((h * 33) ^ s.charCodeAt(i)) >>> 0; return h.toString(36); }
 // Ein Werktag in der kommenden Woche (Mittwoch), damit die Kollisionsprüfung eine feste Woche hat.
 function naechsterMittwoch(){ const d = new Date(); d.setHours(12, 0, 0, 0); do { d.setDate(d.getDate() + 1); } while(d.getDay() !== 3 || (d - new Date()) < 2 * 86400000); return d; }
@@ -203,7 +220,7 @@ var seiten;
     await lp.evaluate(() => { const b = [...document.querySelectorAll('button, a')].find(x => /Klassenzimmer/.test(x.textContent)); if(b) b.click(); });
     await lp.waitForSelector('.kz-tile[data-tool="pruefung"]');
     await lp.click('.kz-tile[data-tool="pruefung"]');
-    await lp.waitForSelector('.pr-karte[data-id="p1"]');
+    await aufklappen(lp, '.pr-karte[data-id="p1"]');
     await lp.click('.pr-karte[data-id="p1"]');
     await lp.waitForSelector('#prMon [data-a="zuschlag"]');
     await bis(async () => /Anna/.test(await lp.$eval('#prMon', e => e.innerText)) && /Ben/.test(await lp.$eval('#prMon', e => e.innerText)), 'Monitor zeigt die Klasse');

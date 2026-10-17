@@ -45,6 +45,24 @@ const neuPw = name => (pw[name] = crypto.randomBytes(9).toString('base64url'));
 admin.initializeApp({ projectId: 'demo-library' });
 const db = admin.firestore(), auth = admin.auth();
 
+
+// Listen im Klassenzimmer stehen nach Fach/Ordner eingeklappt (17.10.2026): die Abschnitte
+// über dem gesuchten Element aufklappen wie eine Lehrperson (Klick auf die Überschrift).
+async function aufklappen(p, sel){
+  await p.waitForSelector(sel, { state: 'attached' });
+  for(let i = 0; i < 4; i++){
+    const h = await p.evaluateHandle(q => {
+      const e = document.querySelector(q);
+      let d = e && e.closest('details:not([open])'), aussen = d;
+      while(aussen && aussen.parentElement && (aussen = aussen.parentElement.closest('details:not([open])'))) d = aussen;
+      return d ? d.querySelector(':scope > summary') : null;
+    }, sel);
+    const el = h.asElement(); if(!el) break;
+    await el.click();
+  }
+  await p.waitForSelector(sel);
+}
+
 function fragen(){
   const kats = ['Schweiz', 'Europa', 'Welt', 'Natur'], out = [];
   for(let i = 0; i < 24; i++) out.push({ q:'Frage ' + (i + 1) + ' (' + kats[i % 4] + ')?', a:['Richtig' + (i + 1), 'FalschA' + (i + 1), 'FalschB' + (i + 1), 'FalschC' + (i + 1)], c:0, st:1 + (i % 3), kat:kats[i % 4] });
@@ -136,7 +154,7 @@ async function bis(fn, text, ms){
 
     console.log('\n🎯 Schätzmeister');
     await lp.click('.kz-tile[data-tool="schaetz"]');
-    await lp.waitForSelector('[data-schs]');
+    await aufklappen(lp, '[data-schs]');
     await lp.click('[data-schs]');
     await lp.waitForSelector('#lspStage');
     await bis(async () => (await lp.$$eval('#lspStage .lsp-kind.on', e => e.length)) === 3, 'drei Geräte in der Wartelobby');
@@ -162,7 +180,7 @@ async function bis(fn, text, ms){
     console.log('\n🔔 Buzzer');
     await kz(lp);
     await lp.click('.kz-tile[data-tool="buzzer"]');
-    await lp.waitForSelector('[data-spq]');
+    await aufklappen(lp, '[data-spq="1"]');
     await lp.click('[data-spq="1"]');
     await lp.click('#spqOk');
     await lp.waitForSelector('#bzGo');
@@ -191,7 +209,7 @@ async function bis(fn, text, ms){
     console.log('\n🎱 Bingo');
     await kz(lp);
     await lp.click('.kz-tile[data-tool="bingo"]');
-    await lp.waitForSelector('[data-spq]');
+    await aufklappen(lp, '[data-spq="0"]');
     await lp.click('[data-spq="0"]');
     await lp.click('#spqOk');
     await lp.waitForSelector('#bgGo');
@@ -227,7 +245,7 @@ async function bis(fn, text, ms){
     console.log('\n💰 Wer wird Millionär');
     await kz(lp);
     await lp.click('.kz-tile[data-tool="million"]');
-    await lp.waitForSelector('[data-mspiel]');
+    await aufklappen(lp, '[data-mspiel]');
     await lp.click('[data-mspiel]');
     await lp.waitForSelector('#mioGo');
     await lp.click('#mioGo');
@@ -251,7 +269,7 @@ async function bis(fn, text, ms){
     console.log('\n🎮 Klassen-Quiz in Teams');
     await kz(lp);
     await lp.click('.kz-tile[data-tool="quiz"]');
-    await lp.waitForSelector('[data-start]');
+    await aufklappen(lp, '[data-start]');
     await lp.click('[data-start]');
     await lp.waitForSelector('#qzTeams');
     await lp.selectOption('#qzTeams', '2');

@@ -60,6 +60,24 @@ async function seed(){
 }
 
 const pruefungen = [], fehler = [];
+
+// Listen im Klassenzimmer stehen nach Fach/Ordner eingeklappt (17.10.2026): die Abschnitte
+// über dem gesuchten Element aufklappen wie eine Lehrperson (Klick auf die Überschrift).
+async function aufklappen(p, sel){
+  await p.waitForSelector(sel, { state: 'attached' });
+  for(let i = 0; i < 4; i++){
+    const h = await p.evaluateHandle(q => {
+      const e = document.querySelector(q);
+      let d = e && e.closest('details:not([open])'), aussen = d;
+      while(aussen && aussen.parentElement && (aussen = aussen.parentElement.closest('details:not([open])'))) d = aussen;
+      return d ? d.querySelector(':scope > summary') : null;
+    }, sel);
+    const el = h.asElement(); if(!el) break;
+    await el.click();
+  }
+  await p.waitForSelector(sel);
+}
+
 function ok(bed, text){ pruefungen.push(!!bed); console.log((bed ? '  ✅ ' : '  ❌ ') + text); }
 const pr = (arr, q) => { const s = arr.slice().sort((a, b) => a - b); return s.length ? s[Math.min(s.length - 1, Math.floor(q * s.length))] : 0; };
 const sek = ms => (ms / 1000).toFixed(1) + ' s';
@@ -139,7 +157,7 @@ async function bis(fn, text, ms){
     await lp.evaluate(() => { const b = [...document.querySelectorAll('button, a')].find(x => /Klassenzimmer/.test(x.textContent)); b.click(); });
     await lp.waitForSelector('.kz-tile[data-tool="quiz"]');
     await lp.click('.kz-tile[data-tool="quiz"]');
-    await lp.waitForSelector('[data-start]');
+    await aufklappen(lp, '[data-start]');
     await lp.click('[data-start]');
     await lp.waitForSelector('#qzTeams');
     await lp.selectOption('#qzTeams', '6');

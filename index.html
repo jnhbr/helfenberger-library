@@ -1056,8 +1056,13 @@
   .kzm-g-inhalt .qz-row:last-child, .kzm-g-inhalt .pr-karte:last-child{margin-bottom:0;}
   .kzm-g-liste{display:flex;flex-direction:column;gap:6px;}
   .kzm-g-liste > *{margin:0;}
-  .kzm-ordnerkopf{font-size:13px;font-weight:800;color:var(--text-muted);margin:10px 2px 6px;}
-  .kzm-g-inhalt > .kzm-ordnerkopf:first-child{margin-top:2px;}
+  .kzm-g-inhalt{display:flex;flex-direction:column;gap:8px;}
+  .kzm-ordner{border:1px dashed var(--border);border-radius:10px;background:var(--surface-2);}
+  .kzm-ordner > summary{cursor:pointer;list-style:none;display:flex;align-items:center;gap:8px;padding:8px 12px;font-size:14px;font-weight:800;color:var(--text);user-select:none;-webkit-user-select:none;}
+  .kzm-ordner > summary::-webkit-details-marker{display:none;}
+  .kzm-ordner > summary::before{content:"▸";color:var(--text-muted);transition:transform .15s ease;}
+  .kzm-ordner[open] > summary::before{transform:rotate(90deg);}
+  .kzm-ordner > .kzm-g-liste{padding:0 8px 8px;}
   /* ⚡ Energizer */
   .en-tools{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 12px;}
   .en-suche{flex:1;min-width:180px;max-width:360px;padding:10px 14px;border:1px solid var(--border);border-radius:999px;background:var(--surface);color:var(--text);font:inherit;font-size:14px;}
@@ -21174,7 +21179,8 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
-  {id:'2026-10-17-kz-nach-fach', datum:'2026-10-17', fuer:'lehrer', text:'🗂️ Ordnung im 🏫 Klassenzimmer: Klassen-Quiz, Spiel- und Schätz-Sets, Karteikarten, gespeicherte Wortwolken und Blitzumfragen, Prüfungen und die Fragen-Auswahl der Spiele stehen jetzt nach Fach und darin nach Ordner, je Fach ein- und ausklappbar (das Gerät merkt sich, was offen ist). Neu gibt es das Fach «🎲 Trivia» für Allgemeinwissen-Quizze und Spiel-Sets ohne Fachbezug – beim Anlegen oder mit «📁 Ablegen» wählen. Abstimmungen sind nach offen / geschlossen geordnet.'},
+  {id:'2026-10-17-kz-ordner-zu', datum:'2026-10-17', fuer:'lehrer', text:'📁 Im 🏫 Klassenzimmer lassen sich jetzt auch die Ordner innerhalb eines Fachs auf- und zuklappen. Beim Öffnen einer Liste ist alles eingeklappt – du siehst zuerst nur die Fächer.'},
+  {id:'2026-10-17-kz-nach-fach', datum:'2026-10-17', fuer:'lehrer', text:'🗂️ Ordnung im 🏫 Klassenzimmer: Klassen-Quiz, Spiel- und Schätz-Sets, Karteikarten, gespeicherte Wortwolken und Blitzumfragen, Prüfungen und die Fragen-Auswahl der Spiele stehen jetzt nach Fach und darin nach Ordner, je Fach ein- und ausklappbar (beim Öffnen ist alles eingeklappt). Neu gibt es das Fach «🎲 Trivia» für Allgemeinwissen-Quizze und Spiel-Sets ohne Fachbezug – beim Anlegen oder mit «📁 Ablegen» wählen. Abstimmungen sind nach offen / geschlossen geordnet.'},
   {id:'2026-10-17-abgabe-kacheln', datum:'2026-10-17', fuer:'lehrer', text:'✅ Abgabe-Checkliste: Statt Kästchen gibt es jetzt Namens-Kacheln – antippen, und sie wird grün mit Haken. Alle Namen bleiben in einem Fenster sichtbar.'},
   {id:'2026-10-17-fachnamen-schwarz', datum:'2026-10-17', fuer:'alle', text:'📱 Auf dem Handy sind die Fachnamen auf der Startseite wieder schwarz statt blau.'},
   {id:'2026-10-11-neue-fachbilder', datum:'2026-10-11', fuer:'alle', text:'🎨 Alle Fächer haben neue, einheitliche Bildchen bekommen.'},
@@ -27853,13 +27859,14 @@ function kzmFachName(id){
    Wortwolken, Blitzumfragen, Prüfungen, Fragen-Auswahl der Spiele) ordnen gleich:
    ein aufklappbarer Abschnitt pro Fach in der Reihenfolge der Fächer, 🎲 Trivia und
    «Ohne Fach» am Schluss; darin zuerst was direkt im Fach liegt, dann pro Ordner
-   (Reihenfolge wie im Fach). Welche Abschnitte offen sind, merkt sich das Gerät
-   pro Liste (LIB_PREFIX+'kzm_offen_<liste>'); ohne Merker ist bei höchstens
-   8 Stücken oder nur einem Fach alles offen, sonst alles zu.
+   (Reihenfolge wie im Fach), jeder Ordner selbst wieder aufklappbar. Jan (17.10.2026):
+   «per Standard immer eingeklappt» – nach dem Laden der Seite ist alles zu; was man
+   aufklappt, bleibt nur bis zum Neuladen offen (kzmOffen im Speicher, kein localStorage),
+   damit ein Neuzeichnen der Liste (z. B. nach dem Löschen) nichts zuklappt.
    eintraege: [{fach, ordner, html}] – html ist die fertige Zeile der Liste. */
-function kzmOffenLesen(liste){
-  try{ var o = JSON.parse(lsGet(LIB_PREFIX + 'kzm_offen_' + liste) || 'null'); return o && typeof o === 'object' ? o : null; }catch(e){ return null; }
-}
+var kzmOffen = {};
+function kzmOffenKey(liste, fach, ordner){ return liste + '|' + (fach || '') + '|' + (ordner || ''); }
+function kzmAufAttr(liste, fach, ordner){ return kzmOffen[kzmOffenKey(liste, fach, ordner)] ? ' open' : ''; }
 function kzmGruppiert(liste, eintraege){
   var gruppen = {}, reihe = [];
   eintraege.forEach(function(e){
@@ -27873,12 +27880,10 @@ function kzmGruppiert(liste, eintraege){
     return SUBJECTS.findIndex(function(s){ return s.id === f; });
   };
   reihe.sort(function(a, b){ return pos(a) - pos(b); });
-  var gemerkt = kzmOffenLesen(liste), alleOffen = eintraege.length <= 8 || reihe.length === 1;
   var zeilen = function(es){ return '<div class="kzm-g-liste">'+es.map(function(e){ return e.html; }).join('')+'</div>'; };
   return reihe.map(function(f){
     var es = gruppen[f], s = subjectById(f);
     var farbe = f === KZM_TRIVIA.id ? KZM_TRIVIA.color : s ? s.color : '';
-    var offen = gemerkt && Object.prototype.hasOwnProperty.call(gemerkt, f) ? !!gemerkt[f] : alleOffen;
     var nachOrdner = {}, ordnerReihe = [];
     es.forEach(function(e){
       var o = f && f !== KZM_TRIVIA.id ? (kzmOrdnerOk(f, e.ordner) || '') : '';
@@ -27889,20 +27894,20 @@ function kzmGruppiert(liste, eintraege){
     var opos = function(o){ if(!o) return -1; var i = baum.indexOf(o); return i < 0 ? 1e6 : i; };
     ordnerReihe.sort(function(a, b){ return opos(a) - opos(b); });
     var h = ordnerReihe.map(function(o){
-      return (o ? '<div class="kzm-ordnerkopf">📁 '+esc(kzmOrdnerPfad(o).join(' › '))+'</div>' : '') + zeilen(nachOrdner[o]);
+      if(!o) return zeilen(nachOrdner[o]);
+      return '<details class="kzm-ordner" data-kzmliste="'+esc(liste)+'" data-kzmfach="'+esc(f)+'" data-kzmordner="'+esc(o)+'"'+kzmAufAttr(liste, f, o)+'>'+
+        '<summary><span>📁 '+esc(kzmOrdnerPfad(o).join(' › '))+'</span><span class="kzm-g-zahl">'+nachOrdner[o].length+'</span></summary>'+zeilen(nachOrdner[o])+'</details>';
     }).join('');
-    return '<details class="kzm-gruppe" data-kzmliste="'+esc(liste)+'" data-kzmfach="'+esc(f)+'"'+(farbe ? ' style="--fach:'+esc(farbe)+';"' : '')+(offen ? ' open' : '')+'>'+
+    return '<details class="kzm-gruppe" data-kzmliste="'+esc(liste)+'" data-kzmfach="'+esc(f)+'"'+(farbe ? ' style="--fach:'+esc(farbe)+';"' : '')+kzmAufAttr(liste, f, '')+'>'+
       '<summary><span>'+esc(kzmFachName(f))+'</span><span class="kzm-g-zahl">'+es.length+'</span></summary>'+
       '<div class="kzm-g-inhalt">'+h+'</div></details>';
   }).join('');
 }
-// Auf- und Zuklappen merken (toggle bubbelt nicht → einmal global in der Capture-Phase).
+// Auf- und Zuklappen bis zum Neuladen merken (toggle bubbelt nicht → einmal global in der Capture-Phase).
 document.addEventListener('toggle', function(e){
   var d = e.target;
-  if(!d || !d.classList || !d.classList.contains('kzm-gruppe')) return;
-  var liste = d.getAttribute('data-kzmliste'), o = kzmOffenLesen(liste) || {};
-  o[d.getAttribute('data-kzmfach') || ''] = d.open;
-  lsSet(LIB_PREFIX + 'kzm_offen_' + liste, JSON.stringify(o));
+  if(!d || !d.classList || !(d.classList.contains('kzm-gruppe') || d.classList.contains('kzm-ordner'))) return;
+  kzmOffen[kzmOffenKey(d.getAttribute('data-kzmliste'), d.getAttribute('data-kzmfach'), d.getAttribute('data-kzmordner'))] = d.open;
 }, true);
 // Ordner eines Fachs als Baum (Tiefensuche, sortiert wie im Fach).
 function kzmOrdnerBaum(fach){
@@ -29506,13 +29511,11 @@ function openAbstVerwaltung(){
     h += '<p class="pr-hinweis" style="margin-top:0">Abstimmungen über mehrere Klassen oder Jahrgänge. Die Schüler:innen sehen oben «🗳️ Abstimmung», solange sie offen ist. Die Auswertung gibt es hier und als Excel-Datei.</p>';
     if(!isLeitung()) h += '<div class="back-row" style="margin:0 0 12px;"><button class="btn btn-primary btn-sm" id="abstNeuBtn" type="button">➕ Neue Abstimmung</button></div>';
     if(!list.length) h += '<div class="empty-state">Noch keine Abstimmungen.</div>';
-    // Abstimmungen haben kein Fach – geordnet nach offen / geschlossen (geschlossene zugeklappt, Zustand gemerkt wie bei kzmGruppiert)
-    var gemerkt = kzmOffenLesen('abst') || {};
-    [['offen', '🟢 Offen', true], ['zu', '🔒 Geschlossen', false]].forEach(function(g){
+    // Abstimmungen haben kein Fach – geordnet nach offen / geschlossen (eingeklappt wie bei kzmGruppiert)
+    [['offen', '🟢 Offen'], ['zu', '🔒 Geschlossen']].forEach(function(g){
       var drin = list.filter(function(a){ return (abstOffen(a) ? 'offen' : 'zu') === g[0]; });
       if(!drin.length) return;
-      var auf = Object.prototype.hasOwnProperty.call(gemerkt, g[0]) ? !!gemerkt[g[0]] : g[2];
-      h += '<details class="kzm-gruppe" data-kzmliste="abst" data-kzmfach="'+g[0]+'"'+(auf ? ' open' : '')+'><summary><span>'+g[1]+'</span><span class="kzm-g-zahl">'+drin.length+'</span></summary><div class="kzm-g-inhalt"><div class="kzm-g-liste">';
+      h += '<details class="kzm-gruppe" data-kzmliste="abst" data-kzmfach="'+g[0]+'"'+kzmAufAttr('abst', g[0], '')+'><summary><span>'+g[1]+'</span><span class="kzm-g-zahl">'+drin.length+'</span></summary><div class="kzm-g-inhalt"><div class="kzm-g-liste">';
       drin.forEach(function(a){
         var offen = abstOffen(a);
         h += '<button class="abst-zeile" data-aid="'+esc(a.id)+'" type="button">'+
