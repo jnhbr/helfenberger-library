@@ -272,6 +272,8 @@
   .subject-card .subject-visual{width:84px;height:84px;}
   .subject-head .subject-visual{width:56px;height:56px;border-radius:16px;}
   .subject-card h3{font-size:18px;}
+  /* iOS-Safari färbt Button-Text sonst systemblau – Fachnamen immer in Textfarbe */
+  .subject-card, .subject-card h3{color:var(--text);}
   .subject-meta{font-size:12.5px;color:var(--text-muted);}
   .subject-bar{height:7px;border-radius:99px;background:var(--surface-2);overflow:hidden;}
   .subject-bar span{display:block;height:100%;border-radius:99px;transition:width .4s ease;}
@@ -544,6 +546,17 @@
   .submission-row{display:flex;align-items:center;gap:8px;font-size:14.5px;padding:4px 2px;min-width:0;}
   .submission-row span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   @media (max-width:480px){ .submission-list{gap:2px 10px;} .submission-row{font-size:13.5px;} }
+  /* Abgabe-Liste als Namens-Kacheln: antippen → grün mit Haken (Checkbox bleibt unsichtbar die Quelle) */
+  .submission-list.sub-kacheln{grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:7px;}
+  .sub-kachel{position:relative;display:flex;align-items:center;gap:8px;min-width:0;padding:9px 12px;border:2px solid var(--border);border-radius:10px;background:var(--surface);color:var(--text);font-size:14.5px;font-weight:700;cursor:pointer;user-select:none;-webkit-user-select:none;transition:background .12s ease,border-color .12s ease,color .12s ease;}
+  .sub-kachel:hover{border-color:var(--good);}
+  .sub-kachel input{position:absolute;opacity:0;width:1px;height:1px;pointer-events:none;}
+  .sub-kachel span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .sub-kachel::after{content:"";flex:none;width:20px;height:20px;border-radius:999px;border:2px solid var(--border);box-sizing:border-box;}
+  .sub-kachel:has(input:checked){background:var(--good);border-color:var(--good);color:#fff;}
+  .sub-kachel:has(input:checked)::after{content:"✓";border:0;background:#fff;color:var(--good);font-size:14px;font-weight:900;line-height:20px;text-align:center;}
+  .sub-kachel:has(input:focus-visible){outline:2px solid var(--brand);outline-offset:2px;}
+  @media (max-width:480px){ .submission-list.sub-kacheln{grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;} .sub-kachel{padding:8px 10px;font-size:13.5px;} }
   .reset-history-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:6px 0;font-size:13.5px;}
   .reset-history-select{max-width:280px;padding:4px 8px;border:1px solid var(--border);border-radius:8px;font:inherit;background:var(--surface-2);color:var(--text);}
   .cal-private-tag{display:inline-block;font-size:11.5px;font-weight:600;color:var(--text-muted);background:var(--surface-2);border:1px solid var(--border);border-radius:999px;padding:1px 8px;margin-left:4px;}
@@ -1032,6 +1045,19 @@
   .kzm-vorlagen[open] summary{margin-bottom:8px;}
   .kzm-holen{max-height:45vh;overflow:auto;}
   .kzm-karte{border-style:dashed;}
+  /* Listen nach Fach › Ordner (kzmGruppiert) */
+  .kzm-gruppe{border:1px solid var(--border);border-left:5px solid var(--fach, var(--border));border-radius:12px;background:var(--surface);margin:0 0 8px;}
+  .kzm-gruppe > summary{cursor:pointer;list-style:none;display:flex;align-items:center;gap:10px;padding:10px 14px;font-weight:800;font-size:15.5px;user-select:none;-webkit-user-select:none;}
+  .kzm-gruppe > summary::-webkit-details-marker{display:none;}
+  .kzm-gruppe > summary::before{content:"▸";color:var(--text-muted);transition:transform .15s ease;}
+  .kzm-gruppe[open] > summary::before{transform:rotate(90deg);}
+  .kzm-g-zahl{margin-left:auto;font-size:12.5px;font-weight:700;color:var(--text-muted);background:var(--surface-2);border-radius:999px;padding:2px 9px;}
+  .kzm-g-inhalt{padding:0 12px 10px;}
+  .kzm-g-inhalt .qz-row:last-child, .kzm-g-inhalt .pr-karte:last-child{margin-bottom:0;}
+  .kzm-g-liste{display:flex;flex-direction:column;gap:6px;}
+  .kzm-g-liste > *{margin:0;}
+  .kzm-ordnerkopf{font-size:13px;font-weight:800;color:var(--text-muted);margin:10px 2px 6px;}
+  .kzm-g-inhalt > .kzm-ordnerkopf:first-child{margin-top:2px;}
   /* ⚡ Energizer */
   .en-tools{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 12px;}
   .en-suche{flex:1;min-width:180px;max-width:360px;padding:10px 14px;border:1px solid var(--border);border-radius:999px;background:var(--surface);color:var(--text);font:inherit;font-size:14px;}
@@ -5182,12 +5208,12 @@ function uiSubmissionChecklist(entry, roster, onChanged){
   roster = rosterFuerEintrag(roster, entry);   // Gruppe bzw. Fach-Gäste nur im eigenen Fach
   var rows = roster.map(function(stu){
     var checked = entry.submitted && entry.submitted[stu.uid];
-    return '<label class="submission-row"><input type="checkbox" class="sub-check" data-uid="'+esc(stu.uid)+'"'+(checked?' checked':'')+'> <span>'+esc(stu.displayName||stu.username)+'</span></label>';
+    return '<label class="sub-kachel"><input type="checkbox" class="sub-check" data-uid="'+esc(stu.uid)+'"'+(checked?' checked':'')+'><span>'+esc(stu.displayName||stu.username)+'</span></label>';
   }).join('');
   openModal(
     '<h3>Abgegeben: '+esc(entry.title)+'</h3>'+
     (roster.length ? '<div class="submission-toolbar"><button class="btn btn-ghost btn-sm" id="subSelectAllBtn" type="button">☑ Alle auswählen</button><button class="btn btn-ghost btn-sm" id="subDeselectAllBtn" type="button">☐ Alle abwählen</button></div>' : '')+
-    '<div class="submission-list">'+(rows || '<div class="empty-state">Keine Schüler:innen gefunden.</div>')+'</div>'+
+    '<div class="submission-list sub-kacheln">'+(rows || '<div class="empty-state">Keine Schüler:innen gefunden.</div>')+'</div>'+
     '<div class="modal-actions"><button class="btn btn-primary btn-sm" id="modalOk" type="button">Fertig</button></div>',
     'modal-wide'
   );
@@ -9437,7 +9463,7 @@ var KIB_WISSEN = [
   {id:'lp-trainer', fuer:'lp', f:'Was sind die Übungstrainer?', w:'übungstrainer trainer sikore tipptrainer klassenübersicht automatisch aufgaben',
    a:'⚡ Übungstrainer stehen in fast jedem Fach zuoberst. Die Aufgaben entstehen automatisch, du musst nichts pflegen. Pro Trainer gibt es eine 📊 Klassenübersicht. 🧮 SIKORE (Mathematik) und ⌨️ Tipptrainer (Medien und Informatik) funktionieren gleich.'},
   {id:'lp-klassenzimmer', fuer:'lp', f:'Welche Werkzeuge gibt es im Klassenzimmer?', w:'klassenzimmer werkzeuge beamer ruhephase lärmampel countdown würfel glücksrad stadt land fluss gruppen partner ämtliplan vergessen-zähler', ziel:'klassenzimmer',
-   a:'Im 🏫 Klassenzimmer (gedacht für den Beamer) stehen die Werkzeuge in fünf Bereichen:\n• 📡 Live mit der Klasse: 📊 Blitzumfrage, ☁️ Wortwolke, 📚 Lernphase, Fragebox, 🗳️ Abstimmungen.\n• 🎮 Spiele: Klassen-Quiz, 💰 Wer wird Millionär, 🎯 Schätzmeister, 🎱 Bingo, 🔔 Buzzer, 🏆 Der grosse Preis, ⭕ Drei gewinnt, 🚢 Schiffe versenken, Stadt Land Fluss, ⚡ Energizer.\n• 🎲 Am Beamer: ⏱ Ruhephase, Zufall (Wer ist dran?, Würfel, Glücksrad), Gruppen & Partner.\n• 🗃️ Material & Prüfungen: Unterrichtsmaterial, Karteikarten, 📝 Prüfungen.\n• 🧑‍🏫 Organisation: Sitzplan, Ämtliplan, Vergessen-Zähler, 🚪 Räume.'},
+   a:'Im 🏫 Klassenzimmer (gedacht für den Beamer) stehen die Werkzeuge in fünf Bereichen:\n• 📡 Live mit der Klasse: 📊 Blitzumfrage, ☁️ Wortwolke, 📚 Lernphase, Fragebox, 🗳️ Abstimmungen.\n• 🎮 Spiele: Klassen-Quiz, 💰 Wer wird Millionär, 🎯 Schätzmeister, 🎱 Bingo, 🔔 Buzzer, 🏆 Der grosse Preis, ⭕ Drei gewinnt, 🚢 Schiffe versenken, Stadt Land Fluss, ⚡ Energizer.\n• 🎲 Am Beamer: ⏱ Ruhephase, Zufall (Wer ist dran?, Würfel, Glücksrad), Gruppen & Partner.\n• 🗃️ Material & Prüfungen: Unterrichtsmaterial, Karteikarten, 📝 Prüfungen.\nAlle Listen (Quizze, Sets, Karteikarten, Prüfungen …) stehen nach Fach und Ordner, je Fach einklappbar. Für Allgemeinwissen gibt es das Fach «🎲 Trivia».\n• 🧑‍🏫 Organisation: Sitzplan, Ämtliplan, Vergessen-Zähler, 🚪 Räume.'},
   {id:'lp-sitzplan', fuer:'lp', f:'Wie mache ich einen Sitzplan?', w:'sitzplan sitzordnung plätze zufall tische erstellen', ziel:'klassenzimmer',
    a:'Im 🏫 Klassenzimmer unter «Sitzplan»: mit Zufallsverteilung und gespeicherten Sitzordnungen.'},
   {id:'lp-spiele', fuer:'lp', f:'Welche Spiele gibt es?', w:'spiele spiel spielen schätzmeister schätzen schätzfrage bingo buzzer grosser preis jeopardy drei gewinnt vier gewinnt tic tac toe schiffe versenken teams team beamer rubrik', ziel:'klassenzimmer',
@@ -19971,17 +19997,16 @@ function loadQuizList(){
     snap.forEach(function(d){ if(!d.data().art) list.push(Object.assign({id:d.id}, d.data())); });   // 💰 Spiel-Sets und 🎯 Schätz-Sets haben ihre eigene Seite
     list.sort(function(a,b){ return (b.createdAt && b.createdAt.toMillis ? b.createdAt.toMillis() : 0) - (a.createdAt && a.createdAt.toMillis ? a.createdAt.toMillis() : 0); });
     if(!list.length){ host.innerHTML = '<div class="empty-state">Noch kein Quiz angelegt.</div>'; return; }
-    host.innerHTML = list.map(function(q){
-      var s = subjectById(q.subject);
+    host.innerHTML = kzmGruppiert('quiz', list.map(function(q){
       var n = (q.questions||[]).length;
-      return '<div class="card qz-row"><div class="qz-row-body"><h3>'+esc(q.title)+'</h3>'
-        + '<div class="qz-row-meta">'+n+' Frage'+(n===1?'':'n')+(s?' · '+esc(kzmOrtText(q.subject, q.folderId)):'')+'</div></div>'
+      return {fach:q.subject || '', ordner:q.folderId || null, html:'<div class="card qz-row"><div class="qz-row-body"><h3>'+esc(q.title)+'</h3>'
+        + '<div class="qz-row-meta">'+n+' Frage'+(n===1?'':'n')+'</div></div>'
         + '<div class="qz-row-actions">'
         + '<button class="btn btn-primary btn-sm" data-start="'+esc(q.id)+'" type="button">▶︎ Starten</button>'
         + '<button class="btn btn-ghost btn-sm" data-edit="'+esc(q.id)+'" type="button">Bearbeiten</button>'
         + '<button class="btn btn-danger btn-sm" data-del="'+esc(q.id)+'" type="button">Löschen</button>'
-        + '</div></div>';
-    }).join('');
+        + '</div></div>'};
+    }));
     Array.prototype.forEach.call(host.querySelectorAll('[data-start]'), function(b){
       b.addEventListener('click', function(){
         var q = list.filter(function(x){ return x.id === b.getAttribute('data-start'); })[0];
@@ -21149,6 +21174,9 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-10-17-kz-nach-fach', datum:'2026-10-17', fuer:'lehrer', text:'🗂️ Ordnung im 🏫 Klassenzimmer: Klassen-Quiz, Spiel- und Schätz-Sets, Karteikarten, gespeicherte Wortwolken und Blitzumfragen, Prüfungen und die Fragen-Auswahl der Spiele stehen jetzt nach Fach und darin nach Ordner, je Fach ein- und ausklappbar (das Gerät merkt sich, was offen ist). Neu gibt es das Fach «🎲 Trivia» für Allgemeinwissen-Quizze und Spiel-Sets ohne Fachbezug – beim Anlegen oder mit «📁 Ablegen» wählen. Abstimmungen sind nach offen / geschlossen geordnet.'},
+  {id:'2026-10-17-abgabe-kacheln', datum:'2026-10-17', fuer:'lehrer', text:'✅ Abgabe-Checkliste: Statt Kästchen gibt es jetzt Namens-Kacheln – antippen, und sie wird grün mit Haken. Alle Namen bleiben in einem Fenster sichtbar.'},
+  {id:'2026-10-17-fachnamen-schwarz', datum:'2026-10-17', fuer:'alle', text:'📱 Auf dem Handy sind die Fachnamen auf der Startseite wieder schwarz statt blau.'},
   {id:'2026-10-11-neue-fachbilder', datum:'2026-10-11', fuer:'alle', text:'🎨 Alle Fächer haben neue, einheitliche Bildchen bekommen.'},
   {id:'2026-10-11-pruefung-aktuell', datum:'2026-10-11', fuer:'lehrer', text:'🧩 Nach dem Baukasten zeigen 🖨️ Drucken (PDF/Word) und 🧮 Aufgaben & Punkte immer die bearbeitete Fassung der Prüfung, nicht mehr die ursprüngliche.'},
   {id:'2026-10-09-differenzierung', datum:'2026-10-09', fuer:'lehrer', text:'🎯 Differenzierung: Bei jeder Übung gibt es «🎯 Zuweisen». Du setzt ein Niveau (A Grundlagen, B Standard, C Vertiefung) als Abzeichen und kannst festlegen, dass nur ausgewählte Personen (oder eine deiner 👥 Gruppen) die Übung sehen. Lehrpersonen sehen immer alles, ein Chip «🎯 n Pers.» zeigt dir die Einschränkung.'},
@@ -22854,7 +22882,7 @@ function mioListeLaden(){
     function zeile(q, eigen){
       var fr = mioAusQuiz(q), n = fr.length;
       return '<div class="card qz-row"><div class="qz-row-body"><h3>'+(eigen ? '💰 ' : '🎮 ')+esc(q.title)+'</h3>'+
-        '<div class="qz-row-meta">'+n+' Frage'+(n === 1 ? '' : 'n')+(eigen ? ' · '+mioStText(fr) : '')+(q.subject ? ' · '+esc(kzmOrtText(q.subject, q.folderId)) : '')+'</div></div>'+
+        '<div class="qz-row-meta">'+n+' Frage'+(n === 1 ? '' : 'n')+(eigen ? ' · '+mioStText(fr) : '')+'</div></div>'+
         '<div class="qz-row-actions"><button class="btn btn-primary btn-sm" data-mspiel="'+mioAttr(q.id)+'" type="button" title="Wer wird Millionär">▶︎ Millionär</button>'+
         '<button class="btn btn-ghost btn-sm" data-mwahl="'+mioAttr(q.id)+'" type="button" title="Bingo, Buzzer, Der grosse Preis, Drei gewinnt, Schiffe versenken">🎲 Anderes Spiel</button>'+
         (eigen ? '<button class="btn btn-ghost btn-sm" data-medit="'+mioAttr(q.id)+'" type="button">Bearbeiten</button>'+
@@ -22870,11 +22898,12 @@ function mioListeLaden(){
         '<button class="btn btn-danger btn-sm" id="mioAlt" type="button">Beenden</button></div></div>';
     }
     h += '<h3 class="kz-bereich">💰 Spiel-Sets <small>mit Stufen leicht · mittel · schwer – auch für Bingo, Buzzer, Der grosse Preis, Drei gewinnt und Schiffe versenken</small></h3>';
-    h += sets.length ? sets.map(function(q){ return zeile(q, true); }).join('')
+    var gruppiert = function(liste, qs, eigen){ return kzmGruppiert(liste, qs.map(function(q){ return {fach:q.subject || '', ordner:q.folderId || null, html:zeile(q, eigen)}; })); };
+    h += sets.length ? gruppiert('mio-sets', sets, true)
       : '<div class="empty-state">Noch kein Spiel-Set. Lege eines an, hole die Fragen aus einer Übung oder importiere eine Datei.</div>';
     if(quizze.length){
       h += '<h3 class="kz-bereich">🎮 Klassen-Quiz <small>jedes Quiz lässt sich auch als Millionär-Runde spielen</small></h3>';
-      h += quizze.map(function(q){ return zeile(q, false); }).join('');
+      h += gruppiert('mio-quiz', quizze, false);
     }
     host.innerHTML = h;
     host.onclick = function(e){
@@ -23661,7 +23690,8 @@ function spielQuelle(art){
   var A = SPIEL_ARTEN[art];
   if(art !== 'million' && lspLaeuft(lsp.session) && lsp.overlay){ toast('Es läuft schon ein Spiel.'); return; }
   openModal('<h3>'+A.icon+' '+esc(A.name)+'</h3><p id="spqLade">Sets werden geladen …</p>', 'modal-wide');
-  getDocs(kcol('quizzes')).then(function(snap){
+  Promise.all([getDocs(kcol('quizzes')), kzmLoad()]).then(function(res){
+    var snap = res[0];
     if(!document.getElementById('spqLade')) return;   // inzwischen geschlossen
     var sets = [], ms = function(q){ return q.createdAt && q.createdAt.toMillis ? q.createdAt.toMillis() : 0; };
     snap.forEach(function(d){
@@ -23673,10 +23703,10 @@ function spielQuelle(art){
     sets.sort(function(a, b){ return (b.set ? 1 : 0) - (a.set ? 1 : 0) || b.ms - a.ms; });
     var h = '<h3>'+A.icon+' '+esc(A.name)+'</h3><p class="pr-hinweis">'+esc(A.kurz)+' Wähle ein oder mehrere Sets'+(art === 'preis' ? ' – jedes Set wird eine Kategorie, wenn die Fragen selbst keine Kategorie haben' : '')+'.</p>';
     if(sets.length){
-      h += '<div class="sp-quellen">'+sets.map(function(s, i){
-        return '<label class="sp-quelle"><input type="checkbox" data-spq="'+i+'"><span><b>'+(s.set ? '💰 ' : '🎮 ')+esc(s.titel)+'</b>'+
-          '<small>'+s.fragen.length+' Fragen'+(s.set ? ' · '+mioStText(s.fragen) : '')+(s.fach ? ' · '+esc(kzmOrtText(s.fach, s.ordner)) : '')+'</small></span></label>';
-      }).join('')+'</div>';
+      h += '<div class="sp-quellen">'+kzmGruppiert('spiel', sets.map(function(s, i){
+        return {fach:s.fach, ordner:s.ordner, html:'<label class="sp-quelle"><input type="checkbox" data-spq="'+i+'"><span><b>'+(s.set ? '💰 ' : '🎮 ')+esc(s.titel)+'</b>'+
+          '<small>'+s.fragen.length+' Fragen'+(s.set ? ' · '+mioStText(s.fragen) : '')+'</small></span></label>'};
+      }))+'</div>';
     } else h += '<div class="empty-state">Noch kein Spiel-Set und kein Klassen-Quiz. Lege ein Set an oder hole die Fragen aus einer Übung.</div>';
     h += '<p class="pr-hinweis" id="spqZahl"></p>';
     h += '<div class="modal-actions" style="flex-wrap:wrap;"><button class="btn btn-ghost btn-sm" id="modalCancel" type="button">Abbrechen</button>'+
@@ -24078,13 +24108,13 @@ function openSchaetz(){
     var o = schaetzOpt();
     var h = '<h3>🎯 Schätzmeister</h3><p class="pr-hinweis">Alle tippen auf dem eigenen Gerät eine Zahl. Am Beamer erscheinen die Tipps auf einem Zahlenstrahl – wer am nächsten liegt, bekommt 3 Punkte, dann 2, dann 1; ein Volltreffer gibt einen Punkt dazu.</p>';
     h += '<label class="modal-label">Zeit pro Frage</label><select id="schSec" class="modal-input">'+[15, 20, 30, 45, 60, 90].map(function(x){ return '<option value="'+x+'"'+(x === o.sec ? ' selected' : '')+'>'+x+' Sekunden</option>'; }).join('')+'</select>';
-    h += sets.length ? sets.map(function(q){
+    h += sets.length ? kzmGruppiert('schaetz', sets.map(function(q){
       var n = schaetzNorm(q.questions).length;
-      return '<div class="card qz-row"><div class="qz-row-body"><h3>🎯 '+esc(q.title)+'</h3><div class="qz-row-meta">'+n+' Frage'+(n === 1 ? '' : 'n')+(q.subject ? ' · '+esc(kzmOrtText(q.subject, q.folderId)) : '')+'</div></div>'+
+      return {fach:q.subject || '', ordner:q.folderId || null, html:'<div class="card qz-row"><div class="qz-row-body"><h3>🎯 '+esc(q.title)+'</h3><div class="qz-row-meta">'+n+' Frage'+(n === 1 ? '' : 'n')+'</div></div>'+
         '<div class="qz-row-actions"><button class="btn btn-primary btn-sm" data-schs="'+mioAttr(q.id)+'" type="button">▶︎ Spielen</button>'+
         '<button class="btn btn-ghost btn-sm" data-sche="'+mioAttr(q.id)+'" type="button">Bearbeiten</button>'+
-        '<button class="btn btn-danger btn-sm" data-schd="'+mioAttr(q.id)+'" type="button">Löschen</button></div></div>';
-    }).join('') : '<div class="empty-state">Noch kein Schätz-Set. Lege eines an – oder spiele spontan und tippe die Fragen während des Spiels ein.</div>';
+        '<button class="btn btn-danger btn-sm" data-schd="'+mioAttr(q.id)+'" type="button">Löschen</button></div></div>'};
+    })) : '<div class="empty-state">Noch kein Schätz-Set. Lege eines an – oder spiele spontan und tippe die Fragen während des Spiels ein.</div>';
     h += '<div class="modal-actions" style="flex-wrap:wrap;"><button class="btn btn-ghost btn-sm" id="modalCancel" type="button">Schliessen</button>'+
       '<button class="btn btn-ghost btn-sm" id="schNeu" type="button">➕ Neues Set</button>'+
       '<button class="btn btn-primary btn-sm" id="schSpontan" type="button" title="Frage und Lösung tippst du während des Spiels ein">⚡ Spontan spielen</button></div>';
@@ -27806,9 +27836,74 @@ function kzmOrdnerPfad(ordner){
   return teile;
 }
 function kzmOrtText(fach, ordner){
-  var s = subjectById(fach);
-  return [s ? s.name : 'Ohne Fach'].concat(kzmOrdnerPfad(kzmOrdnerOk(fach, ordner))).join(' › ');
+  return [kzmFachName(fach)].concat(kzmOrdnerPfad(kzmOrdnerOk(fach, ordner))).join(' › ');
 }
+// 🎲 Trivia: Pseudo-Fach nur fürs Klassenzimmer (Quiz, Spiel-, Schätz-Sets, Wortwolken, Umfragen) –
+// Allgemeinwissen ohne Bezug zu einem Fach. Kein Fach auf der Startseite, keine Ordner,
+// nicht für Karteikarten und Prüfungen (die brauchen ein echtes Fach).
+var KZM_TRIVIA = {id:'trivia', name:'Trivia', icon:'🎲', color:'#E9A800'};
+function kzmFachName(id){
+  if(id === KZM_TRIVIA.id) return KZM_TRIVIA.icon+' '+KZM_TRIVIA.name;
+  var s = subjectById(id);
+  return s ? s.name : 'Ohne Fach';
+}
+
+/* ---------- Listen nach Fach › Ordner (einklappbar) ----------
+   Alle Listen im Klassenzimmer (Klassen-Quiz, Spiel-, Schätz- und Karteikarten-Sets,
+   Wortwolken, Blitzumfragen, Prüfungen, Fragen-Auswahl der Spiele) ordnen gleich:
+   ein aufklappbarer Abschnitt pro Fach in der Reihenfolge der Fächer, 🎲 Trivia und
+   «Ohne Fach» am Schluss; darin zuerst was direkt im Fach liegt, dann pro Ordner
+   (Reihenfolge wie im Fach). Welche Abschnitte offen sind, merkt sich das Gerät
+   pro Liste (LIB_PREFIX+'kzm_offen_<liste>'); ohne Merker ist bei höchstens
+   8 Stücken oder nur einem Fach alles offen, sonst alles zu.
+   eintraege: [{fach, ordner, html}] – html ist die fertige Zeile der Liste. */
+function kzmOffenLesen(liste){
+  try{ var o = JSON.parse(lsGet(LIB_PREFIX + 'kzm_offen_' + liste) || 'null'); return o && typeof o === 'object' ? o : null; }catch(e){ return null; }
+}
+function kzmGruppiert(liste, eintraege){
+  var gruppen = {}, reihe = [];
+  eintraege.forEach(function(e){
+    var f = e.fach === KZM_TRIVIA.id || subjectById(e.fach) ? e.fach : '';
+    if(!gruppen[f]){ gruppen[f] = []; reihe.push(f); }
+    gruppen[f].push(e);
+  });
+  var pos = function(f){
+    if(f === '') return 1e6;
+    if(f === KZM_TRIVIA.id) return 1e6 - 1;
+    return SUBJECTS.findIndex(function(s){ return s.id === f; });
+  };
+  reihe.sort(function(a, b){ return pos(a) - pos(b); });
+  var gemerkt = kzmOffenLesen(liste), alleOffen = eintraege.length <= 8 || reihe.length === 1;
+  var zeilen = function(es){ return '<div class="kzm-g-liste">'+es.map(function(e){ return e.html; }).join('')+'</div>'; };
+  return reihe.map(function(f){
+    var es = gruppen[f], s = subjectById(f);
+    var farbe = f === KZM_TRIVIA.id ? KZM_TRIVIA.color : s ? s.color : '';
+    var offen = gemerkt && Object.prototype.hasOwnProperty.call(gemerkt, f) ? !!gemerkt[f] : alleOffen;
+    var nachOrdner = {}, ordnerReihe = [];
+    es.forEach(function(e){
+      var o = f && f !== KZM_TRIVIA.id ? (kzmOrdnerOk(f, e.ordner) || '') : '';
+      if(!nachOrdner[o]){ nachOrdner[o] = []; ordnerReihe.push(o); }
+      nachOrdner[o].push(e);
+    });
+    var baum = f && f !== KZM_TRIVIA.id ? kzmOrdnerBaum(f).map(function(x){ return x.f.id; }) : [];
+    var opos = function(o){ if(!o) return -1; var i = baum.indexOf(o); return i < 0 ? 1e6 : i; };
+    ordnerReihe.sort(function(a, b){ return opos(a) - opos(b); });
+    var h = ordnerReihe.map(function(o){
+      return (o ? '<div class="kzm-ordnerkopf">📁 '+esc(kzmOrdnerPfad(o).join(' › '))+'</div>' : '') + zeilen(nachOrdner[o]);
+    }).join('');
+    return '<details class="kzm-gruppe" data-kzmliste="'+esc(liste)+'" data-kzmfach="'+esc(f)+'"'+(farbe ? ' style="--fach:'+esc(farbe)+';"' : '')+(offen ? ' open' : '')+'>'+
+      '<summary><span>'+esc(kzmFachName(f))+'</span><span class="kzm-g-zahl">'+es.length+'</span></summary>'+
+      '<div class="kzm-g-inhalt">'+h+'</div></details>';
+  }).join('');
+}
+// Auf- und Zuklappen merken (toggle bubbelt nicht → einmal global in der Capture-Phase).
+document.addEventListener('toggle', function(e){
+  var d = e.target;
+  if(!d || !d.classList || !d.classList.contains('kzm-gruppe')) return;
+  var liste = d.getAttribute('data-kzmliste'), o = kzmOffenLesen(liste) || {};
+  o[d.getAttribute('data-kzmfach') || ''] = d.open;
+  lsSet(LIB_PREFIX + 'kzm_offen_' + liste, JSON.stringify(o));
+}, true);
 // Ordner eines Fachs als Baum (Tiefensuche, sortiert wie im Fach).
 function kzmOrdnerBaum(fach){
   var ord = kzmAlleOrdner();
@@ -27931,6 +28026,7 @@ function kzmAblageHtml(fach, ordner, ohneLeer){
   return '<div class="pr-grid2 kzm-ablage"><div><label class="modal-label">Fach</label><select class="modal-input" id="kzmAbFach">'+
     (ohneLeer ? '' : '<option value="">Ohne Fach</option>')+
     faecher.map(function(s){ return '<option value="'+esc(s.id)+'"'+(s.id === fach ? ' selected' : '')+'>'+esc(s.name)+'</option>'; }).join('')+
+    (ohneLeer ? '' : '<option value="'+KZM_TRIVIA.id+'"'+(fach === KZM_TRIVIA.id ? ' selected' : '')+'>'+esc(kzmFachName(KZM_TRIVIA.id))+'</option>')+
     '</select></div><div><label class="modal-label">Ordner</label><select class="modal-input" id="kzmAbOrdner" data-wert="'+esc(ordner || '')+'"><option value="">Wird geladen …</option></select></div></div>';
 }
 function kzmAblageVerdrahten(){
@@ -27938,7 +28034,7 @@ function kzmAblageVerdrahten(){
   if(!fEl || !oEl) return;
   function fuellen(){
     var fach = fEl.value, wert = oEl.getAttribute('data-wert') || '';
-    if(!fach){ oEl.innerHTML = '<option value="">–</option>'; oEl.disabled = true; return; }
+    if(!fach || fach === KZM_TRIVIA.id){ oEl.innerHTML = '<option value="">–</option>'; oEl.disabled = true; return; }
     oEl.disabled = false;
     oEl.innerHTML = '<option value="">Direkt im Fach</option>' + kzmOrdnerBaum(fach).map(function(x){
       return '<option value="'+esc(x.f.id)+'"'+(x.f.id === wert ? ' selected' : '')+'>'+'   '.repeat(x.tiefe)+'📁 '+esc(x.f.name)+'</option>';
@@ -28001,12 +28097,13 @@ function kzmVorlagenListeHtml(typ){
   var liste = kzm.vorlagen ? (typ === 'wolke' ? kzm.vorlagen.wolken : kzm.vorlagen.umfragen) : [];
   if(!liste.length) return '';
   var h = '<details class="kzm-vorlagen"><summary>🗃️ Gespeicherte '+(typ === 'wolke' ? 'Wortwolken' : 'Blitzumfragen')+' ('+liste.length+')</summary>';
-  liste.slice().sort(function(a, b){ return kzmOrtText(a.fach, a.ordner).localeCompare(kzmOrtText(b.fach, b.ordner), 'de'); }).forEach(function(v){
+  var titelVon = function(v){ return typ === 'umfrage' ? (v.titel || umfrageFragen(v)[0].frage) : v.frage; };
+  h += kzmGruppiert(typ, liste.slice().sort(function(a, b){ return String(titelVon(a)).localeCompare(String(titelVon(b)), 'de'); }).map(function(v){
     // (Blitzumfragen können mehrere Fragen haben – Titel oder erste Frage zeigen)
-    var titel = typ === 'umfrage' ? (v.titel || umfrageFragen(v)[0].frage) : v.frage;
     var n = typ === 'umfrage' ? umfrageFragen(v).length : 1;
-    h += '<button class="abst-zeile" data-kzmvorlage="'+esc(v.id)+'" type="button"><span class="abst-zeile-txt"><b>'+esc(titel)+'</b><small>'+(n > 1 ? n+' Fragen · ' : '')+esc(kzmOrtText(v.fach, v.ordner))+'</small></span><span class="abst-pfeil">›</span></button>';
-  });
+    return {fach:v.fach || '', ordner:v.ordner || null,
+      html:'<button class="abst-zeile" data-kzmvorlage="'+esc(v.id)+'" type="button"><span class="abst-zeile-txt"><b>'+esc(titelVon(v))+'</b><small>'+(n > 1 ? n+' Fragen · ' : '')+esc(kzmOrtText(v.fach, v.ordner))+'</small></span><span class="abst-pfeil">›</span></button>'};
+  }));
   return h + '</details>';
 }
 
@@ -28035,14 +28132,15 @@ function kzmMaterialZeichnen(){
     r.ordner = null;
   }
   r.ordner = r.fach ? kzmOrdnerOk(r.fach, r.ordner) : null;
-  var fach = r.fach, ordner = r.ordner;
+  var fach = r.fach, ordner = r.ordner, trivia = fach === KZM_TRIVIA.id;
 
   var h = '<div class="kzm-kopf"><select class="modal-input kzm-fachwahl" id="kzmFach">'+
     faecher.map(function(s){ return '<option value="'+esc(s.id)+'"'+(s.id === fach ? ' selected' : '')+'>'+esc(s.name)+(zahl[s.id] ? ' ('+zahl[s.id]+')' : '')+'</option>'; }).join('')+
+    '<option value="'+KZM_TRIVIA.id+'"'+(fach === KZM_TRIVIA.id ? ' selected' : '')+'>'+esc(kzmFachName(KZM_TRIVIA.id))+(zahl[KZM_TRIVIA.id] ? ' ('+zahl[KZM_TRIVIA.id]+')' : '')+'</option>'+
     (zahl[''] || fach === '' ? '<option value=""'+(fach === '' ? ' selected' : '')+'>Ohne Fach ('+(zahl[''] || 0)+')</option>' : '')+
-    '</select>'+(fach ? '<button class="btn btn-ghost btn-sm" id="kzmZumFach" type="button">📂 Im Fach öffnen</button>' : '')+
+    '</select>'+(fach && fach !== KZM_TRIVIA.id ? '<button class="btn btn-ghost btn-sm" id="kzmZumFach" type="button">📂 Im Fach öffnen</button>' : '')+
     '<button class="btn btn-ghost btn-sm" id="kzmPaket" type="button" title="Quizze, Umfragen, Wortwolken und Karteikarten aus einer .json-Datei (z. B. aus einer Unterrichtsplanung) auf einmal anlegen">📥 Paket importieren</button></div>';
-  if(fach){
+  if(fach && !trivia){
     var pfad = [], f = kzmFolder(ordner), g = 0;
     while(f && g++ < 10){ pfad.unshift(f); f = kzmFolder(f.parentId); }
     if(pfad.length){
@@ -28055,8 +28153,8 @@ function kzmMaterialZeichnen(){
   }
   h += '<div class="back-row" style="flex-wrap:wrap;">';
   Object.keys(KZM_TYPEN).forEach(function(t){
-    if(t === 'kk' && !fach) return;
-    if(t === 'pruefung' && !fach) return;
+    if(t === 'kk' && (!fach || trivia)) return;
+    if(t === 'pruefung' && (!fach || trivia)) return;
     h += '<button class="btn btn-primary btn-sm" data-kzmneu="'+t+'" type="button">➕ '+KZM_TYPEN[t].icon+' '+esc(KZM_TYPEN[t].name)+'</button>';
   });
   h += '</div>';
@@ -28076,7 +28174,7 @@ function kzmMaterialZeichnen(){
   var hier = items.filter(function(it){ return it.fach === fach && (it.ordner || null) === (ordner || null); });
   var reihe = ['pruefung', 'quiz', 'million', 'schaetz', 'kk', 'wolke', 'umfrage'];
   hier.sort(function(a, b){ return reihe.indexOf(a.typ) - reihe.indexOf(b.typ) || String(a.titel).localeCompare(String(b.titel), 'de'); });
-  h += '<div class="section-label">'+(ordner ? 'In diesem Ordner' : fach ? 'Direkt im Fach' : 'Ohne Fach')+'</div>';
+  h += '<div class="section-label">'+(ordner ? 'In diesem Ordner' : trivia ? kzmFachName(fach) : fach ? 'Direkt im Fach' : 'Ohne Fach')+'</div>';
   if(!hier.length) h += '<div class="empty-state">Hier ist noch nichts. Erstelle oben etwas – oder lege Vorhandenes mit «📁 Ablegen» hierher.</div>';
   hier.forEach(function(it){
     var key = esc(it.typ+'|'+it.id);
@@ -29408,12 +29506,21 @@ function openAbstVerwaltung(){
     h += '<p class="pr-hinweis" style="margin-top:0">Abstimmungen über mehrere Klassen oder Jahrgänge. Die Schüler:innen sehen oben «🗳️ Abstimmung», solange sie offen ist. Die Auswertung gibt es hier und als Excel-Datei.</p>';
     if(!isLeitung()) h += '<div class="back-row" style="margin:0 0 12px;"><button class="btn btn-primary btn-sm" id="abstNeuBtn" type="button">➕ Neue Abstimmung</button></div>';
     if(!list.length) h += '<div class="empty-state">Noch keine Abstimmungen.</div>';
-    list.forEach(function(a){
-      var offen = abstOffen(a);
-      h += '<button class="abst-zeile" data-aid="'+esc(a.id)+'" type="button">'+
-        '<span class="abst-status '+(offen ? 'offen' : 'zu')+'">'+(offen ? 'offen' : 'geschlossen')+'</span>'+
-        '<span class="abst-zeile-txt"><b>'+esc(a.titel || 'Abstimmung')+'</b><small>'+esc(abstKlassenText(a.klassen))+' · '+esc(abstDatum(a.erstelltAm))+(a.erstelltVon ? ' · '+esc(a.erstelltVon) : '')+'</small></span>'+
-        '<span class="abst-pfeil">›</span></button>';
+    // Abstimmungen haben kein Fach – geordnet nach offen / geschlossen (geschlossene zugeklappt, Zustand gemerkt wie bei kzmGruppiert)
+    var gemerkt = kzmOffenLesen('abst') || {};
+    [['offen', '🟢 Offen', true], ['zu', '🔒 Geschlossen', false]].forEach(function(g){
+      var drin = list.filter(function(a){ return (abstOffen(a) ? 'offen' : 'zu') === g[0]; });
+      if(!drin.length) return;
+      var auf = Object.prototype.hasOwnProperty.call(gemerkt, g[0]) ? !!gemerkt[g[0]] : g[2];
+      h += '<details class="kzm-gruppe" data-kzmliste="abst" data-kzmfach="'+g[0]+'"'+(auf ? ' open' : '')+'><summary><span>'+g[1]+'</span><span class="kzm-g-zahl">'+drin.length+'</span></summary><div class="kzm-g-inhalt"><div class="kzm-g-liste">';
+      drin.forEach(function(a){
+        var offen = abstOffen(a);
+        h += '<button class="abst-zeile" data-aid="'+esc(a.id)+'" type="button">'+
+          '<span class="abst-status '+(offen ? 'offen' : 'zu')+'">'+(offen ? 'offen' : 'geschlossen')+'</span>'+
+          '<span class="abst-zeile-txt"><b>'+esc(a.titel || 'Abstimmung')+'</b><small>'+esc(abstKlassenText(a.klassen))+' · '+esc(abstDatum(a.erstelltAm))+(a.erstelltVon ? ' · '+esc(a.erstelltVon) : '')+'</small></span>'+
+          '<span class="abst-pfeil">›</span></button>';
+      });
+      h += '</div></div></details>';
     });
     h += '<div class="modal-actions"><button class="btn btn-ghost btn-sm" id="modalCancel" type="button">Schliessen</button></div>';
     openModal(h, 'modal-wide');
@@ -32609,10 +32716,14 @@ function pruefListeZeichnen(){
   if(!el) return;
   if(!pruef.unsub){ el.innerHTML = '<div class="empty-state">Wird geladen …</div>'; return; }
   if(!pruef.list.length){ el.innerHTML = '<div class="empty-state">Noch keine Prüfung. Leg mit «➕ Neue Prüfung» eine an.</div>'; return; }
-  el.innerHTML = '<div class="pr-liste">' + pruef.list.map(function(p){
-    return '<button class="pr-karte" data-id="'+esc(p.id)+'" type="button"><div><b>'+esc(p.titel)+'</b> '+pruefStatusBadge(p)+'</div>'+
-      '<small>'+esc(pruefBeschreibung(p, false))+'</small></button>';
-  }).join('') + '</div>';
+  if(!kzm.folders){ kzmLoad().then(function(){ if(kzm.folders) pruefListeZeichnen(); }); }
+  // nach Fach › Ordner wie das übrige Material (der Ordner bestimmt den Ort, sonst das Notenfach)
+  el.innerHTML = kzmGruppiert('pruefung', pruef.list.map(function(p){
+    var f = kzmFolder(p.folderId);
+    return {fach:f ? f.subject : pruefFach(p), ordner:f ? f.id : null,
+      html:'<button class="pr-karte" data-id="'+esc(p.id)+'" type="button"><div><b>'+esc(p.titel)+'</b> '+pruefStatusBadge(p)+'</div>'+
+      '<small>'+esc(pruefBeschreibung(p, false))+'</small></button>'};
+  }));
   Array.prototype.forEach.call(el.querySelectorAll('[data-id]'), function(b){
     b.addEventListener('click', function(){ state.route = {name:'pruefung', id:b.getAttribute('data-id')}; render(); });
   });
@@ -36814,21 +36925,16 @@ function openKkVerwaltung(){
   Promise.all([kkLoad(true), kzmLoad(true)]).then(function(){ paintKkVerwaltung(); }).catch(function(){ closeModal(); toast('Karteikarten konnten nicht geladen werden.'); });
 }
 function paintKkVerwaltung(){
-  var sets = (kkDaten.sets || []).slice().sort(function(a, b){
-    return (a.fach || '').localeCompare(b.fach || '') || a.titel.localeCompare(b.titel, 'de');
-  });
+  var sets = (kkDaten.sets || []).slice().sort(function(a, b){ return a.titel.localeCompare(b.titel, 'de'); });
   var h = '<h3>🗂️ Karteikarten</h3>';
   h += '<p class="kk-ed-info">Pro Fach beliebig viele Sets. Die Klasse findet sie im jeweiligen Fach zuoberst unter «🗂️ Karteikarten» und übt sie mit fünf Leitner-Boxen – liegt ein Set in einem Ordner, steht es zusätzlich direkt in diesem Ordner.</p>';
   h += '<div class="back-row"><button class="btn btn-primary btn-sm" id="kkVwNeu" type="button">➕ Neues Set</button></div>';
   if(!sets.length) h += '<div class="empty-state">Noch keine Sets. Leg oben das erste an.</div>';
-  h += '<div class="kk-liste">';
-  sets.forEach(function(set){
-    var f = subjectById(set.fach);
-    h += '<div class="kk-set-zeile"><b>'+esc(set.titel)+'</b> <span>'+esc(f ? kzmOrtText(set.fach, set.ordner) : set.fach)+' · '+set.karten.length+' Karten</span>'+
+  h += '<div class="kk-liste">'+kzmGruppiert('kk', sets.map(function(set){
+    return {fach:set.fach || '', ordner:set.ordner || null, html:'<div class="kk-set-zeile"><b>'+esc(set.titel)+'</b> <span>'+set.karten.length+' Karten</span>'+
       '<span class="kk-set-akt"><button class="btn btn-ghost btn-sm" data-kkueb="'+esc(set.id)+'" type="button">📊</button>'+
-      '<button class="btn btn-ghost btn-sm" data-kked="'+esc(set.id)+'" type="button">✏️ Bearbeiten</button></span></div>';
-  });
-  h += '</div>';
+      '<button class="btn btn-ghost btn-sm" data-kked="'+esc(set.id)+'" type="button">✏️ Bearbeiten</button></span></div>'};
+  }))+'</div>';
   h += '<div class="modal-actions"><button class="btn btn-ghost btn-sm" id="kkVwClose" type="button">Schliessen</button></div>';
   openModal(h, 'pr-modal pr-modal-breit');
   document.getElementById('kkVwClose').addEventListener('click', closeModal);
