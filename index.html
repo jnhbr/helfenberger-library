@@ -274,16 +274,11 @@
   .subject-card h3{font-size:18px;}
   /* iOS-Safari färbt Button-Text sonst systemblau – Fachnamen immer in Textfarbe */
   .subject-card, .subject-card h3{color:var(--text);}
-  /* ✨ Bewegung beim Anklicken: Kachel sinkt wie eine Taste ein, die Illustration fliegt in den Fachkopf (View Transitions) */
+  /* ✨ Bewegung beim Anklicken: Kachel sinkt wie eine Taste ein */
   .subject-card:active,.subject-card.gedrueckt{transform:translateY(3px) scale(.985);box-shadow:0 3px 8px -6px rgba(20,20,40,.35);transition-duration:.07s;}
   :root[data-design="neu"] .subject-card:active,:root[data-design="neu"] .subject-card.gedrueckt{transform:translateY(5px);box-shadow:0 1px 0 var(--fach, var(--kontur));}
   body.wackeln .subject-card:active{transform:none;}
-  ::view-transition-group(fach-bild){animation-duration:.34s;animation-timing-function:cubic-bezier(.22,1,.36,1);}
-  ::view-transition-old(root),::view-transition-new(root){animation-duration:.2s;}
-  @media (prefers-reduced-motion: reduce){
-    .subject-card:active,.subject-card.gedrueckt{transform:none;}
-    ::view-transition-group(*),::view-transition-old(*),::view-transition-new(*){animation:none !important;}
-  }
+  @media (prefers-reduced-motion: reduce){ .subject-card:active,.subject-card.gedrueckt{transform:none;} }
   .subject-meta{font-size:12.5px;color:var(--text-muted);}
   .subject-bar{height:7px;border-radius:99px;background:var(--surface-2);overflow:hidden;}
   .subject-bar span{display:block;height:100%;border-radius:99px;transition:width .4s ease;}
@@ -8486,35 +8481,14 @@ function verlaufVor(){
   state.route = r; render();
 }
 function goHome(){ state.route = {name:'home'}; render(); }
-// ✨ Fach-Kachel: kurz eindrücken, dann die Illustration per View Transition in den Fachkopf fliegen lassen.
-// Ohne View Transitions (ältere Browser) oder mit «Bewegung reduzieren» öffnet das Fach wie bisher.
+// ✨ Fach-Kachel: kurz sichtbar eindrücken, dann öffnen (mit «Bewegung reduzieren» sofort).
 function bewegungReduziert(){ try{ return window.matchMedia('(prefers-reduced-motion: reduce)').matches; }catch(e){ return false; } }
-function mitFachUebergang(vonBild, wechsel, zielSelektor){
-  if(!document.startViewTransition || !vonBild || bewegungReduziert()){ wechsel(); return; }
-  vonBild.style.viewTransitionName = 'fach-bild';
-  var ue;
-  try{
-    ue = document.startViewTransition(function(){
-      wechsel();
-      var ziel = document.querySelector(zielSelektor);
-      if(ziel) ziel.style.viewTransitionName = 'fach-bild';
-    });
-  }catch(e){ vonBild.style.viewTransitionName = ''; wechsel(); return; }
-  ue.finished.finally(function(){
-    var ziel = document.querySelector(zielSelektor);
-    if(ziel) ziel.style.viewTransitionName = '';
-  });
-}
 function fachKachelOeffnen(btn){
   if(btn.classList.contains('gedrueckt')) return;
   var id = btn.getAttribute('data-subject');
-  var los = function(){ mitFachUebergang(btn.querySelector('.subject-visual'), function(){ goSubject(id); }, '.subject-head .subject-visual'); };
-  if(bewegungReduziert()){ los(); return; }
+  if(bewegungReduziert()){ goSubject(id); return; }
   btn.classList.add('gedrueckt');
-  setTimeout(los, 90);
-}
-function fachZurueck(subjectId){
-  mitFachUebergang(document.querySelector('.subject-head .subject-visual'), goHome, '.subject-card[data-subject="'+subjectId+'"] .subject-visual');
+  setTimeout(function(){ goSubject(id); }, 90);
 }
 function goSubject(id, folderId){
   var sameSubject = state.route.name === 'subject' && state.route.subject === id;
@@ -14272,7 +14246,7 @@ function renderSubject(subjectId, folderId){
   html += '<div id="bkListe" class="resource-list bk-liste bk-unten"></div>';
 
   renderChrome(html);
-  document.getElementById('backBtn').addEventListener('click', function(){ fachZurueck(subjectId); });
+  document.getElementById('backBtn').addEventListener('click', goHome);
   if(subjectId === 'sva'){ svaKopfVerdrahten(); svaPrivatZeigen(); svaAchtungZeigen(); svaBkNachfuehren(); }
   var diktatAnalyseBtn = document.getElementById('diktatAnalyseBtn');
   if(diktatAnalyseBtn){
@@ -21231,7 +21205,7 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
-  {id:'2026-10-17-bewegung-klick', datum:'2026-10-17', fuer:'alle', text:'✨ Mehr Schwung: Fach-Kacheln drücken sich beim Antippen ein wie eine Taste, und das Fachbild fliegt mit auf die Fachseite. Im ⚡ Übungstrainer poppen richtige Aufgaben nach dem Auswerten mit einem Haken auf, und dein Wochenziel-Ring füllt sich sichtbar.'},
+  {id:'2026-10-17-bewegung-klick', datum:'2026-10-17', fuer:'alle', text:'✨ Mehr Schwung: Fach-Kacheln drücken sich beim Antippen ein wie eine Taste. Im ⚡ Übungstrainer poppen richtige Aufgaben nach dem Auswerten mit einem Haken auf, und dein Wochenziel-Ring füllt sich sichtbar.'},
   {id:'2026-10-17-kz-ordner-zu', datum:'2026-10-17', fuer:'lehrer', text:'📁 Im 🏫 Klassenzimmer lassen sich jetzt auch die Ordner innerhalb eines Fachs auf- und zuklappen. Beim Öffnen einer Liste ist alles eingeklappt – du siehst zuerst nur die Fächer.'},
   {id:'2026-10-17-kz-nach-fach', datum:'2026-10-17', fuer:'lehrer', text:'🗂️ Ordnung im 🏫 Klassenzimmer: Klassen-Quiz, Spiel- und Schätz-Sets, Karteikarten, gespeicherte Wortwolken und Blitzumfragen, Prüfungen und die Fragen-Auswahl der Spiele stehen jetzt nach Fach und darin nach Ordner, je Fach ein- und ausklappbar (beim Öffnen ist alles eingeklappt). Neu gibt es das Fach «🎲 Trivia» für Allgemeinwissen-Quizze und Spiel-Sets ohne Fachbezug – beim Anlegen oder mit «📁 Ablegen» wählen. Abstimmungen sind nach offen / geschlossen geordnet.'},
   {id:'2026-10-17-abgabe-kacheln', datum:'2026-10-17', fuer:'lehrer', text:'✅ Abgabe-Checkliste: Statt Kästchen gibt es jetzt Namens-Kacheln – antippen, und sie wird grün mit Haken. Alle Namen bleiben in einem Fenster sichtbar.'},
