@@ -133,6 +133,8 @@ function zelleFuer(titel) {
   if (kl) z.kl = kl[1];
   return z;
 }
+// Vergleich unabhängig von der Reihenfolge der Felder (Firestore liefert sie sortiert zurück).
+const gleich = (o) => (o ? JSON.stringify(Object.keys(o).sort().map((k) => [k, o[k]])) : '');
 const lektion = (z) => !!z && !z.frei && !!(z.f || z.t);
 
 // Zeilen, die ein Termin von..bis überdeckt (mind. 10 Minuten)
@@ -239,7 +241,7 @@ function zeilenVon(von, bis) {
     for (const s of new Set(Object.keys(ist).concat(Object.keys(sol)))) {
       const a = ist[s], b = sol[s];
       if (a && a.q !== 'kal') { if (b) notiz.eigeneVor++; continue; }   // in der Library eingetragen
-      if (b && JSON.stringify(a) !== JSON.stringify(b)) { tag[s] = b; a ? notiz.geaendert++ : notiz.neu++; }
+      if (b && gleich(a) !== gleich(b)) { tag[s] = b; a ? notiz.geaendert++ : notiz.neu++; }
       else if (a && !b) { tag[s] = FV.delete(); notiz.weg++; }
     }
     if (Object.keys(tag).length) feld[d] = tag;
