@@ -743,6 +743,13 @@
   .viewer-head{display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
   .viewer-head h2{font-size:19px;flex:1;}
   .viewer-progress{font-size:13px;color:var(--text-muted);}
+  /* 🎬 Erklärvideo (Simple Duck) über der Übungsseite — das YouTube-iframe (nocookie) lädt erst nach dem Klick. */
+  .erklaervideo{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 14px;display:flex;flex-direction:column;gap:10px;}
+  .erklaervideo-zeile{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+  .erklaervideo-zeile .ev-titel{flex:1;min-width:180px;font-size:14px;}
+  .erklaervideo-zeile .ev-titel b{display:block;font-size:12px;color:var(--text-muted);font-weight:600;}
+  .erklaervideo-player{position:relative;width:100%;max-width:720px;aspect-ratio:16/9;border-radius:var(--radius-sm);overflow:hidden;background:#000;}
+  .erklaervideo-player iframe{position:absolute;inset:0;width:100%;height:100%;border:0;}
   .viewer-frame-wrap{position:relative;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden;height:calc(100vh - 210px);min-height:420px;}
   .viewer-frame-wrap iframe{width:100%;height:100%;border:0;display:block;background:#fff;}
   .viewer-frame-wrap:fullscreen,
@@ -9359,6 +9366,8 @@ var KIB_ZIELE = {
    f = Frage (steht auch auf den Vorschlägen), w = zusätzliche Suchwörter, a = Antwort, ziel = Knopf aus KIB_ZIELE. */
 var KIB_WISSEN = [
   // ---------- für alle ----------
+  {id:'erklaervideo', fuer:'alle', f:'Was ist das Erklärvideo über der Übung?', w:'video youtube simple duck film erklärung ente',
+   a:'Bei manchen Übungen steht oben ein kurzes Erklärvideo von «Simple Duck». Tippe auf «▶ Ansehen», um es zu starten, und auf «✕ Schliessen», um es wieder zuzuklappen. Das Video lädt erst, wenn du darauf tippst.'},
   {id:'passwort', fuer:'alle', f:'Wie ändere ich mein Passwort?', w:'kennwort pw neues passwort wechseln setzen', ziel:'einstellungen',
    a:'Öffne ⚙️ Einstellungen und tippe auf «🔑 Passwort ändern». Gib dein Passwort nie weiter.'},
   {id:'abmelden', fuer:'alle', f:'Wie melde ich mich ab?', w:'ausloggen logout abmeldung konto wechseln anderes konto', ziel:'einstellungen',
@@ -16283,6 +16292,51 @@ function injectExerciseHelpers(html, rid){
   }
 }
 
+/* ===================== 🎬 ERKLÄRVIDEOS (Simple Duck) =====================
+   resources/{id}.erklaervideos = [{id:'<YouTube-Video-ID>', titel:'…', ab?:ISO-Zeit, episode}], gesetzt von
+   ~/Desktop/Claude/Projekte/wissens-shorts/werkzeuge/library.mjs (auf allen Kopien mit demselben
+   Inhalt). Eingebettet über youtube-nocookie.com, kein Autoplay; das iframe entsteht erst beim Klick,
+   vorher wird nichts von YouTube geladen. Mit ERKLAERVIDEO_LIVE = false wieder nur auf der Testseite. */
+var ERKLAERVIDEO_LIVE = true;   // seit 18.10.2026 freigegeben (Jan)
+function erklaervideos(r){
+  if(!IS_TEST_SITE && !ERKLAERVIDEO_LIVE) return [];
+  return (Array.isArray(r.erklaervideos) ? r.erklaervideos : []).filter(function(v){
+    // ab = Veröffentlichungszeit eines auf Sonntag geplanten Videos: vorher nicht zeigen (wäre noch privat).
+    return v && /^[A-Za-z0-9_-]{11}$/.test(v.id || '') && !(v.ab && Date.now() < Date.parse(v.ab));
+  });
+}
+function erklaervideoHtml(r){
+  var vs = erklaervideos(r);
+  if(!vs.length) return '';
+  var html = '<div class="erklaervideo" id="erklaervideo">';
+  vs.forEach(function(v, i){
+    html += '<div class="erklaervideo-zeile"><span style="font-size:22px;">🎬</span>';
+    html += '<span class="ev-titel"><b>Erklärvideo</b>'+esc(v.titel || 'Video')+'</span>';
+    html += '<button class="btn btn-primary btn-sm" type="button" data-ev="'+i+'">▶ Ansehen</button></div>';
+  });
+  html += '<div class="erklaervideo-player" id="erklaervideoPlayer" style="display:none;"></div>';
+  html += '</div>';
+  return html;
+}
+function wireErklaervideo(r){
+  var box = document.getElementById('erklaervideo');
+  if(!box) return;
+  var vs = erklaervideos(r), offen = -1;
+  box.querySelectorAll('[data-ev]').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var i = Number(btn.dataset.ev);
+      var player = document.getElementById('erklaervideoPlayer');
+      box.querySelectorAll('[data-ev]').forEach(function(b){ b.textContent = '▶ Ansehen'; });
+      if(offen === i){ player.innerHTML = ''; player.style.display = 'none'; offen = -1; return; }
+      var v = vs[i]; if(!v) return;
+      player.innerHTML = '<iframe src="https://www.youtube-nocookie.com/embed/'+v.id+'?rel=0&modestbranding=1&playsinline=1" title="'+esc(v.titel || 'Erklärvideo').replace(/"/g,'&quot;')+'" allow="encrypted-media; picture-in-picture; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>';
+      player.style.display = '';
+      btn.textContent = '✕ Schliessen';
+      offen = i;
+    });
+  });
+}
+
 /* ===================== RENDER: RESOURCE VIEWER ===================== */
 
 var currentViewerResourceId = null;
@@ -16312,6 +16366,7 @@ function renderResource(r){
   else if(darfAuswertenApp()){ html += '<button class="btn btn-ghost btn-sm" id="liveBtn" type="button" title="Live sehen, wo die Klasse steht">📡 Live</button>'; }
   html += '<button class="btn btn-ghost btn-sm btn-fs" id="fsBtn" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3"/></svg> Vollbild</button>';
   html += '</div>';
+  html += erklaervideoHtml(r);
   html += '<div class="viewer-frame-wrap" id="frameWrap">';
   html += '<button class="btn-fs-overlay-exit" id="fsExitBtn" type="button" title="Vollbild verlassen" aria-label="Vollbild verlassen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3v3a2 2 0 0 1-2 2H4M15 3v3a2 2 0 0 0 2 2h3M9 21v-3a2 2 0 0 0-2-2H4M15 21v-3a2 2 0 0 1 2-2h3"/></svg></button>';
   html += '<iframe id="resourceFrame" title="'+esc(r.title||r.fileName)+'" allow="clipboard-read; clipboard-write"></iframe>';
@@ -16321,6 +16376,7 @@ function renderResource(r){
   renderChrome(html);
   document.getElementById('backBtn').addEventListener('click', function(){ goSubject(r.subject, r.folderId || null); });
   wireFullscreen();
+  wireErklaervideo(r);
   var liveBtn = document.getElementById('liveBtn');
   if(liveBtn){ liveBtn.addEventListener('click', function(){ openLiveKlasse(r); }); }
 
@@ -21205,6 +21261,7 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-10-18-erklaervideo', datum:'2026-10-18', fuer:'alle', text:'🎬 Erklärvideos: Bei manchen Übungen steht oben jetzt ein kurzes Erklärvideo von «Simple Duck». Tipp auf «▶ Ansehen» – das Video erklärt dir den Stoff in ein paar Minuten, danach übst du gleich darunter.'},
   {id:'2026-10-17-bewegung-klick', datum:'2026-10-17', fuer:'alle', text:'✨ Mehr Schwung: Fach-Kacheln drücken sich beim Antippen ein wie eine Taste. Im ⚡ Übungstrainer poppen richtige Aufgaben nach dem Auswerten mit einem Haken auf, und dein Wochenziel-Ring füllt sich sichtbar.'},
   {id:'2026-10-17-kz-ordner-zu', datum:'2026-10-17', fuer:'lehrer', text:'📁 Im 🏫 Klassenzimmer lassen sich jetzt auch die Ordner innerhalb eines Fachs auf- und zuklappen. Beim Öffnen einer Liste ist alles eingeklappt – du siehst zuerst nur die Fächer.'},
   {id:'2026-10-17-kz-nach-fach', datum:'2026-10-17', fuer:'lehrer', text:'🗂️ Ordnung im 🏫 Klassenzimmer: Klassen-Quiz, Spiel- und Schätz-Sets, Karteikarten, gespeicherte Wortwolken und Blitzumfragen, Prüfungen und die Fragen-Auswahl der Spiele stehen jetzt nach Fach und darin nach Ordner, je Fach ein- und ausklappbar (beim Öffnen ist alles eingeklappt). Neu gibt es das Fach «🎲 Trivia» für Allgemeinwissen-Quizze und Spiel-Sets ohne Fachbezug – beim Anlegen oder mit «📁 Ablegen» wählen. Abstimmungen sind nach offen / geschlossen geordnet.'},
