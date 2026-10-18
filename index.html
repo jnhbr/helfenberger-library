@@ -21261,6 +21261,7 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-10-18-stp-zusatzzeilen', datum:'2026-10-18', fuer:'lehrer', text:'🗓️ Stundenplan: Steht ein 📌 Termin über Mittag oder am Abend (z. B. Konvent, Sitzung), erscheint die passende Zusatzzeile jetzt automatisch in dieser Woche.'},
   {id:'2026-10-18-erklaervideo', datum:'2026-10-18', fuer:'alle', text:'🎬 Erklärvideos: Bei manchen Übungen steht oben jetzt ein kurzes Erklärvideo von «Simple Duck». Tipp auf «▶ Ansehen» – das Video erklärt dir den Stoff in ein paar Minuten, danach übst du gleich darunter.'},
   {id:'2026-10-17-bewegung-klick', datum:'2026-10-17', fuer:'alle', text:'✨ Mehr Schwung: Fach-Kacheln drücken sich beim Antippen ein wie eine Taste. Im ⚡ Übungstrainer poppen richtige Aufgaben nach dem Auswerten mit einem Haken auf, und dein Wochenziel-Ring füllt sich sichtbar.'},
   {id:'2026-10-17-kz-ordner-zu', datum:'2026-10-17', fuer:'lehrer', text:'📁 Im 🏫 Klassenzimmer lassen sich jetzt auch die Ordner innerhalb eines Fachs auf- und zuklappen. Beim Öffnen einer Liste ist alles eingeklappt – du siehst zuerst nur die Fächer.'},
@@ -42109,9 +42110,13 @@ var STP_EXTRA = [
 ];
 function stpBelegt(plan, sl){ return [0,1,2,3,4].some(function(t){ return !stpLeer(plan.zelle(stpKey(t, sl))); }); }
 // Alle anzuzeigenden Zeilen, nach Zeit sortiert: {s (Index oder Zusatz-ID), von, bis, nr, extra}
-function stpZeilen(plan){
+// Eine Zusatzzeile erscheint auch, wenn an einem der Tage (daten, sonst die angezeigte Woche) nur ein
+// ausserordentlicher Termin darin steht (z. B. Konvent am Abend aus dem Kalender-Abgleich).
+function stpZeilen(plan, daten){
   var rows = plan.zeiten.map(function(z, i){ return {s:i, von:z.von, bis:z.bis, nr:String(i+1)}; });
-  STP_EXTRA.forEach(function(x){ if(stpBelegt(plan, x.s)) rows.push({s:x.s, von:x.von, bis:x.bis, nr:'＋', extra:true}); });
+  if(!daten && plan.ansicht && !(stp.bearbeiten && stp.modus !== 'woche')) daten = [0,1,2,3,4].map(stpDatum);
+  function mitTermin(sl){ return !!daten && daten.some(function(d){ return !!stpTermin(plan.ansicht, d, sl); }); }
+  STP_EXTRA.forEach(function(x){ if(stpBelegt(plan, x.s) || mitTermin(x.s)) rows.push({s:x.s, von:x.von, bis:x.bis, nr:'＋', extra:true}); });
   rows.sort(function(a, b){ return stpMin(a.von) - stpMin(b.von); });
   return rows;
 }
@@ -42224,7 +42229,8 @@ function stpGleich(a, b){
 }
 
 // Welcher Plan wird angezeigt? 'mein' (LP: eigener Plan; SuS: Klassenplan + eigene Änderungen) oder 'klasse'.
-function stpPlan(ansicht){
+function stpPlan(ansicht){ var p = stpPlanRoh(ansicht); p.ansicht = ansicht; return p; }
+function stpPlanRoh(ansicht){
   var lehrer = state.profile.role === 'teacher';
   if(ansicht === 'klasse') return { zeiten: stp.klasse.zeiten || STP_ZEITEN_STANDARD, zelle:function(k){ return stp.klasse.zellen[k]; } };
   if(ansicht === 'lp'){
@@ -42845,7 +42851,8 @@ function stpZeitenBearbeiten(){
 
 // Startseiten-Widget «Jetzt / Als Nächstes».
 function stpNaechste(){
-  var plan = stpPlan('mein'), zeiten = stpZeilen(plan), heute = stpHeute(), jetzt = stpJetztMin(), heuteStr = todayStr();
+  var heuteStr = todayStr(), plan = stpPlan('mein'), heute = stpHeute(), jetzt = stpJetztMin();
+  var zeiten = stpZeilen(plan, Array.apply(null, Array(25)).map(function(_, i){ return rbuPlusTage(heuteStr, i); }));
   // Mit Datum: in den Ferien gibt es keine Lektionen, ausserordentliche Termine gehen vor.
   function lektion(datum, i){ var z = zeiten[i], a = stpAm(plan, 'mein', datum, z.s), c = a.c; var info = stpInfo(c); return info ? {tag:rbuTag(datum), i:i, c:c, info:info, z:z, par:a.par ? a.termin.c.t || 'Termin' : ''} : null; }
   var aktuell = null, danach = null;
