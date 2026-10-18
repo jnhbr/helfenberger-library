@@ -36,8 +36,8 @@ const ZEITEN = [
   { von: '13:30', bis: '14:15' }, { von: '14:20', bis: '15:05' }, { von: '15:20', bis: '16:05' }, { von: '16:10', bis: '16:55' }
 ];
 const EXTRA = [
-  { s: 'm1', von: '11:50', bis: '12:35' }, { s: 'm2', von: '12:40', bis: '13:25' },
-  { s: 'a1', von: '17:00', bis: '17:45' }, { s: 'a2', von: '17:50', bis: '18:35' }
+  { s: 'm1', von: '11:55', bis: '12:40' }, { s: 'm2', von: '12:45', bis: '13:30' },
+  { s: 'a1', von: '16:55', bis: '17:40' }, { s: 'a2', von: '17:45', bis: '18:30' }
 ];
 // Wie FERIEN_TG in index.html (bei neuen Schuljahren dort und hier nachführen).
 const FERIEN = [
