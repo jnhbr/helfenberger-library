@@ -16225,6 +16225,7 @@ function stopTimeTracking(){
 
 document.addEventListener('visibilitychange', function(){
   if(!timeTrack.resourceId) return;
+  if(libFensterOffen(timeTrack.resourceId)) return;   // 🪟 Übung läuft im eigenen Fenster weiter
   if(document.visibilityState === 'hidden'){
     flushTimeTracking();
     timeTrack.startedAt = null;
@@ -16392,6 +16393,7 @@ function renderResource(r){
   html += '<div class="viewer-head"><h2>'+esc(r.title || r.fileName)+'</h2><span class="viewer-progress" id="viewerProgress"></span>';
   if(r.vorschau){ html += '<span class="topbar-offline">Vorschau aus '+esc(r.quelle)+'</span>'; }
   else if(darfAuswertenApp()){ html += '<button class="btn btn-ghost btn-sm" id="liveBtn" type="button" title="Live sehen, wo die Klasse steht">📡 Live</button>'; }
+  html += libFensterBtnHtml('fensterBtn');
   html += '<button class="btn btn-ghost btn-sm btn-fs" id="fsBtn" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3"/></svg> Vollbild</button>';
   html += '</div>';
   html += erklaervideoHtml(r);
@@ -16405,6 +16407,10 @@ function renderResource(r){
   document.getElementById('backBtn').addEventListener('click', function(){ goSubject(r.subject, r.folderId || null); });
   wireFullscreen();
   wireErklaervideo(r);
+  wireLibFensterBtn('fensterBtn', function(){
+    var fr = document.getElementById('resourceFrame');
+    return fr && fr.srcdoc ? {html: libFensterHtml(fr.srcdoc, r)} : null;
+  }, r);
   var liveBtn = document.getElementById('liveBtn');
   if(liveBtn){ liveBtn.addEventListener('click', function(){ openLiveKlasse(r); }); }
 
@@ -16435,8 +16441,13 @@ function renderResource(r){
   Promise.all([contentPromise, prepareResourceSync(r.id)]).then(function(res){
     var chunkSnaps = res[0];
     var html = chunkSnaps.map(function(s){ return (s.exists() && s.data().html) || ''; }).join('');
-    i18nFrame(document.getElementById('resourceFrame'), r.subject);
-    document.getElementById('resourceFrame').srcdoc = injectExerciseHelpers(html, r.id);
+    var frame = document.getElementById('resourceFrame');
+    if(!frame) return;
+    // Läuft die Übung schon im eigenen Fenster: hier nicht ein zweites Mal starten
+    // (beide würden sonst in denselben localStorage-Stand schreiben).
+    if(libFensterOffen(r.id)){ libFensterPlatzhalter(); return; }
+    i18nFrame(frame, r.subject);
+    frame.srcdoc = injectExerciseHelpers(html, r.id);
   }).catch(function(err){
     console.error(err);
     var wrap = document.querySelector('.viewer-frame-wrap');
@@ -16452,6 +16463,7 @@ function renderLinkResource(r){
   html += '<div class="back-row"><button class="btn btn-ghost btn-sm" id="backBtn">&larr; '+esc(s ? s.name : 'Fach')+'</button></div>';
   html += '<div class="viewer-head"><h2>'+esc(r.title)+'</h2><span class="viewer-progress">LMVZ</span>';
   html += '<a class="btn btn-ghost btn-sm" href="'+esc(r.linkUrl)+'" target="_blank" rel="noopener">↗ Neuer Tab</a>';
+  html += libFensterBtnHtml('fensterBtn');
   html += '<button class="btn btn-ghost btn-sm btn-fs" id="fsBtn" type="button">'+FS_ICON_ENTER+'</button>';
   html += '</div>';
   html += '<div class="viewer-frame-wrap" id="frameWrap">';
@@ -16461,6 +16473,7 @@ function renderLinkResource(r){
   renderChrome(html);
   document.getElementById('backBtn').addEventListener('click', function(){ goSubject(r.subject, r.folderId || null); });
   wireFullscreen();
+  wireLibFensterBtn('fensterBtn', function(){ return {url: r.linkUrl}; }, r);
 }
 
 // PDF aus Firestore: als Blob-URL im gleichen Viewer (inkl. Vollbild), dazu
@@ -16473,6 +16486,7 @@ function renderPdfResource(r){
   html += '<div class="back-row"><button class="btn btn-ghost btn-sm" id="backBtn">&larr; '+esc(s ? s.name : 'Fach')+'</button></div>';
   html += '<div class="viewer-head"><h2>'+esc(r.title || r.fileName)+'</h2><span class="viewer-progress">📄 PDF</span>';
   html += '<a class="btn btn-ghost btn-sm" id="pdfTabBtn" target="_blank" rel="noopener" style="display:none;">↗ Neuer Tab</a>';
+  html += libFensterBtnHtml('fensterBtn');
   html += '<button class="btn btn-ghost btn-sm btn-fs" id="fsBtn" type="button">'+FS_ICON_ENTER+'</button>';
   html += '</div>';
   html += '<div class="viewer-frame-wrap" id="frameWrap">';
@@ -16482,6 +16496,7 @@ function renderPdfResource(r){
   renderChrome(html);
   document.getElementById('backBtn').addEventListener('click', function(){ goSubject(r.subject, r.folderId || null); });
   wireFullscreen();
+  wireLibFensterBtn('fensterBtn', function(){ return pdfViewerUrl ? {url: pdfViewerUrl} : null; }, r);
   loadResourcePdfBlob(resourceContentId(r)).then(function(blob){
     if(currentViewerResourceId !== r.id) return;
     pdfViewerUrl = URL.createObjectURL(blob);
@@ -16493,6 +16508,101 @@ function renderPdfResource(r){
     var wrap = document.querySelector('.viewer-frame-wrap');
     if(wrap) wrap.innerHTML = '<div class="empty-state">Dieses PDF konnte nicht geladen werden.</div>';
   });
+}
+
+/* ===================== 🪟 IN NEUEM FENSTER =====================
+   Wunsch von Jan (19.10.2026): Übungen (z. B. die Präp in Mathe), LMVZ-Seiten und PDFs
+   neben «Vollbild» auch in einem eigenen Browserfenster öffnen — bildschirmgross, aber
+   verkleinerbar, damit man nebenher etwas anderes machen kann.
+   - Übungen (srcdoc): das Fenster bekommt denselben HTML-Text samt Übungs-Helfern
+     (gleicher Origin, about:blank + document.write → gleicher localStorage). window.parent
+     zeigt dort auf die Library, damit Fortschrittsmeldungen (parent.postMessage) und
+     Brücken wie window.parent.__hlSchach() weiter ankommen. Die Library bleibt dafür auf
+     der Übung stehen (Platzhalter statt iframe) und synchronisiert wie gewohnt; wer
+     die Übung in der Library verlässt, schliesst auch das Fenster. Beim Schliessen des
+     Fensters lädt der Viewer neu und zeigt den Stand aus dem Fenster.
+   - Prüfungen: kein Knopf; sobald Prüfungs-Sperre/Warteraum erscheint (pruefOverlay)
+     oder eine Prüfungssitzung läuft, wird ein offenes Fenster geschlossen. */
+var libFenster = {win:null, rid:null, timer:null, uebung:false};
+function libFensterOffen(rid){
+  return !!(libFenster.win && !libFenster.win.closed && (!rid || libFenster.rid === rid));
+}
+function libFensterZu(){
+  clearInterval(libFenster.timer);
+  var w = libFenster.win;
+  libFenster = {win:null, rid:null, timer:null, uebung:false};
+  try{ if(w && !w.closed) w.close(); }catch(e){}
+}
+function libFensterDarf(){
+  return !document.body.classList.contains('pr-lock-open') && !pruef.sess;
+}
+function libFensterBtnHtml(id){
+  // Homescreen-App auf iPhone/iPad kennt keine eigenen Fenster.
+  if(navigator.standalone) return '';
+  return '<button class="btn btn-ghost btn-sm" id="'+id+'" type="button" title="In einem eigenen Fenster öffnen (verkleinerbar)">🪟 Neues Fenster</button>';
+}
+function libFensterHtml(html, r){
+  var shim = '<script>try{if(window.opener&&window.parent===window)window.parent=window.opener;}catch(e){}<\/script>';
+  var titel = '<title>'+esc(r.title || r.fileName || 'Übung')+'</title>';
+  var headRe = /<head(\s[^>]*)?>/i;
+  if(headRe.test(html)) return html.replace(headRe, function(m){ return m + shim + (/<title[\s>]/i.test(html) ? '' : titel); });
+  return '<!doctype html><html><head><meta charset="utf-8">' + shim + titel + '</head><body>' + html + '</body></html>';
+}
+function wireLibFensterBtn(id, quelle, r){
+  var btn = document.getElementById(id);
+  if(!btn) return;
+  btn.addEventListener('click', function(){
+    var src = quelle();
+    if(!src){ toast('Lädt noch … bitte gleich nochmals.'); return; }
+    libFensterOeffnen(r, src);
+  });
+}
+function libFensterOeffnen(r, src){
+  if(!libFensterDarf()){ toast('Während einer Prüfung geht das nicht.'); return; }
+  libFensterZu();
+  var bw = screen.availWidth || 1280, bh = screen.availHeight || 800;
+  var w = window.open(src.url || '', 'libFenster', 'popup=yes,width='+bw+',height='+bh+',left=0,top=0,resizable=yes,scrollbars=yes');
+  if(!w){ toast('Das Fenster wurde blockiert — bitte Pop-ups für die Library erlauben.'); return; }
+  if(src.html != null){
+    try{ w.document.open(); w.document.write(src.html); w.document.close(); }
+    catch(e){ console.error(e); try{ w.close(); }catch(e2){} toast('Das Fenster konnte nicht geöffnet werden.'); return; }
+  }
+  try{ w.focus(); }catch(e){}
+  if(isPseudoFsActive()) exitPseudoFullscreen();
+  libFenster = {win:w, rid:r.id, timer:null, uebung:src.html != null};
+  libFenster.timer = setInterval(function(){
+    if(!libFenster.win || !libFenster.win.closed) return;
+    var war = libFenster;
+    libFensterZu();
+    if(war.uebung && state.route.name === 'resource' && state.route.resource && state.route.resource.id === war.rid) render();
+  }, 700);
+  if(libFenster.uebung){
+    // Lernzeit läuft im Fenster weiter, auch wenn es die Library ganz verdeckt.
+    if(timeTrack.resourceId && !timeTrack.startedAt) timeTrack.startedAt = Date.now();
+    var fr = document.getElementById('resourceFrame');
+    if(fr) fr.removeAttribute('srcdoc');   // Übung im Viewer anhalten, sie läuft jetzt im Fenster
+    libFensterPlatzhalter();
+  }
+}
+function libFensterPlatzhalter(){
+  var wrap = document.getElementById('frameWrap');
+  if(!wrap) return;
+  var fr = document.getElementById('resourceFrame');
+  if(fr) fr.style.display = 'none';
+  var box = document.getElementById('fensterPlatzhalter');
+  if(!box){
+    box = document.createElement('div');
+    box.id = 'fensterPlatzhalter';
+    box.className = 'empty-state';
+    box.style.cssText = 'margin:24px;';
+    box.innerHTML = '<div style="font-size:32px;">🪟</div><p><b>Diese Übung läuft gerade in einem eigenen Fenster.</b></p>' +
+      '<p>Lass die Library offen, damit dein Stand gespeichert wird.</p>' +
+      '<p><button class="btn btn-ghost btn-sm" type="button" id="fensterHolen">🪟 Fenster zeigen</button> ' +
+      '<button class="btn btn-primary btn-sm" type="button" id="fensterZurueck">↩ Hierher zurückholen</button></p>';
+    wrap.appendChild(box);
+    box.querySelector('#fensterHolen').addEventListener('click', function(){ try{ libFenster.win.focus(); }catch(e){} });
+    box.querySelector('#fensterZurueck').addEventListener('click', function(){ libFensterZu(); render(); });
+  }
 }
 
 var FS_ICON_ENTER = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3"/></svg> Vollbild';
@@ -19499,7 +19609,17 @@ function spAutoLayout(kind, silent){
   if(!silent) toast(tables.length + ' Zweiertische gesetzt.');
 }
 
-/* ---------- Regeln ---------- */
+/* ---------- Regeln ----------
+   Neben den Paar-Regeln gibt es Regeln zum Geschlecht des Tischnachbarn:
+   "darf nicht neben Mädchen/Jungen" und "muss neben Mädchen/Jungen". Massgebend
+   ist spGender() (J/M-Knöpfe bzw. Vorbelegung). Kinder ohne Geschlecht zählen
+   bei "nicht neben" nie als Verstoss, bei "muss neben" schon. */
+var SP_G_RULES = {
+  nichtM: {g:'w', muss:false, opt:'darf nicht neben Mädchen', txt:'nicht neben Mädchen'},
+  nichtJ: {g:'m', muss:false, opt:'darf nicht neben Jungen',  txt:'nicht neben Jungen'},
+  nebenM: {g:'w', muss:true,  opt:'muss neben Mädchen',       txt:'neben einem Mädchen'},
+  nebenJ: {g:'m', muss:true,  opt:'muss neben Jungen',        txt:'neben einem Jungen'}
+};
 
 function spRulesModal(){
   function optionsHtml(sel){
@@ -19515,6 +19635,7 @@ function spRulesModal(){
       if(r.t === 'nicht') txt = esc(a?a.displayName:'?') + ' <b>nicht neben</b> ' + esc(b?b.displayName:'?');
       else if(r.t === 'zusammen') txt = esc(a?a.displayName:'?') + ' <b>neben</b> ' + esc(b?b.displayName:'?');
       else if(r.t === 'allein') txt = esc(a?a.displayName:'?') + ' <b>sitzt allein</b> am Tisch';
+      else if(SP_G_RULES[r.t]) txt = esc(a?a.displayName:'?') + ' <b>' + SP_G_RULES[r.t].txt + '</b>';
       else txt = esc(a?a.displayName:'?') + ' <b>sitzt vorne</b>';
       return '<div class="sp-rule"><span>'+txt+'</span><button class="btn btn-danger btn-sm" type="button" data-rule-del="'+i+'">Entfernen</button></div>';
     }).join('');
@@ -19525,7 +19646,8 @@ function spRulesModal(){
     h += '<p>Werden beim zufälligen Setzen berücksichtigt. Lässt sich eine Regel nicht erfüllen, wird die Variante mit den wenigsten Verstössen gewählt.</p>';
     h += '<div class="sp-rule-list" id="spRuleList">'+listHtml()+'</div>';
     h += '<div class="sp-rule-add">';
-    h += '<select class="sp-select" id="spRuleType"><option value="nicht">darf nicht neben</option><option value="zusammen">soll neben</option><option value="allein">soll allein am Tisch sitzen</option><option value="vorne">soll vorne sitzen</option></select>';
+    h += '<select class="sp-select" id="spRuleType"><option value="nicht">darf nicht neben</option><option value="zusammen">soll neben</option><option value="allein">soll allein am Tisch sitzen</option><option value="vorne">soll vorne sitzen</option>' +
+      Object.keys(SP_G_RULES).map(function(k){ return '<option value="'+k+'">'+SP_G_RULES[k].opt+'</option>'; }).join('') + '</select>';
     h += '<select class="sp-select" id="spRuleA">'+optionsHtml(null)+'</select>';
     h += '<select class="sp-select" id="spRuleB">'+optionsHtml(null)+'</select>';
     h += '<button class="btn btn-primary btn-sm" id="spRuleAdd" type="button">Hinzufügen</button>';
@@ -19537,14 +19659,15 @@ function spRulesModal(){
   function wire(){
     var typeSel = document.getElementById('spRuleType');
     var bSel = document.getElementById('spRuleB');
-    // "vorne" und "allein" betreffen nur EIN Kind — das zweite Feld verschwindet.
-    function syncB(){ bSel.style.display = (typeSel.value === 'vorne' || typeSel.value === 'allein') ? 'none' : ''; }
+    // "vorne", "allein" und die Jungen/Mädchen-Regeln betreffen nur EIN Kind — das zweite Feld verschwindet.
+    function istEinzeln(t){ return t === 'vorne' || t === 'allein' || !!SP_G_RULES[t]; }
+    function syncB(){ bSel.style.display = istEinzeln(typeSel.value) ? 'none' : ''; }
     typeSel.addEventListener('change', syncB); syncB();
     document.getElementById('spRuleAdd').addEventListener('click', function(){
       var t = typeSel.value;
       var a = document.getElementById('spRuleA').value;
       var b = bSel.value;
-      var einzeln = (t === 'vorne' || t === 'allein');
+      var einzeln = istEinzeln(t);
       if(!einzeln && a === b){ toast('Bitte zwei verschiedene Kinder wählen.'); return; }
       if(sp.doc.rules.length >= 60){ toast('Maximal 60 Regeln.'); return; }
       sp.doc.rules.push({ t:t, a:a, b: einzeln ? '' : b });
@@ -19586,9 +19709,10 @@ function spShuffleSeats(){
   var ys = spSeatTables().map(function(t){ return t.y; });
   var frontLimit = ys.length ? (Math.min.apply(null, ys) + (Math.max.apply(null, ys) - Math.min.apply(null, ys)) / 3 + 0.01) : 0;
 
-  var notPairs = [], togetherPairs = [], frontKids = [], aloneKids = [];
+  var notPairs = [], togetherPairs = [], frontKids = [], aloneKids = [], gRules = [];
   sp.doc.rules.forEach(function(r){
-    if(r.t === 'nicht') notPairs.push([r.a, r.b]);
+    if(SP_G_RULES[r.t]) gRules.push({uid:r.a, g:SP_G_RULES[r.t].g, muss:SP_G_RULES[r.t].muss});
+    else if(r.t === 'nicht') notPairs.push([r.a, r.b]);
     else if(r.t === 'zusammen') togetherPairs.push([r.a, r.b]);
     else if(r.t === 'allein') aloneKids.push(r.a);
     else if(r.t === 'vorne') frontKids.push(r.a);
@@ -19619,6 +19743,13 @@ function spShuffleSeats(){
     frontKids.forEach(function(uid){
       var sid = seatOf[uid];
       if(!sid || frontness[sid] > frontLimit) pen += 30;
+    });
+    gRules.forEach(function(r){
+      var sid = seatOf[r.uid];
+      if(!sid) return;
+      var nb = assign[partner[sid]];
+      var gleich = !!nb && spGender(nb) === r.g;
+      if(r.muss ? !gleich : gleich) pen += r.muss ? 50 : 100;
     });
     if(sp.doc.genderMode !== 'egal'){
       spSeatTables().forEach(function(t){
@@ -21289,6 +21420,8 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-10-19-neues-fenster', datum:'2026-10-19', fuer:'alle', text:'🪟 Übungen, LMVZ-Seiten und PDFs kannst du neben «Vollbild» jetzt auch «In neuem Fenster» öffnen. Das Fenster ist bildschirmgross, du kannst es aber kleiner machen und nebenher etwas anderes anschauen. In Prüfungen geht das nicht.'},
+  {id:'2026-10-19-sitzplan-jm-regeln', datum:'2026-10-19', fuer:'lehrer', text:'🪑 Sitzplan › ⚖️ Regeln: neu auch «darf nicht neben Mädchen/Jungen» und «muss neben Mädchen/Jungen» für einzelne Kinder. Massgebend sind die J/M-Knöpfe; «🎲 Zufällig setzen» hält sich daran.'},
   {id:'2026-10-19-beamer-zoom', datum:'2026-10-19', fuer:'lehrer', text:'🔍 Am Laptop zeigt die Library jetzt alles auf 90 %. Sobald du per AirPlay auf den Beamer spiegelst, stellt sie automatisch auf 125 % um, damit es dort gross genug und nicht verzerrt ist.'},
   {id:'2026-10-19-ferien-ecke', datum:'2026-10-19', fuer:'alle', text:'🚨 Der Ferien-Countdown steht jetzt unten links in der Leiste und stört nicht mehr zwischen den Knöpfen. Auf dem Handy wird er nicht mehr angezeigt.'},
   {id:'2026-10-18-lektionszeiten', datum:'2026-10-18', fuer:'alle', text:'⏰ Stundenplan: Die Lektionszeiten stimmen jetzt für alle mit dem Schul-Stundenplan überein. Die Morgenpause dauert 20 Minuten, die 4. Lektion beginnt um 10:15 und die 5. um 11:05. Die Zusatzlektionen über Mittag sind 11:55 und 12:45, am Abend 16:55 und 17:45.'},
@@ -31500,6 +31633,7 @@ function pruefOverlay(){
   }
   ov.hidden = false;
   document.body.classList.add('pr-lock-open');
+  libFensterZu();   // 🪟 In Prüfungen keine eigenen Fenster
   return ov;
 }
 function pruefLockHide(){
@@ -40498,7 +40632,7 @@ window.addEventListener('message', function(e){
   var d = e.data;
   if(!d || !d.__rswPruefFrage || !state.user) return;
   // nur aus einer Übung, die hier in der Library offen ist
-  var eigen = Array.prototype.some.call(document.querySelectorAll('iframe'), function(f){ return f.contentWindow === e.source; });
+  var eigen = Array.prototype.some.call(document.querySelectorAll('iframe'), function(f){ return f.contentWindow === e.source; }) || (libFensterOffen() && e.source === libFenster.win);
   if(!eigen) return;
   rswPassFenster = e.source;
   rswPassSenden();
@@ -42957,6 +43091,7 @@ function render(){
   if(lph.aktiv && lph.aktiv.nurUebung){ setTimeout(function(){ lphMelden(false); updateLernphaseBanner(); }, 0); }
   if(wackelnAktiv() && state.route.name !== 'home' && state.route.name !== 'klassenzimmer') wackelnEnde();
   // Übung verlassen: Stand und Lernzeit ein letztes Mal sichern, Beobachtung stoppen.
+  if(libFenster.uebung && !(state.route.name === 'resource' && state.route.resource && state.route.resource.id === libFenster.rid)) libFensterZu();
   if(state.route.name !== 'resource' && syncState.resourceId){
     stopResourceSync();
     currentViewerResourceId = null;
