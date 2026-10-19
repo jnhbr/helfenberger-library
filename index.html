@@ -3539,9 +3539,12 @@ function isLeitung(){ return !!(state.profile && state.profile.leitung); }
 // sind aber nur für Lehrpersonen sichtbar (Feld nurLehrer:true). Wie beim Lehrerbereich ein
 // Filter in der App — überall, wo Schüler:innen Übungen sehen, sowie in Lernstand/Prüfungen.
 function istLehrerHtml(r){ return !!(r && r.nurLehrer); }
+// 🙈 Ausgeblendet (Feld ausgeblendet:true): z. B. ein Lösungsdossier, das die Klasse erst
+// sehen soll, wenn das Thema durch ist. Lehrpersonen sehen es gestrichelt, Schüler:innen gar nicht.
+function istAusgeblendet(r){ return !!(r && r.ausgeblendet); }
 function fuerRolleSichtbar(r){
   var lehrer = !!(state.profile && state.profile.role === 'teacher');
-  if(istLehrerHtml(r) && !lehrer) return false;
+  if((istLehrerHtml(r) || istAusgeblendet(r)) && !lehrer) return false;
   // 🎯 Differenzierung: r.nurFuer = [uid, …] → nur diese Schüler:innen sehen die Übung.
   if(r && Array.isArray(r.nurFuer) && !lehrer && !(state.user && r.nurFuer.indexOf(state.user.uid) >= 0)) return false;
   return true;
@@ -4163,7 +4166,7 @@ function uiCalendarEntryForm(existing, onSaved){
       var found = {};
       snap.forEach(function(d){
         var res = d.data();
-        if(istLehrerHtml(res)) return;   // Lehrer-HTMLs nie im Kalender der Klasse verlinken
+        if(istLehrerHtml(res) || istAusgeblendet(res)) return;   // Lehrer-HTMLs/Ausgeblendetes nie im Kalender der Klasse verlinken
         var label = (res.pdf ? '📄 ' : res.externalUrl ? '🔗 ' : '') + (res.title || res.fileName || d.id);
         rows.push({id:d.id, label:label, current:!!res.current});
         if(selectedLinks.hasOwnProperty(d.id)){ found[d.id] = true; selectedLinks[d.id] = label; }
@@ -14512,6 +14515,17 @@ function renderFolderContents(){
         .then(function(){ toast(patch.nurLehrer ? '«'+(r.title || r.fileName)+'» sehen jetzt nur noch Lehrpersonen.' : '«'+(r.title || r.fileName)+'» ist wieder für alle sichtbar.'); })
         .catch(function(err){ console.error(err); lpBtn.disabled = false; toast('Hat nicht geklappt.'); });
     });
+    var ausBtn = document.getElementById('aus-'+r.id);
+    if(ausBtn) ausBtn.addEventListener('click', function(){
+      ausBtn.disabled = true;
+      // false statt Feld löschen: so zieht auch die nächtliche Spiegelung die Änderung nach.
+      var patch = { ausgeblendet: !istAusgeblendet(r) };
+      if(patch.ausgeblendet && r.current) patch.current = false;
+      updateDoc(kdoc('resources', r.id), patch)
+        .then(function(){ inhaltSchutzNachfuehren(r); })
+        .then(function(){ toast(patch.ausgeblendet ? '🙈 «'+(r.title || r.fileName)+'» ist für die Klasse ausgeblendet.' : '👁 «'+(r.title || r.fileName)+'» ist wieder für die Klasse sichtbar.'); })
+        .catch(function(err){ console.error(err); ausBtn.disabled = false; toast('Hat nicht geklappt.'); });
+    });
     var empBtn = document.getElementById('emp-'+r.id);
     if(empBtn) empBtn.addEventListener('click', function(){
       empBtn.disabled = true;
@@ -14868,16 +14882,18 @@ function resourceCardHtml(r, index, total, isTeacher){
   }
   var uploaded = r.uploadedAt && r.uploadedAt.toDate ? r.uploadedAt.toDate().toLocaleDateString('de-CH') : '';
   var lp = istLehrerHtml(r);
-  var html = '<div class="resource-card'+(r.current?' current':'')+(lp?' lehrer-html':'')+'" id="card-'+r.id+'">';
+  var aus = !lp && istAusgeblendet(r);
+  var html = '<div class="resource-card'+(r.current?' current':'')+(lp||aus?' lehrer-html':'')+'" id="card-'+r.id+'">';
   if(isTeacher){
     html += '<div class="move-btns">';
     html += '<button class="move-btn" id="up-'+r.id+'" type="button" title="Nach oben"'+(index===0?' disabled':'')+'><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 15l6-6 6 6"/></svg></button>';
     html += '<button class="move-btn" id="down-'+r.id+'" type="button" title="Nach unten"'+(index===total-1?' disabled':'')+'><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></button>';
     html += '</div>';
   }
-  html += '<div class="resource-info"><h4>'+esc(r.title || r.fileName)+(r.current?' <span class="chip-current">Aktuell</span>':'')+(lp?' <span class="chip-lehrer">🔒 Nur Lehrpersonen</span>':'')+niveauChipHtml(r, isTeacher)+'</h4>';
+  html += '<div class="resource-info"><h4>'+esc(r.title || r.fileName)+(r.current?' <span class="chip-current">Aktuell</span>':'')+(lp?' <span class="chip-lehrer">🔒 Nur Lehrpersonen</span>':'')+(aus?' <span class="chip-lehrer">🙈 Ausgeblendet</span>':'')+niveauChipHtml(r, isTeacher)+'</h4>';
   if(!lp) html += '<div class="resource-bar"><span id="pbar-'+r.id+'" style="width:0%;background:var(--brand)"></span></div>';
   var metaStart = lp ? 'Lehrer-HTML · für Schüler:innen unsichtbar' : r.pdf ? '📄 PDF' : r.externalUrl ? '🔗 Link · öffnet in neuem Tab' : 'Noch nicht geübt';
+  if(aus) metaStart = 'Für Schüler:innen ausgeblendet · ' + metaStart;
   html += '<div class="resource-meta" id="pmeta-'+r.id+'">'+metaStart+(uploaded?' · hinzugefügt am '+uploaded:'')+'</div>';
   html += '</div>';
   html += '<div class="resource-actions">';
@@ -14885,6 +14901,7 @@ function resourceCardHtml(r, index, total, isTeacher){
   if(isTeacher){
     if(!lp) html += '<button class="btn btn-sm btn-lehrer'+(r.niveau || Array.isArray(r.nurFuer) ? ' active' : '')+'" id="zu-'+r.id+'" type="button" title="Niveau A/B/C setzen und festlegen, wer diese Übung sieht">🎯 Zuweisen</button>';
     if(!r.externalUrl && !r.pdf) html += '<button class="btn btn-sm btn-lehrer'+(lp?' active':'')+'" id="lp-'+r.id+'" type="button" title="'+(lp?'Wieder für alle sichtbar machen':'Nur für Lehrpersonen sichtbar machen (z. B. Unterrichtsplanung)')+'">'+(lp?'🔓 Für alle sichtbar machen':'🔒 Nur Lehrpersonen')+'</button>';
+    if(!lp) html += '<button class="btn btn-sm btn-lehrer'+(aus?' active':'')+'" id="aus-'+r.id+'" type="button" title="'+(aus?'Wieder für die Klasse einblenden (z. B. wenn das Thema durch ist)':'Für die Klasse ausblenden (z. B. Lösungsdossier, bis das Thema durch ist)')+'">'+(aus?'👁 Einblenden':'🙈 Ausblenden')+'</button>';
     if(!r.externalUrl && !lp){
       html += '<button class="btn btn-sm btn-current'+(r.current?' active':'')+'" id="cur-'+r.id+'">'+(r.current?'Nicht mehr aktuell':'Als aktuell markieren')+'</button>';
     }
@@ -15663,7 +15680,7 @@ async function contentStillUsed(contentId, rid){
    normal sichtbar ist, den Inhalt nicht mehr öffnen können. Bestehende Inhalte:
    einmalig admin/lehrer-inhalte-schuetzen.js. */
 function inhaltGeschuetzt(entries){
-  return entries.length > 0 && entries.every(function(e){ return istLehrerHtml(e.data); });
+  return entries.length > 0 && entries.every(function(e){ return istLehrerHtml(e.data) || istAusgeblendet(e.data); });
 }
 async function inhaltSchutzSetzen(contentId, an){
   if(!contentId) return;
@@ -16008,10 +16025,10 @@ function checkLocalChanges(rid){
   if(syncState.resourceId !== rid) return;
   var now = lsSnapshot(), changed = false;
   Object.keys(now).forEach(function(k){
-    if(now[k] !== syncState.baseline[k] && !syncState.tracked[k]){ syncState.tracked[k] = true; changed = true; }
+    if(now[k] !== syncState.baseline[k] && !syncState.tracked[k] && !libFensterFremd(k, rid)){ syncState.tracked[k] = true; changed = true; }
   });
   Object.keys(syncState.baseline).forEach(function(k){
-    if(!(k in now) && !syncState.tracked[k]){ syncState.tracked[k] = true; changed = true; }
+    if(!(k in now) && !syncState.tracked[k] && !libFensterFremd(k, rid)){ syncState.tracked[k] = true; changed = true; }
   });
   var payload = buildStorePayload();
   if(changed || payload.json !== syncState.lastWritten) scheduleStoreWrite(rid);
@@ -16225,7 +16242,6 @@ function stopTimeTracking(){
 
 document.addEventListener('visibilitychange', function(){
   if(!timeTrack.resourceId) return;
-  if(libFensterOffen(timeTrack.resourceId)) return;   // 🪟 Übung läuft im eigenen Fenster weiter
   if(document.visibilityState === 'hidden'){
     flushTimeTracking();
     timeTrack.startedAt = null;
@@ -16385,7 +16401,8 @@ function renderResource(r){
   if(r.kk){ renderKkTrainer(r); return; }
   if(r.linkUrl){ renderLinkResource(r); return; }
   if(r.pdf){ renderPdfResource(r); return; }
-  startTimeTracking(r.id);
+  // 🪟 Läuft die Übung im eigenen Fenster, zählt und speichert das Fenster.
+  if(libFensterOffen(r.id)) stopTimeTracking(); else startTimeTracking(r.id);
   var s = subjectById(r.subject);
 
   var html = '<div class="viewer-wrap">';
@@ -16438,14 +16455,14 @@ function renderResource(r){
   // Der gesicherte Übungsstand muss in localStorage stehen, BEVOR das iframe
   // lädt — die Übungsseite liest ihn direkt beim Start. Beides läuft parallel,
   // damit das Öffnen nicht langsamer wird.
-  Promise.all([contentPromise, prepareResourceSync(r.id)]).then(function(res){
+  Promise.all([contentPromise, libFensterOffen(r.id) ? Promise.resolve(stopResourceSync()) : prepareResourceSync(r.id)]).then(function(res){
     var chunkSnaps = res[0];
     var html = chunkSnaps.map(function(s){ return (s.exists() && s.data().html) || ''; }).join('');
     var frame = document.getElementById('resourceFrame');
     if(!frame) return;
     // Läuft die Übung schon im eigenen Fenster: hier nicht ein zweites Mal starten
     // (beide würden sonst in denselben localStorage-Stand schreiben).
-    if(libFensterOffen(r.id)){ libFensterPlatzhalter(); return; }
+    if(libFensterOffen(r.id)){ libFensterPlatzhalter(r.id); return; }
     i18nFrame(frame, r.subject);
     frame.srcdoc = injectExerciseHelpers(html, r.id);
   }).catch(function(err){
@@ -16513,25 +16530,38 @@ function renderPdfResource(r){
 /* ===================== 🪟 IN NEUEM FENSTER =====================
    Wunsch von Jan (19.10.2026): Übungen (z. B. die Präp in Mathe), LMVZ-Seiten und PDFs
    neben «Vollbild» auch in einem eigenen Browserfenster öffnen — bildschirmgross, aber
-   verkleinerbar, damit man nebenher etwas anderes machen kann.
+   verkleinerbar. Das Fenster bleibt offen, auch wenn man in der Library weitergeht oder
+   eine andere Übung macht (mehrere Fenster gleichzeitig gehen auch, eines pro Seite).
    - Übungen (srcdoc): das Fenster bekommt denselben HTML-Text samt Übungs-Helfern
-     (gleicher Origin, about:blank + document.write → gleicher localStorage). window.parent
-     zeigt dort auf die Library, damit Fortschrittsmeldungen (parent.postMessage) und
-     Brücken wie window.parent.__hlSchach() weiter ankommen. Die Library bleibt dafür auf
-     der Übung stehen (Platzhalter statt iframe) und synchronisiert wie gewohnt; wer
-     die Übung in der Library verlässt, schliesst auch das Fenster. Beim Schliessen des
-     Fensters lädt der Viewer neu und zeigt den Stand aus dem Fenster.
+     (about:blank + document.write → gleicher Origin, gleicher localStorage). Weil die
+     Library dabei auf einer ganz anderen Seite stehen kann, speichert sie das Fenster
+     separat (libFensterListe statt syncState):
+       · Ein kleines Skript im Fenster meldet jeden localStorage-Schlüssel, den die Seite
+         schreibt (window.opener.__libFensterKey) → genaue Zuordnung zur Übung. Die
+         normale Beobachtung einer gleichzeitig in der Library offenen Übung übergeht
+         diese Schlüssel (libFensterFremd).
+       · Stand (storeJson, gleiche Drossel wie oben), Fortschrittsmeldungen (window.parent
+         = Library, Zuordnung über e.source) und Lernzeit (solange das Fenster sichtbar
+         ist) laufen über die Library — sie muss also irgendwo offen bleiben.
+     Dieselbe Übung läuft nie zweimal gleichzeitig: ist sie im Fenster offen, zeigt der
+     Viewer nur einen Platzhalter. Beim Schliessen lädt der Viewer neu.
    - Prüfungen: kein Knopf; sobald Prüfungs-Sperre/Warteraum erscheint (pruefOverlay)
-     oder eine Prüfungssitzung läuft, wird ein offenes Fenster geschlossen. */
-var libFenster = {win:null, rid:null, timer:null, uebung:false};
-function libFensterOffen(rid){
-  return !!(libFenster.win && !libFenster.win.closed && (!rid || libFenster.rid === rid));
+     oder eine Prüfungssitzung läuft, werden alle Fenster geschlossen. */
+var libFensterListe = {};   // rid → {win, rid, uebung, tracked, lastWritten, lastWriteAt, writeTimer, sek, tickAt}
+var libFensterTakt = null;
+function libFensterVon(rid){
+  var f = libFensterListe[rid];
+  return f && f.win && !f.win.closed ? f : null;
 }
-function libFensterZu(){
-  clearInterval(libFenster.timer);
-  var w = libFenster.win;
-  libFenster = {win:null, rid:null, timer:null, uebung:false};
-  try{ if(w && !w.closed) w.close(); }catch(e){}
+function libFensterOffen(rid){ return !!libFensterVon(rid); }
+function libFensterVonQuelle(src){
+  for(var rid in libFensterListe){ if(src && libFensterListe[rid].win === src) return libFensterListe[rid]; }
+  return null;
+}
+// Gehört der Schlüssel zu einer Übung, die gerade in einem eigenen Fenster läuft?
+function libFensterFremd(k, rid){
+  for(var id in libFensterListe){ if(id !== rid && libFensterListe[id].uebung && libFensterListe[id].tracked[k]) return true; }
+  return false;
 }
 function libFensterDarf(){
   return !document.body.classList.contains('pr-lock-open') && !pruef.sess;
@@ -16543,7 +16573,13 @@ function libFensterBtnHtml(id){
   return '<button class="btn btn-ghost btn-sm" id="'+id+'" type="button" title="In einem eigenen Fenster öffnen (verkleinerbar)">🪟 Neues Fenster</button>';
 }
 function libFensterHtml(html, r){
-  var shim = '<script>try{if(window.opener&&window.parent===window)window.parent=window.opener;}catch(e){}<\/script>';
+  var shim = '<script>(function(){try{var o=window.opener,R='+JSON.stringify(String(r.id))+';if(!o)return;' +
+    'if(window.parent===window)window.parent=o;' +
+    'var S=Storage.prototype,si=S.setItem,ri=S.removeItem;' +
+    'function m(k){try{o.__libFensterKey&&o.__libFensterKey(R,String(k));}catch(e){}}' +
+    'S.setItem=function(k,v){si.call(this,k,v);if(this===window.localStorage)m(k);};' +
+    'S.removeItem=function(k){ri.call(this,k);if(this===window.localStorage)m(k);};' +
+    '}catch(e){}})();<\/script>';
   var titel = '<title>'+esc(r.title || r.fileName || 'Übung')+'</title>';
   var headRe = /<head(\s[^>]*)?>/i;
   if(headRe.test(html)) return html.replace(headRe, function(m){ return m + shim + (/<title[\s>]/i.test(html) ? '' : titel); });
@@ -16553,6 +16589,8 @@ function wireLibFensterBtn(id, quelle, r){
   var btn = document.getElementById(id);
   if(!btn) return;
   btn.addEventListener('click', function(){
+    var offen = libFensterVon(r.id);
+    if(offen){ try{ offen.win.focus(); }catch(e){} return; }
     var src = quelle();
     if(!src){ toast('Lädt noch … bitte gleich nochmals.'); return; }
     libFensterOeffnen(r, src);
@@ -16560,9 +16598,9 @@ function wireLibFensterBtn(id, quelle, r){
 }
 function libFensterOeffnen(r, src){
   if(!libFensterDarf()){ toast('Während einer Prüfung geht das nicht.'); return; }
-  libFensterZu();
   var bw = screen.availWidth || 1280, bh = screen.availHeight || 800;
-  var w = window.open(src.url || '', 'libFenster', 'popup=yes,width='+bw+',height='+bh+',left=0,top=0,resizable=yes,scrollbars=yes');
+  var name = 'libFenster_' + String(r.id).replace(/\W/g, '');
+  var w = window.open(src.url || '', name, 'popup=yes,width='+bw+',height='+bh+',left=0,top=0,resizable=yes,scrollbars=yes');
   if(!w){ toast('Das Fenster wurde blockiert — bitte Pop-ups für die Library erlauben.'); return; }
   if(src.html != null){
     try{ w.document.open(); w.document.write(src.html); w.document.close(); }
@@ -16570,40 +16608,108 @@ function libFensterOeffnen(r, src){
   }
   try{ w.focus(); }catch(e){}
   if(isPseudoFsActive()) exitPseudoFullscreen();
-  libFenster = {win:w, rid:r.id, timer:null, uebung:src.html != null};
-  libFenster.timer = setInterval(function(){
-    if(!libFenster.win || !libFenster.win.closed) return;
-    var war = libFenster;
-    libFensterZu();
-    if(war.uebung && state.route.name === 'resource' && state.route.resource && state.route.resource.id === war.rid) render();
-  }, 700);
-  if(libFenster.uebung){
-    // Lernzeit läuft im Fenster weiter, auch wenn es die Library ganz verdeckt.
-    if(timeTrack.resourceId && !timeTrack.startedAt) timeTrack.startedAt = Date.now();
+  var f = {win:w, rid:r.id, uebung:src.html != null, tracked:{}, lastWritten:null, lastWriteAt:0, writeTimer:null, sek:0, tickAt:Date.now()};
+  libFensterListe[r.id] = f;
+  if(!libFensterTakt) libFensterTakt = setInterval(libFensterTick, 1000);
+  if(f.uebung){
+    // Die Beobachtung dieser Übung geht von der Library an das Fenster über.
+    var bisher = syncState.resourceId === r.id ? syncState.tracked : {};
+    if(syncState.resourceId === r.id) stopResourceSync();
+    f.tracked = Object.assign(loadTrackedKeys(r.id), bisher);
+    if(timeTrack.resourceId === r.id) stopTimeTracking();
     var fr = document.getElementById('resourceFrame');
     if(fr) fr.removeAttribute('srcdoc');   // Übung im Viewer anhalten, sie läuft jetzt im Fenster
-    libFensterPlatzhalter();
+    libFensterPlatzhalter(r.id);
   }
 }
-function libFensterPlatzhalter(){
+// Fenster schliessen (oder wurde geschlossen): letzter Stand + Lernzeit sichern.
+function libFensterZu(rid){
+  var f = libFensterListe[rid];
+  if(!f) return;
+  delete libFensterListe[rid];
+  if(f.uebung){ clearTimeout(f.writeTimer); libFensterSpeichern(f); libFensterZeit(f); }
+  try{ if(f.win && !f.win.closed) f.win.close(); }catch(e){}
+  if(!Object.keys(libFensterListe).length){ clearInterval(libFensterTakt); libFensterTakt = null; }
+  // Steht die Library gerade auf dieser Übung: Viewer neu laden (zeigt den Stand aus dem Fenster).
+  if(f.uebung && libFensterDarf() && state.route.name === 'resource' && state.route.resource && state.route.resource.id === rid) render();
+}
+function libFensterAlleZu(){ Object.keys(libFensterListe).forEach(libFensterZu); }
+function libFensterSpeichern(f){
+  if(!state.user || alsSchueler()) return;
+  var keys = Object.keys(f.tracked).sort(), store = {};
+  keys.forEach(function(k){ var v = lsGet(k); if(v !== null) store[k] = v; });
+  var json = JSON.stringify(store);
+  if(!keys.length || json === f.lastWritten) return;
+  if(json.length > SYNC_MAX_BYTES){
+    console.warn('Übungsstand zu gross für die Synchronisierung ('+json.length+' Zeichen) — bleibt nur auf diesem Gerät.');
+    return;
+  }
+  var rev = Math.max(Date.now(), localRev(f.rid) + 1);
+  setLocalRev(f.rid, rev);
+  saveTrackedKeys(f.rid, f.tracked);
+  f.lastWritten = json;
+  f.lastWriteAt = Date.now();
+  writeProgressWithHistory(state.user.uid, f.rid, {storeJson:json, storeKeys:keys, storeRev:rev, storeAt:serverTimestamp()})
+    .catch(function(err){ console.error('Stand (Fenster) konnte nicht gespeichert werden', err); f.lastWritten = null; });
+}
+function libFensterPlanen(f){
+  if(f.writeTimer) return;
+  var warten = Math.max(SYNC_DEBOUNCE_MS, f.lastWriteAt + SYNC_MIN_INTERVAL_MS - Date.now());
+  f.writeTimer = setTimeout(function(){ f.writeTimer = null; libFensterSpeichern(f); }, warten);
+}
+window.__libFensterKey = function(rid, k){
+  var f = libFensterListe[rid];
+  if(!f || !f.uebung || typeof k !== 'string' || k.indexOf(LIB_PREFIX) === 0) return;
+  f.tracked[k] = true;
+  libFensterPlanen(f);
+};
+function libFensterZeit(f){
+  var sek = Math.round(f.sek);
+  f.sek = 0;
+  if(sek < TIME_MIN_FLUSH_SEC || !state.user) return;
+  setDoc(doc(db,'progress', state.user.uid, 'resources', f.rid), {timeSpentSec: increment(sek)}, {merge:true})
+    .catch(function(err){ console.error('Lernzeit (Fenster) konnte nicht gespeichert werden', err); });
+  bumpStreak(sek);
+}
+// Jede Sekunde (im Hintergrund vom Browser evtl. seltener — darum mit Zeitstempel):
+// geschlossene Fenster aufräumen, Lernzeit zählen, solange das Fenster sichtbar ist.
+function libFensterTick(){
+  var jetzt = Date.now();
+  Object.keys(libFensterListe).forEach(function(rid){
+    var f = libFensterListe[rid];
+    if(!f.win || f.win.closed){ libFensterZu(rid); return; }
+    var dt = Math.min(jetzt - f.tickAt, 60000) / 1000;
+    f.tickAt = jetzt;
+    if(!f.uebung) return;
+    var sichtbar = false;
+    try{ sichtbar = f.win.document.visibilityState === 'visible'; }catch(e){}
+    if(sichtbar) f.sek += dt;
+    if(f.sek >= TIME_FLUSH_MS / 1000) libFensterZeit(f);
+  });
+}
+window.addEventListener('pagehide', function(){
+  Object.keys(libFensterListe).forEach(function(rid){
+    var f = libFensterListe[rid];
+    if(f.uebung){ libFensterSpeichern(f); libFensterZeit(f); }
+  });
+});
+function libFensterPlatzhalter(rid){
   var wrap = document.getElementById('frameWrap');
   if(!wrap) return;
   var fr = document.getElementById('resourceFrame');
   if(fr) fr.style.display = 'none';
-  var box = document.getElementById('fensterPlatzhalter');
-  if(!box){
-    box = document.createElement('div');
-    box.id = 'fensterPlatzhalter';
-    box.className = 'empty-state';
-    box.style.cssText = 'margin:24px;';
-    box.innerHTML = '<div style="font-size:32px;">🪟</div><p><b>Diese Übung läuft gerade in einem eigenen Fenster.</b></p>' +
-      '<p>Lass die Library offen, damit dein Stand gespeichert wird.</p>' +
-      '<p><button class="btn btn-ghost btn-sm" type="button" id="fensterHolen">🪟 Fenster zeigen</button> ' +
-      '<button class="btn btn-primary btn-sm" type="button" id="fensterZurueck">↩ Hierher zurückholen</button></p>';
-    wrap.appendChild(box);
-    box.querySelector('#fensterHolen').addEventListener('click', function(){ try{ libFenster.win.focus(); }catch(e){} });
-    box.querySelector('#fensterZurueck').addEventListener('click', function(){ libFensterZu(); render(); });
-  }
+  if(document.getElementById('fensterPlatzhalter')) return;
+  var box = document.createElement('div');
+  box.id = 'fensterPlatzhalter';
+  box.className = 'empty-state';
+  box.style.cssText = 'margin:24px;';
+  box.innerHTML = '<div style="font-size:32px;">🪟</div><p><b>Diese Übung läuft gerade in einem eigenen Fenster.</b></p>' +
+    '<p>Du kannst hier in der Library weiterarbeiten — lass sie einfach offen, damit dein Stand gespeichert wird.</p>' +
+    '<p><button class="btn btn-ghost btn-sm" type="button" id="fensterHolen">🪟 Fenster zeigen</button> ' +
+    '<button class="btn btn-primary btn-sm" type="button" id="fensterZurueck">↩ Hierher zurückholen</button></p>';
+  wrap.appendChild(box);
+  box.querySelector('#fensterHolen').addEventListener('click', function(){ var f = libFensterVon(rid); try{ if(f) f.win.focus(); }catch(e){} });
+  box.querySelector('#fensterZurueck').addEventListener('click', function(){ if(libFensterListe[rid]) libFensterZu(rid); else render(); });
 }
 
 var FS_ICON_ENTER = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3"/></svg> Vollbild';
@@ -16712,11 +16818,14 @@ function updateViewerProgress(p){
 
 window.addEventListener('message', function(e){
   var data = e.data;
-  if(!data || !data.__libProgress || !currentViewerResourceId || !state.user) return;
-  var resourceId = currentViewerResourceId;
+  if(!data || !data.__libProgress || !state.user) return;
+  // 🪟 Meldung aus einem eigenen Fenster: gehört zu dessen Übung, nicht zur gerade offenen.
+  var fenster = libFensterVonQuelle(e.source);
+  var resourceId = fenster ? fenster.rid : currentViewerResourceId;
+  if(!resourceId) return;
   // Eine Fortschrittsmeldung heisst: in der Übung ist gerade etwas passiert —
   // guter Moment, auch den localStorage-Stand einzusammeln.
-  checkLocalChanges(resourceId);
+  if(fenster) libFensterPlanen(fenster); else checkLocalChanges(resourceId);
   // Gedrosselt wie der Stand-Sync: die Meldung wird gemerkt und höchstens alle
   // SYNC_MIN_INTERVAL_MS geschrieben (sofort beim Verlassen der Übung).
   progressMeldung.offen[resourceId] = {stats:data.stats || {}, total:typeof data.total === 'number' ? data.total : null};
@@ -21421,7 +21530,9 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
-  {id:'2026-10-19-neues-fenster', datum:'2026-10-19', fuer:'alle', text:'🪟 Übungen, LMVZ-Seiten und PDFs kannst du neben «Vollbild» jetzt auch «In neuem Fenster» öffnen. Das Fenster ist bildschirmgross, du kannst es aber kleiner machen und nebenher etwas anderes anschauen. In Prüfungen geht das nicht.'},
+  {id:'2026-10-19-dossier-drucken', datum:'2026-10-19', fuer:'lehrer', text:'📖 🧰 Tools › «Dossier drucken» (früher «Broschüre drucken»): A5- oder A4-Dossier, gefalzt und in der Mitte geheftet, Dicke Dossiers werden automatisch auf Teile mit höchstens 16 Bogen verteilt – mehr schafft der Hefter nicht. In der Desktop-App der Library druckst du direkt: Drucker, Exemplare, Farbe und Heften wählen, fertig.'},
+  {id:'2026-10-19-ausblenden', datum:'2026-10-19', fuer:'lehrer', text:'🙈 Neu bei jeder Übung, jedem PDF und Link: «🙈 Ausblenden». Die Klasse sieht sie dann nicht (z. B. ein Lösungsdossier), du siehst sie gestrichelt. Ist das Thema durch, mit «👁 Einblenden» freigeben.'},
+  {id:'2026-10-19-neues-fenster', datum:'2026-10-19', fuer:'alle', text:'🪟 Übungen, LMVZ-Seiten und PDFs kannst du neben «Vollbild» jetzt auch «In neuem Fenster» öffnen. Das Fenster ist bildschirmgross, du kannst es aber kleiner machen und in der Library nebenher etwas anderes machen – dein Stand wird trotzdem gespeichert. In Prüfungen geht das nicht.'},
   {id:'2026-10-19-sitzplan-jm-regeln', datum:'2026-10-19', fuer:'lehrer', text:'🪑 Sitzplan › ⚖️ Regeln: neu auch «darf nicht neben Mädchen/Jungen» und «muss neben Mädchen/Jungen» für einzelne Kinder. Massgebend sind die J/M-Knöpfe; «🎲 Zufällig setzen» hält sich daran.'},
   {id:'2026-10-19-beamer-zoom', datum:'2026-10-19', fuer:'lehrer', text:'🔍 Am Laptop zeigt die Library jetzt alles auf 90 %. Sobald du per AirPlay auf den Beamer spiegelst, stellt sie automatisch auf 125 % um, damit es dort gross genug und nicht verzerrt ist.'},
   {id:'2026-10-19-ferien-ecke', datum:'2026-10-19', fuer:'alle', text:'🚨 Der Ferien-Countdown steht jetzt unten links in der Leiste und stört nicht mehr zwischen den Knöpfen. Auf dem Handy wird er nicht mehr angezeigt.'},
@@ -28775,7 +28886,7 @@ var TOOLS_TILES = [
   { id:'qr',           icon:'🔳', name:'QR-Code erstellen',       desc:'Link eintippen — QR-Code gross am Beamer zeigen oder als Bild speichern.' },
   { id:'stempel',      icon:'🔢', name:'Seitenzahlen & Wasserzeichen', desc:'Seitenzahlen, eine Kopfzeile (z. B. Name) oder «LÖSUNG» quer über jede Seite.' },
   { id:'nup',          icon:'🗞️', name:'Mehrere Seiten pro Blatt', desc:'2, 4, 6 oder 8 Seiten verkleinert auf ein A4-Blatt — spart Papier.' },
-  { id:'broschuere',   icon:'📖', name:'Broschüre drucken',     desc:'PDF als gefaltetes Heft: A4-Seiten auf A3 (oder A5-Heft auf A4), in der richtigen Reihenfolge.' },
+  { id:'broschuere',   icon:'📖', name:'Dossier drucken', desc:'PDF als A5- oder A4-Dossier, gefalzt und in der Mitte geheftet – dicke Dossiers werden aufgeteilt. In der Desktop-App direkt mit Heften drucken.' },
   { id:'ton',          icon:'🎙️', name:'Ton aufnehmen',           desc:'Sprachaufnahme machen, anhören und herunterladen — z. B. für einen Vortrag.' }
 ];
 
@@ -29419,63 +29530,155 @@ function tlNup(){
   });
 }
 
-/* ---------- 📖 Broschüre ----------
+/* ---------- 📖 Dossier drucken ----------
+   «Dossier» = gefaltetes, mittig geheftetes Heft (Jans Begriff). Zwei Arten:
+   A5-Dossier (A4-Bogen quer, gefalzt) und A4-Dossier (A3-Bogen quer, gefalzt).
    Ausschiessen fürs Heft: je zwei Seiten nebeneinander auf ein quer liegendes
    Blatt, in Heftreihenfolge (letzte+erste, zweite+vorletzte …), aufgefüllt mit
-   Leerseiten auf ein Vielfaches von 4. Gedruckt wird doppelseitig über die kurze
-   Kante, dann in der Mitte falzen/heften. Wichtig für mehrere Exemplare: Acrobat
-   schickt alle Exemplare als EIN Dokument (copies=1) — der Drucker sieht dann
-   einen dicken Stapel und lässt Falzen/Heften weg. Darum der Hinweis im Dialog. */
+   Leerseiten am Ende auf ein Vielfaches von 4. Gedruckt wird doppelseitig über
+   die kurze Kante, dann in der Mitte falzen/heften.
+   Erfahrung mit dem Konica (bizhub C551i, Sek Altnau, 19.10.2026): ein Heft mit
+   32 Bogen bricht das Gerät ab, 16 Bogen gehen -> dicke Hefte werden auf
+   mehrere Teile mit höchstens TL_BR_MAXBOGEN Bogen verteilt.
+   Mehrere Exemplare müssen als echte Exemplare (IPP-copies) zum Drucker; Acrobat
+   schickt sie als EIN Dokument, dann lässt der Drucker Falzen/Heften weg.
+   Direkt drucken (mit Heften, Falzen, Exemplaren) kann nur die Desktop-App
+   (window.libDesktop, Electron); eine Webseite kann dem Drucker das nicht mitgeben. */
 var TL_A3 = [841.89, 1190.55];
+var TL_BR_MAXBOGEN = 16;
+var TL_BR_ARTEN = {
+  a4:    { label:'A5-Dossier',        sub:'A4 quer, gefalzt',     papier:'A4' },
+  a3:    { label:'A4-Dossier',        sub:'A3 quer, gefalzt',     papier:'A3' }
+};
+// Teile so gleichmässig wie möglich: Seiten je Teil = Vielfaches von 4.
+function tlBrTeile(seiten, maxBogen){
+  var proBogen = 4;
+  var maxSeiten = Math.max(1, maxBogen) * proBogen;
+  var anzahl = Math.max(1, Math.ceil(seiten / maxSeiten));
+  var gross = Math.ceil(seiten / anzahl / proBogen) * proBogen, teile = [];
+  for(var a = 0; a < seiten; a += gross){
+    var b = Math.min(seiten, a + gross);
+    teile.push({von:a, bis:b, bogen:Math.ceil((b - a) / proBogen)});
+  }
+  return teile;
+}
 function tlBroschuere(){
-  var datei = null, format = lsGet(LIB_PREFIX+'tl_brosch') === 'a4' ? 'a4' : 'a3';
-  openModal('<h3>📖 Broschüre drucken</h3>'+
+  var datei = null, seitenZahl = 0, laeuft = false;
+  var art = lsGet(LIB_PREFIX+'tl_brosch');
+  if(!TL_BR_ARTEN[art]) art = 'a4';
+  var desk = window.libDesktop && typeof window.libDesktop.drucken === 'function' ? window.libDesktop : null;
+  var exemplare = parseInt(lsGet(LIB_PREFIX+'tl_br_n'), 10) || 1;
+  var farbe = lsGet(LIB_PREFIX+'tl_br_farbe') === 'farbe' ? 'farbe' : 'sw';
+  var drucker = lsGet(LIB_PREFIX+'tl_br_drucker') || '';
+  openModal('<h3>📖 Dossier drucken</h3>'+
     '<div id="tlBrWahl">'+tlDateiFeld('tlBrIn', 'application/pdf', false, 'Ein PDF wählen')+'</div>'+
-    '<label class="modal-label" style="margin-top:14px;">Papier im Drucker</label>'+
-    '<div class="uf-setup-modi" id="tlBrFmt">'+
-      '<button class="kz-tab'+(format === 'a3' ? ' kz-tab-on' : '')+'" data-bf="a3" type="button">A3 → Heft in A4</button>'+
-      '<button class="kz-tab'+(format === 'a4' ? ' kz-tab-on' : '')+'" data-bf="a4" type="button">A4 → Heft in A5</button></div>'+
-    '<p class="pr-hinweis">Die Seiten werden so angeordnet, dass nach dem Falzen alles in der richtigen Reihenfolge ist. Fehlen Seiten bis zu einem Vielfachen von 4, kommen leere Seiten ans Ende.</p>'+
-    '<div class="pr-hinweis" style="margin-top:10px;"><b>So druckst du:</b><ul style="margin:4px 0 0 18px;padding:0;">'+
-      '<li>Papierformat <b id="tlBrPapier">'+(format === 'a3' ? 'A3' : 'A4')+'</b>, Grösse 100 % bzw. «Anpassen»</li>'+
-      '<li>Doppelseitig: <b>kurze Kante</b> (sonst steht jede zweite Seite auf dem Kopf)</li>'+
-      '<li>Heften: <b>Mittelheftung</b> (Saddle Stitch) bzw. Falzen: <b>Halbfalz</b></li>'+
-      '<li>«🖨️ Drucken» öffnet die Broschüre in einem neuen Tab – dort drucken (⌘P). Heften und Falzen wählst du im Druckdialog (Chrome: «Mit Systemdialog drucken»).</li>'+
-      '<li>Mehrere Exemplare: das PDF mit <b>Vorschau</b> drucken, Exemplare <b>sortiert</b>. Acrobat schickt alle Exemplare als ein einziges Dokument — dann falzt der Drucker nicht.</li>'+
-    '</ul></div>'+
+    '<label class="modal-label" style="margin-top:14px;">Was soll es werden?</label>'+
+    '<div class="uf-setup-modi" id="tlBrArt">'+Object.keys(TL_BR_ARTEN).map(function(k){
+      return '<button class="kz-tab'+(k === art ? ' kz-tab-on' : '')+'" data-bf="'+k+'" type="button" title="'+esc(TL_BR_ARTEN[k].sub)+'">'+esc(TL_BR_ARTEN[k].label)+' <small style="font-weight:500;opacity:.8;">('+esc(TL_BR_ARTEN[k].sub)+')</small></button>';
+    }).join('')+'</div>'+
+    '<p class="pr-hinweis" id="tlBrInfo"></p>'+
+    (desk ?
+      '<div style="margin-top:14px;padding:12px 14px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface-2);">'+
+        '<b>🖨️ Direkt drucken</b> <span class="pr-hinweis">(Desktop-App)</span>'+
+        '<div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:8px;align-items:flex-end;">'+
+          '<div style="flex:2 1 200px;"><label class="modal-label">Drucker</label><select id="tlBrDrucker"><option value="">wird geladen …</option></select></div>'+
+          '<div style="flex:1 1 90px;"><label class="modal-label">Exemplare</label><input type="number" id="tlBrN" class="modal-input" min="1" max="200" step="1" value="'+exemplare+'"></div>'+
+        '</div>'+
+        '<label class="modal-label" style="margin-top:10px;">Farbe</label>'+
+        '<div class="uf-setup-modi" id="tlBrFarbe" style="margin-bottom:6px;">'+
+          '<button class="kz-tab'+(farbe === 'sw' ? ' kz-tab-on' : '')+'" data-fa="sw" type="button">Schwarz-weiss</button>'+
+          '<button class="kz-tab'+(farbe === 'farbe' ? ' kz-tab-on' : '')+'" data-fa="farbe" type="button">Farbe</button></div>'+
+        '<label class="submission-row"><input type="checkbox" id="tlBrHeften" checked> <span>Heften und falzen (Mittelheftung)</span></label>'+
+      '</div>'
+    :
+      '<div class="pr-hinweis" style="margin-top:10px;"><b>So druckst du:</b><ul style="margin:4px 0 0 18px;padding:0;" id="tlBrAnleitung"></ul></div>'
+    )+
+    '<div id="tlBrTeileListe" class="tl-liste"></div>'+
     '<div class="modal-actions"><button class="btn btn-ghost btn-sm" id="modalCancel" type="button">Schliessen</button>'+
-    '<button class="btn btn-ghost btn-sm" id="tlBrDruck" type="button" disabled title="Öffnet die Broschüre in einem neuen Tab – dort drucken (⌘P)">🖨️ Drucken</button>'+
-    '<button class="btn btn-primary btn-sm" id="tlBrGo" type="button" disabled>⬇︎ Broschüre speichern</button></div>', 'modal-wide');
+    '<button class="btn btn-ghost btn-sm" id="tlBrGo" type="button" disabled>⬇︎ PDF speichern</button>'+
+    (desk ? '<button class="btn btn-primary btn-sm" id="tlBrDirekt" type="button" disabled>🖨️ Jetzt drucken</button>'
+          : '<button class="btn btn-primary btn-sm" id="tlBrDruck" type="button" disabled title="Öffnet das PDF in einem neuen Tab – dort drucken (⌘P)">🖨️ Zum Drucken öffnen</button>')+
+    '</div>', 'modal-wide');
   document.getElementById('modalCancel').addEventListener('click', closeModal);
-  var go = document.getElementById('tlBrGo'), druck = document.getElementById('tlBrDruck');
+  var go = document.getElementById('tlBrGo'), druck = document.getElementById('tlBrDruck'), direkt = document.getElementById('tlBrDirekt');
+  var teileListe = document.getElementById('tlBrTeileListe');
+  function knoepfe(an){ [go, druck, direkt].forEach(function(b){ if(b) b.disabled = !an; }); }
+  function info(){
+    var el = document.getElementById('tlBrInfo'), t = '';
+    t = 'Die Seiten werden so angeordnet, dass nach dem Falzen alles stimmt. Fehlende Seiten bis zu einem Vielfachen von 4 kommen leer ans Ende. Dicke Dossiers werden auf mehrere Teile mit höchstens '+TL_BR_MAXBOGEN+' Bogen verteilt – mehr schafft der Hefter nicht.';
+    if(seitenZahl){
+      var teile = tlBrTeile(seitenZahl, TL_BR_MAXBOGEN);
+      t += ' <b>' + seitenZahl + ' Seiten → ' + (teile.length === 1 ? '1 Dossier' : teile.length + ' Teile') + ' à ' + teile.map(function(x){ return x.bogen; }).join(' / ') + ' Bogen ' + TL_BR_ARTEN[art].papier + '.</b>';
+    }
+    el.innerHTML = t;
+    var anl = document.getElementById('tlBrAnleitung');
+    if(anl) anl.innerHTML =
+      '<li>Papierformat <b>'+TL_BR_ARTEN[art].papier+'</b>, Grösse 100 %</li>'+
+      '<li>Doppelseitig: <b>kurze Kante</b> (sonst steht jede zweite Seite auf dem Kopf)</li><li>Heften: <b>Mittelheftung</b> (Saddle Stitch), Falzen: <b>Halbfalz</b></li>'+
+      '<li>Heften und Falzen wählst du im Druckdialog (Chrome: «Mit Systemdialog drucken»). Jeden Teil einzeln drucken.</li>'+
+      '<li>Mehrere Exemplare: mit <b>Vorschau</b> drucken, Exemplare <b>sortiert</b>. Acrobat schickt alle Exemplare als ein einziges Dokument – dann heftet der Drucker nicht.</li>'+
+      '<li>Direkt drucken mit Heften, Falzen und Exemplaren geht in der Desktop-App der Library.</li>';
+  }
+  info();
   Array.prototype.forEach.call(modalEl.querySelectorAll('[data-bf]'), function(b){
     b.addEventListener('click', function(){
-      format = b.getAttribute('data-bf');
-      lsSet(LIB_PREFIX+'tl_brosch', format);
+      art = b.getAttribute('data-bf');
+      lsSet(LIB_PREFIX+'tl_brosch', art);
       Array.prototype.forEach.call(modalEl.querySelectorAll('[data-bf]'), function(x){ x.classList.toggle('kz-tab-on', x === b); });
-      document.getElementById('tlBrPapier').textContent = format === 'a3' ? 'A3' : 'A4';
+      teileListe.innerHTML = '';
+      info();
     });
   });
-  tlDateiFeldVerdrahten('tlBrIn', function(files){
+  Array.prototype.forEach.call(modalEl.querySelectorAll('[data-fa]'), function(b){
+    b.addEventListener('click', function(){
+      farbe = b.getAttribute('data-fa');
+      lsSet(LIB_PREFIX+'tl_br_farbe', farbe);
+      Array.prototype.forEach.call(modalEl.querySelectorAll('[data-fa]'), function(x){ x.classList.toggle('kz-tab-on', x === b); });
+    });
+  });
+  if(desk){
+    var sel = document.getElementById('tlBrDrucker');
+    desk.drucker().then(function(r){
+      var liste = (r && r.liste) || [];
+      if(!liste.length){ sel.innerHTML = '<option value="">Kein Drucker gefunden</option>'; return; }
+      // Vorwahl: zuletzt benutzt, sonst ein Drucker mit Heftung (Konica_Heften), sonst Standard.
+      var vor = liste.some(function(d){ return d.name === drucker; }) ? drucker
+        : ((liste.filter(function(d){ return /heft/i.test(d.name); })[0] || {}).name || r.standard || liste[0].name);
+      sel.innerHTML = liste.map(function(d){
+        return '<option value="'+esc(d.name)+'"'+(d.name === vor ? ' selected' : '')+'>'+esc(d.name + (d.name === r.standard ? ' (Standard)' : ''))+'</option>';
+      }).join('');
+    }).catch(function(err){ console.error(err); sel.innerHTML = '<option value="">Drucker konnten nicht gelesen werden</option>'; });
+  }
+  tlDateiFeldVerdrahten('tlBrIn', async function(files){
     var f = files.filter(tlIstPdf)[0];
     if(!f){ toast('Bitte ein PDF wählen.'); return; }
-    datei = f; go.disabled = druck.disabled = false;
+    datei = f; seitenZahl = 0; teileListe.innerHTML = '';
     document.getElementById('tlBrWahl').querySelector('.tl-drop span').textContent = '📄 ' + f.name;
-  });
-  async function erzeugen(){
+    try{
       var PDFLib = await ladePdfLib();
-      var src = await PDFLib.PDFDocument.load(await datei.arrayBuffer(), {ignoreEncryption:true});
-      var out = await PDFLib.PDFDocument.create();
-      var eingebettet = await out.embedPages(src.getPages());
-      var drehung = src.getPages().map(function(p){ return (p.getRotation().angle || 0) % 360; });
+      seitenZahl = (await PDFLib.PDFDocument.load(await f.arrayBuffer(), {ignoreEncryption:true})).getPageCount();
+    }catch(err){ console.error(err); toast(tlFehlerText(err)); datei = null; return; }
+    if(datei === f){ info(); knoepfe(true); }
+  });
+  // Liefert pro Teil {blob, name, von, bis, bogen}.
+  async function erzeugen(){
+    var PDFLib = await ladePdfLib();
+    var src = await PDFLib.PDFDocument.load(await datei.arrayBuffer(), {ignoreEncryption:true});
+    var teile = tlBrTeile(src.getPageCount(), TL_BR_MAXBOGEN), mehrere = teile.length > 1, res = [];
+    for(var t = 0; t < teile.length; t++){
+      var tl = teile[t], out = await PDFLib.PDFDocument.create();
+      var idx = []; for(var k = tl.von; k < tl.bis; k++) idx.push(k);
+      var quell = idx.map(function(k){ return src.getPage(k); });
+      var eingebettet = await out.embedPages(quell);
+      var drehung = quell.map(function(p){ return (p.getRotation().angle || 0) % 360; });
       var seiten = eingebettet.slice();
       while(seiten.length % 4) seiten.push(null);
-      var n = seiten.length, gross = format === 'a3' ? TL_A3 : TL_A4;
+      var n = seiten.length, gross = art === 'a3' ? TL_A3 : TL_A4;
       var pw = gross[1], ph = gross[0], hw = pw / 2;   // Blatt quer, zwei Hälften
-      function setzen(blatt, idx, x0){
-        var e = seiten[idx];
+      var setzen = function(blatt, i, x0){
+        var e = seiten[i];
         if(!e) return;
-        var rot = drehung[idx], gedreht = rot === 90 || rot === 270;
+        var rot = drehung[i], gedreht = rot === 90 || rot === 270;
         var ew = gedreht ? e.height : e.width, eh = gedreht ? e.width : e.height;
         var f = Math.min(hw / ew, ph / eh), w = ew*f, h = eh*f;
         var x = x0 + (hw - w)/2, y = (ph - h)/2;
@@ -29485,36 +29688,91 @@ function tlBroschuere(){
         else if(rot === 180){ ax = x + w; ay = y + h; }
         else if(rot === 270){ ax = x + w; ay = y; }
         blatt.drawPage(e, {x:ax, y:ay, xScale:f, yScale:f, rotate:PDFLib.degrees(-rot)});
-      }
+      };
       for(var i = 0; i < n/2; i++){
         var links = i % 2 === 0 ? n-1-i : i, rechts = i % 2 === 0 ? i : n-1-i;
         var blatt = out.addPage([pw, ph]);
         setzen(blatt, links, 0); setzen(blatt, rechts, hw);
       }
-      toast('📖 ' + eingebettet.length + ' Seiten → ' + (n/4) + (n/4 === 1 ? ' Bogen' : ' Bögen') + ' ' + (format === 'a3' ? 'A3' : 'A4') + ' (doppelseitig, kurze Kante).');
-      return new Blob([await out.save()], {type:'application/pdf'});
+      var endung = '_Dossier_' + (art === 'a3' ? 'A4' : 'A5');
+      res.push({ blob:new Blob([await out.save()], {type:'application/pdf'}),
+        name: tlBasis(datei.name) + endung + (mehrere ? '_Teil' + (t+1) : '') + '.pdf',
+        titel: tlBasis(datei.name) + (mehrere ? ' Teil ' + (t+1) : ''),
+        von: tl.von + 1, bis: tl.bis, bogen: tl.bogen });
+    }
+    return res;
   }
-  function dateiname(){ return tlBasis(datei.name) + '_Broschuere_' + (format === 'a3' ? 'A3' : 'A4') + '.pdf'; }
-  go.addEventListener('click', async function(){
-    go.disabled = druck.disabled = true;
-    try{ tlDownload(await erzeugen(), dateiname()); }
-    catch(err){ console.error(err); toast(tlFehlerText(err)); }
-    go.disabled = druck.disabled = false;
-  });
-  // Drucken: Tab sofort im Klick öffnen (sonst Popup-Blocker), PDF danach hineinladen.
-  // Heften/Falzen kann eine Webseite dem Drucker nicht mitgeben -> im Druckdialog wählen.
-  druck.addEventListener('click', async function(){
-    var tab = window.open('', '_blank');
-    go.disabled = druck.disabled = true;
-    try{
-      var blob = await erzeugen();
-      if(tab){
-        var url = URL.createObjectURL(blob);
-        tab.location.href = url;
+  function teileZeigen(res, mitOeffnen){
+    if(res.length < 2 && !mitOeffnen){ teileListe.innerHTML = ''; return; }
+    teileListe.innerHTML = res.map(function(r, i){
+      return '<div class="pr-hinweis" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">'+
+        '<span style="flex:1 1 auto;">📄 '+(res.length > 1 ? 'Teil '+(i+1)+': ' : '')+'Seiten '+r.von+'–'+r.bis+' ('+r.bogen+' Bogen)</span>'+
+        (mitOeffnen ? '<button class="btn btn-ghost btn-sm" data-tlbr-oeffnen="'+i+'" type="button">🖨️ Öffnen</button>' : '')+
+        '<button class="btn btn-ghost btn-sm" data-tlbr-laden="'+i+'" type="button">⬇︎</button></div>';
+    }).join('');
+    Array.prototype.forEach.call(teileListe.querySelectorAll('[data-tlbr-oeffnen]'), function(b){
+      b.addEventListener('click', function(){
+        var r = res[+b.getAttribute('data-tlbr-oeffnen')], url = URL.createObjectURL(r.blob);
+        if(!window.open(url, '_blank')) tlDownload(r.blob, r.name);
         setTimeout(function(){ URL.revokeObjectURL(url); }, 120000);
-      } else tlDownload(blob, dateiname());
-    }catch(err){ console.error(err); if(tab) tab.close(); toast(tlFehlerText(err)); }
-    go.disabled = druck.disabled = false;
+      });
+    });
+    Array.prototype.forEach.call(teileListe.querySelectorAll('[data-tlbr-laden]'), function(b){
+      b.addEventListener('click', function(){ var r = res[+b.getAttribute('data-tlbr-laden')]; tlDownload(r.blob, r.name); });
+    });
+  }
+  async function mitSperre(fn){
+    if(laeuft) return;
+    laeuft = true; knoepfe(false);
+    try{ await fn(); }
+    catch(err){ console.error(err); toast(tlFehlerText(err)); }
+    laeuft = false; if(modalEl.contains(go)) knoepfe(true);
+  }
+  go.addEventListener('click', function(){
+    mitSperre(async function(){
+      var res = await erzeugen();
+      res.forEach(function(r){ tlDownload(r.blob, r.name); });
+      teileZeigen(res, false);
+    });
+  });
+  if(druck) druck.addEventListener('click', function(){
+    // Bei einem Teil: Tab sofort im Klick öffnen (sonst Popup-Blocker), PDF danach hineinladen.
+    // Bei mehreren Teilen: Liste mit je einem «Öffnen»-Knopf (ein Klick = ein Tab).
+    if(laeuft) return;
+    var tab = window.open('', '_blank');
+    mitSperre(async function(){
+      try{
+        var res = await erzeugen();
+        if(res.length > 1){ if(tab) tab.close(); teileZeigen(res, true); toast('📖 ' + res.length + ' Teile – jeden einzeln öffnen und drucken.'); return; }
+        if(tab){
+          var url = URL.createObjectURL(res[0].blob);
+          tab.location.href = url;
+          setTimeout(function(){ URL.revokeObjectURL(url); }, 120000);
+        } else tlDownload(res[0].blob, res[0].name);
+      }catch(err){ if(tab) tab.close(); throw err; }
+    });
+  });
+  if(direkt) direkt.addEventListener('click', function(){
+    var name = document.getElementById('tlBrDrucker').value;
+    var n = Math.max(1, Math.min(200, parseInt(document.getElementById('tlBrN').value, 10) || 1));
+    var heften = document.getElementById('tlBrHeften').checked;
+    if(!name){ toast('Bitte einen Drucker wählen.'); return; }
+    lsSet(LIB_PREFIX+'tl_br_drucker', name); lsSet(LIB_PREFIX+'tl_br_n', String(n));
+    mitSperre(async function(){
+      var res = await erzeugen(), ok = 0, fehler = '';
+      for(var i = 0; i < res.length; i++){
+        var r = await desk.drucken({
+          pdf: new Uint8Array(await res[i].blob.arrayBuffer()), titel: res[i].titel, drucker: name, exemplare: n,
+          farbe: farbe, papier: TL_BR_ARTEN[art].papier,
+          seiten: 'kurz', heftung: heften ? 'mitte' : 'keine',
+          falzen: heften && art === 'a3', anpassen: false
+        });
+        if(r && r.ok) ok++; else { fehler = (r && r.fehler) || 'unbekannter Fehler'; break; }
+      }
+      teileZeigen(res, false);
+      if(fehler) toast('Drucken hat nicht geklappt: ' + fehler);
+      else toast('🖨️ ' + ok + (ok === 1 ? ' Auftrag' : ' Aufträge') + ' × ' + n + ' Exemplar' + (n === 1 ? '' : 'e') + ' an «' + name + '» geschickt.');
+    });
   });
 }
 
@@ -31634,7 +31892,7 @@ function pruefOverlay(){
   }
   ov.hidden = false;
   document.body.classList.add('pr-lock-open');
-  libFensterZu();   // 🪟 In Prüfungen keine eigenen Fenster
+  libFensterAlleZu();   // 🪟 In Prüfungen keine eigenen Fenster
   return ov;
 }
 function pruefLockHide(){
@@ -40633,7 +40891,7 @@ window.addEventListener('message', function(e){
   var d = e.data;
   if(!d || !d.__rswPruefFrage || !state.user) return;
   // nur aus einer Übung, die hier in der Library offen ist
-  var eigen = Array.prototype.some.call(document.querySelectorAll('iframe'), function(f){ return f.contentWindow === e.source; }) || (libFensterOffen() && e.source === libFenster.win);
+  var eigen = Array.prototype.some.call(document.querySelectorAll('iframe'), function(f){ return f.contentWindow === e.source; }) || !!libFensterVonQuelle(e.source);
   if(!eigen) return;
   rswPassFenster = e.source;
   rswPassSenden();
@@ -43092,7 +43350,6 @@ function render(){
   if(lph.aktiv && lph.aktiv.nurUebung){ setTimeout(function(){ lphMelden(false); updateLernphaseBanner(); }, 0); }
   if(wackelnAktiv() && state.route.name !== 'home' && state.route.name !== 'klassenzimmer') wackelnEnde();
   // Übung verlassen: Stand und Lernzeit ein letztes Mal sichern, Beobachtung stoppen.
-  if(libFenster.uebung && !(state.route.name === 'resource' && state.route.resource && state.route.resource.id === libFenster.rid)) libFensterZu();
   if(state.route.name !== 'resource' && syncState.resourceId){
     stopResourceSync();
     currentViewerResourceId = null;
