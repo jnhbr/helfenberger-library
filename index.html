@@ -2455,6 +2455,13 @@
   .pr-resultat{display:flex;gap:12px;margin:4px 0 14px;}
   .pr-resultat div{flex:1;background:var(--surface-2);border-radius:var(--radius-sm);padding:10px;text-align:center;}
   .pr-resultat span{display:block;font-size:12px;color:var(--text-muted);}
+  .pr-dl-liste{display:flex;flex-direction:column;align-items:flex-start;gap:6px;max-height:50vh;overflow:auto;}
+  .pr-handnote{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:-6px 0 14px;}
+  .pr-handnote label{font-weight:600;}
+  .pr-handnote .modal-input{width:80px;margin:0;}
+  .pr-handnote .pr-hinweis{flex-basis:100%;margin:0;}
+  .noten-in-pruef{width:100%;}
+  .noten-anpass{font-size:11px;color:var(--text-muted);display:block;}
   .pr-resultat b{font-size:26px;}
   .pr-details{display:flex;flex-direction:column;gap:6px;margin-bottom:14px;}
   .pr-det{display:flex;gap:10px;align-items:flex-start;padding:8px 10px;border-radius:10px;background:var(--surface-2);font-size:14px;}
@@ -9491,7 +9498,7 @@ var KIB_WISSEN = [
   {id:'gesperrt', fuer:'sus', problem:true, f:'Ich bin in der Prüfung gesperrt. Was jetzt?', w:'gesperrt sperre entsperren entsperrt gesperrt prüfung rausgeflogen verlassen blockiert',
    a:'Melde dich bei deiner Lehrperson. Nur sie kann dich wieder entsperren. Bleib danach in der Prüfung: kein anderer Tab, kein anderes Fenster, nicht neu laden.'},
   {id:'noten', fuer:'sus', f:'Was ist der Notenrechner?', w:'note noten notenrechner durchschnitt schnitt zeugnis eintragen berechnen resultat resultate',
-   a:'Unter 🎶 Notenrechner (in der Leiste unter «Mehr») trägst du Noten ein und berechnest den Durchschnitt. Deine Einträge siehst nur du. Gibt die Lehrperson die Resultate einer Online-Prüfung frei, steht diese Note automatisch dort.'},
+   a:'Unter 🎶 Notenrechner (in der Leiste unter «Mehr») trägst du Noten ein und berechnest den Durchschnitt. Deine Einträge siehst nur du. Gibt die Lehrperson die Resultate einer Online-Prüfung frei, steht diese Note automatisch dort. Wurde sie auf Papier noch korrigiert, kannst du sie selbst anpassen.'},
   {id:'fragebox', fuer:'sus', f:'Wie stelle ich meiner Lehrperson eine Frage?', w:'fragebox frage fragen anonym lehrer lehrerin lehrperson schreiben melden kontakt', ziel:'fragebox',
    a:'Mit der ❓ Fragebox. Du kannst anonym fragen, dann steht nirgends, von wem die Frage kommt. Oder du schickst deinen Namen mit.'},
   {id:'aemtli', fuer:'sus', f:'Wo sehe ich mein Ämtli?', w:'ämtli amt ämtliplan besen putzen eingeteilt dienst',
@@ -11688,7 +11695,10 @@ async function runGoLive(){
    merge:true würde ein gelöschtes Fach/eine gelöschte Note stehen bleiben.
    Dazu kommen die Noten aus Online-Prüfungen (progress/{uid}/pruefungsnoten/*,
    schreibt nur die Lehrperson beim «Resultate freigeben», siehe
-   pruefNotenEintragen): fest angezeigt, zählen im Schnitt mit. */
+   pruefNotenEintragen): zählen im Schnitt mit. Seit 20.10.2026 darf die Person
+   eine Prüfungsnote für sich anpassen (z. B. nach einer Korrektur auf Papier):
+   steht in pruefAnpass:{notenId:note} im eigenen Dokument, die Note der
+   Lehrperson bleibt unverändert und wird daneben angezeigt. */
 
 // Englisch, Französisch und TTG (id textiles-werken, damit bestehende Noten
 // bleiben) sind inzwischen richtige Fächer in SUBJECTS.
@@ -11706,13 +11716,14 @@ function notenFachById(id){
   return notenFaecher().find(function(f){ return f.id === id; }) || {id:id, name:id, color:'#556270'};
 }
 
-var noten = { faecher:{}, uid:null, offen:{}, pruef:[] };
+var noten = { faecher:{}, uid:null, offen:{}, pruef:[], anpass:{} };
 
 function notenRef(){ return doc(db, 'progress', state.user.uid, 'noten', 'liste'); }
 
 function notenLoad(){
   var eigene = noten.uid === state.user.uid ? Promise.resolve() : getDoc(notenRef()).then(function(snap){
     noten.faecher = (snap.exists() && snap.data().faecher) || {};
+    noten.anpass = (snap.exists() && snap.data().pruefAnpass) || {};
     noten.uid = state.user.uid;
   });
   // Prüfungsnoten jedes Mal frisch: die Lehrperson kann sie inzwischen eingetragen oder entfernt haben.
@@ -11734,9 +11745,15 @@ function notenSikoreHtml(liste){
         '<span>'+esc(n.name || 'SIKORE')+(n.sikoreLevel ? ' · Level '+esc(String(n.sikoreLevel)) : '')+'</span><span>'+esc(fmtNote(n.note))+'</span><span>'+esc(String(n.gewicht))+'</span><span>🔒</span></div>';
     }).join('')+'</details>';
 }
-function notenPruefVon(fach){ return (noten.pruef || []).filter(function(n){ return n.fach === fach; }); }
+// Mit der eigenen Anpassung: note = was zählt, noteLp = was die Lehrperson eingetragen hat.
+function notenPruefVon(fach){
+  return (noten.pruef || []).filter(function(n){ return n.fach === fach; }).map(function(n){
+    var a = (noten.anpass || {})[n.id];
+    return typeof a === 'number' && !n.sikore ? Object.assign({}, n, {note:a, noteLp:n.note}) : n;
+  });
+}
 function notenSave(){
-  return setDoc(notenRef(), { faecher: noten.faecher, updatedAt: serverTimestamp() })
+  return setDoc(notenRef(), { faecher: noten.faecher, pruefAnpass: noten.anpass || {}, updatedAt: serverTimestamp() })
     .catch(function(err){ console.error(err); toast('Noten konnten nicht gespeichert werden.'); });
 }
 function parseNote(v){
@@ -11798,8 +11815,12 @@ function paintNotenrechner(){
       '<div class="noten-rows">'+
       '<div class="noten-row noten-row-head"><span>Prüfung</span><span>Note</span><span>Gewicht</span><span></span></div>'+
       fix.filter(function(n){ return !n.sikore; }).map(function(n){
-        return '<div class="noten-row noten-row-fix" title="Von der Lehrperson aus der Online-Prüfung eingetragen">'+
-          '<span>📝 '+esc(n.name || 'Prüfung')+'</span><span>'+esc(fmtNote(n.note))+'</span><span>'+esc(String(n.gewicht))+'</span><span>🔒</span></div>';
+        var anders = typeof n.noteLp === 'number';
+        return '<div class="noten-row noten-row-fix" data-pruef="'+esc(n.id)+'" title="Von der Lehrperson aus der Online-Prüfung eingetragen. Die Note kannst du anpassen, falls sie auf Papier noch korrigiert wurde.">'+
+          '<span>📝 '+esc(n.name || 'Prüfung')+(anders ? '<small class="noten-anpass">Lehrperson: '+esc(fmtNote(n.noteLp))+'</small>' : '')+'</span>'+
+          '<input type="number" class="noten-in noten-in-pruef" min="1" max="6" step="0.25" value="'+esc(String(n.note))+'" aria-label="Note">'+
+          '<span>'+esc(String(n.gewicht))+'</span>'+
+          (anders ? '<button class="btn btn-ghost btn-sm noten-pruef-weg" type="button" title="Wieder die Note der Lehrperson">↺</button>' : '<span title="Gewicht und Name legt die Lehrperson fest">🔒</span>')+'</div>';
       }).join('')+
       notenSikoreHtml(fix.filter(function(n){ return n.sikore; }))+
       liste.map(function(n){
@@ -11842,6 +11863,20 @@ function paintNotenrechner(){
   Array.prototype.forEach.call(body.querySelectorAll('.noten-fach'), function(det){
     var fach = det.getAttribute('data-fach');
     det.addEventListener('toggle', function(){ noten.offen[fach] = det.open; });
+    Array.prototype.forEach.call(det.querySelectorAll('.noten-row[data-pruef]'), function(row){
+      var pid = row.getAttribute('data-pruef'), lp = (noten.pruef || []).find(function(n){ return n.id === pid; });
+      var inp = row.querySelector('.noten-in-pruef'), weg = row.querySelector('.noten-pruef-weg');
+      if(!lp) return;
+      inp.addEventListener('change', function(){
+        var v = parseNote(inp.value);
+        if(!(v >= 1 && v <= 6)){ inp.value = String((noten.anpass || {})[pid] != null ? noten.anpass[pid] : lp.note); toast('Note muss zwischen 1 und 6 liegen.'); return; }
+        noten.anpass = noten.anpass || {};
+        if(Math.abs(v - lp.note) < 1e-9) delete noten.anpass[pid]; else noten.anpass[pid] = v;
+        notenSave();
+        paintNotenrechner();
+      });
+      if(weg) weg.addEventListener('click', function(){ delete noten.anpass[pid]; notenSave(); paintNotenrechner(); });
+    });
     Array.prototype.forEach.call(det.querySelectorAll('.noten-row[data-id]'), function(row){
       var id = row.getAttribute('data-id');
       function item(){ return (noten.faecher[fach]||[]).find(function(n){ return n.id === id; }); }
@@ -14014,8 +14049,12 @@ async function svaPdf(blatt, fuss){
     ops = o;
     ops.push('0.45 g'); text(svaWinText((fuss ? fuss + ' · ' : '')+'Seite '+(i + 1)+' von '+seiten.length), N, 8, M, H - M + 2, 12);
   });
-
-  // ---- PDF schreiben ----
+  return svaPdfSchreiben(seiten, N, B, W, H);
+}
+// Seiten (je ein Array von PDF-Operatoren, Schriften /F1 normal und /F2 fett) → PDF-Bytes.
+// Auch für den 📄 Download der Prüfungen (pruefPdf); bilder = [{data:JPEG-Bytes, w, h}] als /Im0, /Im1 …
+async function svaPdfSchreiben(seiten, N, B, W, H, bilder){
+  bilder = bilder || [];
   var teile = [], pos = 0, offs = [];
   var raus = function(x){
     if(typeof x === 'string'){ var u = new Uint8Array(x.length); for(var i = 0; i < x.length; i++) u[i] = x.charCodeAt(i) & 255; x = u; }
@@ -14042,11 +14081,16 @@ async function svaPdf(blatt, fuss){
   };
   await schrift(3, N, 'MappeSans-Regular', 80);
   await schrift(6, B, 'MappeSans-Bold', 130);
+  var bild0 = 9 + 2*seiten.length;
+  var xobj = bilder.length ? ' /XObject << '+bilder.map(function(b, k){ return '/Im'+k+' '+(bild0 + k)+' 0 R'; }).join(' ')+' >>' : '';
   for(var i = 0; i < seiten.length; i++){
-    obj(9 + 2*i, '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 '+W+' '+H+'] /Resources << /Font << /F1 3 0 R /F2 6 0 R >> >> /Contents '+(10 + 2*i)+' 0 R >>');
+    obj(9 + 2*i, '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 '+W+' '+H+'] /Resources << /Font << /F1 3 0 R /F2 6 0 R >>'+xobj+' >> /Contents '+(10 + 2*i)+' 0 R >>');
     await strom(10 + 2*i, bytesAus(seiten[i].join('\n')));
   }
-  var anzahl = 9 + 2*seiten.length, xref = pos, zehn = function(v){ return ('0000000000' + v).slice(-10); };
+  bilder.forEach(function(b, k){
+    obj(bild0 + k, '/Type /XObject /Subtype /Image /Width '+b.w+' /Height '+b.h+' /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode', b.data);
+  });
+  var anzahl = bild0 + bilder.length, xref = pos, zehn = function(v){ return ('0000000000' + v).slice(-10); };
   raus('xref\n0 '+anzahl+'\n0000000000 65535 f \n');
   for(var nr = 1; nr < anzahl; nr++) raus(zehn(offs[nr])+' 00000 n \n');
   raus('trailer\n<< /Size '+anzahl+' /Root 1 0 R >>\nstartxref\n'+xref+'\n%%EOF\n');
@@ -21733,6 +21777,8 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-10-20-pruefung-download', datum:'2026-10-20', fuer:'lehrer', text:'📄 Prüfungen: «Abgaben herunterladen» speichert pro Person ein PDF mit allen Aufgaben samt Bildern, Antworten, Punkten, der Note und einer Zeile für die Unterschrift der Eltern in einen Ordner deiner Wahl (Chrome, Edge, Desktop-App). Dazu kommt ein Sammel-PDF zum Drucken in einem Rutsch, in dem jede Person auf einem neuen Blatt beginnt. Neu ist auch «✍️ Note von Hand» unter «Details»: Damit überschreibst du die berechnete Note, z. B. nach einer Korrektur auf Papier. Die Note gilt dann überall.'},
+  {id:'2026-10-20-notenrechner-anpassen', datum:'2026-10-20', fuer:'alle', text:'🎶 Notenrechner: Die Note einer Online-Prüfung kannst du jetzt selbst anpassen, falls deine Lehrperson sie auf Papier noch korrigiert hat. Daneben steht weiterhin die Note der Lehrperson, und mit ↺ stellst du sie wieder her.'},
   {id:'2026-10-20-spiel-vor-aemtli', datum:'2026-10-20', fuer:'alle', text:'🎮 Startet deine Lehrperson ein Live-Spiel, während der Hinweis «Heute bist du mit dem Ämtli dran» offen ist, öffnet sich das Spiel jetzt trotzdem von selbst. Dein Ämtli siehst du weiterhin auf der Startseite.'},
   {id:'2026-10-20-antwort-fix', datum:'2026-10-20', fuer:'alle', text:'🔒 Abgegeben ist abgegeben: Bei Wortwolke, Blitzumfrage, Abstimmungen, Wer wird Millionär und Schätzmeister kannst du deine Antwort nach dem Senden nicht mehr ändern. Also zuerst gut überlegen, dann abschicken.'},
   {id:'2026-10-20-eigenes-fenster', datum:'2026-10-20', fuer:'lehrer', text:'🪟 Klassenzimmer › «🪟 Eigenes Fenster: an»: Wortwolken, Umfragen, Spiele und Beamer-Werkzeuge starten dann in einem eigenen Fenster im Vollbild (z. B. auf den Beamer ziehen), die Library bleibt daneben frei. Es läuft immer nur eines aufs Mal: Startest du etwas Neues, fragt die Library, ob das Laufende beendet werden soll.'},
@@ -31717,6 +31763,43 @@ function pruefNote(p, punkte, max){
   if(sk.typ !== 'tabelle'){ var r = +p.rundung || 0.1; n = Math.round(n / r) * r; }
   return Math.max(1, Math.min(6, n));
 }
+/* ✍️ Note von Hand (20.10.2026): die Lehrperson überschreibt die berechnete Note
+   (z. B. nach einer Korrektur auf Papier). Steht als noteHand in der Teilnahme und
+   gilt im Monitor, bei der Person, im Notenrechner und auf dem 📄 Download. */
+function pruefNoteVon(p, t, punkte, max){
+  if(t && typeof t.noteHand === 'number') return t.noteHand;
+  return pruefNote(p, punkte, max);
+}
+function pruefHandNoteHtml(p, t, r){
+  var ber = pruefNote(p, r.punkte, r.max), hand = t && typeof t.noteHand === 'number';
+  return '<div class="pr-handnote"><label for="prHandNote">✍️ Note von Hand</label>'+
+    '<input type="text" inputmode="decimal" id="prHandNote" class="modal-input" value="'+(hand ? esc(pruefNoteText(t.noteHand)) : '')+'" placeholder="'+esc(pruefNoteText(ber))+'">'+
+    '<button class="btn btn-ghost btn-sm" id="prHandNoteOk" type="button">Übernehmen</button>'+
+    (hand ? '<button class="btn btn-ghost btn-sm" id="prHandNoteWeg" type="button" title="Wieder die aus den Punkten berechnete Note">↺ Berechnete Note ('+esc(pruefNoteText(ber))+')</button>' : '')+
+    '<span class="pr-hinweis">'+(hand ? 'Die Note ist von Hand gesetzt. Punkte-Korrekturen ändern sie nicht mehr.' : 'Leer lassen = Note aus den Punkten.')+'</span></div>';
+}
+// nachher(): neu zeichnen, t.noteHand ist dann schon nachgeführt.
+function pruefHandNoteVerdrahten(p, uid, t, r, nachher){
+  function speichern(v){
+    var batch = writeBatch().update(teilRef(p.id, uid), {noteHand:v == null ? deleteField() : v, noteHandAm:serverTimestamp()});
+    if(p.resultateFrei) pruefNoteSetzen(batch, p, uid, Object.assign({}, r, {noteHand:v}));
+    return batch.commit().then(function(){
+      if(v == null) delete t.noteHand; else t.noteHand = v;
+      toast(v == null ? 'Wieder die berechnete Note.' : '✍️ Note ' + pruefNoteText(v) + ' gespeichert.');
+      if(nachher) nachher();
+    }).catch(pruefFehler);
+  }
+  var ok = document.getElementById('prHandNoteOk'), weg = document.getElementById('prHandNoteWeg'), inp = document.getElementById('prHandNote');
+  if(ok) ok.addEventListener('click', function(){
+    var roh = inp.value.trim();
+    if(!roh){ if(typeof t.noteHand === 'number') speichern(null); return; }
+    var v = parseNote(roh);
+    if(!(v >= 1 && v <= 6)){ toast('Bitte eine Note zwischen 1 und 6 eingeben.'); inp.focus(); return; }
+    speichern(Math.round(v * 100) / 100);
+  });
+  if(inp) inp.addEventListener('keydown', function(e){ if(e.key === 'Enter'){ e.preventDefault(); ok.click(); } });
+  if(weg) weg.addEventListener('click', function(){ speichern(null); });
+}
 function pruefZahlText(x){ return String(Math.round(x * 100) / 100).replace('.', ','); }
 function pruefSkalaText(p){
   var sk = pruefSkala(p);
@@ -33424,7 +33507,7 @@ function pruefResultatZeigen(p){
   if(!t || !p.resultateFrei) return;
   try{ localStorage.setItem(pruefGesehenKey(p.id), '1'); }catch(e){}
   updatePruefungBanner();
-  var note = pruefNote(p, t.punkte, t.max);
+  var note = pruefNoteVon(p, t, t.punkte, t.max);
   if(pruefArt(p) === 'sikore' && p.levels && p.levels[state.user.uid]){
     var skAlt = +p.levels[state.user.uid];
     setTimeout(function(){ sikoreAufstiegFeiern(p.id, skAlt, sikoreNaechstes(skAlt, note)); }, 400);
@@ -35405,6 +35488,7 @@ function pruefMonitorZeichnen(){
   if(pruefArt(p) === 'bank' && !p.diktat) h += '<button class="btn btn-ghost btn-sm" data-a="punkte" type="button">🧮 Aufgaben & Punkte</button>';
   if((pruefArt(p) === 'bank' && !p.diktat) || pruefArt(p) === 'mt' || pruefArt(p) === 'nativ') h += '<button class="btn btn-ghost btn-sm" data-a="baukasten" type="button" title="Aufgaben ansehen, einzeln löschen oder austauschen — bis jemand die Prüfung startet">🧩 Baukasten</button>';
   if(pruefArt(p) === 'bank') h += '<button class="btn btn-ghost btn-sm" data-a="drucken" type="button">🖨️ Drucken (PDF/Word)</button>';
+  if(!skPapier && p.status !== 'entwurf') h += '<button class="btn btn-ghost btn-sm" data-a="download" type="button" title="Pro Person ein PDF mit Antworten, Punkten, Note und Unterschriftszeile für die Eltern – plus ein Sammel-PDF zum Drucken">📄 Abgaben herunterladen</button>';
   if(p.status !== 'offen') h += '<button class="btn btn-ghost btn-sm" data-a="loeschen" type="button">🗑 Löschen</button>';
   h += '</div>';
   if(p.seb && !skPapier){
@@ -35426,7 +35510,7 @@ function pruefMonitorZeichnen(){
     var st = pruefTeilStatusMitWarte(p, r);
     if(st.cls === 'warte') z.warte++;
     r.st = st; r.erg = pruefErgebnis(p, r.t);
-    if(st.cls === 'ab'){ z.ab++; if(r.erg){ var n = pruefNote(p, r.erg.punkte, r.erg.max); if(n != null) notenListe.push(n); } }
+    if(st.cls === 'ab'){ z.ab++; if(r.erg){ var n = pruefNoteVon(p, r.t, r.erg.punkte, r.erg.max); if(n != null) notenListe.push(n); } }
     else if(st.cls === 'gesperrt') z.gesperrt++;
     else if(st.cls === 'nix' || st.cls === 'warte') z.nix++;
     else z.laeuft++;
@@ -35453,7 +35537,7 @@ function pruefMonitorZeichnen(){
   rows.forEach(function(r){
     var t = r.t, st = r.st;
     var fort = !t ? '' : t.status === 'abgegeben'
-      ? (r.erg ? (p.diktat ? (r.erg.max - r.erg.punkte)+' Fehler' : pruefArt(p) === 'tippen' ? r.erg.punkte+' Netto-Anschl./Min. · '+r.erg.fehler+' Fehler' : pruefZahlText(r.erg.punkte)+' / '+pruefZahlText(r.erg.max)+' Pkt')+' · Note <b>'+pruefNoteText(pruefNote(p, r.erg.punkte, r.erg.max))+'</b>' : 'wird korrigiert …')
+      ? (r.erg ? (p.diktat ? (r.erg.max - r.erg.punkte)+' Fehler' : pruefArt(p) === 'tippen' ? r.erg.punkte+' Netto-Anschl./Min. · '+r.erg.fehler+' Fehler' : pruefZahlText(r.erg.punkte)+' / '+pruefZahlText(r.erg.max)+' Pkt')+' · Note <b>'+pruefNoteText(pruefNoteVon(p, t, r.erg.punkte, r.erg.max))+'</b>'+(typeof t.noteHand === 'number' ? ' <span title="Note von Hand gesetzt">✍️</span>' : '') : 'wird korrigiert …')
       : (p.diktat ? (t.beantwortet || 0)+' Wörter geschrieben' : pruefArt(p) === 'tippen' ? (t.beantwortet || 0)+' Zeichen getippt' : (t.beantwortet || 0)+' / '+anzahl+' beantwortet') + (pruefFrist(p, t, r.uid) ? ' · ⏱ ' + (pruefZeitUm(p, t, r.uid) ? 'Zeit um' : Math.ceil((pruefFrist(p, t, r.uid) - Date.now()) / 60000) + ' Min. übrig') + (pruefZuschlag(p, r.uid) ? ' (♿ +' + pruefZuschlag(p, r.uid) + ' %)' : '') : '');
     var vs = t && t.verstoesse && t.verstoesse.length ? ' · <span class="pr-vs" title="'+esc(t.verstoesse.map(function(v){ return new Date(v.at).toLocaleTimeString('de-CH',{hour:'2-digit',minute:'2-digit'})+' '+v.grund; }).join('\n'))+'">⚠️ '+t.verstoesse.length+'× verlassen</span>' : '';
     var sebMark = !t ? '' : t.seb ? ' <span title="im Safe Exam Browser">🛡️</span>' : p.seb ? ' <small class="pr-vs">⚠️ ohne SEB</small>' : '';
@@ -35605,6 +35689,7 @@ function pruefMonitorVerdrahten(p){
     else if(a === 'punkte') pruefAufgabenPunkte(p);
     else if(a === 'baukasten'){ if(pruefArt(p) === 'mt') mtPrBaukasten(p); else if(pruefArt(p) === 'nativ') nativBaukasten(p); else if(p.rsw) rswBaukasten(p); else pruefBaukasten(p); }
     else if(a === 'drucken') pruefDruckDialog(p);
+    else if(a === 'download') pruefDownloadDialog(p);
     else if(a === 'alleEntsperren'){
       var batch = writeBatch();
       Object.keys(teil).forEach(function(uid){ if(teil[uid].status === 'gesperrt') batch.update(teilRef(p.id, uid), {status:'laeuft', aktiv:false, entsperrtAm:serverTimestamp()}); });
@@ -35668,7 +35753,9 @@ async function pruefNotenEintragen(p, nurUids){
   if(n) await batch.commit();
 }
 function pruefNoteSetzen(batch, p, uid, r){
-  var nd = {fach:p.fach || '', name:p.titel || 'Prüfung', note:pruefNote(p, r.punkte, r.max),
+  // ✍️ Note von Hand: aus r (gerade gesetzt) oder aus der Teilnahme.
+  var hand = r.hasOwnProperty('noteHand') ? r.noteHand : ((pruef.teil[p.id] || {})[uid] || {}).noteHand;
+  var nd = {fach:p.fach || '', name:p.titel || 'Prüfung', note:typeof hand === 'number' ? hand : pruefNote(p, r.punkte, r.max),
     gewicht:+p.gewicht > 0 ? +p.gewicht : 1, pruefungId:p.id, klasse:state.klasse, datum:serverTimestamp()};
   if(pruefArt(p) === 'sikore'){ nd.sikore = true; nd.sikoreLevel = +r.level || +(p.levels || {})[uid] || null; }
   batch.set(pruefNoteRef(uid, p.id), nd);
@@ -35739,13 +35826,15 @@ function pruefDetailsLehrer(p, uid){
   function zeichne(){
     var r = erg();
     var h = '<h3>'+esc(t.name || '')+' — '+esc(p.titel)+'</h3>';
-    h += '<div class="pr-resultat"><div><span>Note</span><b>'+pruefNoteText(pruefNote(p, r.punkte, r.max))+'</b></div><div><span>'+pruefPunkteLabel(p)+'</span><b>'+esc(pruefPunkteWert(p, r.punkte, r.max))+'</b></div></div>';
+    h += '<div class="pr-resultat"><div><span>Note</span><b>'+pruefNoteText(pruefNoteVon(p, t, r.punkte, r.max))+'</b></div><div><span>'+pruefPunkteLabel(p)+'</span><b>'+esc(pruefPunkteWert(p, r.punkte, r.max))+'</b></div></div>';
+    h += pruefHandNoteHtml(p, t, r);
     if(t.verstoesse && t.verstoesse.length) h += '<p class="pr-hinweis">⚠️ '+t.verstoesse.length+'× verlassen: '+esc(t.verstoesse.map(function(v){ return new Date(v.at).toLocaleTimeString('de-CH',{hour:'2-digit',minute:'2-digit'})+' '+v.grund; }).join(' · '))+'</p>';
     h += pruefSpracheHinweis(t);
     h += '<p class="pr-hinweis">'+(p.diktat ? 'Tippe auf ❌, um einen Fehler nicht zu zählen (✅ = gestrichen).' : bank ? 'Tippe auf ✅/🟡/❌ für volle oder keine Punkte, oder trag Teilpunkte direkt ein (halbe gehen). ✋ = von Hand gewertet.' : 'Tippe auf ✅/❌, um eine Antwort von Hand anders zu werten.')+'</p>';
     h += pruefDetailsHtml(bank ? r.details : r.details.map(function(d){ return Object.assign({}, d, {max:0}); }), true);
     h += '<div class="modal-actions"><button class="btn btn-ghost btn-sm" id="modalCancel" type="button">Schliessen</button><button class="btn btn-primary btn-sm" id="modalOk" type="button">Korrektur speichern</button></div>';
     openModal(h, 'pr-modal');
+    pruefHandNoteVerdrahten(p, uid, t, r, zeichne);
     document.getElementById('modalCancel').addEventListener('click', closeModal);
     document.getElementById('modalOk').addEventListener('click', function(){
       var r2 = erg(), upd = {korrigiertAm:serverTimestamp()};
@@ -35777,6 +35866,288 @@ function pruefDetailsLehrer(p, uid){
     });
   }
   zeichne();
+}
+
+/* ---------- Lehrperson: 📄 Abgaben als PDF (20.10.2026) ----------
+   Pro Person ein PDF mit allen Aufgaben, den Antworten, Punkten und der Note
+   (inkl. ✍️ Note von Hand) und einer Zeile für die Unterschrift der Eltern,
+   dazu ein Sammel-PDF zum Drucken in einem Rutsch: jede Person beginnt auf
+   einem neuen Blatt, auch doppelseitig (leere Rückseite wird eingefügt).
+   Lösungen stehen nicht drauf — ausser beim Diktat, wo der Fehler sonst nicht
+   zu verstehen ist. Bilder kommen mit: bei Aufgaben aus Übungen p.bilder[q.bild]
+   (samt Einleitung q.kontext), beim ⚡ Übungstrainer q.svg und die Klick-Bilder
+   mit der angetippten Stelle (pruefHotbildSvg) — als JPEG (pruefSvgJpeg). Alles schwarz, Schrift wie bei den SVA-Abgaben (Carlito =
+   Calibri-Masse, svaPdfSchreiben). Ordner wählen geht in Chrome/Edge und in
+   der Desktop-App (showDirectoryPicker), sonst gibt es Download-Links. */
+function pruefAbgabenListe(p){
+  var teil = pruef.teil[p.id] || {};
+  return pruefMonitorZeilen(p, teil, pruefRosterFuer(p) || [])
+    .filter(function(r){ return r.t && r.t.status === 'abgegeben'; })
+    .map(function(r){ return {uid:r.uid, name:r.name, t:r.t, erg:pruefErgebnis(p, r.t)}; })
+    .filter(function(r){ return r.erg; })
+    .sort(function(a, b){ return a.name.localeCompare(b.name, 'de'); });
+}
+function pruefAbgabeBlatt(p, r){
+  var t = r.t, erg = r.erg, texte = [];
+  (p.fragen || []).forEach(function(q){
+    if(q.typ === 'diktat') texte.push({titel:'Geschriebener Text', text:String((t.antworten || {})[q.id] || '–')});
+  });
+  var am = pruefMs(t.abgegebenAm) || pruefMs(p.freigegebenAm) || Date.now();
+  var pk = p.diktat ? (erg.max - erg.punkte) + ' Fehler' : pruefArt(p) === 'tippen' ? erg.punkte + ' Netto-Anschläge/Min.' + (erg.fehler != null ? ', ' + erg.fehler + ' Fehler' : '')
+    : pruefZahlText(erg.punkte) + ' von ' + pruefZahlText(erg.max) + ' Punkten';
+  var details = (erg.details || []).map(function(d){ return Object.assign({}, d, {bilder:[]}); });
+  if(pruefArt(p) === 'bank'){
+    // Gleiches Bild / gleiche Einleitung wie bei der Aufgabe davor nur einmal.
+    var qs = {}, vorBild = null, vorKon = null;
+    (p.fragen || []).forEach(function(q){ qs[q.id] = q; });
+    details.forEach(function(d){
+      var q = !d.info && d.id && qs[d.id];
+      if(!q) return;
+      var svg = q.bild != null && (p.bilder || [])[q.bild] ? p.bilder[q.bild] : null;
+      if(q.kontext && q.kontext !== vorKon) d.kontext = q.kontext;
+      if(svg && svg !== vorBild) d.bilder.push(svg);
+      vorKon = q.kontext || null; vorBild = svg;
+    });
+  } else if(pruefArt(p) === 'mt'){
+    // Gleiche Reihenfolge wie in mtPrBewerten: pro Frage ein Detail je Kästchen.
+    var idx = 0;
+    mtPrFragen(p, r.uid).forEach(function(q, i){
+      q.felder.forEach(function(fd, j){
+        var d = details[idx++];
+        if(!d) return;
+        if(j === 0 && q.svg) d.bilder.push(q.svg);
+        if(fd.typ === 'bild') d.bilder.push(pruefHotbildSvg(fd, (t.antworten || {})[i+'_'+j]));
+      });
+    });
+  }
+  return {titel:p.titel || 'Prüfung', name:r.name, klasse:klasseLabel(pruefKl(p.id)), fach:p.fach ? subjectName(p.fach) : '',
+    datum:new Date(am).toLocaleDateString('de-CH'), note:pruefNoteText(pruefNoteVon(p, t, erg.punkte, erg.max)), punkte:pk,
+    diktat:!!p.diktat, texte:texte, details:details};
+}
+// Klick-Bild des Übungstrainers als eigenständiges SVG, die angetippte Stelle dunkel.
+function pruefHotbildSvg(f, wert){
+  var b = f.bild || {}, gew = wert == null ? '' : String(wert);
+  var h = '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="'+esc(b.vb || '0 0 100 100')+'"'+(b.cls ? ' class="'+esc(b.cls)+'"' : '')+'>'+(b.inhalt || '');
+  (b.hots || []).forEach(function(o){
+    var an = gew && mtVgl(f, gew) === mtVgl(f, o.v);
+    h += '<g class="mt-hot'+(an ? ' an' : '')+'">'+(o.form || '')+
+      (o.t ? '<text class="hot-t" x="'+esc(String(o.tx))+'" y="'+esc(String(o.ty))+'" text-anchor="middle">'+esc(o.t)+'</text>' : '')+'</g>';
+  });
+  return h + '</svg>';
+}
+// Die Klassen der Library mit festen Farben (ein Bild aus einer data-URL sieht kein CSS der Seite).
+var PRUEF_BILD_CSS = 'text{fill:#000;font-family:Carlito,Calibri,Arial,sans-serif;font-weight:700}'+
+  '.mt-grund{fill:#fff;stroke:#bbb;stroke-width:1.5}.mt-linie{fill:none;stroke:#555;stroke-width:1.4;stroke-linecap:round}.mt-fuell{fill:#ccc;opacity:.45}.mt-klein{fill:#444;font-weight:600}'+
+  '.hot-f{fill:#888;fill-opacity:.12;stroke:#777;stroke-opacity:.6;stroke-width:1.4}.echt .hot-f{vector-effect:non-scaling-stroke;stroke-width:1.6}'+
+  '.an .hot-f{fill:#000;fill-opacity:.5;stroke:#000;stroke-opacity:1;stroke-width:2.4}.hot-t{fill:#000;font-size:9.5px;font-weight:700}'+
+  '.mt-marke{fill:#000;fill-opacity:.5;stroke:#000;stroke-width:2.5;vector-effect:non-scaling-stroke}';
+var pruefBildDateien = {};
+// <image href="assets/…"> als data-URL einbetten, sonst bleibt die Fläche im Bild leer.
+async function pruefSvgEinbetten(svg){
+  var urls = [];
+  svg.replace(/<image\b[^>]*?\s(?:xlink:)?href\s*=\s*["']([^"']+)["']/gi, function(m, u){ if(!/^data:/i.test(u) && urls.indexOf(u) < 0) urls.push(u); return m; });
+  for(var i = 0; i < urls.length; i++){
+    var u = urls[i];
+    if(!pruefBildDateien[u]) pruefBildDateien[u] = fetch(u).then(function(res){ return res.ok ? res.blob() : null; }).then(function(blob){
+      return blob ? new Promise(function(ok){ var fr = new FileReader(); fr.onload = function(){ ok(fr.result); }; fr.onerror = function(){ ok(null); }; fr.readAsDataURL(blob); }) : null;
+    }).catch(function(){ return null; });
+    var d = await pruefBildDateien[u];
+    if(d) svg = svg.split('"' + u + '"').join('"' + d + '"').split("'" + u + "'").join("'" + d + "'");
+  }
+  return svg;
+}
+// SVG → {data:JPEG-Bytes, w, h (Pixel), pw, ph (Punkte im PDF)}, null wenn es nicht geht.
+async function pruefSvgJpeg(svg){
+  var m = pruefSvgMass(svg), pw = Math.min(400, m.w), ph = pw * m.h / m.w;
+  if(ph > 330){ pw = pw * 330 / ph; ph = 330; }
+  var k = 3, cw = Math.round(pw * k), ch = Math.round(ph * k);
+  svg = await pruefSvgEinbetten(svg);
+  svg = svg.replace(/<svg\b([^>]*)>/i, function(all, attr){
+    if(/viewBox\s*=/i.test(attr)) attr = attr.replace(/\s(width|height)\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '') + ' width="'+cw+'" height="'+ch+'"';
+    if(!/xmlns\s*=/.test(attr)) attr += ' xmlns="http://www.w3.org/2000/svg"';
+    if(!/xmlns:xlink\s*=/.test(attr) && /xlink:/.test(svg)) attr += ' xmlns:xlink="http://www.w3.org/1999/xlink"';
+    return '<svg' + attr + '><style>' + PRUEF_BILD_CSS + '</style>';
+  });
+  return new Promise(function(resolve){
+    var img = new Image();
+    img.onload = function(){
+      try{
+        var c = document.createElement('canvas'); c.width = cw; c.height = ch;
+        var ctx = c.getContext('2d');
+        ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, cw, ch);
+        ctx.drawImage(img, 0, 0, cw, ch);
+        c.toBlob(function(blob){
+          if(!blob){ resolve(null); return; }
+          blob.arrayBuffer().then(function(buf){ resolve({data:new Uint8Array(buf), w:cw, h:ch, pw:pw, ph:ph}); }, function(){ resolve(null); });
+        }, 'image/jpeg', 0.9);
+      }catch(e){ console.error(e); resolve(null); }
+    };
+    img.onerror = function(){ resolve(null); };
+    img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+  });
+}
+// Alle Bilder der Blätter einmal umwandeln (das Sammel-PDF braucht dieselben).
+async function pruefBlattBilder(blaetter, melde){
+  var map = new Map(), liste = [];
+  blaetter.forEach(function(b){ b.details.forEach(function(d){ (d.bilder || []).forEach(function(svg){ if(!map.has(svg)){ map.set(svg, null); liste.push(svg); } }); }); });
+  for(var i = 0; i < liste.length; i++){
+    if(melde) melde('Bilder ' + (i + 1) + ' von ' + liste.length + ' …');
+    map.set(liste[i], await pruefSvgJpeg(liste[i]));
+  }
+  return map;
+}
+async function pruefPdf(blaetter, doppelseitig, bildMap){
+  var F = await svaSchriftenLaden(), N = F[0], B = F[1];
+  var W = 595.28, H = 841.89, M = 56.7, CW = W - 2*M, G = 11, ZA = G * 1.5, UNTEN = H - M - 14, EIN = 22;
+  var num = function(v){ return String(Math.round(v * 100) / 100); };
+  var alle = [], bilder = [], bildNr = new Map();
+  blaetter.forEach(function(b){
+    var seiten = [], ops = null, y = 0;
+    var neu = function(){ ops = ['0 g 0 G 0.75 w']; seiten.push(ops); y = M; };
+    var text = function(s, f, size, x, oben, hoehe){ ops.push('BT /'+(f === B ? 'F2' : 'F1')+' '+size+' Tf '+num(x)+' '+num(H - oben - hoehe/2 - f.cap*size/2000)+' Td ('+svaPdfStr(s)+') Tj ET'); };
+    var linie = function(x1, y1, x2, y2){ ops.push(num(x1)+' '+num(H - y1)+' m '+num(x2)+' '+num(H - y2)+' l S'); };
+    var platz = function(h){ if(y + h > UNTEN) neu(); };
+    var zeilen = function(zl, f, size, x, za){ zl.forEach(function(z){ platz(za); text(z, f, size, x, y, za); y += za; }); };
+    var breite = function(s, f, size){ return svaPdfBreite(svaWinText(s), f, size); };
+    // Haken, Kreuz oder ½ links neben der Aufgabe (alles schwarz)
+    var zeichen = function(d, oben){
+      var cx = M + 6, cy = H - oben - ZA/2;
+      if(d.ok){ ops.push('1.4 w '+num(cx - 5)+' '+num(cy)+' m '+num(cx - 1.5)+' '+num(cy - 4)+' l '+num(cx + 6)+' '+num(cy + 5)+' l S 0.75 w'); return; }
+      if(d.teil){ text(svaWinText('½'), B, 13, M, oben, ZA); return; }
+      ops.push('1.4 w '+num(cx - 4.5)+' '+num(cy - 4.5)+' m '+num(cx + 4.5)+' '+num(cy + 4.5)+' l S '+num(cx - 4.5)+' '+num(cy + 4.5)+' m '+num(cx + 4.5)+' '+num(cy - 4.5)+' l S 0.75 w');
+    };
+    neu();
+    // Kopf
+    text(svaWinText('Sekundarschule Altnau' + (b.fach ? ' · ' + b.fach : '')), N, 9, M, y, 12); y += 16;
+    zeilen(svaUmbruch(b.titel, B, 16, CW), B, 16, M, 22); y += 6;
+    var kopf = [['Name', b.name], ['Klasse', b.klasse], ['Datum', b.datum]], kx = M;
+    kopf.forEach(function(k, i){
+      var w = i === 0 ? CW * 0.5 : CW * 0.25;
+      text(svaWinText(k[0] + ':'), N, 9, kx, y, 12);
+      text(svaWinText(k[1] || ''), B, G, kx, y + 12, ZA);
+      kx += w;
+    });
+    y += 12 + ZA + 8;
+    ops.push(num(M)+' '+num(H - y - 34)+' '+num(CW)+' 34 re S');
+    text(svaWinText('Note'), N, 9, M + 10, y + 3, 12); text(svaWinText(b.note), B, 15, M + 10, y + 14, 18);
+    text(svaWinText('Resultat'), N, 9, M + 110, y + 3, 12); text(svaWinText(b.punkte), B, G, M + 110, y + 14, 18);
+    y += 34 + 16;
+    // Diktat: der geschriebene Text
+    (b.texte || []).forEach(function(tx){
+      platz(ZA * 3); text(svaWinText(tx.titel), B, G, M, y, ZA); y += ZA;
+      zeilen(svaUmbruch(tx.text, N, G, CW), N, G, M, ZA); y += 10;
+    });
+    if(b.diktat && b.details.length > 1){ platz(ZA * 2); text(svaWinText('Fehler'), B, G, M, y, ZA); y += ZA + 2; }
+    var nr = 0;
+    b.details.forEach(function(d){
+      if(d.info){
+        if(b.diktat) return;   // steht schon im Kopf
+        platz(ZA * 2);
+        zeilen(svaUmbruch(d.f || '', B, G, CW - EIN), B, G, M + EIN, ZA);
+        if(d.a) zeilen(svaUmbruch(d.a, N, G, CW - EIN), N, G, M + EIN, ZA);
+        y += 6; return;
+      }
+      nr++;
+      var pk = d.max > 0 ? pruefZahlText(d.pkt) + ' / ' + pruefZahlText(d.max) + ' P.' : '';
+      var pkB = pk ? breite(pk, N, G) + 10 : 0;
+      var fz = svaUmbruch((d.nr ? '' : nr + '. ') + (d.f || ''), B, G, CW - EIN - pkB);
+      var az;
+      if(b.diktat) az = d.a && d.a !== '–' && d.r && d.r !== '(nichts)' ? svaUmbruch('geschrieben: «' + d.a + '» · richtig: «' + d.r + '»', N, G, CW - EIN) : [];
+      else az = svaUmbruch('Antwort: ' + (d.a || '–'), N, G, CW - EIN);
+      if(b.diktat && d.ok) az = az.concat(svaUmbruch('zählt nicht als Fehler', N, G, CW - EIN));
+      var hz = d.hinweis && /^Folgefehler/.test(d.hinweis) ? svaUmbruch(d.hinweis, N, 9, CW - EIN) : [];
+      var hoehe = (fz.length + az.length) * ZA + hz.length * 13;
+      if(d.kontext){ var kz = svaUmbruch(d.kontext, N, G, CW - EIN); platz(Math.min(kz.length, 3) * ZA + ZA * 2); zeilen(kz, N, G, M + EIN, ZA); y += 3; }
+      platz(Math.min(hoehe, ZA * 2));
+      zeichen(b.diktat && !d.ok ? {} : d, y);
+      if(pk) text(svaWinText(pk), N, G, M + CW - breite(pk, N, G), y, ZA);
+      zeilen(fz, B, G, M + EIN, ZA);
+      (d.bilder || []).forEach(function(svg){
+        var img = bildMap && bildMap.get(svg);
+        if(!img) return;
+        if(!bildNr.has(svg)){ bildNr.set(svg, bilder.length); bilder.push(img); }
+        var bw = img.pw, bh = img.ph;
+        platz(bh + 8 + ZA); y += 4;   // erste Antwortzeile bleibt beim Bild
+        ops.push('q '+num(bw)+' 0 0 '+num(bh)+' '+num(M + EIN)+' '+num(H - y - bh)+' cm /Im'+bildNr.get(svg)+' Do Q');
+        y += bh + 6;
+      });
+      zeilen(az, N, G, M + EIN, ZA);
+      zeilen(hz, N, 9, M + EIN, 13);
+      y += 7;
+    });
+    // Unterschrift der Eltern
+    platz(70);
+    y += 26;
+    [['Gesehen am', 0, CW * 0.3], ['Unterschrift der Eltern', CW * 0.38, CW]].forEach(function(u){
+      linie(M + u[1], y, M + u[2], y);
+      text(svaWinText(u[0]), N, 9, M + u[1], y + 3, 12);
+    });
+    var fuss = b.titel + ' · ' + b.name;
+    seiten.forEach(function(o, i){
+      ops = o;
+      ops.push('0.45 g'); text(svaWinText(fuss + ' · Seite ' + (i + 1) + ' von ' + seiten.length), N, 8, M, H - M + 2, 12);
+    });
+    if(doppelseitig && seiten.length % 2) seiten.push([]);
+    alle = alle.concat(seiten);
+  });
+  return svaPdfSchreiben(alle, N, B, W, H, bilder);
+}
+function pruefDownloadName(p, name){ return (bkSicher(name) || 'Person') + ' – ' + (bkSicher(p.titel) || 'Prüfung') + '.pdf'; }
+function pruefDownloadDialog(p){
+  var ordnerGeht = typeof window.showDirectoryPicker === 'function';
+  var n = pruefAbgabenListe(p).length, bankLaedt = pruefArt(p) === 'bank' && !pruef.loes[p.id];
+  openModal('<h3>📄 Prüfungen herunterladen</h3>'+
+    '<p>'+(bankLaedt ? 'Die Abgaben werden zusammengestellt.' : n ? '<b>'+n+'</b> '+(n === 1 ? 'Abgabe' : 'Abgaben')+' (alle, die abgegeben haben).' : 'Noch niemand hat abgegeben.')+'</p>'+
+    '<p class="pr-hinweis">Pro Person ein PDF («Name – '+esc(p.titel || 'Prüfung')+'.pdf») mit allen Aufgaben samt Bildern, Antworten, Punkten, der Note und einer Zeile für die Unterschrift der Eltern. '+
+    'Dazu «_Alle – …pdf» zum Drucken in einem Rutsch: jede Person beginnt auf einem neuen Blatt, auch doppelseitig.</p>'+
+    (ordnerGeht ? '' : '<p class="pr-hinweis">In diesem Browser kannst du keinen Ordner wählen – du bekommst die Dateien als Download. Mit Chrome, Edge oder der Desktop-App der Library landen sie direkt im Ordner deiner Wahl.</p>')+
+    '<div class="modal-actions"><button class="btn btn-ghost btn-sm" id="modalCancel" type="button">Abbrechen</button>'+
+    '<button class="btn btn-primary btn-sm" id="prDlOk" type="button"'+(n || bankLaedt ? '' : ' disabled')+'>'+(ordnerGeht ? '📁 Ordner wählen & speichern' : '⬇️ PDFs erstellen')+'</button></div>', 'pr-modal');
+  document.getElementById('modalCancel').addEventListener('click', closeModal);
+  document.getElementById('prDlOk').addEventListener('click', async function(){
+    var ordner = null;
+    if(ordnerGeht){
+      // Zuerst den Ordner wählen: der Dialog braucht den Klick, danach wird gerechnet.
+      try{ ordner = await window.showDirectoryPicker({mode:'readwrite', id:'pruefungen'}); }
+      catch(err){ if(err && err.name === 'AbortError') return; console.warn('Prüfungsordner', err); uiInfo('Kein Zugriff auf den Ordner', 'Die Library durfte nicht in den Ordner schreiben. Versuch es nochmals und erlaube den Zugriff.'); return; }
+    }
+    openModal('<h3>📄 Prüfungen herunterladen</h3><p id="prDlText">PDFs werden erstellt …</p>', 'pr-modal');
+    var melde = function(t){ var e = document.getElementById('prDlText'); if(e) e.textContent = t; };
+    try{
+      if(pruefArt(p) === 'bank') await pruefLoesungLaden(p.id);
+      var liste = pruefAbgabenListe(p);
+      if(!liste.length){ uiInfo('Keine Abgaben', 'Noch niemand hat diese Prüfung abgegeben.'); return; }
+      var dateien = [], blaetter = liste.map(function(r){ return pruefAbgabeBlatt(p, r); });
+      var bildMap = await pruefBlattBilder(blaetter, melde);
+      for(var i = 0; i < liste.length; i++){
+        melde('PDF ' + (i + 1) + ' von ' + liste.length + ' …');
+        dateien.push({name:pruefDownloadName(p, liste[i].name), bytes:await pruefPdf([blaetter[i]], false, bildMap)});
+      }
+      melde('Sammel-PDF …');
+      dateien.unshift({name:'_Alle – ' + (bkSicher(p.titel) || 'Prüfung') + '.pdf', bytes:await pruefPdf(blaetter, true, bildMap), alle:true});
+      if(ordner){
+        for(var k = 0; k < dateien.length; k++){
+          melde('Speichern ' + (k + 1) + ' von ' + dateien.length + ' …');
+          var fh = await ordner.getFileHandle(dateien[k].name, {create:true}), w = await fh.createWritable();
+          await w.write(new Blob([dateien[k].bytes], {type:'application/pdf'})); await w.close();
+        }
+        openModal('<h3>📄 Gespeichert</h3><p><b>'+(dateien.length - 1)+'</b> '+(dateien.length === 2 ? 'Prüfung' : 'Prüfungen')+' und das Sammel-PDF liegen jetzt im Ordner <b>'+esc(ordner.name)+'</b>. '+
+          'Zum Drucken «'+esc(dateien[0].name)+'» öffnen und doppelseitig drucken.</p>'+
+          '<div class="modal-actions"><button class="btn btn-primary btn-sm" id="modalOk" type="button">Fertig</button></div>', 'pr-modal');
+        document.getElementById('modalOk').addEventListener('click', closeModal);
+        return;
+      }
+      // Ohne Ordnerwahl (Safari, iPad): Download-Links
+      var urls = dateien.map(function(d){ return URL.createObjectURL(new Blob([d.bytes], {type:'application/pdf'})); });
+      openModal('<h3>📄 PDFs bereit</h3><p class="pr-hinweis">Antippen zum Herunterladen.</p><div class="pr-dl-liste">'+
+        dateien.map(function(d, i){ return '<a class="btn '+(d.alle ? 'btn-primary' : 'btn-ghost')+' btn-sm" href="'+urls[i]+'" download="'+esc(d.name)+'">⬇️ '+esc(d.alle ? 'Alle (zum Drucken)' : d.name.replace(/\.pdf$/, ''))+'</a>'; }).join('')+
+        '</div><div class="modal-actions"><button class="btn btn-primary btn-sm" id="modalOk" type="button">Fertig</button></div>', 'pr-modal');
+      document.getElementById('modalOk').addEventListener('click', function(){ closeModal(); setTimeout(function(){ urls.forEach(function(u){ URL.revokeObjectURL(u); }); }, 60000); });
+    }catch(err){
+      console.error('Prüfungen herunterladen', err);
+      uiInfo('Herunterladen hat nicht geklappt', 'Es ist ein Fehler aufgetreten'+(ordner ? ' – was schon gespeichert ist, liegt im Ordner' : '')+'. Versuch es nochmals.');
+    }
+  });
 }
 
 /* ===================== 🧮 SIKORE (Sicher Kopfrechnen) =====================
@@ -36530,12 +36901,14 @@ function sikoreDetailsLehrer(p, uid){
   var t = (pruef.teil[p.id] || {})[uid], r = t && sikoreBewerten(p, uid, t.antworten);
   if(!r) return;
   var h = '<h3>'+esc(t.name || '')+' — '+esc(p.titel)+'</h3>';
-  h += '<div class="pr-resultat"><div><span>Note</span><b>'+pruefNoteText(pruefNote(p, r.punkte, r.max))+'</b></div><div><span>Richtig</span><b>'+r.punkte+' / '+r.max+'</b></div><div><span>Level</span><b>'+r.level+'</b></div></div>';
+  h += '<div class="pr-resultat"><div><span>Note</span><b>'+pruefNoteText(pruefNoteVon(p, t, r.punkte, r.max))+'</b></div><div><span>Richtig</span><b>'+r.punkte+' / '+r.max+'</b></div><div><span>Level</span><b>'+r.level+'</b></div></div>';
+  h += pruefHandNoteHtml(p, t, r);
   if(t.verstoesse && t.verstoesse.length) h += '<p class="pr-hinweis">⚠️ '+t.verstoesse.length+'× verlassen: '+esc(t.verstoesse.map(function(v){ return new Date(v.at).toLocaleTimeString('de-CH',{hour:'2-digit',minute:'2-digit'})+' '+v.grund; }).join(' · '))+'</p>';
   h += pruefSpracheHinweis(t);
   h += pruefDetailsHtml(r.details, false);
   h += '<div class="modal-actions"><button class="btn btn-primary btn-sm" id="modalOk" type="button">Schliessen</button></div>';
   openModal(h, 'pr-modal');
+  pruefHandNoteVerdrahten(p, uid, t, r, function(){ sikoreDetailsLehrer(p, uid); });
   document.getElementById('modalOk').addEventListener('click', closeModal);
 }
 // Noten in den Notenrechner (beim «Resultate freigeben» und für Nachzügler).
@@ -41166,7 +41539,7 @@ function rswPassStand(){
     .forEach(function(p){
       var t = pruef.mine[p.id], nr = +p.rsw.passTeil, x = {status:'offen', titel:p.titel};
       if(t && t.status === 'abgegeben'){
-        var note = p.resultateFrei && typeof t.punkte === 'number' ? pruefNote(p, t.punkte, t.max) : null;
+        var note = p.resultateFrei && typeof t.punkte === 'number' ? pruefNoteVon(p, t, t.punkte, t.max) : null;
         x = note != null ? {status:'note', note:Math.round(note * 100) / 100, titel:p.titel} : {status:'geschrieben', titel:p.titel};
       } else if(t && (t.status === 'laeuft' || t.status === 'gesperrt')) x = {status:'laeuft', titel:p.titel};
       else if(p.status === 'offen') x = {status:'laeuft', titel:p.titel};
@@ -42259,12 +42632,14 @@ function tippPrDetailsLehrer(p, uid){
   var t = (pruef.teil[p.id] || {})[uid], r = t && tippBewerten(p, t.antworten);
   if(!r) return;
   var h = '<h3>'+esc(t.name || '')+' — '+esc(p.titel)+'</h3>';
-  h += '<div class="pr-resultat"><div><span>Note</span><b>'+pruefNoteText(pruefNote(p, r.punkte, r.max))+'</b></div><div><span>Netto/Min.</span><b>'+r.punkte+'</b></div><div><span>Fehler</span><b>'+r.fehler+'</b></div></div>';
+  h += '<div class="pr-resultat"><div><span>Note</span><b>'+pruefNoteText(pruefNoteVon(p, t, r.punkte, r.max))+'</b></div><div><span>Netto/Min.</span><b>'+r.punkte+'</b></div><div><span>Fehler</span><b>'+r.fehler+'</b></div></div>';
+  h += pruefHandNoteHtml(p, t, r);
   if(t.verstoesse && t.verstoesse.length) h += '<p class="pr-hinweis">⚠️ '+t.verstoesse.length+'× verlassen: '+esc(t.verstoesse.map(function(v){ return new Date(v.at).toLocaleTimeString('de-CH',{hour:'2-digit',minute:'2-digit'})+' '+v.grund; }).join(' · '))+'</p>';
   h += pruefSpracheHinweis(t);
   h += pruefDetailsHtml(r.details, false);
   h += '<div class="modal-actions"><button class="btn btn-primary btn-sm" id="modalOk" type="button">Schliessen</button></div>';
   openModal(h, 'pr-modal');
+  pruefHandNoteVerdrahten(p, uid, t, r, function(){ tippPrDetailsLehrer(p, uid); });
   document.getElementById('modalOk').addEventListener('click', closeModal);
 }
 function tippPrEditor(p){
