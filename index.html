@@ -3955,19 +3955,95 @@ function klasseWriteGuard(refs){
   });
   return klasseGuard.pending;
 }
-function setDoc(ref){ var a = arguments; if(leitungBlockiert([ref])) return leitungNurAnsicht(); return klasseWriteGuard([ref]).then(function(){ return fsSetDoc.apply(null, a); }); }
-function updateDoc(ref){ var a = arguments; if(leitungBlockiert([ref])) return leitungNurAnsicht(); return klasseWriteGuard([ref]).then(function(){ return fsUpdateDoc.apply(null, a); }); }
-function deleteDoc(ref){ var a = arguments; if(leitungBlockiert([ref])) return leitungNurAnsicht(); return klasseWriteGuard([ref]).then(function(){ return fsDeleteDoc.apply(null, a); }); }
+function setDoc(ref){ var a = arguments; if(leitungBlockiert([ref])) return leitungNurAnsicht(); return klasseWriteGuard([ref]).then(function(){ return undoMerken([ref]); }).then(function(){ return fsSetDoc.apply(null, a); }); }
+function updateDoc(ref){ var a = arguments; if(leitungBlockiert([ref])) return leitungNurAnsicht(); return klasseWriteGuard([ref]).then(function(){ return undoMerken([ref]); }).then(function(){ return fsUpdateDoc.apply(null, a); }); }
+function deleteDoc(ref){ var a = arguments; if(leitungBlockiert([ref])) return leitungNurAnsicht(); return klasseWriteGuard([ref]).then(function(){ return undoMerken([ref]); }).then(function(){ return fsDeleteDoc.apply(null, a); }); }
 function writeBatch(){
   var b = fsWriteBatch(db), refs = [];
   var w = {
     set: function(r){ refs.push(r); b.set.apply(b, arguments); return w; },
     update: function(r){ refs.push(r); b.update.apply(b, arguments); return w; },
     delete: function(r){ refs.push(r); b.delete.apply(b, arguments); return w; },
-    commit: function(){ if(leitungBlockiert(refs)) return leitungNurAnsicht(); return klasseWriteGuard(refs).then(function(){ return b.commit(); }); }
+    commit: function(){ if(leitungBlockiert(refs)) return leitungNurAnsicht(); return klasseWriteGuard(refs).then(function(){ return undoMerken(refs); }).then(function(){ return b.commit(); }); }
   };
   return w;
 }
+
+/* ↩️ Rückgängig mit Cmd+Z / Ctrl+Z (Lehrpersonen). Jeder Schreibzugriff über die Wrapper oben merkt sich
+   vorher den alten Stand der betroffenen Dokumente (getDoc). Alles, was nach derselben Bedienung (Klick/Taste)
+   geschrieben wird, gilt als eine Aktion; Cmd+Z stellt die letzte Aktion wieder her (alter Inhalt zurück bzw.
+   neu angelegte Dokumente wieder weg). Hintergrund-Schreibvorgänge ohne Bedienung kurz davor und Lernstände,
+   Live-Spiele usw. (UNDO_OHNE) werden nicht gemerkt. Nur im Speicher – nach einem Neuladen ist der Verlauf leer.
+   In Textfeldern bleibt Cmd+Z das normale Rückgängig des Browsers; Übungsseiten im iframe sehen die Taste gar nicht. */
+var UNDO_MAX = 15;
+var UNDO_OHNE = /(^|\/)(progress|streaks|pushSubscriptions|fehlerLog|rueckmeldungen|passwortAnfragen|quizSessions)(\/|$)/;
+var undoStapel = [];   // [{key, eintraege:[{ref, vorher}], kaputt}] – vorher: Daten, null = gab es noch nicht, undefined = unbekannt
+function undoErlaubt(){ return !!(state.profile && state.profile.role === 'teacher') && !alsSchueler() && !isLeitung(); }
+function undoMerken(refs){
+  if(!undoErlaubt()) return Promise.resolve();
+  var key = leitungHinweis.input, letzte = undoStapel[undoStapel.length - 1];
+  var aktion = letzte && letzte.key === key ? letzte : null;
+  var gesehen = {};
+  if(aktion) aktion.eintraege.forEach(function(e){ gesehen[e.ref.path] = 1; });
+  var neu = refs.filter(function(r){
+    var p = r && typeof r.path === 'string' ? r.path : '';
+    if(!p || UNDO_OHNE.test(p) || gesehen[p]) return false;
+    gesehen[p] = 1; return true;
+  });
+  if(!neu.length) return Promise.resolve();
+  if(!aktion){
+    if(!key || Date.now() - key > 4000) return Promise.resolve();   // keine Bedienung kurz davor: Hintergrund
+    aktion = { key:key, eintraege:[], kaputt:false };
+    undoStapel.push(aktion);
+    if(undoStapel.length > UNDO_MAX) undoStapel.shift();
+  }
+  var eintraege = neu.map(function(r){ var e = { ref:r, vorher:undefined }; aktion.eintraege.push(e); return e; });
+  // Nie länger als 2.5 s aufs Speichern warten lassen (offline o.ä.) – dann ist die Aktion halt nicht rückgängig zu machen.
+  var zuLang = new Promise(function(res, rej){ setTimeout(function(){ rej(new Error('zu langsam')); }, 2500); });
+  return Promise.all(eintraege.map(function(e){
+    return Promise.race([getDoc(e.ref), zuLang]).then(function(s){ e.vorher = s.exists() ? s.data() : null; })
+      .catch(function(){ aktion.kaputt = true; });
+  }));
+}
+var undoLaeuft = false;
+function undoAusfuehren(){
+  if(undoLaeuft) return;
+  var aktion = undoStapel.pop();
+  if(!aktion){ toast('Nichts zum Rückgängigmachen.'); return; }
+  if(aktion.kaputt || aktion.eintraege.some(function(e){ return e.vorher === undefined; })){
+    toast('⚠️ Die letzte Änderung lässt sich nicht rückgängig machen.');
+    return;
+  }
+  undoLaeuft = true;
+  var teile = [];
+  for(var i = 0; i < aktion.eintraege.length; i += 400) teile.push(aktion.eintraege.slice(i, i + 400));
+  teile.reduce(function(p, teil){
+    return p.then(function(){
+      var b = fsWriteBatch(db);
+      teil.forEach(function(e){ if(e.vorher) b.set(e.ref, e.vorher); else b.delete(e.ref); });
+      return b.commit();
+    });
+  }, Promise.resolve()).then(function(){
+    toast('↩️ Rückgängig gemacht.');
+    // Ansicht auffrischen – nicht in einer offenen Übung/Live-Ansicht (würde dort den Stand verlieren).
+    if(['resource','quizplay','pruefung'].indexOf(state.route.name) < 0){
+      var y = window.scrollY; render(); setTimeout(function(){ window.scrollTo(0, y); }, 0);
+    }
+  }).catch(function(err){
+    console.error('Rückgängig', err);
+    undoStapel.push(aktion);
+    toast('⚠️ Rückgängig hat nicht geklappt.');
+  }).then(function(){ undoLaeuft = false; });
+}
+document.addEventListener('keydown', function(e){
+  if(!(e.metaKey || e.ctrlKey) || e.shiftKey || e.altKey || (e.key || '').toLowerCase() !== 'z') return;
+  if(!undoErlaubt()) return;
+  var t = e.target;
+  if(t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;   // Text: Rückgängig des Browsers
+  if(document.querySelector('.modal-overlay.show')) return;   // offener Dialog: zuerst schliessen
+  e.preventDefault();
+  undoAusfuehren();
+});
 
 /* ===================== SUBJECTS ===================== */
 
@@ -22748,6 +22824,7 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-10-20-rueckgaengig', datum:'2026-10-20', fuer:'lehrer', text:'↩️ Aus Versehen etwas gelöscht, verschoben oder geändert? Mit Cmd+Z (Mac) bzw. Ctrl+Z (Windows) machst du die letzte Änderung in der Library rückgängig – mehrmals drücken geht weiter zurück (bis 15 Schritte, bis zum Neuladen der Seite). In Textfeldern macht Cmd+Z wie gewohnt nur den Text rückgängig.'},
   {id:'2026-10-20-mathe-werkzeuge', datum:'2026-10-20', fuer:'alle', text:'🧊 Mathe › «Werkzeuge»: «Geometrische Körper» zeigt Quader, Prisma, Pyramide, Zylinder, Kegel und Kugel in 3D. Du kannst sie drehen, als Netz auffalten und siehst Oberfläche und Volumen mit Formel. Mit den «Algebra-Kacheln» legst du Terme wie (x + 2)(x − 3) und faktorisierst sie.'},
   {id:'2026-10-20-mathe-werkzeuge-lp', datum:'2026-10-20', fuer:'lehrer', text:'🟦 Algebra-Kacheln: Aufgabe eintippen, wählen, womit die Klasse startet (alle Kacheln, nur positive, keine), und den Link oder QR-Code teilen. Die Schüler:innen arbeiten sie Schritt für Schritt mit Kontrolle durch. Bei den Geometrischen Körpern blendest du mit 👁 die Ergebnisse aus. Beides ist verändert nach teacher.dev (Apache-2.0).'},
   {id:'2026-10-20-eins-gegen-alle', datum:'2026-10-20', fuer:'alle', text:'🔦 Neues Live-Spiel «Eins gegen alle»: Eine Person im Spotlight spielt gegen die ganze Klasse. Zuerst antwortet ihr still auf dem Gerät – die Frage steht nicht am Beamer –, dann die Person im Spotlight, mit drei Jokern. Niemand scheidet aus: Wer falsch liegt, spielt in der Comeback-Crew weiter.'},
