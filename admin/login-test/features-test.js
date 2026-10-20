@@ -218,6 +218,19 @@ var seiten;
     ok(true, 'Vierte Prüfung in der Woche: Warnung «schon 3 Prüfungen»');
     await lp.click('#modalCancel').catch(() => {});
 
+    console.log('\n📐 Figuren-Werkstatt');
+    await lp.evaluate(() => { const b = [...document.querySelectorAll('button, a')].find(x => /Klassenzimmer/.test(x.textContent)); if(b) b.click(); });
+    await lp.waitForSelector('.kz-tile[data-tool="figuren"]');
+    await lp.click('.kz-tile[data-tool="figuren"]');
+    await lp.waitForSelector('#resourceFrame');
+    ok(/^https:\/\/mathfigures\.com\//.test(await lp.$eval('#resourceFrame', e => e.getAttribute('src'))), 'Kachel öffnet die Figuren-Werkstatt mit Mathe (mathfigures.com eingebettet)');
+    await lp.click('[data-figseite="physics"]');
+    await bis(async () => /physicsfigures\.com/.test(await lp.$eval('#resourceFrame', e => e.getAttribute('src'))), 'Physik-Seite geladen');
+    ok(/Schaltplan/.test(await lp.$eval('details', e => e.textContent)), 'Umschalten auf Physik: physicsfigures.com und deutsche Begriffe (Schaltplan)');
+    await lp.click('#backBtn');
+    await lp.waitForSelector('.kz-tile[data-tool="figuren"]');
+    ok(true, '«← Klassenzimmer» führt zurück');
+
     console.log('\n♿ Zeitzuschlag im Prüfungs-Monitor');
     await seedPruefung();
     await lp.evaluate(() => { const b = [...document.querySelectorAll('button, a')].find(x => /Klassenzimmer/.test(x.textContent)); if(b) b.click(); });

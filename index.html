@@ -9880,7 +9880,7 @@ var KIB_WISSEN = [
   {id:'lp-trainer', fuer:'lp', f:'Was sind die Übungstrainer?', w:'übungstrainer trainer sikore tipptrainer klassenübersicht automatisch aufgaben',
    a:'⚡ Übungstrainer stehen in fast jedem Fach zuoberst. Die Aufgaben entstehen automatisch, du musst nichts pflegen. Pro Trainer gibt es eine 📊 Klassenübersicht. 🧮 SIKORE (Mathematik) und ⌨️ Tipptrainer (Medien und Informatik) funktionieren gleich.'},
   {id:'lp-klassenzimmer', fuer:'lp', f:'Welche Werkzeuge gibt es im Klassenzimmer?', w:'klassenzimmer werkzeuge beamer ruhephase lärmampel countdown würfel glücksrad stadt land fluss gruppen partner ämtliplan vergessen-zähler', ziel:'klassenzimmer',
-   a:'Im 🏫 Klassenzimmer (gedacht für den Beamer) stehen die Werkzeuge in fünf Bereichen:\n• 📡 Live mit der Klasse: 📊 Blitzumfrage, ☁️ Wortwolke, 📚 Lernphase, Fragebox, 🗳️ Abstimmungen.\n• 🎮 Spiele: Klassen-Quiz, 💰 Wer wird Millionär, 🎯 Schätzmeister, 🎱 Bingo, 🔔 Buzzer, 🏆 Der grosse Preis, ⭕ Drei gewinnt, 🚢 Schiffe versenken, Stadt Land Fluss, ⚡ Energizer.\n• 🎲 Am Beamer: ⏱ Ruhephase, Zufall (Wer ist dran?, Würfel, Glücksrad), Gruppen & Partner.\n• 🗃️ Material & Prüfungen: Unterrichtsmaterial, Karteikarten, 📝 Prüfungen.\nAlle Listen (Quizze, Sets, Karteikarten, Prüfungen …) stehen nach Fach und Ordner, je Fach einklappbar. Für Allgemeinwissen gibt es das Fach «🎲 Trivia».\n• 🧑‍🏫 Organisation: Sitzplan, Ämtliplan, Vergessen-Zähler, 🚪 Räume.'},
+   a:'Im 🏫 Klassenzimmer (gedacht für den Beamer) stehen die Werkzeuge in fünf Bereichen:\n• 📡 Live mit der Klasse: 📊 Blitzumfrage, ☁️ Wortwolke, 📚 Lernphase, Fragebox, 🗳️ Abstimmungen.\n• 🎮 Spiele: Klassen-Quiz, 💰 Wer wird Millionär, 🎯 Schätzmeister, 🎱 Bingo, 🔔 Buzzer, 🏆 Der grosse Preis, ⭕ Drei gewinnt, 🚢 Schiffe versenken, Stadt Land Fluss, ⚡ Energizer.\n• 🎲 Am Beamer: ⏱ Ruhephase, Zufall (Wer ist dran?, Würfel, Glücksrad), Gruppen & Partner.\n• 🗃️ Material & Prüfungen: Unterrichtsmaterial, Karteikarten, 📝 Prüfungen, 📐 Figuren-Werkstatt.\nAlle Listen (Quizze, Sets, Karteikarten, Prüfungen …) stehen nach Fach und Ordner, je Fach einklappbar. Für Allgemeinwissen gibt es das Fach «🎲 Trivia».\n• 🧑‍🏫 Organisation: Sitzplan, Ämtliplan, Vergessen-Zähler, 🚪 Räume.'},
   {id:'lp-sitzplan', fuer:'lp', f:'Wie mache ich einen Sitzplan?', w:'sitzplan sitzordnung plätze zufall tische erstellen', ziel:'klassenzimmer',
    a:'Im 🏫 Klassenzimmer unter «Sitzplan»: mit Zufallsverteilung und gespeicherten Sitzordnungen.'},
   {id:'lp-spiele', fuer:'lp', f:'Welche Spiele gibt es?', w:'spiele spiel spielen schätzmeister schätzen schätzfrage bingo buzzer grosser preis jeopardy drei gewinnt vier gewinnt tic tac toe schiffe versenken teams team beamer rubrik', ziel:'klassenzimmer',
@@ -16879,6 +16879,53 @@ function renderLinkResource(r){
   wireLibFensterBtn('fensterBtn', function(){ return {url: r.linkUrl}; }, r);
 }
 
+/* 📐 Figuren-Werkstatt (Klassenzimmer, nur Lehrperson): die STEM-Figures-Generatoren von
+   teacher.dev (mathfigures.com & Co., Code Apache-2.0, Figuren CC0) eingebettet wie eine LMVZ-Übung
+   (iframe src, gleicher Viewer mit Vollbild). Die Seiten selbst sind englisch — darum oben eine
+   kurze deutsche Anleitung mit den wichtigsten Begriffen. Kein Firestore. */
+var FIG_SEITEN = [
+  {id:'math', name:'📏 Mathe', url:'https://mathfigures.com/',
+   begriffe:'Coordinate Grid = Koordinatensystem · Number Line = Zahlenstrahl · Triangle = Dreieck · Rectangle / Parallelogram / Trapezoid / Kite = Rechteck / Parallelogramm / Trapez / Drachen · Regular Polygon = regelmässiges Vieleck · Angles = Winkel · Parallel Lines = Parallelen mit Schnittgerade · Prism / Cylinder / Pyramid / Cone / Sphere = Prisma / Zylinder / Pyramide / Kegel / Kugel · Composite Shape = zusammengesetzte Figur · Box Plot = Boxplot · Length Reading = Lineal ablesen'},
+  {id:'physics', name:'⚡ Physik', url:'https://physicsfigures.com/',
+   begriffe:'Circuit Diagram = Schaltplan (bei «Symbols» <b>IEC</b> wählen: Widerstand als Rechteck wie bei uns) · Free Body Diagram = Kräfteplan · Vector Diagram = Vektoren · Inclined Plane = schiefe Ebene · Pulley = Rolle / Flaschenzug · Spring Scale = Kraftmesser · Motion Graphs = Weg-Zeit- und Geschwindigkeit-Zeit-Diagramm · Waves = Wellen · Ray Diagram = Strahlengang (Linse, Spiegel)'},
+  {id:'chemistry', name:'🧪 Chemie', url:'https://chemistryfigures.com/',
+   begriffe:'Volume Reading = Messzylinder ablesen · Mass Reading = Waage ablesen · Temperature Reading = Thermometer ablesen · Volume by Displacement = Volumen durch Verdrängung · Heating and Cooling Curve = Erwärmungs- und Abkühlungskurve · Particle Diagram = Teilchenmodell · Bohr Model = Schalenmodell · pH Reading = pH-Wert ablesen'},
+  {id:'biology', name:'🌱 Biologie', url:'https://biologyfigures.com/',
+   begriffe:'Punnett Square = Kreuzungsschema · Pedigree = Stammbaum · Population Growth = Populationswachstum · Predator–Prey = Räuber-Beute-Beziehung · Enzyme Activity = Enzymaktivität · Photosynthesis Rate = Fotosyntheserate · Osmosis = Osmose'}
+];
+function renderFiguren(){
+  clearSubjectWatchers(); clearOverviewWatchers();
+  var akt = FIG_SEITEN.find(function(x){ return x.id === lsGet('libfig_seite'); }) || FIG_SEITEN[0];
+  var html = '<div class="viewer-wrap">';
+  html += '<div class="back-row"><button class="btn btn-ghost btn-sm" id="backBtn" type="button">&larr; Klassenzimmer</button></div>';
+  html += '<div class="viewer-head"><h2>📐 Figuren-Werkstatt</h2>';
+  html += FIG_SEITEN.map(function(x){ return '<button class="btn '+(x === akt ? 'btn-primary' : 'btn-ghost')+' btn-sm" type="button" data-figseite="'+x.id+'">'+x.name+'</button>'; }).join(' ');
+  html += '<a class="btn btn-ghost btn-sm" href="'+esc(akt.url)+'" target="_blank" rel="noopener">↗ Neuer Tab</a>';
+  html += '<button class="btn btn-ghost btn-sm btn-fs" id="fsBtn" type="button">'+FS_ICON_ENTER+'</button>';
+  html += '</div>';
+  html += '<details style="margin:0 0 10px;"><summary style="cursor:pointer;font-weight:600;">So geht\'s (die Seiten sind englisch)</summary>'+
+    '<div style="padding:8px 2px 2px;line-height:1.5;">'+
+    '<ol style="margin:0 0 8px 1.2em;padding:0;">'+
+    '<li>Oben das Fach wählen, dann auf der Seite einen Generator anklicken.</li>'+
+    '<li>Links die Werte einstellen (Masse, Winkel, Punkte, Achsen …) — die Figur passt sich sofort an.</li>'+
+    '<li>In der Symbolleiste über der Figur: das erste Symbol <b>«Copy image»</b> kopiert die Figur als Bild (direkt in Word oder PowerPoint einfügen), die nächsten zwei speichern sie als <b>PNG</b> bzw. <b>SVG</b>.</li>'+
+    '<li>Englische Beschriftungen (z. B. «Time», «Solid») ersetzen: das Textfeld neben der Beschriftung überschreiben oder auf <i>blank</i> / <i>none</i> stellen — so entsteht gleich eine Beschriftungsaufgabe.</li>'+
+    '<li>Für das Lösungsblatt dieselbe Figur mit eingetragener Lösung nochmals kopieren.</li></ol>'+
+    '<div style="opacity:.85;"><b>Begriffe ('+esc(akt.name.replace(/^\S+\s/, ''))+'):</b> '+akt.begriffe+'</div>'+
+    '<div style="opacity:.7;font-size:.9em;margin-top:6px;">Die Figuren sind frei verwendbar (CC0), auch ohne Quellenangabe. Generatoren: STEM Figures von teacher.dev.</div>'+
+    '</div></details>';
+  html += '<div class="viewer-frame-wrap" id="frameWrap">';
+  html += '<button class="btn-fs-overlay-exit" id="fsExitBtn" type="button" title="Vollbild verlassen" aria-label="Vollbild verlassen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3v3a2 2 0 0 1-2 2H4M15 3v3a2 2 0 0 0 2 2h3M9 21v-3a2 2 0 0 0-2-2H4M15 21v-3a2 2 0 0 1 2-2h3"/></svg></button>';
+  html += '<iframe id="resourceFrame" title="Figuren-Werkstatt: '+esc(akt.name)+'" src="'+esc(akt.url)+'" allow="fullscreen; clipboard-read; clipboard-write" allowfullscreen></iframe>';
+  html += '</div></div>';
+  renderChrome(html);
+  document.getElementById('backBtn').addEventListener('click', function(){ state.route = {name:'klassenzimmer'}; render(); });
+  Array.prototype.forEach.call(document.querySelectorAll('[data-figseite]'), function(b){
+    b.addEventListener('click', function(){ lsSet('libfig_seite', b.getAttribute('data-figseite')); renderFiguren(); });
+  });
+  wireFullscreen();
+}
+
 // PDF aus Firestore: als Blob-URL im gleichen Viewer (inkl. Vollbild), dazu
 // «Neuer Tab» — iPad/iPhone zeigen PDFs im iframe teils nur eingeschränkt.
 var pdfViewerUrl = null;
@@ -22824,6 +22871,7 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-10-20-figuren-werkstatt', datum:'2026-10-20', fuer:'lehrer', text:'📐 Klassenzimmer › «Figuren-Werkstatt»: Koordinatensysteme, Dreiecke, Körper, Schaltpläne, Messgeräte, Heizkurven, Kreuzungsschemas … einstellen und als Bild direkt in Word oder PowerPoint kopieren – für Prüfungen und Arbeitsblätter. Die Seiten sind englisch, oben steht eine kurze deutsche Anleitung mit den Begriffen.'},
   {id:'2026-10-20-rueckgaengig', datum:'2026-10-20', fuer:'lehrer', text:'↩️ Aus Versehen etwas gelöscht, verschoben oder geändert? Mit Cmd+Z (Mac) bzw. Ctrl+Z (Windows) machst du die letzte Änderung in der Library rückgängig – mehrmals drücken geht weiter zurück (bis 15 Schritte, bis zum Neuladen der Seite). In Textfeldern macht Cmd+Z wie gewohnt nur den Text rückgängig.'},
   {id:'2026-10-20-mathe-werkzeuge', datum:'2026-10-20', fuer:'alle', text:'🧊 Mathe › «Werkzeuge»: «Geometrische Körper» zeigt Quader, Prisma, Pyramide, Zylinder, Kegel und Kugel in 3D. Du kannst sie drehen, als Netz auffalten und siehst Oberfläche und Volumen mit Formel. Mit den «Algebra-Kacheln» legst du Terme wie (x + 2)(x − 3) und faktorisierst sie.'},
   {id:'2026-10-20-mathe-werkzeuge-lp', datum:'2026-10-20', fuer:'lehrer', text:'🟦 Algebra-Kacheln: Aufgabe eintippen, wählen, womit die Klasse startet (alle Kacheln, nur positive, keine), und den Link oder QR-Code teilen. Die Schüler:innen arbeiten sie Schritt für Schritt mit Kontrolle durch. Bei den Geometrischen Körpern blendest du mit 👁 die Ergebnisse aus. Beides ist verändert nach teacher.dev (Apache-2.0).'},
@@ -29957,6 +30005,7 @@ var KZ_TILES = [
   { id:'material', bereich:'material', icon:'🗃️', name:'Unterrichtsmaterial', desc:'Quizze, Karteikarten, Wortwolken und Blitzumfragen – nach Fach und Ordner abgelegt, auch im Fach verlinkt.' },
   { id:'karten',  bereich:'material', icon:'🗂️', name:'Karteikarten',         desc:'Kartensets pro Fach anlegen — die Klasse übt sie mit fünf Leitner-Boxen.' },
   { id:'pruefung', bereich:'material', icon:'📝', name:'Prüfungen',           desc:'Online-Prüfung mit Sperre: wer sie verlässt, kommt erst wieder rein, wenn du entsperrst. Automatisch benotet.' },
+  { id:'figuren', bereich:'material', icon:'📐', name:'Figuren-Werkstatt',   desc:'Saubere Figuren für Prüfungen und Arbeitsblätter: Koordinatensystem, Dreiecke, Körper, Schaltpläne, Messgeräte, Heizkurven … als Bild für Word oder PowerPoint.' },
   { id:'sitzplan', bereich:'orga', icon:'🪑', name:'Sitzplan',            desc:'Möbel stellen, Plätze verteilen, Regeln, Zufall und gespeicherte Varianten.' },
   { id:'aemtli',  bereich:'orga', icon:'🧹', name:'Ämtliplan',            desc:'Rotiert von allein bis zu den Sommerferien, Ferienwochen fallen raus.' },
   { id:'vergessen', bereich:'orga', icon:'🗒', name:'Vergessen-Zähler',     desc:'Wer eine Abgabe verpasst hat — automatisch aus der Abgabe-Checkliste.' },
@@ -30023,6 +30072,7 @@ function kzToolStarten(id){
   else if(id === 'slf') openBeamerTools('slf');
   else if(id === 'energizer'){ state.route = {name:'energizer'}; render(); }
   else if(id === 'raeume'){ rbu.von = 'klassenzimmer'; state.route = {name:'raeume'}; render(); }
+  else if(id === 'figuren'){ state.route = {name:'figuren'}; render(); }
   else if(id === 'sitzplan'){ state.route = {name:'sitzplan'}; render(); }
   else if(id === 'quiz'){ state.route = {name:'quiz'}; render(); }
   else if(id === 'million'){ state.route = {name:'million'}; render(); }
@@ -46252,6 +46302,7 @@ function render(){
   if(state.route.name === 'kalender'){ renderKalender(); return; }
   if(state.route.name === 'earlybird'){ renderEarlybird(); return; }
   if(state.route.name === 'raeume'){ renderRaeume(); return; }
+  if(state.route.name === 'figuren'){ renderFiguren(); return; }
   if(state.route.name === 'stundenplan'){ renderStundenplan(); return; }
   if(state.route.name === 'klassenzimmer'){ renderKlassenzimmer(); return; }
   if(state.route.name === 'tools'){ renderTools(); return; }
