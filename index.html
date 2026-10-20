@@ -883,6 +883,172 @@
   .am-sliders label{display:flex;align-items:center;gap:7px;justify-content:space-between;}
   .am-sliders input{width:130px;}
 
+  /* ---------- Ruhephase: Umschalter Lärmampel / Stille Safari ---------- */
+  .rp-modus{display:inline-flex;gap:4px;padding:3px;border-radius:999px;background:var(--surface-2);border:1px solid var(--border);}
+  .rp-modus button{border:none;background:transparent;color:var(--text);border-radius:999px;padding:6px 12px;font:inherit;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap;}
+  .rp-modus button.on{background:var(--brand);color:var(--brand-contrast);}
+
+  /* ---------- 🦒 Stille Safari (verändert nach teacher.dev/shy-safari, Apache-2.0) ----------
+     Die Szene füllt die ganze Bühne; Timer und Flüsterliste liegen als halb
+     durchsichtige Karten darüber. Alles ist ss- vorangestellt, die Grafiken
+     kommen aus assets/safari/<szene>.json. `--wu` = ein Hundertstel der
+     Landschaftsbreite (Landschaft ist mind. 4:3, Seiten dürfen abgeschnitten
+     werden) — wie im Original. */
+  .kz-stage.kz-stage-safari{padding:0;position:relative;min-height:calc(60vh/var(--lz,1));}
+  .ss-wrap{position:absolute;inset:0;overflow:hidden;}
+  .ss-stage{position:absolute;inset:0;overflow:hidden;isolation:isolate;container-type:size;transition:filter 1400ms ease;background:#e7c273;
+    --wu:max(1cqw,1.3333cqh);--wu-left:calc(50cqw - 50 * var(--wu));}
+  .ss-stage[data-scene="riff"]{background:#0b3d5c;}
+  .ss-stage[data-scene="wald"]{background:#9fbb5e;}
+  .ss-world > div{position:absolute;pointer-events:none;}
+  .ss-backdrop{top:0;bottom:0;left:var(--wu-left);width:calc(100 * var(--wu));}
+  .ss-svgf > svg{display:block;width:100%;height:100%;}
+  .ss-svgw > svg{display:block;width:100%;height:auto;}
+  .ss-svgh > svg{display:block;height:100%;width:auto;}
+  @keyframes ssSway{0%,100%{transform:rotate(-3deg);}50%{transform:rotate(3deg);}}
+  @keyframes ssFern{0%,100%{transform:rotate(-2.5deg);}50%{transform:rotate(2.5deg);}}
+  @keyframes ssDrift{from{transform:translateX(min(-20cqw,-100%));}to{transform:translateX(110cqw);}}
+  @keyframes ssSun{0%,100%{transform:scale(1);}50%{transform:scale(1.04);}}
+  @keyframes ssShaft{0%,100%{transform:translateX(calc(-4 * var(--wu))) skewX(-6deg);opacity:.1;}50%{transform:translateX(calc(4 * var(--wu))) skewX(-10deg);opacity:.22;}}
+  @keyframes ssPlankton{from{transform:translateY(60%);opacity:0;}18%,82%{opacity:var(--ss-peak,.5);}to{transform:translateY(-110%);opacity:0;}}
+  @keyframes ssMotes{from{transform:translateY(40%);opacity:0;}20%,80%{opacity:.7;}to{transform:translateY(-60%);opacity:0;}}
+  @keyframes ssLeafFall{from{transform:translateY(-6cqh);opacity:0;}6%{opacity:1;}88%{opacity:1;}to{transform:translateY(96cqh);opacity:0;}}
+  @keyframes ssLeafSwing{0%,100%{transform:translateX(calc(-1.6 * var(--wu))) rotate(-35deg);}50%{transform:translateX(calc(1.6 * var(--wu))) rotate(30deg);}}
+  .ss-sway{transform-origin:bottom center;animation:ssSway ease-in-out infinite alternate;}
+  .ss-fern{transform-origin:bottom center;animation:ssFern ease-in-out infinite alternate;}
+  .ss-drift{left:0;animation:ssDrift linear infinite;}
+  .ss-sun{animation:ssSun 14s ease-in-out infinite;}
+  .ss-shaft{animation:ssShaft ease-in-out infinite alternate;}
+  .ss-plankton{opacity:0;animation:ssPlankton linear infinite;}
+  .ss-motes{opacity:0;animation:ssMotes linear infinite;}
+  .ss-leaf-fall{opacity:0;animation:ssLeafFall linear infinite;}
+  .ss-leaf{animation:ssLeafSwing ease-in-out infinite;}
+
+  /* Tiere: Position kommt pro Frame aus dem Skript (wie Creature.svelte). */
+  .ss-swimmer{position:absolute;top:0;left:0;pointer-events:none;will-change:transform;}
+  .ss-hide{transition:opacity .9s ease, transform .9s ease, filter .9s ease;transition-delay:var(--ss-delay,0s);transform-origin:bottom center;}
+  .ss-flipper{transition:transform 450ms ease-in-out;}
+  .ss-poser{transform-origin:bottom center;}
+  .ss-creature{position:relative;}
+  .ss-creature > svg{display:block;width:100%;height:auto;overflow:visible;}
+  @keyframes ssBob{0%,100%{transform:translateY(-0.6vh);}50%{transform:translateY(0.6vh);}}
+  .ss-bobber{animation:ssBob ease-in-out infinite alternate;}
+  @keyframes ssArrive{0%{opacity:0;transform:scale(.75);}60%{opacity:1;transform:scale(1.06);}100%{opacity:1;transform:scale(1);}}
+  @keyframes ssRing{0%{opacity:.85;transform:scale(.3);}100%{opacity:0;transform:scale(2.6);}}
+  .ss-arriving{animation:ssArrive 1400ms ease-out both;}
+  .ss-ring{position:absolute;inset:0;border-radius:50%;border:2px solid rgba(255,255,255,.7);animation:ssRing 1800ms ease-out forwards;pointer-events:none;}
+  @keyframes ssTurn{0%{transform:scale(1,1);}20%{transform:scale(.84,1.05);}45%{transform:translateY(-6%) scale(1.02,1);}70%{transform:translateY(0) scale(1.05,.95);}100%{transform:scale(1,1);}}
+  @keyframes ssShake{0%,100%{transform:rotate(0);}20%{transform:rotate(-5deg);}40%{transform:rotate(4deg);}60%{transform:rotate(-3deg);}80%{transform:rotate(1.5deg);}}
+  .ss-poser.ss-turning{animation:ssTurn 650ms ease-out;}
+  .ss-poser.ss-shaking{animation:ssShake 600ms ease-in-out;}
+  /* Teile der Grafiken (part-*), wie im Original */
+  @keyframes ssPartSway{0%,100%{transform:rotate(-7deg);}50%{transform:rotate(7deg);}}
+  @keyframes ssEar{0%,78%,100%{transform:rotate(0);}82%{transform:rotate(-14deg);}86%{transform:rotate(2deg);}90%{transform:rotate(-9deg);}94%{transform:rotate(0);}}
+  @keyframes ssWing{0%,100%{transform:rotate(-9deg);}50%{transform:rotate(11deg);}}
+  @keyframes ssWingFar{0%,100%{transform:rotate(9deg);}50%{transform:rotate(-11deg);}}
+  @keyframes ssHead{0%,55%,100%{transform:rotate(0);}68%,82%{transform:rotate(5deg);}}
+  .ss-creature .part-tail{transform-origin:left center;animation:ssPartSway 900ms ease-in-out infinite;}
+  .ss-creature .part-fin{transform-origin:top center;animation:ssPartSway 1300ms ease-in-out infinite;}
+  .ss-creature .part-body{transform-origin:center;animation:ssPartSway 2600ms ease-in-out infinite;}
+  .ss-creature .part-tentacles,.ss-creature .part-arms{transform-origin:top center;animation:ssPartSway 2000ms ease-in-out infinite;}
+  .ss-creature .part-ears{transform-box:fill-box;transform-origin:bottom center;animation:ssEar 4.6s ease-in-out infinite;}
+  .ss-creature .part-wings{transform-box:fill-box;transform-origin:bottom center;animation:ssWing 1800ms ease-in-out infinite;}
+  .ss-creature .part-wings-far{animation-name:ssWingFar;}
+  .ss-creature .part-head{transform-box:fill-box;transform-origin:bottom left;animation:ssHead 7s ease-in-out infinite;}
+  .ss-swimmer[data-listening="true"] .part-ears{animation:none;transform:scaleY(1.12);}
+  .ss-swimmer[data-listening="true"] .part-head{animation:none;transform:rotate(-4deg);}
+  .ss-swimmer[data-listening="true"] .part-tail{animation-duration:2400ms;}
+  .ss-swimmer[data-listening="true"] .part-wings{animation-duration:3200ms;}
+  /* Seltenheit: Uncommon silbern, Rare golden + Funkeln — nur in der ersten Minute */
+  @keyframes ssGlowU{0%,100%{filter:drop-shadow(0 0 calc(.35 * var(--wu)) rgb(210 250 245 / .55));}50%{filter:drop-shadow(0 0 calc(.9 * var(--wu)) rgb(210 250 245 / .95));}}
+  @keyframes ssGlowR{0%,100%{filter:drop-shadow(0 0 calc(.4 * var(--wu)) rgb(255 209 102 / .6));}50%{filter:drop-shadow(0 0 calc(1.1 * var(--wu)) rgb(255 209 102 / 1));}}
+  @keyframes ssSparkle{0%,100%{opacity:0;transform:translate(-50%,-50%) scale(.2) rotate(0);}15%,25%{opacity:1;transform:translate(-50%,-50%) scale(1) rotate(45deg);}45%{opacity:0;transform:translate(-50%,-50%) scale(.2) rotate(90deg);}}
+  .ss-creature[data-tier="uncommon"]:not(.ss-settled) > svg{animation:ssGlowU 3.2s ease-in-out infinite;}
+  .ss-creature[data-tier="rare"]:not(.ss-settled) > svg{animation:ssGlowR 2.4s ease-in-out infinite;}
+  .ss-sparkle{position:absolute;height:auto;overflow:visible;fill:#fffbe6;filter:drop-shadow(0 0 calc(.4 * var(--wu)) #ffd166);opacity:0;pointer-events:none;animation:ssSparkle 3s ease-in-out infinite;}
+  /* Weglaufen: «!» über dem Tier */
+  @keyframes ssAlert{0%{transform:translate(-50%,0) scale(0);}60%{transform:translate(-50%,0) scale(1.25);}100%{transform:translate(-50%,0) scale(1);}}
+  .ss-alert{position:absolute;left:50%;bottom:100%;width:calc(3.2 * var(--wu));aspect-ratio:1;margin-bottom:calc(.4 * var(--wu));border:calc(.25 * var(--wu)) solid #1e293b;border-radius:50%;background:#fff;color:#1e293b;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:max(1.2rem,calc(2.2 * var(--wu)));line-height:1;animation:ssAlert 350ms ease-out both;z-index:1;}
+
+  /* Zu laut: die ganze Szene trübt sich ein und hält still (kein Rot, keine Zahl). */
+  .ss-veil{position:absolute;inset:0;z-index:2000;opacity:0;transition:opacity 1400ms ease;pointer-events:none;}
+  .ss-stage[data-scene="savanne"] .ss-veil{background:linear-gradient(to top,#d8b88c 0%,#d8b88c 30%,color-mix(in srgb,#d8b88c 55%,transparent) 100%);}
+  .ss-stage[data-scene="riff"] .ss-veil{background:#0b3d5c;}
+  .ss-stage[data-scene="wald"] .ss-veil{background:radial-gradient(ellipse 55% 16% at 22% 70%,rgb(232 237 228 / .9),rgb(232 237 228 / 0) 70%),radial-gradient(ellipse 50% 14% at 78% 62%,rgb(232 237 228 / .85),rgb(232 237 228 / 0) 70%),radial-gradient(ellipse 60% 18% at 55% 88%,rgb(232 237 228 / .9),rgb(232 237 228 / 0) 70%),linear-gradient(to top,#dde4d8 0%,#dde4d8 32%,rgb(221 228 216 / .5) 100%);}
+  .ss-stage[data-scene="savanne"][data-murky="true"]{filter:saturate(.6) sepia(.18) brightness(.88) blur(1px);}
+  .ss-stage[data-scene="riff"][data-murky="true"]{filter:saturate(.55) brightness(.84) blur(1px);}
+  .ss-stage[data-scene="wald"][data-murky="true"]{filter:saturate(.6) brightness(.92) blur(1px);}
+  .ss-stage[data-scene="savanne"][data-murky="true"] .ss-veil{opacity:.38;}
+  .ss-stage[data-scene="riff"][data-murky="true"] .ss-veil{opacity:.28;}
+  .ss-stage[data-scene="wald"][data-murky="true"] .ss-veil{opacity:.42;}
+  .ss-stage[data-modus="weg"][data-murky="true"]{filter:saturate(.85) brightness(.96);}
+  .ss-stage[data-modus="weg"][data-murky="true"] .ss-veil{opacity:.12;}
+  .ss-stage[data-frozen="true"] :not(.ss-fleeing,.ss-fleeing *),
+  .ss-stage[data-frozen="true"] :not(.ss-fleeing,.ss-fleeing *)::before,
+  .ss-stage[data-frozen="true"] :not(.ss-fleeing,.ss-fleeing *)::after{animation-play-state:paused !important;}
+  /* «Tiere verstecken sich»: sie ducken sich weg (blass, tiefer) und kommen zurück, sobald es ruhig ist. */
+  .ss-stage[data-versteckt="true"] .ss-swimmer:not(.ss-fleeing) .ss-hide{opacity:.22;transform:translateY(14%) scale(.9);filter:blur(1.5px);}
+  .ss-hint{position:absolute;left:50%;top:44%;transform:translate(-50%,-50%);z-index:2100;background:rgba(255,255,255,.82);color:#1e2433;border-radius:18px;padding:12px 20px;font-family:'Baloo 2',system-ui,sans-serif;font-weight:700;font-size:clamp(16px,calc(2.4vh/var(--lz,1)),24px);text-align:center;box-shadow:0 8px 28px rgba(0,0,0,.18);max-width:min(80%,560px);transition:opacity .6s;pointer-events:none;}
+  .ss-hint:empty{opacity:0;}
+
+  /* Karten über der Szene */
+  .ss-ui{position:absolute;inset:0;display:grid;grid-template-columns:minmax(0,300px) minmax(0,1fr) minmax(0,300px);gap:16px;padding:16px;pointer-events:none;z-index:1;}
+  .ss-card{pointer-events:auto;background:color-mix(in srgb,var(--surface) 80%,transparent);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);border:1px solid color-mix(in srgb,var(--border) 70%,transparent);border-radius:18px;padding:12px;box-shadow:0 8px 26px rgba(0,0,0,.14);align-self:start;max-height:calc(100% - 4px);overflow:auto;}
+  .ss-card.rp-col-timer .tm-ring-wrap{width:min(calc(20vh/var(--lz,1)),170px);}
+  .ss-card.rp-col-timer .tm-clock{font-size:clamp(28px,calc(5vh/var(--lz,1)),44px);}
+  .ss-card.rp-col-timer .tm-big{padding:8px 14px;font-size:13px;}
+  .ss-card .sk-pool{max-height:calc(18vh/var(--lz,1));}
+  .ss-mid{display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:8px;min-width:0;}
+  .ss-bar{pointer-events:auto;display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:center;background:color-mix(in srgb,var(--surface) 82%,transparent);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);border:1px solid color-mix(in srgb,var(--border) 70%,transparent);border-radius:999px;padding:6px 8px;box-shadow:0 8px 26px rgba(0,0,0,.14);}
+  .ss-szene{border:1px solid var(--border);background:var(--surface-2);color:var(--text);border-radius:999px;padding:6px 12px;font:inherit;font-weight:700;font-size:13px;cursor:pointer;}
+  .ss-szene.on{border-color:var(--brand);box-shadow:inset 0 0 0 1px var(--brand);}
+  .ss-panel{pointer-events:auto;background:color-mix(in srgb,var(--surface) 92%,transparent);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);border:1px solid var(--border);border-radius:16px;padding:12px 14px;box-shadow:0 8px 26px rgba(0,0,0,.18);font-size:13px;width:min(440px,100%);display:flex;flex-direction:column;gap:9px;}
+  .ss-panel[hidden]{display:none;}
+  .ss-panel label{display:flex;align-items:center;justify-content:space-between;gap:10px;}
+  .ss-panel select{font:inherit;font-size:13px;padding:4px 8px;border-radius:8px;border:1px solid var(--border);background:var(--surface-2);color:var(--text);}
+  .ss-meter{position:relative;height:12px;border-radius:999px;background:var(--surface-2);overflow:hidden;}
+  .ss-meter-lvl{position:absolute;left:0;top:0;bottom:0;width:0;background:var(--good);transition:width .1s linear;}
+  .ss-meter-lvl.over{background:#E8B72C;}
+  .ss-meter-mark{position:absolute;top:-2px;bottom:-2px;width:3px;background:var(--text);opacity:.6;}
+  .ss-status{font-size:12px;color:var(--text-muted);}
+  .ss-quelle{font-size:11px;color:var(--text-muted);}
+  /* 📖 Entdeckt (Sammlung) */
+  .ss-neu{position:absolute;left:50%;top:5%;transform:translate(-50%,-8px);z-index:2100;background:rgba(255,255,255,.9);color:#1e2433;border-radius:999px;padding:8px 18px;font-family:'Baloo 2',system-ui,sans-serif;font-weight:800;font-size:clamp(16px,calc(2.6vh/var(--lz,1)),26px);box-shadow:0 8px 24px rgba(0,0,0,.18);opacity:0;transition:opacity .6s, transform .6s;pointer-events:none;white-space:nowrap;}
+  .ss-neu.on{opacity:1;transform:translate(-50%,0);}
+  .ss-dex{position:absolute;inset:3% 4%;z-index:5;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:20px;box-shadow:0 20px 50px rgba(0,0,0,.3);display:flex;flex-direction:column;overflow:hidden;}
+  .ss-dex[hidden]{display:none;}
+  .ss-dex-kopf{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:flex-start;padding:16px 56px 10px 20px;position:relative;border-bottom:1px solid var(--border);}
+  .ss-dex-kopf > div:first-child{margin-right:auto;}
+  .ss-dex-titel{font-family:'Baloo 2',system-ui,sans-serif;font-weight:800;font-size:clamp(20px,calc(3vh/var(--lz,1)),28px);}
+  .ss-dex-sub{font-size:14px;color:var(--text-muted);}
+  .ss-dex-tabs{display:flex;flex-wrap:wrap;gap:6px;}
+  .ss-dex-zu{position:absolute;top:12px;right:14px;width:34px;height:34px;border-radius:50%;border:none;background:var(--surface-2);color:var(--text);font-size:16px;cursor:pointer;}
+  .ss-dex-body{flex:1;overflow:auto;padding:6px 20px 18px;}
+  .ss-dex-stufe{margin:14px 0 8px;font-size:12px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--text-muted);}
+  .ss-dex-stufe span{text-transform:none;letter-spacing:0;font-weight:500;}
+  .ss-dex-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;}
+  .ss-dex-karte{position:relative;border:1px solid var(--border);border-radius:14px;padding:10px;display:flex;flex-direction:column;align-items:center;text-align:center;gap:2px;background:var(--surface);}
+  .ss-dex-rar{border-color:#e8b72c;background:color-mix(in srgb,#ffd166 14%,var(--surface));}
+  .ss-dex-bild{height:clamp(56px,calc(9vh/var(--lz,1)),90px);width:100%;display:flex;align-items:center;justify-content:center;}
+  .ss-dex-bild > svg{max-width:100%;max-height:100%;width:auto;height:100%;overflow:visible;}
+  .ss-unseen .ss-dex-bild > svg{filter:brightness(0);opacity:.18;}
+  .ss-unseen .ss-dex-name{color:var(--text-muted);}
+  .ss-dex-name{font-weight:800;font-size:15px;margin-top:4px;overflow-wrap:anywhere;hyphens:auto;}
+  .ss-dex-anz{font-size:12px;color:var(--text-muted);}
+  .ss-dex-fakt{font-size:12px;line-height:1.35;margin-top:4px;}
+  .ss-dex-neu{position:absolute;top:6px;right:6px;background:#ffe2a8;color:#7a4b00;border-radius:999px;padding:1px 8px;font-size:11px;font-weight:800;}
+  .ss-dex-fuss{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;margin-top:16px;font-size:12px;color:var(--text-muted);}
+  @media (max-width:900px){
+    .ss-ui{grid-template-columns:1fr;grid-template-rows:auto 1fr auto;}
+    .ss-ui .rp-col-speak{display:none;}
+  }
+  @media (prefers-reduced-motion: reduce){
+    .ss-bobber,.ss-sway,.ss-fern,.ss-drift,.ss-sun,.ss-shaft,.ss-plankton,.ss-motes,.ss-leaf,.ss-poser.ss-turning,.ss-poser.ss-shaking,
+    .ss-creature .part-tail,.ss-creature .part-fin,.ss-creature .part-body,.ss-creature .part-tentacles,.ss-creature .part-arms,
+    .ss-creature .part-ears,.ss-creature .part-wings,.ss-creature .part-head{animation:none;}
+    .ss-leaf-fall{display:none;}
+  }
+
   /* ---------- Würfel ---------- */
   .wu-wrap{display:flex;flex-direction:column;align-items:center;gap:22px;width:100%;}
   .wu-dice{display:flex;flex-wrap:wrap;gap:clamp(14px,calc(3vw/var(--lz,1)),34px);justify-content:center;max-width:1100px;}
@@ -1721,6 +1887,25 @@
   .kk-set-zeile span{color:var(--text-muted);font-size:13px;}
   .kk-set-zeile .kk-set-akt{margin-left:auto;display:flex;gap:6px;}
   .kk-liste{display:flex;flex-direction:column;}
+  /* 📥 Fragen-Import */
+  .qi-drop{position:relative;display:flex;align-items:center;justify-content:center;min-height:96px;border:2px dashed var(--border);border-radius:var(--radius-sm);background:var(--surface-2);cursor:pointer;text-align:center;padding:14px;margin:6px 0 10px;font-size:15px;}
+  .qi-drop.an{border-color:var(--brand);}
+  .qi-drop input{position:absolute;width:1px;height:1px;opacity:0;}
+  .qi-hilfe{margin:6px 0;}
+  .qi-hilfe summary{cursor:pointer;font-weight:700;font-size:14px;}
+  .qi-issues{font-size:13px;margin:6px 0;padding-left:18px;}
+  .qi-ziel{display:flex;gap:8px;flex-wrap:wrap;margin:4px 0 6px;}
+  .qi-format{font:inherit;font-size:13px;}
+  .qi-liste{max-height:46vh;overflow:auto;border:1px solid var(--border);border-radius:var(--radius-sm);}
+  .qi-posten{display:flex;gap:10px;align-items:flex-start;padding:8px 12px;border-bottom:1px solid var(--border);cursor:pointer;font-size:14px;}
+  .qi-posten:last-child{border-bottom:0;}
+  .qi-posten input{margin-top:3px;flex:none;}
+  .qi-posten-txt{display:flex;flex-direction:column;gap:3px;min-width:0;overflow-wrap:anywhere;}
+  .qi-posten.qi-fehlt{opacity:.6;cursor:default;}
+  .qi-pfeil{color:var(--text-muted);}
+  .qi-antw{display:flex;flex-wrap:wrap;gap:4px 12px;color:var(--text-muted);font-size:13px;}
+  .qi-antw .ok{color:var(--good);font-weight:700;}
+  .qi-hin,.qi-grund{color:var(--text-muted);font-size:12px;}
   .kk-ueb-row{grid-template-columns:minmax(110px,1.6fr) .9fr .9fr .6fr .8fr .7fr .7fr;}
   @media (max-width:640px){ .kk-ueb-row{grid-template-columns:1fr 1fr;} }
   .kk-karte{position:relative;}
@@ -2181,6 +2366,24 @@
   .mt-body{flex:1;min-width:0;}
   .mt-frage{font-size:17px;font-weight:700;line-height:1.4;margin-bottom:8px;}
   .mt-bild{margin:2px 0 10px;}
+  /* ☕ Rechen-Café: Preistafel, Kassenzettel und Kassenschublade */
+  .mt-bild svg.cafe-svg{display:block;width:100%;max-width:320px;height:auto;}
+  .cafe-geld{display:flex;flex-direction:column;gap:8px;width:100%;max-width:560px;}
+  .cafe-ablage{display:flex;flex-wrap:wrap;align-items:center;gap:6px;min-height:52px;padding:8px 10px;border:2px dashed var(--border);border-radius:12px;background:var(--surface-2);}
+  .mt-ok .cafe-ablage{border-style:solid;border-color:var(--good);background:var(--good-soft);}
+  .mt-bad .cafe-ablage,.mt-leer .cafe-ablage{border-style:solid;border-color:var(--bad);background:var(--bad-soft);}
+  .cafe-leer{color:var(--text-muted);font-size:13.5px;}
+  .cafe-summe{margin-left:auto;font-weight:800;font-variant-numeric:tabular-nums;white-space:nowrap;}
+  .cafe-lade{display:flex;flex-wrap:wrap;gap:6px;padding:8px;border-radius:12px;background:#3b3f4a;}
+  .cafe-klein{color:var(--text-muted);font-size:12px;}
+  .cafe-st{font:inherit;font-weight:800;cursor:pointer;color:#1f1a14;border:2px solid rgba(0,0,0,.25);touch-action:manipulation;transition:transform .08s;}
+  .cafe-st:active:not(:disabled){transform:scale(.92);}
+  .cafe-st:disabled{cursor:default;}
+  .cafe-st.note{min-width:64px;height:36px;border-radius:6px;font-size:15px;padding:0 8px;}
+  .cafe-st.note.n10{background:#F2C230;} .cafe-st.note.n20{background:#E35B4F;color:#fff;} .cafe-st.note.n50{background:#4FAE6B;color:#fff;} .cafe-st.note.n100{background:#3A7BBF;color:#fff;}
+  .cafe-st.muenze{width:50px;height:50px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#ffffff 0%,#d3d7de 45%,#9ea4ae 100%);font-size:12px;line-height:1.05;padding:0;}
+  .cafe-st.muenze.klein{width:42px;height:42px;font-size:11px;}
+  .cafe-st.muenze.gold{width:38px;height:38px;font-size:10.5px;background:radial-gradient(circle at 35% 30%,#fff6c9 0%,#e3c45a 50%,#b08d28 100%);}
   /* 🌐 Sprachwahl */
   .topbar-lang-code{font-size:9.5px;font-weight:800;margin-left:2px;letter-spacing:.03em;}
   .lang-liste{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px;margin:10px 0 4px;}
@@ -3098,6 +3301,46 @@
   .lsp-s-gross{font-family:'Baloo 2',system-ui,sans-serif;font-size:28px;font-weight:700;text-align:center;padding:10px 0 0;}
   .lsp-s-frage{background:var(--surface-2);border:2px solid var(--brand);border-radius:18px;padding:14px 16px;font-size:18px;font-weight:700;text-align:center;line-height:1.35;white-space:pre-line;overflow-wrap:anywhere;}
   .modal .lsp-s-status{margin:0;text-align:center;min-height:24px;line-height:1.45;}
+  /* 🔦 Eins gegen alle */
+  .gnt-regeln{margin:10px 0 4px;background:var(--surface-2);border-radius:var(--radius-sm);padding:8px 12px;}
+  .gnt-regeln summary{cursor:pointer;font-weight:700;}
+  .gnt-regeln-liste{margin:8px 0 2px;padding-left:18px;font-size:13.5px;line-height:1.45;}
+  .gnt-regeln-liste li{margin-bottom:5px;}
+  .gnt-kopf{display:flex;gap:10px 22px;justify-content:center;align-items:center;flex-wrap:wrap;font-size:clamp(15px,calc(1.6vw/var(--lz,1)),22px);font-weight:600;}
+  .gnt-kopf .gnt-one{background:#1f2433;color:#FFE27A;border-radius:999px;padding:4px 16px;font-weight:800;box-shadow:0 0 0 3px #FFE27A55,0 0 24px #FFE27A66;}
+  .gnt-kopf .gnt-nr{color:var(--text-muted);}
+  .gnt-geheim{align-self:center;text-align:center;background:radial-gradient(circle at 50% 30%,#3a3f55 0%,#1f2433 70%);color:#fff;border-radius:26px;padding:26px 44px;font-size:clamp(26px,calc(3.6vw/var(--lz,1)),48px);line-height:1.2;max-width:900px;}
+  .gnt-geheim small{display:block;margin-top:10px;font-size:.45em;font-weight:500;opacity:.9;}
+  .gnt-kand .lsp-kind{transition:transform .08s,box-shadow .08s,background .08s;}
+  .lsp-kind.gnt-gewaehlt{background:#FFE27A;border-color:#D9A400;color:#3d2c00;}
+  .lsp-kind.gnt-licht{background:#FFE27A;border-color:#D9A400;color:#3d2c00;transform:scale(1.12);box-shadow:0 0 0 4px #FFE27A88,0 0 30px #FFE27A;}
+  .gnt-wer{background:#1f2433;color:#FFE27A;}
+  .gnt-joker{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;}
+  .gnt-jk{border:2px solid var(--brand);background:var(--surface);color:var(--text);border-radius:999px;padding:8px 16px;font:inherit;font-weight:700;font-size:clamp(14px,calc(1.4vw/var(--lz,1)),18px);cursor:pointer;}
+  .gnt-jk:hover:not(:disabled){background:var(--brand);color:var(--brand-contrast);}
+  .gnt-jk.an{background:var(--brand);color:var(--brand-contrast);}
+  .gnt-jk.weg{opacity:.4;text-decoration:line-through;}
+  .gnt-jk:disabled{cursor:default;}
+  .gnt-erg{text-align:center;background:var(--surface-2);border:2px dashed var(--brand);border-radius:16px;padding:10px 16px;font-size:clamp(15px,calc(1.6vw/var(--lz,1)),22px);line-height:1.5;}
+  .gnt-erg.fehler{border-color:var(--bad);}
+  .gnt-erg small{display:block;color:var(--text-muted);font-size:.75em;}
+  .gnt-sprecher{display:inline-block;margin:4px 8px;background:var(--surface);border-radius:999px;padding:2px 12px;}
+  .lsp-opt.gnt-lock{background:#FFF3C4;border-color:#D9A400;color:#3d2c00;}
+  .lsp-opt.gnt-poll{border-style:dashed;border-color:var(--brand);}
+  .lsp-opt.bad{background:var(--bad-soft);border-color:var(--bad);}
+  .lsp-opt.bad b{background:var(--bad);}
+  .gnt-zahl{margin-left:auto;background:var(--surface-2);border-radius:999px;padding:0 10px;font-size:.8em;font-weight:800;color:var(--text);}
+  .gnt-ausgang{text-align:center;font-size:clamp(18px,calc(2.2vw/var(--lz,1)),30px);font-weight:700;border-radius:16px;padding:10px 16px;}
+  .gnt-ausgang.ok{background:var(--good-soft);}
+  .gnt-ausgang.bad{background:var(--bad-soft);}
+  .gnt-plus{display:flex;flex-wrap:wrap;gap:6px 10px;justify-content:center;font-size:clamp(13px,calc(1.3vw/var(--lz,1)),17px);}
+  .gnt-plus span{background:var(--surface-2);border-radius:999px;padding:2px 12px;}
+  .gnt-plus b{color:var(--good);}
+  .gnt-plus.crew span{background:#FFE6C7;color:#5a3200;}
+  .gnt-ende{text-align:center;background:#1f2433;color:#fff;border-radius:18px;padding:12px 18px;font-size:clamp(17px,calc(2vw/var(--lz,1)),26px);line-height:1.4;}
+  .gnt-ende b{color:#FFE27A;}
+  .gnt-s-kopf{display:flex;justify-content:space-between;gap:10px;font-weight:700;color:var(--text-muted);font-size:14px;}
+  .gnt-crew-hinweis{background:#FFE6C7;color:#5a3200;border-radius:12px;padding:7px 12px;font-size:13.5px;text-align:center;}
   /* ---------- 📽️ Team-Spiele am Beamer ---------- */
   .tsp-stage{flex:1;display:flex;flex-direction:column;gap:14px;padding:16px 24px 22px;min-height:0;position:relative;overflow:auto;}
   .tsp-teams{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;flex-shrink:0;}
@@ -9556,6 +9799,8 @@ var KIB_WISSEN = [
    a:'⚙️ Einstellungen › «🔑 Passwort einer Schüler:in zurücksetzen»: Anfrage stellen. Das neue Passwort erscheint dort, sobald es gesetzt ist.'},
   {id:'lp-karten', fuer:'lp', f:'Wie lege ich ein Karteikarten-Set an?', w:'karteikarten set karten voci wörter liste excel einfügen voci-test vokabeln erstellen anlegen', ziel:'klassenzimmer',
    a:'🏫 Klassenzimmer › «Karteikarten» › Set pro Fach anlegen. Karten als Liste einfügen («house = Haus», eine pro Zeile; Excel-Listen einfach hineinkopieren, mehrere richtige Antworten mit «/»).\nDie 📊 Klassenübersicht eines Sets zeigt die schwierigsten Wörter. Mit «📝 Voci-Test» wird aus dem Set direkt eine Prüfung.'},
+  {id:'lp-import', fuer:'lp', f:'Kann ich meine Quizlet- oder Kahoot-Sets übernehmen?', w:'import importieren quizlet kahoot blooket moodle gift canvas qti blackboard anki aiken datei übernehmen karteikarten quiz excel vorlage', ziel:'klassenzimmer',
+   a:'Ja. 🏫 Klassenzimmer › «Karteikarten» oder «Klassen-Quiz» › «📥 Importieren». Datei wählen (Kahoot-Excel-Vorlage, Blooket-Vorlage, Moodle GIFT/XML, Canvas-/Blackboard-Export, Anki-Text …) oder bei Quizlet den Export-Text («Tabulator», «Neue Zeile») einfügen. In der Vorschau wählst du, ob es ein Karteikarten-Set oder ein Klassen-Quiz wird, in welches Fach und welchen Ordner, und hakst einzelne Fragen ab. Fragen, die nicht passen (z. B. mehrere richtige Antworten im Quiz), sind ausgegraut und mit Grund markiert.'},
   {id:'lp-trainer', fuer:'lp', f:'Was sind die Übungstrainer?', w:'übungstrainer trainer sikore tipptrainer klassenübersicht automatisch aufgaben',
    a:'⚡ Übungstrainer stehen in fast jedem Fach zuoberst. Die Aufgaben entstehen automatisch, du musst nichts pflegen. Pro Trainer gibt es eine 📊 Klassenübersicht. 🧮 SIKORE (Mathematik) und ⌨️ Tipptrainer (Medien und Informatik) funktionieren gleich.'},
   {id:'lp-klassenzimmer', fuer:'lp', f:'Welche Werkzeuge gibt es im Klassenzimmer?', w:'klassenzimmer werkzeuge beamer ruhephase lärmampel countdown würfel glücksrad stadt land fluss gruppen partner ämtliplan vergessen-zähler', ziel:'klassenzimmer',
@@ -9596,6 +9841,8 @@ var KIB_WISSEN = [
    a:'Im 🗓️ Stundenplan auf «📌 Termin», dann die Lektion antippen: eine Lektion, ein Halbtag oder ein ganzer Tag, auch «fällt aus». In «Mein Stundenplan» wählst du, ob nur du ihn siehst oder auch eine Klasse. In der Ansicht «Klasse» sieht ihn die ganze Klasse.\nMüssen nur einige weg, hakst du «↔️ Parallel zur Lektion» an.'},
   {id:'lp-material', fuer:'lp', f:'Wie lege ich ein Quiz oder eine Umfrage in einen Fach-Ordner?', w:'unterrichtsmaterial zusatzmaterial material ordner ablegen quiz umfrage wortwolke karteikarten paket importieren aus dem klassenzimmer lehrer-html planung', ziel:'klassenzimmer',
    a:'Im Fach auf «🏫 Aus dem Klassenzimmer»: Klassen-Quiz, Karteikarten, Wortwolke, Blitzumfrage, Millionär-Set oder Prüfung neu anlegen oder Vorhandenes in den offenen Ordner holen. Es steht dann unter den Übungen, mit «▶︎ Starten».\nGesammelt findest du alles unter 🏫 Klassenzimmer › «🗃️ Unterrichtsmaterial».'},
+  {id:'lp-stille-safari', fuer:'lp', f:'Was ist die «Stille Safari» in der Ruhephase?', w:'stille safari shy safari tiere ruhe lärm leise ruhephase lärmampel savanne riff wald mikrofon belohnen', ziel:'klassenzimmer',
+   a:'Im 🏫 Klassenzimmer › ⏱ Ruhephase in der Mitte von «🚦 Lärmampel» auf «🦒 Stille Safari» umschalten. Am Beamer ist dann eine ruhige Szene (Savanne, Korallenriff oder Wald). Solange der Timer läuft und es leise bleibt, kommen nach und nach Tiere hervor – das erste nach 10–20 Sekunden, insgesamt etwa 9 in einer ruhigen Ruhephase, manche sind selten. Wird es zu laut, wird die Szene neblig und die Tiere verstecken sich, bis es wieder ruhig ist (oder sie laufen davon / es wird nur neblig – unter ⚙️). Keine Punkte, kein Rot.\nPausierst du den Timer, drehen sich die Tiere zur Klasse und hören zu. ↺ oder eine neue Dauer starten eine neue, leere Szene.\n📖 Entdeckt: alle Tiere der Szene – entdeckte mit Namen und Steckbrief, die anderen als graue Silhouette (pro Klasse auf diesem Gerät gespeichert).\n⚙️ unten: Ruhe-Grenze (mit Pegelanzeige), Tempo, Verhalten bei Lärm. Das Mikrofon misst nur den Pegel auf deinem Gerät, nichts wird aufgezeichnet oder gesendet.\nIdee und Grafiken: verändert nach teacher.dev/shy-safari (Open Source, Apache-2.0).'},
   {id:'lp-wer-macht-mit', fuer:'lp', f:'Wie mische ich Klassen im Glücksrad oder bei den Gruppen?', w:'glücksrad wer ist dran gruppen partner ruhephase flüstern andere klasse mischen gäste einzelne schüler dazunehmen auswahl wer macht mit abwesend', ziel:'klassenzimmer',
    a:'Im 🏫 Klassenzimmer oben rechts in 🎲 Zufall, ⏱ Ruhephase und 👥 Gruppen & Partner auf «👥 …» tippen. Dort wählst du ganze Klassen aus der ganzen Schule, deine 👥 Gruppen und einzelne Schüler:innen (Suchfeld) – z. B. die G2b und drei aus der E3a. Wer heute fehlt: Namen antippen.\nDie Auswahl gilt für Glücksrad, Wer ist dran?, Gruppen & Partner und die Flüsterliste und bleibt auf deinem Gerät gespeichert.'},
   {id:'lp-energizer', fuer:'lp', f:'Wo finde ich Energizer und Aktivierungsspiele?', w:'energizer aktivierung aktivierungsspiel bewegung pause spiel spiele auflockern konzentration ruhe atmung', ziel:'klassenzimmer',
@@ -14918,7 +15165,7 @@ function resourceCardHtml(r, index, total, isTeacher){
       '<div class="resource-meta">Blind tippen lernen · Lektion für Lektion · Tempo und Genauigkeit</div></div>'+
       '<span class="sk-karte-pfeil" aria-hidden="true">›</span></button>';
   }
-  if(r.svaWerk || r.schach){
+  if(r.svaWerk || r.schach || r.werkzeug){
     return '<button type="button" class="resource-card sk-karte" id="open-'+r.id+'"><div class="resource-info"><h4>'+esc(r.title)+'</h4>'+
       '<div class="resource-meta">'+esc(r.meta || '')+'</div></div>'+
       '<span class="sk-karte-pfeil" aria-hidden="true">›</span></button>';
@@ -16541,7 +16788,7 @@ function renderLinkResource(r){
   var s = subjectById(r.subject);
   var html = '<div class="viewer-wrap">';
   html += '<div class="back-row"><button class="btn btn-ghost btn-sm" id="backBtn">&larr; '+esc(s ? s.name : 'Fach')+'</button></div>';
-  html += '<div class="viewer-head"><h2>'+esc(r.title)+'</h2><span class="viewer-progress">LMVZ</span>';
+  html += '<div class="viewer-head"><h2>'+esc(r.title)+'</h2><span class="viewer-progress">'+esc(r.linkLabel || 'LMVZ')+'</span>';
   html += '<a class="btn btn-ghost btn-sm" href="'+esc(r.linkUrl)+'" target="_blank" rel="noopener">↗ Neuer Tab</a>';
   html += libFensterBtnHtml('fensterBtn');
   html += '<button class="btn btn-ghost btn-sm btn-fs" id="fsBtn" type="button">'+FS_ICON_ENTER+'</button>';
@@ -17254,11 +17501,14 @@ function switchBeamerTab(tab){
   if(tab === 'rad'){ mountGlueck(stage); return; }
   if(tab === 'slf'){ mountStadtLandFluss(stage); return; }
 
+  // ⏱ Ruhephase: mit 🚦 Lärmampel oder als 🦒 Stille Safari (Umschalter, pro Gerät gemerkt).
+  if(ruheModus() === 'safari'){ mountSafariRuhephase(stage); return; }
   stage.innerHTML = '<div class="rp-grid">'
     + '<div class="rp-col rp-col-timer" id="rpTimer"></div>'
-    + '<div class="rp-col rp-col-ampel" id="rpAmpel"></div>'
+    + '<div class="rp-col rp-col-ampel">' + ruheModusHtml('ampel') + '<div class="rp-col" id="rpAmpel"></div></div>'
     + '<div class="rp-col rp-col-speak" id="rpSpeak"></div>'
     + '</div>';
+  ruheModusVerdrahten(stage);
   mountTimer(stage.querySelector('#rpTimer'));
   mountAmpel(stage.querySelector('#rpAmpel'));
   mountSprecher(stage.querySelector('#rpSpeak'));
@@ -17274,7 +17524,8 @@ function fmtClock(sec){
   return m + ':' + pad2(s);
 }
 
-function mountTimer(host){
+// opts.onChange(art, t): art 'reset' (neue Dauer / ↺) oder 'tick' — für die 🦒 Stille Safari.
+function mountTimer(host, opts){
   var t = { total: 5*60, left: 5*60, running:false, tick:null, done:false };
   var saved = parseInt(lsGet(LIB_PREFIX+'timer_min') || '5', 10);
   if(saved > 0 && saved <= 180){ t.total = saved*60; t.left = t.total; }
@@ -17310,6 +17561,10 @@ function mountTimer(host){
     host.classList.toggle('tm-warn', !t.done && t.left <= 10 && t.left > 0 && t.running);
     host.classList.toggle('tm-done', t.done);
     startBtn.textContent = t.running ? '❚❚ Pause' : '▶︎ Start';
+    melde('tick');
+  }
+  function melde(art){
+    if(opts && opts.onChange){ try{ opts.onChange(art, t); }catch(e){ console.error('Timer', e); } }
   }
   function stop(){ clearInterval(t.tick); t.tick = null; t.running = false; }
   function start(){
@@ -17327,6 +17582,7 @@ function mountTimer(host){
   function setMinutes(m){
     stop(); t.done = false; t.total = m*60; t.left = t.total;
     lsSet(LIB_PREFIX+'timer_min', String(m));
+    melde('reset');
     paint();
   }
 
@@ -17344,10 +17600,39 @@ function mountTimer(host){
   host.querySelector('#tmPlus').addEventListener('click', function(){
     t.left += 60; t.total = Math.max(t.total, t.left); t.done = false; paint();
   });
-  host.querySelector('#tmReset').addEventListener('click', function(){ stop(); t.left = t.total; t.done = false; paint(); });
+  host.querySelector('#tmReset').addEventListener('click', function(){ stop(); t.left = t.total; t.done = false; melde('reset'); paint(); });
 
   paint();
   beamer.cleanups.push(stop);
+}
+
+// Manche Geräte/Browser lehnen die «rohen» Constraints ab (Overconstrained)
+// — dann einfach mit {audio:true} nochmals versuchen.
+function ampelHoleMikrofon(){
+  return navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false, noiseSuppression:false, autoGainControl:false}})
+    .catch(function(err){
+      if(err && (err.name === 'OverconstrainedError' || err.name === 'TypeError' || err.name === 'NotReadableError')){
+        return navigator.mediaDevices.getUserMedia({audio:true});
+      }
+      throw err;
+    });
+}
+
+function ampelFehlerText(err){
+  var n = err && err.name;
+  var mac = /Mac/.test(navigator.platform || navigator.userAgent || '');
+  if(n === 'NotAllowedError' || n === 'SecurityError' || n === 'PermissionDeniedError'){
+    return 'Mikrofon blockiert. Links in der Adressleiste (Schloss-/Regler-Symbol) für diese Seite «Mikrofon: Zulassen» wählen'
+      + (mac ? ' — und in den macOS-Systemeinstellungen › Datenschutz & Sicherheit › Mikrofon den Browser erlauben' : '')
+      + '. Dann «Mikrofon erneut versuchen».';
+  }
+  if(n === 'NotFoundError' || n === 'DevicesNotFoundError'){
+    return 'Kein Mikrofon gefunden. Mikrofon/Headset anschliessen und «Mikrofon erneut versuchen».';
+  }
+  if(n === 'NotReadableError' || n === 'TrackStartError' || n === 'AbortError'){
+    return 'Das Mikrofon ist gerade von einem anderen Programm belegt (z. B. Teams/Zoom). Dort schliessen und erneut versuchen.';
+  }
+  return 'Mikrofon konnte nicht gestartet werden' + (n ? ' (' + n + ')' : '') + '. «Mikrofon erneut versuchen».';
 }
 
 /* ---------- 🔊 Lärmampel ----------
@@ -17420,34 +17705,7 @@ function mountAmpel(host){
     return;
   }
 
-  // Manche Geräte/Browser lehnen die «rohen» Constraints ab (Overconstrained)
-  // — dann einfach mit {audio:true} nochmals versuchen.
-  function holeMikrofon(){
-    return navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false, noiseSuppression:false, autoGainControl:false}})
-      .catch(function(err){
-        if(err && (err.name === 'OverconstrainedError' || err.name === 'TypeError' || err.name === 'NotReadableError')){
-          return navigator.mediaDevices.getUserMedia({audio:true});
-        }
-        throw err;
-      });
-  }
-
-  function fehlerText(err){
-    var n = err && err.name;
-    var mac = /Mac/.test(navigator.platform || navigator.userAgent || '');
-    if(n === 'NotAllowedError' || n === 'SecurityError' || n === 'PermissionDeniedError'){
-      return 'Mikrofon blockiert. Links in der Adressleiste (Schloss-/Regler-Symbol) für diese Seite «Mikrofon: Zulassen» wählen'
-        + (mac ? ' — und in den macOS-Systemeinstellungen › Datenschutz & Sicherheit › Mikrofon den Browser erlauben' : '')
-        + '. Dann «Mikrofon erneut versuchen».';
-    }
-    if(n === 'NotFoundError' || n === 'DevicesNotFoundError'){
-      return 'Kein Mikrofon gefunden. Mikrofon/Headset anschliessen und «Mikrofon erneut versuchen».';
-    }
-    if(n === 'NotReadableError' || n === 'TrackStartError' || n === 'AbortError'){
-      return 'Das Mikrofon ist gerade von einem anderen Programm belegt (z. B. Teams/Zoom). Dort schliessen und erneut versuchen.';
-    }
-    return 'Mikrofon konnte nicht gestartet werden' + (n ? ' (' + n + ')' : '') + '. «Mikrofon erneut versuchen».';
-  }
+  var holeMikrofon = ampelHoleMikrofon, fehlerText = ampelFehlerText;
 
   function start(){
     if(stopped) return;
@@ -17509,6 +17767,717 @@ function mountAmpel(host){
   }
 
   start();
+}
+
+/* ---------- 🦒 Stille Safari ----------
+   Gegenstück zur Lärmampel: Auf dem Beamer ist eine ruhige Szene. Bleibt die
+   Klasse leise, kommen nach und nach Tiere hervor; wird es zu laut, trübt
+   sich die Szene ein und die Tiere verstecken sich (bzw. laufen davon) —
+   keine Punkte, kein rotes Licht. Gemessen wird nur der Pegel, lokal über
+   das Mikrofon; nichts wird aufgezeichnet, gespeichert oder übertragen.
+
+   Verändert nach teacher.dev/shy-safari (github.com/teacherdotdev/shy-safari),
+   Copyright der Shy-Safari-Autor:innen, Apache License 2.0 — Lizenztext in
+   assets/safari/LICENSE.txt, Hinweis in assets/safari/HINWEIS.md.
+   Übernommen: Idee, Grafiken (SVG, im Original-Repo ebenfalls Apache-2.0),
+   Bewegungsmodell (scenes/motion.ts), «Zu laut»-Eimer (noise/loudState.ts),
+   Ankunftsuhr (session/arrivalClock.ts), Seltenheits-Wurf (session/roll.ts)
+   und Wegrenn-Takt (session/scareClock.ts). Geändert: Vanilla-JS statt
+   Svelte, deutsche Oberfläche, gekoppelt an den ⏱ Ruhephase-Timer (Tiere
+   kommen nur, solange er läuft; bei Pause/Ende drehen sie sich zur Klasse),
+   Takt aus der Timer-Dauer, Modus «verstecken sich», ohne Branding/Analytics.
+   Die Szenen-Dateien baut admin/safari-szenen-bauen.js aus dem Original. */
+
+var SAFARI_SZENEN = [
+  {id:'savanne', name:'Savanne', icon:'🦒'},
+  {id:'riff',    name:'Korallenriff', icon:'🐠', tiefenNebel:true},
+  {id:'wald',    name:'Wald', icon:'🦊'}
+];
+var SAFARI_DATEN_VERSION = 1;
+var safariDatenCache = {};
+function safariDatenLaden(id){
+  if(!safariDatenCache[id]){
+    safariDatenCache[id] = fetch('assets/safari/' + id + '.json?v=' + SAFARI_DATEN_VERSION).then(function(r){
+      if(!r.ok) throw new Error('Szene ' + r.status);
+      return r.json();
+    });
+    safariDatenCache[id].catch(function(){ delete safariDatenCache[id]; });
+  }
+  return safariDatenCache[id];
+}
+
+/* Bewegung (aus scenes/motion.ts). Alles in Bruchteilen der Szene (0–1). */
+var SS_SAND = {top:0.84, bottom:0.98};
+var SS_PLAIN = {top:0.62, bottom:0.97};
+var SS_WATER = {xMin:0.06, xMax:0.94, yMin:0.1, yMax:0.78};
+var SS_GROUND_REGION = {xMin:0.04, xMax:0.96, yMin:0, yMax:1};
+function ssP(o){ return Object.assign({restChance:0, rest:[0,0], pulse:0, flips:true, tilts:false, ground:false}, o); }
+var SS_MOTION = {
+  cruise:  ssP({region:SS_WATER, speed:0.035, agility:1.2, reachX:0.9, reachY:0.25, restChance:0.1, rest:[1,3], tilts:true}),
+  hover:   ssP({region:{xMin:0.06,xMax:0.94,yMin:0.2,yMax:0.78}, speed:0.01, agility:0.8, reachX:0.15, reachY:0.15, restChance:0.6, rest:[2,6]}),
+  scuttle: ssP({region:SS_GROUND_REGION, speed:0.03, agility:6, reachX:0.5, reachY:0, restChance:0.7, rest:[1.5,5], flips:false, ground:true}),
+  creep:   ssP({region:SS_GROUND_REGION, speed:0.002, agility:1, reachX:0.06, reachY:0, restChance:0.8, rest:[8,20], flips:false, ground:true}),
+  dart:    ssP({region:{xMin:0.05,xMax:0.95,yMin:0.62,yMax:0.84}, speed:0.07, agility:5, reachX:0.25, reachY:0.3, restChance:0.85, rest:[1,4]}),
+  jet:     ssP({region:{xMin:0.06,xMax:0.94,yMin:0.1,yMax:0.8}, speed:0.04, agility:1.4, reachX:0.6, reachY:0.8, restChance:0.2, rest:[2,4], pulse:2.4}),
+  drift:   ssP({region:{xMin:0.08,xMax:0.92,yMin:0.12,yMax:0.7}, speed:0.012, agility:0.6, reachX:0.2, reachY:0.7, restChance:0.2, rest:[2,5], pulse:3.2, flips:false}),
+  glide:   ssP({region:{xMin:0.1,xMax:0.9,yMin:0.14,yMax:0.66}, speed:0.025, agility:0.35, reachX:1, reachY:0.6, tilts:true}),
+  prowl:   ssP({region:{xMin:0.08,xMax:0.92,yMin:0.6,yMax:0.82}, speed:0.015, agility:0.7, reachX:0.6, reachY:0.3, restChance:0.3, rest:[3,7], tilts:true}),
+  graze:   ssP({region:SS_GROUND_REGION, speed:0.012, agility:2, reachX:0.4, reachY:0, restChance:0.75, rest:[4,12], ground:true, band:SS_PLAIN}),
+  trot:    ssP({region:SS_GROUND_REGION, speed:0.025, agility:3, reachX:0.6, reachY:0, restChance:0.5, rest:[1.5,5], ground:true, band:SS_PLAIN}),
+  soar:    ssP({region:{xMin:0.08,xMax:0.92,yMin:0.08,yMax:0.45}, speed:0.028, agility:0.5, reachX:1, reachY:0.5, tilts:true, band:SS_PLAIN})
+};
+function ssClamp(v, a, b){ return Math.min(b, Math.max(a, v)); }
+function ssGroundLine(depth, band){ band = band || SS_SAND; return band.top + depth * (band.bottom - band.top); }
+function ssLayer(p, depth){ return Math.round(ssGroundLine(depth, p.band) * 1000); }
+function ssBounds(p, fp, depth){
+  var hw = fp.width / 2, hh = fp.height / 2;
+  var xMin = Math.max(p.region.xMin, hw), xMax = Math.min(p.region.xMax, 1 - hw);
+  if(xMin > xMax){ xMin = xMax = 0.5; }
+  if(p.ground){ var y = ssGroundLine(depth, p.band) - hh; return {xMin:xMin, xMax:xMax, yMin:y, yMax:y}; }
+  var yMin = Math.max(p.region.yMin, hh), yMax = Math.min(p.region.yMax, 1 - hh);
+  if(yMin > yMax){ yMin = yMax = 0.5; }
+  return {xMin:xMin, xMax:xMax, yMin:yMin, yMax:yMax};
+}
+function ssPickTarget(m, p, box){
+  var spanX = (box.xMax - box.xMin) * p.reachX, spanY = (box.yMax - box.yMin) * p.reachY;
+  var stride = (Math.random() * 0.6 + 0.4) * spanX * (Math.random() < 0.5 ? -1 : 1);
+  var tx = m.x + stride;
+  if(tx < box.xMin || tx > box.xMax) tx = m.x - stride;
+  m.tx = ssClamp(tx, box.xMin, box.xMax);
+  m.ty = ssClamp(m.y + (Math.random() * 2 - 1) * spanY, box.yMin, box.yMax);
+}
+function ssCreateMotion(p, sx, sy, depth, fp, flips){
+  var box = ssBounds(p, fp, depth);
+  var m = {x: ssClamp(box.xMin + sx * (box.xMax - box.xMin), box.xMin, box.xMax),
+           y: ssClamp(box.yMin + sy * (box.yMax - box.yMin), box.yMin, box.yMax),
+           vx:0, vy:0, tx:0, ty:0, resting:1.2, age:Math.random() * 10,
+           facing: Math.random() < 0.5 ? -1 : 1, flips: flips};
+  ssPickTarget(m, p, box);
+  return m;
+}
+function ssStepMotion(m, p, depth, fp, dt){
+  var box = ssBounds(p, fp, depth);
+  m.age += dt;
+  var dx0 = 0, dy0 = 0;
+  if(m.resting > 0){ m.resting -= dt; }
+  else {
+    var dx = m.tx - m.x, dy = (m.ty - m.y) * fp.aspect, dist = Math.hypot(dx, dy);
+    if(dist < 0.01){
+      if(Math.random() < p.restChance) m.resting = p.rest[0] + Math.random() * (p.rest[1] - p.rest[0]);
+      ssPickTarget(m, p, box);
+    } else {
+      var arrive = Math.min(1, dist / 0.05);
+      var pulse = p.pulse ? (((m.age % p.pulse) / p.pulse) < 0.25 ? 2.4 : 0.55) : 1;
+      var speed = p.speed * (0.75 + depth * 0.5) * arrive * pulse;
+      dx0 = dx / dist * speed; dy0 = dy / dist * speed;
+    }
+  }
+  var turn = Math.min(1, dt * p.agility);
+  m.vx += (dx0 - m.vx) * turn; m.vy += (dy0 - m.vy) * turn;
+  m.x = ssClamp(m.x + m.vx * dt, box.xMin, box.xMax);
+  m.y = ssClamp(m.y + m.vy * dt / fp.aspect, box.yMin, box.yMax);
+  if(m.flips && Math.abs(m.vx) > p.speed * 0.25) m.facing = m.vx > 0 ? 1 : -1;
+}
+function ssStepSettle(m, p, depth, fp, dt){
+  var box = ssBounds(p, fp, depth), brake = Math.min(1, dt * 4);
+  m.age += dt; m.vx -= m.vx * brake; m.vy -= m.vy * brake;
+  m.x = ssClamp(m.x + m.vx * dt, box.xMin, box.xMax);
+  m.y = ssClamp(m.y + m.vy * dt / fp.aspect, box.yMin, box.yMax);
+}
+function ssStepFlee(m, p, depth, fp, dir, dt){
+  var box = ssBounds(p, fp, depth), turn = Math.min(1, dt * 3);
+  m.age += dt; m.resting = 0;
+  m.vx += (dir * 0.3 - m.vx) * turn; m.vy -= m.vy * turn;
+  m.x += m.vx * dt;
+  m.y = ssClamp(m.y + m.vy * dt / fp.aspect, box.yMin, box.yMax);
+  if(m.flips) m.facing = dir;
+  return m.x < -fp.width / 2 || m.x > 1 + fp.width / 2;
+}
+function ssBank(m, p){
+  if(!p.tilts) return 0;
+  return ssClamp(Math.atan2(m.vy, Math.abs(m.vx) + 1e-6) * 180 / Math.PI, -14, 14) * m.facing;
+}
+
+/* «Zu laut» (aus noise/loudState.ts): Lärm über der Grenze füllt einen Eimer —
+   knapp drüber dauert es ~6 s, weit drüber ~1 s; leise Momente leeren ihn.
+   Wieder ruhig: 3 s im Schnitt unter der Grenze genügen. */
+var SS_TOO_LOUD_S = 6, SS_LEAVE_MS = 3000, SS_LOOKBACK_MS = 15000;
+function ssFillRate(ex){ return Math.min(6, 1 + Math.pow(ex / 12, 2)); }
+function ssPressure(samples, goal, now, since){
+  var from = Math.max(since, now - SS_LOOKBACK_MS), el = samples.filter(function(s){ return s.time >= from && s.time <= now; });
+  var pr = 0;
+  for(var i = 0; i < el.length; i++){
+    var next = el[i + 1] ? el[i + 1].time : now;
+    var sec = Math.min(next - el[i].time, 250) / 1000, ex = el[i].level - goal;
+    pr = Math.max(0, pr + (ex > 0 ? ssFillRate(ex) * sec : -sec));
+  }
+  return pr;
+}
+function ssNextNoise(cur, samples, goal, now, since){
+  if(cur === 'quiet') return ssPressure(samples, goal, now, since) >= SS_TOO_LOUD_S ? 'too-loud' : 'quiet';
+  var el = samples.filter(function(s){ return s.time >= since; });
+  var win = el.filter(function(s){ return s.time >= now - SS_LEAVE_MS; });
+  if(!win.length) return 'too-loud';
+  var mean = win.reduce(function(a, s){ return a + s.level; }, 0) / win.length;
+  var covered = (el[0] ? el[0].time : now) <= now - SS_LEAVE_MS;
+  return covered && mean <= goal ? 'quiet' : 'too-loud';
+}
+
+/* Ankunft (aus session/arrivalClock.ts + roll.ts): Ruhige Zeit wird
+   angespart — zu laut pausiert die Uhr, setzt sie aber nie zurück. Das erste
+   Tier kommt nach 10–20 s als Vorgeschmack. */
+function ssNextTarget(intervalMs){ return intervalMs * (0.8 + 0.4 * Math.random()); }
+function ssNewClock(intervalMs, teaser){
+  return {banked:0, target: teaser ? 10000 + 10000 * Math.random() : ssNextTarget(intervalMs), interval:intervalMs, teaser:!!teaser};
+}
+function ssAdvanceClock(c, dt, quiet, intervalMs){
+  if(c.interval !== intervalMs){
+    if(!c.teaser) c.target = c.target * (intervalMs / c.interval);
+    c.interval = intervalMs;
+  }
+  if(!quiet) return false;
+  c.banked += dt;
+  if(c.banked < c.target) return false;
+  // Überhang mitnehmen, aber höchstens eine halbe Wartezeit (sonst kommt nach
+  // einem Tempo-Wechsel ein ganzer Schwall auf einmal).
+  c.banked = Math.min(c.banked - c.target, intervalMs * 0.5); c.target = ssNextTarget(intervalMs); c.teaser = false;
+  return true;
+}
+var SS_TIER_WEIGHT = {common:60, uncommon:30, rare:10};
+function ssRoll(roster, present){
+  var el = roster.filter(function(d){ return d.tier !== 'rare' || present.indexOf(d.slug) < 0; });
+  if(!el.length) return null;
+  var tiers = [];
+  el.forEach(function(d){ if(tiers.indexOf(d.tier) < 0) tiers.push(d.tier); });
+  var total = tiers.reduce(function(a, t){ return a + SS_TIER_WEIGHT[t]; }, 0);
+  var ticket = Math.random() * total, tier = tiers[tiers.length - 1];
+  for(var i = 0; i < tiers.length; i++){ ticket -= SS_TIER_WEIGHT[tiers[i]]; if(ticket < 0){ tier = tiers[i]; break; } }
+  var inTier = el.filter(function(d){ return d.tier === tier; });
+  return inTier[Math.floor(Math.random() * inTier.length)] || inTier[0];
+}
+
+/* Takt aus der Timer-Dauer: in einer ruhigen Ruhephase kommen etwa 9 Tiere
+   (mind. alle 20 s, höchstens alle 3 Min.), «Tempo» verschiebt das. */
+var SS_TEMPO = {oft:0.6, normal:1, selten:1.6};
+function ssIntervallMs(totalSek, tempo){
+  return ssClamp(totalSek * 1000 / 9, 20000, 180000) * (SS_TEMPO[tempo] || 1);
+}
+var SS_SPARKLES = [{x:6,y:10,s:1,d:0},{x:86,y:2,s:.75,d:.9},{x:100,y:60,s:.9,d:1.7},{x:60,y:98,s:.65,d:.45},{x:18,y:86,s:.85,d:1.3},{x:44,y:-6,s:.6,d:2.1},{x:72,y:40,s:.5,d:2.6}];
+var SS_MAX_TIERE = 30;
+
+/* 📖 Entdeckt (wie die «Collection» im Original): alle Tiere einer Szene nach
+   Seltenheit, entdeckte in Farbe mit Name und kurzem Steckbrief, noch nicht
+   entdeckte als graue Silhouette. Gezählt wird pro Klasse (state.klasse),
+   lokal auf dem Beamer-Gerät (hl_safari_dex). Namen und Steckbriefe sind
+   neu auf Deutsch geschrieben (das Original hat keine Fakten zu diesen Tieren). */
+var SAFARI_TIERE = {
+  // Savanne
+  'meerkat':['Erdmännchen','Während die Gruppe frisst, hält eines Wache und pfeift bei Gefahr.'],
+  'warthog':['Warzenschwein','Beim Fressen kniet es oft auf seinen Vorderbeinen.'],
+  'zebra':['Zebra','Jedes Zebra hat ein eigenes Streifenmuster – wie ein Fingerabdruck.'],
+  'gazelle':['Gazelle','Sie rennt bis zu 80 km/h schnell und schlägt dabei Haken.'],
+  'ostrich':['Strauss','Der grösste Vogel der Welt kann nicht fliegen, rennt aber bis zu 70 km/h.'],
+  'guinea-fowl':['Perlhuhn','Perlhühner leben in Gruppen und warnen mit lautem Geschrei vor Feinden.'],
+  'tortoise':['Landschildkröte','Bei Gefahr zieht sie Kopf und Beine in ihren Panzer ein.'],
+  'hornbill':['Nashornvogel','Bei vielen Nashornvögeln mauert sich das Weibchen zum Brüten in einer Baumhöhle ein – das Männchen füttert es durch einen Spalt.'],
+  'giraffe':['Giraffe','Das höchste Tier der Welt. Ihre dunkle Zunge ist etwa 45 cm lang.'],
+  'hippo':['Flusspferd','Am Tag bleibt es im Wasser, in der Nacht frisst es an Land Gras.'],
+  'rhino':['Nashorn','Sein Horn ist aus Keratin – dem gleichen Stoff wie unsere Fingernägel.'],
+  'cheetah':['Gepard','Das schnellste Landtier: bis zu 100 km/h – aber nur für kurze Zeit.'],
+  'flamingo':['Flamingo','Seine rosa Farbe kommt vom Futter: kleinen Krebsen und Algen.'],
+  'vulture':['Geier','Er entdeckt aus grosser Höhe tote Tiere und räumt so die Savanne auf.'],
+  'lion':['Löwe','Löwen sind die einzigen Katzen, die in Gruppen leben – im Rudel.'],
+  'leopard':['Leopard','Er schleppt seine Beute auf einen Baum, damit niemand sie stiehlt.'],
+  'elephant':['Elefant','Das grösste Landtier der Welt. In seinem Rüssel stecken Zehntausende Muskeln.'],
+  // Korallenriff
+  'clownfish':['Clownfisch','Er wohnt in einer Seeanemone, deren Nesseln ihm nichts anhaben.'],
+  'blue-tang':['Paletten-Doktorfisch','Am Schwanz hat er eine scharfe Klinge wie ein Skalpell – daher «Doktor».'],
+  'angelfish':['Kaiserfisch','Junge Kaiserfische sehen oft ganz anders aus als die erwachsenen.'],
+  'seahorse':['Seepferdchen','Beim Seepferdchen bekommt das Männchen die Babys.'],
+  'starfish':['Seestern','Verliert ein Seestern einen Arm, wächst ihm ein neuer nach.'],
+  'crab':['Krabbe','Krabben laufen meistens seitwärts.'],
+  'shrimp':['Garnele','Manche Garnelen putzen grosse Fische und fressen ihnen die Parasiten weg.'],
+  'parrotfish':['Papageifisch','Er knabbert Algen von den Korallen – und macht dabei feinen weissen Sand.'],
+  'pufferfish':['Kugelfisch','Bei Gefahr pumpt er sich mit Wasser zu einer dicken Kugel auf.'],
+  'octopus':['Krake','Ein Krake hat drei Herzen, blaues Blut und acht Arme.'],
+  'sea-turtle':['Meeresschildkröte','Sie legt ihre Eier an dem Strand ab, an dem sie selbst geschlüpft ist.'],
+  'moray-eel':['Muräne','Sie hat ein zweites Kiefer im Hals, das die Beute hineinzieht.'],
+  'stingray':['Stachelrochen','Er versteckt sich gern im Sand – nur die Augen schauen heraus.'],
+  'jellyfish-bloom':['Quallen','Quallen haben kein Gehirn und bestehen fast nur aus Wasser.'],
+  'cuttlefish':['Sepia','Dieser Tintenfisch kann in einem Augenblick seine Farbe wechseln.'],
+  'hammerhead-shark':['Hammerhai','Mit seinem breiten Kopf spürt er Beute auf, die im Sand versteckt ist.'],
+  'manta-ray':['Mantarochen','Er wird bis zu 7 Meter breit und frisst nur winziges Plankton.'],
+  'whale-shark':['Walhai','Der grösste Fisch der Welt ist harmlos: Er frisst nur Plankton.'],
+  // Wald
+  'chipmunk':['Streifenhörnchen','In seinen Backentaschen trägt es Vorräte in sein Versteck.'],
+  'gray-squirrel':['Grauhörnchen','Im Herbst vergräbt es Tausende Nüsse – und findet viele davon wieder.'],
+  'robin':['Wanderdrossel','Auf Englisch heisst sie «Robin» wie unser Rotkehlchen, ist aber eine grössere Drossel.'],
+  'hedgehog':['Igel','Ein Igel hat etwa 6000 Stacheln und hält im Winter Winterschlaf.'],
+  'cottontail':['Baumwollschwanz-Kaninchen','Sein Schwanz sieht aus wie ein weisser Wattebausch.'],
+  'woodpecker':['Specht','Er hämmert bis zu 20-mal pro Sekunde gegen einen Baum.'],
+  'skunk':['Stinktier','Bei Gefahr stampft es zuerst als Warnung – dann spritzt es eine stinkende Flüssigkeit.'],
+  'raccoon':['Waschbär','Er tastet sein Futter mit den Pfoten ab, als würde er es waschen.'],
+  'great-horned-owl':['Virginia-Uhu','Eulen können ihren Kopf so weit drehen, dass sie fast nach hinten schauen.'],
+  'porcupine':['Baumstachler','Er hat rund 30 000 Stacheln, die im Angreifer stecken bleiben.'],
+  'badger':['Dachs','Er gräbt grosse Baue unter der Erde mit vielen Gängen.'],
+  'beaver':['Biber','Biber bauen Dämme aus Ästen und Schlamm – auch bei uns im Thurgau.'],
+  'red-fox':['Rotfuchs','Er hört eine Maus unter dem Schnee und springt dann kopfüber hinein.'],
+  'white-tailed-deer':['Weisswedelhirsch','Bei Gefahr hebt er seinen weissen Schwanz als Warnsignal.'],
+  'gray-wolf':['Wolf','Wölfe leben im Rudel. Seit einigen Jahren gibt es auch in der Schweiz wieder Wölfe.'],
+  'black-bear':['Schwarzbär','Ein guter Kletterer, der vor allem Beeren, Nüsse und Insekten frisst.'],
+  'moose':['Elch','Sein Geweih wird fast 2 Meter breit – und fällt jeden Winter ab.']
+};
+var SAFARI_STUFEN = [['common','Häufig'],['uncommon','Selten'],['rare','Sehr selten']];
+function safariDexKlasse(){ return (typeof state !== 'undefined' && state && state.klasse) || '_'; }
+function safariDexLaden(){
+  var alle = {};
+  try{ alle = JSON.parse(lsGet(LIB_PREFIX + 'safari_dex') || '{}') || {}; }catch(e){ alle = {}; }
+  return alle;
+}
+function safariDexGesehen(){ var alle = safariDexLaden(), k = safariDexKlasse(); return alle[k] && typeof alle[k] === 'object' ? alle[k] : {}; }
+function safariDexMerken(szene, slug){
+  var alle = safariDexLaden(), k = safariDexKlasse();
+  if(!alle[k] || typeof alle[k] !== 'object') alle[k] = {};
+  var key = szene + ':' + slug, neu = !alle[k][key];
+  alle[k][key] = (alle[k][key] || 0) + 1;
+  lsSet(LIB_PREFIX + 'safari_dex', JSON.stringify(alle));
+  return neu;
+}
+function safariDexLeeren(){
+  var alle = safariDexLaden(); delete alle[safariDexKlasse()];
+  lsSet(LIB_PREFIX + 'safari_dex', JSON.stringify(alle));
+}
+function safariDexKlasseName(){
+  var k = safariDexKlasse();
+  if(k === '_') return 'Diese Klasse';
+  try{ return klasseLabel(k); }catch(e){ return k; }
+}
+
+/* Die Ruhephase im Safari-Modus: Szene als Hintergrund, Timer und
+   Flüsterliste als Karten darüber. Der Timer meldet über onChange, ob er
+   läuft — nur dann kommen Tiere und nur dann zählt der Lärm. */
+function mountSafariRuhephase(stage){
+  stage.classList.add('kz-stage-safari');
+  var cfg = {
+    szene: lsGet(LIB_PREFIX + 'safari_szene') || 'savanne',
+    grenze: parseInt(lsGet(LIB_PREFIX + 'safari_grenze') || '45', 10),
+    laut: lsGet(LIB_PREFIX + 'safari_laut') || 'verstecken',
+    tempo: lsGet(LIB_PREFIX + 'safari_tempo') || 'normal'
+  };
+  if(!SAFARI_SZENEN.some(function(s){ return s.id === cfg.szene; })) cfg.szene = 'savanne';
+  if(!(cfg.grenze >= 5 && cfg.grenze <= 95)) cfg.grenze = 45;
+
+  var h = '<div class="ss-wrap">';
+  h += '<div class="ss-stage" id="ssStage" data-scene="' + esc(cfg.szene) + '" data-modus="' + esc(cfg.laut) + '">';
+  h += '<div class="ss-world" id="ssWorld"></div><div class="ss-veil"></div><div class="ss-hint" id="ssHint"></div><div class="ss-neu" id="ssNeu"></div></div>';
+  h += '<div class="ss-ui">';
+  h += '<div class="ss-card rp-col rp-col-timer" id="rpTimer"></div>';
+  h += '<div class="ss-mid">';
+  h += '<div class="ss-panel" id="ssPanel" hidden>';
+  h += '<label>Ruhe-Grenze <input type="range" id="ssGrenze" min="5" max="95" value="' + cfg.grenze + '" style="flex:1"></label>';
+  h += '<div class="ss-meter" title="Pegel jetzt — der Strich ist die Grenze"><div class="ss-meter-lvl" id="ssLvl"></div><div class="ss-meter-mark" id="ssMark"></div></div>';
+  h += '<label>Wenn es zu laut ist <select id="ssLaut">'
+     + '<option value="verstecken">verstecken sich die Tiere</option>'
+     + '<option value="weg">laufen Tiere davon</option>'
+     + '<option value="nebel">wird es nur neblig</option></select></label>';
+  h += '<label>Tiere kommen <select id="ssTempo"><option value="oft">oft</option><option value="normal">normal</option><option value="selten">selten</option></select></label>';
+  h += '<div class="ss-status" id="ssStatus">Mikrofon wird gefragt …</div>';
+  h += '<button class="btn btn-sm" id="ssRetry" type="button" style="display:none;align-self:flex-start">🎤 Mikrofon erneut versuchen</button>';
+  h += '<div class="ss-quelle">Es wird nichts aufgezeichnet. Idee &amp; Grafiken: verändert nach teacher.dev/shy-safari (Apache-2.0).</div>';
+  h += '</div>';
+  h += '<div class="ss-bar">' + ruheModusHtml('safari');
+  SAFARI_SZENEN.forEach(function(s){
+    h += '<button class="ss-szene' + (s.id === cfg.szene ? ' on' : '') + '" data-szene="' + s.id + '" type="button">' + s.icon + ' ' + esc(s.name) + '</button>';
+  });
+  h += '<button class="ss-szene" id="ssDexBtn" type="button" title="Alle Tiere – entdeckte und noch versteckte">📖 Entdeckt</button>';
+  h += '<button class="ss-szene" id="ssZahnrad" type="button" title="Einstellungen">⚙️</button></div>';
+  h += '</div>';
+  h += '<div class="ss-card rp-col rp-col-speak" id="rpSpeak"></div>';
+  h += '</div><div class="ss-dex" id="ssDex" hidden></div></div>';
+  stage.innerHTML = h;
+
+  var sceneEl = stage.querySelector('#ssStage'), worldEl = stage.querySelector('#ssWorld');
+  var hintEl = stage.querySelector('#ssHint'), statusEl = stage.querySelector('#ssStatus');
+  var lvlEl = stage.querySelector('#ssLvl'), markEl = stage.querySelector('#ssMark');
+  var retryBtn = stage.querySelector('#ssRetry'), panel = stage.querySelector('#ssPanel');
+  stage.querySelector('#ssLaut').value = cfg.laut;
+  stage.querySelector('#ssTempo').value = cfg.tempo;
+  ruheModusVerdrahten(stage);
+
+  var S = {
+    daten:null, ladeFehler:false, tiere:[], nextId:1, phase:'bereit', hush:false, total:300,
+    clock:null, noise:'quiet', since:-Infinity, samples:[], aktivVorher:false,
+    scare:{left:3000, first:true}, fertigSeit:0, neuJetzt:{}
+  };
+  S.clock = ssNewClock(ssIntervallMs(S.total, cfg.tempo), true);
+  var stopped = false, raf = null, stream = null, ctx = null, analyser = null, buf = null, smooth = 0, lastSample = 0;
+  var sceneW = 1, sceneH = 1;
+  var ro = window.ResizeObserver ? new ResizeObserver(function(entries){
+    entries.forEach(function(e){
+      if(e.target === sceneEl){ sceneW = sceneEl.clientWidth || 1; sceneH = sceneEl.clientHeight || 1; }
+      else if(e.target._ssTier){ e.target._ssTier.w = e.target.offsetWidth; e.target._ssTier.h = e.target.offsetHeight; }
+    });
+  }) : null;
+  if(ro) ro.observe(sceneEl);
+  var reduced = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : {matches:false};
+
+  function szeneDef(){ return SAFARI_SZENEN.filter(function(s){ return s.id === cfg.szene; })[0]; }
+
+  function hinweis(){
+    var t = '';
+    if(S.ladeFehler) t = 'Die Szene konnte nicht geladen werden — Internet prüfen und Szene nochmals antippen.';
+    else if(!S.daten) t = '';
+    else if(S.phase === 'bereit' && !S.tiere.length) t = 'Timer starten — bleibt es ruhig, kommen die Tiere hervor.';
+    else if(S.phase === 'fertig') t = 'Geschafft — danke für die Ruhe! 🌿 Unter 📖 seht ihr, wen ihr entdeckt habt.';
+    if(hintEl.textContent !== t) hintEl.textContent = t;
+  }
+
+  function szeneZeigen(id){
+    cfg.szene = id; lsSet(LIB_PREFIX + 'safari_szene', id);
+    Array.prototype.forEach.call(stage.querySelectorAll('.ss-szene[data-szene]'), function(b){ b.classList.toggle('on', b.getAttribute('data-szene') === id); });
+    alleTiereWeg();
+    S.daten = null; S.ladeFehler = false;
+    sceneEl.setAttribute('data-scene', id);
+    worldEl.innerHTML = '';
+    hinweis();
+    safariDatenLaden(id).then(function(d){
+      if(stopped || cfg.szene !== id) return;
+      S.daten = d; worldEl.innerHTML = d.buehne;
+      hinweis();
+    }, function(err){
+      console.error('Stille Safari', err);
+      if(stopped || cfg.szene !== id) return;
+      S.ladeFehler = true; hinweis();
+    });
+  }
+
+  function alleTiereWeg(){
+    S.tiere.forEach(function(c){ if(ro) ro.unobserve(c.el); c.el.remove(); });
+    S.tiere = [];
+  }
+
+  function neuesTier(def){
+    var c = {id:S.nextId++, def:def, depth:Math.random(), p:SS_MOTION[def.motion] || SS_MOTION.trot, w:0, h:0,
+             attending:false, listenIn:null, fleeing:false, fleeTo:null, startled:0, facing:0};
+    var widthWu = def.width / 1920 * 100 * (0.7 + c.depth * 0.7);
+    var sw = document.createElement('div');
+    sw.className = 'ss-swimmer';
+    sw.style.width = 'calc(' + widthWu.toFixed(3) + ' * var(--wu))';
+    sw.style.zIndex = String(ssLayer(c.p, c.depth));
+    if(szeneDef().tiefenNebel) sw.style.opacity = String(0.62 + c.depth * 0.38);
+    sw.style.setProperty('--ss-delay', (Math.random() * 0.8).toFixed(2) + 's');
+    var inner = '<div class="ss-hide"><div class="' + (c.p.ground ? '' : 'ss-bobber') + '" style="animation-duration:' + (5 + c.depth * 4).toFixed(1) + 's">'
+      + '<div class="ss-banker" style="position:relative"><div class="ss-poser"><div class="ss-flipper">'
+      + '<div class="ss-creature ss-arriving" data-tier="' + def.tier + '"><span class="ss-ring"></span>' + (S.daten.art[def.slug] || '') + '</div>'
+      + '</div></div>';
+    if(def.tier === 'rare'){
+      inner += '<span class="ss-sparkles" style="position:absolute;inset:0" aria-hidden="true">';
+      SS_SPARKLES.forEach(function(s){
+        inner += '<svg class="ss-sparkle" viewBox="-10 -10 20 20" style="left:' + s.x + '%;top:' + s.y + '%;width:calc(' + (s.s * 2.2) + ' * var(--wu));animation-delay:' + s.d + 's"><path d="M0 -10 C 1 -2, 2 -1, 10 0 C 2 1, 1 2, 0 10 C -1 2, -2 1, -10 0 C -2 -1, -1 -2, 0 -10 Z"/></svg>';
+      });
+      inner += '</span>';
+    }
+    inner += '</div></div></div>';
+    sw.innerHTML = inner;
+    sw._ssTier = c;
+    c.el = sw; c.banker = sw.querySelector('.ss-banker'); c.poser = sw.querySelector('.ss-poser');
+    c.flipper = sw.querySelector('.ss-flipper'); c.art = sw.querySelector('.ss-creature');
+    c.art.addEventListener('animationend', function(e){
+      if(e.target === c.art && e.animationName === 'ssArrive'){ c.art.classList.remove('ss-arriving'); var r = c.art.querySelector('.ss-ring'); if(r) r.remove(); }
+    });
+    c.poser.addEventListener('animationend', function(e){ if(e.target === c.poser){ c.poser.classList.remove('ss-turning', 'ss-shaking'); } });
+    // Ein Uncommon/Rare glänzt nur in seiner ersten Minute.
+    setTimeout(function(){ c.art.classList.add('ss-settled'); var sp = sw.querySelector('.ss-sparkles'); if(sp) sp.remove(); }, 60000);
+    worldEl.parentNode.insertBefore(sw, worldEl.nextSibling);
+    c.w = sw.offsetWidth; c.h = sw.offsetHeight;
+    if(ro) ro.observe(sw);
+    c.m = ssCreateMotion(c.p, Math.random(), Math.random(), c.depth, fp(c), def.flips !== undefined ? def.flips : c.p.flips);
+    S.tiere.push(c);
+    if(safariDexMerken(cfg.szene, def.slug)){
+      S.neuJetzt[cfg.szene + ':' + def.slug] = 1;
+      neuMelden(def);
+    }
+    if(!dexEl.hidden) dexZeigen(dexSzene);
+  }
+
+  // Zum ersten Mal entdeckt: kurz oben in der Szene den Namen zeigen.
+  var neuEl = stage.querySelector('#ssNeu'), neuTimer = null;
+  function neuMelden(def){
+    var info = SAFARI_TIERE[def.slug];
+    neuEl.textContent = '✨ Neu entdeckt: ' + (info ? info[0] : def.slug);
+    neuEl.classList.add('on');
+    clearTimeout(neuTimer);
+    neuTimer = setTimeout(function(){ neuEl.classList.remove('on'); }, 5000);
+  }
+
+  // 📖 Entdeckt: alle Tiere der Szene, nicht entdeckte als graue Silhouette.
+  var dexEl = stage.querySelector('#ssDex'), dexSzene = cfg.szene, dexLeerenArm = false;
+  function dexZeigen(id){
+    dexSzene = id;
+    var sz = SAFARI_SZENEN.filter(function(x){ return x.id === id; })[0];
+    var h = '<div class="ss-dex-kopf"><div><div class="ss-dex-titel">📖 Entdeckt – ' + esc(sz.icon + ' ' + sz.name) + '</div>'
+      + '<div class="ss-dex-sub" id="ssDexSub">wird geladen …</div></div>'
+      + '<div class="ss-dex-tabs">';
+    SAFARI_SZENEN.forEach(function(x){ h += '<button type="button" class="ss-szene' + (x.id === id ? ' on' : '') + '" data-dex="' + x.id + '">' + x.icon + ' ' + esc(x.name) + '</button>'; });
+    h += '</div><button type="button" class="ss-dex-zu" id="ssDexZu" title="Schliessen">✕</button></div><div class="ss-dex-body" id="ssDexBody"></div>';
+    dexEl.innerHTML = h;
+    dexEl.querySelector('#ssDexZu').addEventListener('click', function(){ dexEl.hidden = true; });
+    Array.prototype.forEach.call(dexEl.querySelectorAll('[data-dex]'), function(b){
+      b.addEventListener('click', function(){ dexLeerenArm = false; dexZeigen(b.getAttribute('data-dex')); });
+    });
+    safariDatenLaden(id).then(function(d){
+      if(stopped || dexSzene !== id || dexEl.hidden) return;
+      var gesehen = safariDexGesehen(), anzahl = 0;
+      var body = '';
+      SAFARI_STUFEN.forEach(function(st){
+        var defs = d.roster.filter(function(x){ return x.tier === st[0]; });
+        if(!defs.length) return;
+        body += '<div class="ss-dex-stufe">' + st[1] + ' <span>· ' + SS_TIER_WEIGHT[st[0]] + ' % der Ankünfte</span></div><div class="ss-dex-grid">';
+        defs.forEach(function(x){
+          var n = gesehen[id + ':' + x.slug] || 0, info = SAFARI_TIERE[x.slug] || [x.slug, ''];
+          if(n) anzahl++;
+          body += '<div class="ss-dex-karte' + (n ? '' : ' ss-unseen') + (st[0] === 'rare' ? ' ss-dex-rar' : '') + '"' + (n && info[1] ? ' title="' + esc(info[1]) + '"' : '') + '>'
+            + (S.neuJetzt[id + ':' + x.slug] ? '<span class="ss-dex-neu">neu!</span>' : '')
+            + '<div class="ss-dex-bild">' + (d.art[x.slug] || '') + '</div>'
+            + '<div class="ss-dex-name">' + esc(n ? info[0] : '???') + '</div>'
+            + '<div class="ss-dex-anz">' + (n ? (n === 1 ? '1× gesehen' : n + '× gesehen') : 'noch nicht entdeckt') + '</div>'
+            + (n && info[1] ? '<div class="ss-dex-fakt">' + esc(info[1]) + '</div>' : '')
+            + '</div>';
+        });
+        body += '</div>';
+      });
+      body += '<div class="ss-dex-fuss"><span>Gespeichert auf diesem Gerät, pro Klasse.</span>'
+        + '<button type="button" class="btn btn-ghost btn-sm" id="ssDexLeeren">' + (dexLeerenArm ? 'Wirklich alles löschen? Nochmals tippen' : 'Sammlung dieser Klasse zurücksetzen') + '</button></div>';
+      dexEl.querySelector('#ssDexBody').innerHTML = body;
+      dexEl.querySelector('#ssDexSub').textContent = safariDexKlasseName() + ' hat ' + anzahl + ' von ' + d.roster.length + ' Tieren entdeckt.';
+      dexEl.querySelector('#ssDexLeeren').addEventListener('click', function(){
+        if(!dexLeerenArm){ dexLeerenArm = true; dexZeigen(id); return; }
+        dexLeerenArm = false; safariDexLeeren(); S.neuJetzt = {}; dexZeigen(id);
+      });
+    }, function(){
+      if(stopped || dexSzene !== id) return;
+      dexEl.querySelector('#ssDexSub').textContent = 'Konnte nicht geladen werden — Internet prüfen.';
+    });
+  }
+
+  function fp(c){ return {width:(c.w || 1) / sceneW, height:(c.h || 1) / sceneH, aspect:sceneH / sceneW}; }
+
+  function zeigeKunst(c, zuhoeren){
+    var svg = zuhoeren && S.daten.listen[c.def.slug] ? S.daten.listen[c.def.slug] : S.daten.art[c.def.slug];
+    var alt = c.art.querySelector(':scope > svg');
+    var tmp = document.createElement('div'); tmp.innerHTML = svg;
+    if(alt && tmp.firstChild) c.art.replaceChild(tmp.firstChild, alt);
+  }
+
+  function erschrecken(first){
+    var bleiben = S.tiere.filter(function(c){ return !c.fleeing; });
+    var n = first ? Math.min(1, bleiben.length) : Math.ceil(bleiben.length * 0.2);
+    for(var i = 0; i < n; i++){
+      var k = Math.floor(Math.random() * bleiben.length), c = bleiben.splice(k, 1)[0];
+      c.fleeing = true; c.startled = 0.8 + Math.random() * 0.5;
+      c.el.classList.add('ss-fleeing');
+      var a = document.createElement('span'); a.className = 'ss-alert'; a.textContent = '!'; a.setAttribute('aria-hidden', 'true');
+      c.el.appendChild(a);
+    }
+  }
+
+  function frame(now){
+    if(stopped) return;
+    var dtMs = Math.min(100, now - (frame.last || now)); frame.last = now;
+
+    // Pegel wie bei der Lärmampel (dBFS grob auf 0–100), 10× pro Sekunde als Probe.
+    if(analyser){
+      analyser.getFloatTimeDomainData(buf);
+      var sum = 0; for(var i = 0; i < buf.length; i++) sum += buf[i] * buf[i];
+      var db = 20 * Math.log10(Math.sqrt(sum / buf.length) || 1e-7);
+      smooth = smooth * 0.82 + Math.max(0, Math.min(100, (db + 60) / 50 * 100)) * 0.18;
+      if(now - lastSample >= 100){
+        lastSample = now;
+        S.samples.push({time:now, level:smooth});
+        while(S.samples.length && S.samples[0].time < now - SS_LOOKBACK_MS) S.samples.shift();
+        if(!panel.hidden){
+          lvlEl.style.width = Math.round(smooth) + '%';
+          lvlEl.classList.toggle('over', smooth > cfg.grenze);
+        }
+      }
+    }
+
+    // Lärm zählt nur, solange der Timer läuft (nicht während er piepst).
+    var aktiv = !!analyser && S.phase === 'laeuft' && !S.hush;
+    if(aktiv && !S.aktivVorher){ S.since = now; }
+    S.aktivVorher = aktiv;
+    var vorher = S.noise;
+    if(aktiv) S.noise = ssNextNoise(S.noise, S.samples, cfg.grenze, now, S.since);
+    else S.noise = 'quiet';
+    if(S.noise !== vorher){ S.since = now; S.scare = {left:3000, first:true}; }
+    var laut = S.noise === 'too-loud';
+
+    if(S.daten && S.phase === 'laeuft' && S.tiere.length < SS_MAX_TIERE){
+      if(ssAdvanceClock(S.clock, dtMs, !laut, ssIntervallMs(S.total, cfg.tempo))){
+        var def = ssRoll(S.daten.roster, S.tiere.filter(function(c){ return !c.fleeing; }).map(function(c){ return c.def.slug; }));
+        if(def) neuesTier(def);
+      }
+    }
+    if(laut && cfg.laut === 'weg'){
+      S.scare.left -= dtMs;
+      if(S.scare.left <= 0){ erschrecken(S.scare.first); S.scare = {left:5000, first:false}; }
+    }
+
+    sceneEl.setAttribute('data-murky', laut ? 'true' : 'false');
+    sceneEl.setAttribute('data-frozen', laut ? 'true' : 'false');
+    sceneEl.setAttribute('data-versteckt', laut && cfg.laut === 'verstecken' ? 'true' : 'false');
+
+    var zuhoeren = S.phase === 'pause' || S.phase === 'fertig';
+    var sec = dtMs / 1000, weg = [];
+    S.tiere.forEach(function(c){
+      var dt = sec, f = fp(c), m = c.m, p = c.p;
+      if(reduced.matches) dt *= 0.2;
+      if(laut && !c.fleeing) dt = 0;
+      if(c.fleeing && c.startled > 0){ c.startled -= dt; }
+      else if(c.fleeing){
+        if(c.fleeTo === null) c.fleeTo = m.x < 0.5 ? -1 : 1;
+        if(ssStepFlee(m, p, c.depth, f, c.fleeTo, dt)){ weg.push(c); return; }
+      } else if(zuhoeren){
+        ssStepSettle(m, p, c.depth, f, dt);
+        if(!c.attending){
+          if(c.listenIn === null) c.listenIn = 0.35 + Math.abs(m.x - 0.5) * 1.4;
+          c.listenIn -= sec;
+          if(c.listenIn <= 0){
+            c.attending = true; c.el.setAttribute('data-listening', 'true');
+            c.poser.classList.add('ss-turning');
+            if(m.flips) m.facing = m.x < 0.5 ? 1 : -1;
+            zeigeKunst(c, true);
+          }
+        }
+      } else {
+        c.listenIn = null;
+        if(c.attending){
+          c.attending = false; c.el.setAttribute('data-listening', 'false');
+          c.poser.classList.add('ss-shaking');
+          m.resting = 0.4 + Math.random() * 1.4;
+          zeigeKunst(c, false);
+        }
+        ssStepMotion(m, p, c.depth, f, dt);
+      }
+      c.el.style.transform = 'translate3d(' + (m.x * sceneW - c.w / 2).toFixed(1) + 'px,' + (m.y * sceneH - c.h / 2).toFixed(1) + 'px,0)';
+      var angle = ssBank(m, p);
+      if(p.ground){
+        var pace = Math.min(1, Math.abs(m.vx) / p.speed);
+        angle = c.fleeTo ? Math.sin(m.age * 24) * 4 : (p.band ? Math.sin(m.age * 6) * pace : Math.sin(m.age * 18) * 3 * pace);
+      }
+      c.banker.style.transform = 'rotate(' + angle.toFixed(2) + 'deg)';
+      if(m.facing !== c.facing){ c.facing = m.facing; c.flipper.style.transform = 'scaleX(' + m.facing + ')'; }
+    });
+    weg.forEach(function(c){
+      if(ro) ro.unobserve(c.el);
+      c.el.remove();
+      S.tiere = S.tiere.filter(function(x){ return x !== c; });
+    });
+    raf = requestAnimationFrame(frame);
+  }
+
+  // Vom Timer: art = 'reset' (neue Dauer / ↺) oder 'tick' (jede Änderung).
+  function vomTimer(art, t){
+    S.total = t.total || S.total;
+    if(art === 'reset'){
+      alleTiereWeg();
+      S.clock = ssNewClock(ssIntervallMs(S.total, cfg.tempo), true);
+      S.samples = [];
+    }
+    S.phase = t.running ? 'laeuft' : (t.done ? 'fertig' : (t.left < t.total ? 'pause' : 'bereit'));
+    if(art === 'reset' && !t.running) S.phase = 'bereit';
+    // Das Piepsen der letzten Sekunden und der Gong hört das Mikrofon auch.
+    S.hush = t.running && t.left <= 6;
+    hinweis();
+  }
+
+  mountTimer(stage.querySelector('#rpTimer'), {onChange:vomTimer});
+  mountSprecher(stage.querySelector('#rpSpeak'));
+
+  Array.prototype.forEach.call(stage.querySelectorAll('.ss-szene[data-szene]'), function(b){
+    b.addEventListener('click', function(){ szeneZeigen(b.getAttribute('data-szene')); });
+  });
+  stage.querySelector('#ssZahnrad').addEventListener('click', function(){ panel.hidden = !panel.hidden; });
+  stage.querySelector('#ssDexBtn').addEventListener('click', function(){
+    if(!dexEl.hidden){ dexEl.hidden = true; return; }
+    dexEl.hidden = false; dexLeerenArm = false; dexZeigen(cfg.szene);
+  });
+  var grenzeEl = stage.querySelector('#ssGrenze');
+  function marke(){ markEl.style.left = 'calc(' + cfg.grenze + '% - 1px)'; }
+  grenzeEl.addEventListener('input', function(){ cfg.grenze = parseInt(grenzeEl.value, 10); lsSet(LIB_PREFIX + 'safari_grenze', String(cfg.grenze)); marke(); });
+  marke();
+  stage.querySelector('#ssLaut').addEventListener('change', function(e){ cfg.laut = e.target.value; lsSet(LIB_PREFIX + 'safari_laut', cfg.laut); sceneEl.setAttribute('data-modus', cfg.laut); });
+  stage.querySelector('#ssTempo').addEventListener('change', function(e){ cfg.tempo = e.target.value; lsSet(LIB_PREFIX + 'safari_tempo', cfg.tempo); });
+
+  function mikroStop(){
+    if(stream){ stream.getTracks().forEach(function(tr){ try{ tr.stop(); }catch(e){} }); stream = null; }
+    if(ctx){ try{ ctx.close(); }catch(e){} ctx = null; }
+    analyser = null;
+  }
+  function mikroStart(){
+    if(stopped) return;
+    retryBtn.style.display = 'none';
+    if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+      statusEl.textContent = window.isSecureContext === false
+        ? 'Das Mikrofon geht nur über https:// — ohne Mikrofon kommen die Tiere einfach mit der Zeit.'
+        : 'Kein Mikrofon verfügbar — die Tiere kommen einfach mit der Zeit.';
+      return;
+    }
+    statusEl.textContent = 'Mikrofon wird gefragt …';
+    ampelHoleMikrofon().then(function(s){
+      if(stopped){ s.getTracks().forEach(function(tr){ tr.stop(); }); return; }
+      mikroStop();
+      stream = s;
+      ctx = new (window.AudioContext || window.webkitAudioContext)();
+      if(ctx.state === 'suspended'){
+        ctx.resume().catch(function(){});
+        stage.addEventListener('pointerdown', function(){ if(ctx) ctx.resume().catch(function(){}); }, {once:true});
+      }
+      analyser = ctx.createAnalyser(); analyser.fftSize = 1024;
+      ctx.createMediaStreamSource(s).connect(analyser);
+      buf = new Float32Array(analyser.fftSize);
+      statusEl.textContent = 'Mikrofon läuft — nur der Pegel wird gemessen, es wird nichts aufgezeichnet.';
+    }, function(err){
+      console.error('Stille Safari', err);
+      if(stopped) return;
+      statusEl.textContent = ampelFehlerText(err) + ' Ohne Mikrofon kommen die Tiere einfach mit der Zeit.';
+      retryBtn.style.display = '';
+      panel.hidden = false;
+    });
+  }
+  retryBtn.addEventListener('click', mikroStart);
+
+  beamer.cleanups.push(function(){
+    stopped = true;
+    if(raf) cancelAnimationFrame(raf);
+    clearTimeout(neuTimer);
+    if(ro) ro.disconnect();
+    mikroStop();
+    stage.classList.remove('kz-stage-safari');
+  });
+
+  sceneW = sceneEl.clientWidth || 1; sceneH = sceneEl.clientHeight || 1;
+  szeneZeigen(cfg.szene);
+  mikroStart();
+  raf = requestAnimationFrame(frame);
+}
+
+/* Umschalter in der Ruhephase: 🚦 Lärmampel ↔ 🦒 Stille Safari (pro Gerät gemerkt). */
+function ruheModus(){ return lsGet(LIB_PREFIX + 'ruhe_modus') === 'safari' ? 'safari' : 'ampel'; }
+function ruheModusHtml(akt){
+  return '<div class="rp-modus" role="group" aria-label="Modus der Ruhephase">'
+    + '<button type="button" data-ruhemodus="ampel"' + (akt === 'ampel' ? ' class="on"' : '') + '>🚦 Lärmampel</button>'
+    + '<button type="button" data-ruhemodus="safari"' + (akt === 'safari' ? ' class="on"' : '') + '>🦒 Stille Safari</button></div>';
+}
+function ruheModusVerdrahten(root){
+  Array.prototype.forEach.call(root.querySelectorAll('[data-ruhemodus]'), function(b){
+    b.addEventListener('click', function(){
+      var m = b.getAttribute('data-ruhemodus');
+      if(m === ruheModus()) return;
+      lsSet(LIB_PREFIX + 'ruhe_modus', m);
+      switchBeamerTab('ruhe');
+    });
+  });
 }
 
 /* ---------- 🗣 Wer darf sprechen ----------
@@ -20581,12 +21550,14 @@ function renderQuizVerwaltung(){
   html += '<h2 class="page-welcome" style="margin-bottom:10px;">🎮 Klassen-Quiz</h2>';
   html += '<div class="back-row"><button class="btn btn-primary btn-sm" id="qzNew" type="button">➕ Neues Quiz</button>'
         + '<button class="btn btn-ghost btn-sm" id="qzImport" type="button">📋 Aus Text erstellen</button>'
+        + '<button class="btn btn-ghost btn-sm" id="qzDatei" type="button" title="Kahoot, Blooket, Quizlet, Moodle, Canvas …">📥 Datei importieren (Kahoot …)</button>'
         + '<button class="btn btn-ghost btn-sm" id="qzMaterial" type="button">🗃️ Nach Fach & Ordner</button></div>';
   html += '<div id="qzList"><div class="empty-state">Wird geladen …</div></div>';
   renderChrome(html);
   document.getElementById('backBtn').addEventListener('click', function(){ state.route = {name:'klassenzimmer'}; render(); });
   document.getElementById('qzNew').addEventListener('click', function(){ openQuizEditor(null); });
   document.getElementById('qzImport').addEventListener('click', function(){ openQuizImport(); });
+  document.getElementById('qzDatei').addEventListener('click', function(){ openFragenImport({ziel:'quiz', onDone:loadQuizList}); });
   document.getElementById('qzMaterial').addEventListener('click', function(){ state.route = {name:'kzmaterial'}; render(); });
   loadQuizList();
 }
@@ -21777,6 +22748,14 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-10-20-mathe-werkzeuge', datum:'2026-10-20', fuer:'alle', text:'🧊 Mathe › «Werkzeuge»: «Geometrische Körper» zeigt Quader, Prisma, Pyramide, Zylinder, Kegel und Kugel in 3D. Du kannst sie drehen, als Netz auffalten und siehst Oberfläche und Volumen mit Formel. Mit den «Algebra-Kacheln» legst du Terme wie (x + 2)(x − 3) und faktorisierst sie.'},
+  {id:'2026-10-20-mathe-werkzeuge-lp', datum:'2026-10-20', fuer:'lehrer', text:'🟦 Algebra-Kacheln: Aufgabe eintippen, wählen, womit die Klasse startet (alle Kacheln, nur positive, keine), und den Link oder QR-Code teilen. Die Schüler:innen arbeiten sie Schritt für Schritt mit Kontrolle durch. Bei den Geometrischen Körpern blendest du mit 👁 die Ergebnisse aus. Beides ist verändert nach teacher.dev (Apache-2.0).'},
+  {id:'2026-10-20-eins-gegen-alle', datum:'2026-10-20', fuer:'alle', text:'🔦 Neues Live-Spiel «Eins gegen alle»: Eine Person im Spotlight spielt gegen die ganze Klasse. Zuerst antwortet ihr still auf dem Gerät – die Frage steht nicht am Beamer –, dann die Person im Spotlight, mit drei Jokern. Niemand scheidet aus: Wer falsch liegt, spielt in der Comeback-Crew weiter.'},
+  {id:'2026-10-20-eins-gegen-alle-lp', datum:'2026-10-20', fuer:'lehrer', text:'🔦 Klassenzimmer › 🎮 Spiele › «Eins gegen alle» (auch über «🎲 Anderes Spiel» bei jedem Spiel-Set oder Klassen-Quiz): Spotlight auslosen oder selbst wählen, Fragen pro Runde, Chancen und Zeit einstellbar. Antwortet die Person im Spotlight mündlich, tippst du ihre Antwort am Beamer an.'},
+  {id:'2026-10-20-rechen-cafe', datum:'2026-10-20', fuer:'alle', text:'☕ Mathe › ⚡ Übungstrainer › «Rechen-Café»: Du stehst an der Kasse – Bestellung eintippen, Aktion in %, MWST, Trinkgeld, auf 5 Rappen runden und das Rückgeld mit Noten und Münzen geben. 10 Level, du kontrollierst sofort selbst.'},
+  {id:'2026-10-20-safari-entdeckt', datum:'2026-10-20', fuer:'lehrer', text:'📖 Stille Safari: Unter «📖 Entdeckt» siehst du alle Tiere jeder Szene – die schon entdeckten mit Namen, wie oft sie da waren und einem kurzen Steckbrief, die anderen als graue Silhouette. Gezählt wird pro Klasse. Ein neu entdecktes Tier wird kurz mit Namen angezeigt.'},
+  {id:'2026-10-20-stille-safari', datum:'2026-10-20', fuer:'lehrer', text:'🦒 Neu in der ⏱ Ruhephase: «Stille Safari» statt Lärmampel (Umschalter in der Mitte). Am Beamer ist eine ruhige Savanne, ein Korallenriff oder ein Wald. Solange der Timer läuft und es leise ist, kommen nach und nach Tiere hervor; wird es zu laut, wird es neblig und die Tiere verstecken sich. Keine Punkte, kein Rot. Pausierst du den Timer, drehen sich die Tiere zur Klasse und hören zu. ⚙️ unten: Ruhe-Grenze, Tempo und was bei Lärm passiert. Verändert nach teacher.dev/shy-safari (Apache-2.0).'},
+  {id:'2026-10-20-fragen-import', datum:'2026-10-20', fuer:'lehrer', text:'📥 Fragen aus Quizlet, Kahoot, Blooket, Moodle (GIFT/XML), Canvas, Blackboard, Anki u. a. importieren: Klassenzimmer › Karteikarten bzw. Klassen-Quiz › «📥 Importieren» (auch im Unterrichtsmaterial und im Fach unter «🏫 Aus dem Klassenzimmer»). Datei wählen oder den Quizlet-Export einfügen, in der Vorschau Fragen an- und abwählen, dann als Karteikarten-Set oder Klassen-Quiz ins Fach speichern. Die Datei wird nur im Browser gelesen, nichts wird hochgeladen.'},
   {id:'2026-10-20-pruefung-download', datum:'2026-10-20', fuer:'lehrer', text:'📄 Prüfungen: «Abgaben herunterladen» speichert pro Person ein PDF mit allen Aufgaben samt Bildern, Antworten, Punkten, der Note und einer Zeile für die Unterschrift der Eltern in einen Ordner deiner Wahl (Chrome, Edge, Desktop-App). Dazu kommt ein Sammel-PDF zum Drucken in einem Rutsch, in dem jede Person auf einem neuen Blatt beginnt. Neu ist auch «✍️ Note von Hand» unter «Details»: Damit überschreibst du die berechnete Note, z. B. nach einer Korrektur auf Papier. Die Note gilt dann überall.'},
   {id:'2026-10-20-notenrechner-anpassen', datum:'2026-10-20', fuer:'alle', text:'🎶 Notenrechner: Die Note einer Online-Prüfung kannst du jetzt selbst anpassen, falls deine Lehrperson sie auf Papier noch korrigiert hat. Daneben steht weiterhin die Note der Lehrperson, und mit ↺ stellst du sie wieder her.'},
   {id:'2026-10-20-spiel-vor-aemtli', datum:'2026-10-20', fuer:'alle', text:'🎮 Startet deine Lehrperson ein Live-Spiel, während der Hinweis «Heute bist du mit dem Ämtli dran» offen ist, öffnet sich das Spiel jetzt trotzdem von selbst. Dein Ämtli siehst du weiterhin auf der Startseite.'},
@@ -24325,6 +25304,7 @@ function spielUhrzeit(key){
 
 var SPIEL_ARTEN = {
   million:{icon:'💰', name:'Wer wird Millionär', min:3,  wo:'📱 Geräte', kurz:'Alle stimmen still ab, die Mehrheit zählt.'},
+  gauntlet:{icon:'🔦', name:'Eins gegen alle',   min:5,  wo:'📱 Geräte', kurz:'Eine Person im Spotlight gegen die ganze Klasse – mit Jokern.'},
   bingo:  {icon:'🎱', name:'Bingo',              min:9,  wo:'📱 Geräte', kurz:'Jedes Gerät hat eine eigene Karte mit Antworten.'},
   buzzer: {icon:'🔔', name:'Buzzer',             min:1,  wo:'📱 Geräte', kurz:'Wer zuerst drückt, darf antworten.'},
   preis:  {icon:'🏆', name:'Der grosse Preis',   min:9,  wo:'📽️ Beamer', kurz:'Kategorien und Punkte – Teams wählen Felder.'},
@@ -24337,6 +25317,7 @@ function spielStarten(art, titel, fragen){
   if(art === 'million') openMioSetup(titel, fragen);
   else if(art === 'bingo') bingoSetup(titel, fragen);
   else if(art === 'buzzer') buzzerSetup(titel, fragen);
+  else if(art === 'gauntlet') gntSetup(titel, fragen);
   else tspSetup(art, titel, fragen);
 }
 // «Womit spielen?» — für ein Set, das schon gewählt ist (Unterrichtsmaterial, Fach, Millionär-Seite).
@@ -24413,7 +25394,7 @@ function spielQuelle(art){
   }).catch(function(err){ console.error(err); closeModal(); toast('Die Sets konnten nicht geladen werden.'); });
 }
 
-/* ===================== 📱 LIVE-SPIELE (Schätzmeister · Bingo · Buzzer) =====================
+/* ===================== 📱 LIVE-SPIELE (Schätzmeister · Bingo · Buzzer · Eins gegen alle) =====================
    quizSessions/spiel            {aktiv, art, spielId, titel, phase, runde, …}  (nur die Lehrperson schreibt)
    quizSessions/spiel/antworten/{uid}   {spiel, runde, name, at, …}             (jede:r nur das eigene)
    Wie beim Millionär meldet sich jedes Gerät mit offener Library von selbst
@@ -24421,7 +25402,7 @@ function spielQuelle(art){
    Lösungen stehen erst nach dem Auflösen in der Session — der Vorrat liegt im
    Speicher des Lehrergeräts (lsp.spiel) und zusätzlich im localStorage. */
 
-var LSP_ARTEN = { schaetz:{icon:'🎯', name:'Schätzmeister'}, bingo:{icon:'🎱', name:'Bingo'}, buzzer:{icon:'🔔', name:'Buzzer'} };
+var LSP_ARTEN = { schaetz:{icon:'🎯', name:'Schätzmeister'}, bingo:{icon:'🎱', name:'Bingo'}, buzzer:{icon:'🔔', name:'Buzzer'}, gauntlet:{icon:'🔦', name:'Eins gegen alle'} };
 var lsp = { session:null, unsub:null, unsubAnswers:null, answers:[], overlay:null, sig:null, tick:null, spiel:null, busy:{},
   offen:false, sSig:null, sTick:null, my:null, joined:null, autoFor:null, aus:{}, clock:{key:'', start:0}, taste:null };
 
@@ -24506,7 +25487,8 @@ function lspDabeiMelden(){
   getDoc(doc(lspAnswersCol(), state.user.uid)).then(function(snap){
     if(snap.exists() && snap.data().spiel === id){
       var a = snap.data();
-      if(!lsp.my || lsp.my.spiel !== id || !lsp.my.runde) lsp.my = {spiel:id, runde:a.runde || 0, wert:typeof a.wert === 'number' ? a.wert : null, marks:a.marks || {}, buzz:!!a.buzz};
+      if(!lsp.my || lsp.my.spiel !== id || !lsp.my.runde) lsp.my = {spiel:id, runde:a.runde || 0, wert:typeof a.wert === 'number' ? a.wert : null, marks:a.marks || {}, buzz:!!a.buzz,
+        wahl:typeof a.wahl === 'number' ? a.wahl : null, oneWahl:typeof a.wahl === 'number' ? a.wahl : null, joker:a.joker || null, jw:typeof a.jw === 'number' ? a.jw : null};
       if(lsp.offen){ lsp.sSig = null; lspPaintS(); }
       return null;
     }
@@ -24554,7 +25536,7 @@ function lspPaintS(){
   lspDabeiMelden();
   var my = lspMy(s), A = lspArt(s), ich = state.user.uid;
   var sig = [s.spielId, s.art, s.phase, s.runde, s.nr, s.dranUid, (s.raus || []).join(','), s.ok, s.loesung, (s.gezogen || []).length, (s.bingos || []).length,
-    my.runde, my.wert, JSON.stringify(my.marks || {}), my.buzz, (s.teams || {})[ich], (s.weg || []).join(',')].join('|');
+    my.runde, my.wert, JSON.stringify(my.marks || {}), my.buzz, (s.teams || {})[ich], (s.weg || []).join(','), s.art === 'gauntlet' ? gntSSig(s, my) : ''].join('|');
   if(sig === lsp.sSig && modalEl.querySelector('.lsp-s')) return;
   lsp.sSig = sig;
   var h = '<div class="lsp-s lsp-s-'+esc(s.art)+'">';
@@ -24565,6 +25547,7 @@ function lspPaintS(){
   } else if(s.art === 'schaetz') h += schaetzSHtml(s, my);
   else if(s.art === 'bingo') h += bingoSHtml(s, my);
   else if(s.art === 'buzzer') h += buzzerSHtml(s, my);
+  else if(s.art === 'gauntlet') h += gntSHtml(s, my);
   h += '<div class="modal-actions"><button class="btn btn-ghost btn-sm" id="lspSClose" type="button">Schliessen</button></div></div>';
   openModal(h, 'modal-wide lsp-modal');
   document.getElementById('lspSClose').addEventListener('click', lspSZu);
@@ -24577,6 +25560,7 @@ function lspPaintS(){
     if(s2.art === 'schaetz') schaetzSKlick(s2, b);
     else if(s2.art === 'bingo') bingoSKlick(s2, b);
     else if(s2.art === 'buzzer') buzzerSKlick(s2, b);
+    else if(s2.art === 'gauntlet') gntSKlick(s2, b);
   });
   var feld = document.getElementById('schaetzFeld');
   if(feld){
@@ -24666,6 +25650,7 @@ function openLspHost(){
     else if(sp.art === 'schaetz') schaetzHKlick(s, sp, a, b);
     else if(sp.art === 'bingo') bingoHKlick(s, sp, a, b);
     else if(sp.art === 'buzzer') buzzerHKlick(s, sp, a, b);
+    else if(sp.art === 'gauntlet') gntHKlick(s, sp, a, b);
   });
   // Leertaste / Enter = der Hauptknopf der Bühne.
   lsp.taste = function(e){
@@ -24684,10 +25669,11 @@ function lspPaintHost(){
   if(!stage || !s || s.spielId !== sp.spielId) return;
   var t = lsp.overlay.el.querySelector('#lspBarTitel'); if(t && t.textContent !== s.titel) t.textContent = s.titel || '';
   var sig = [s.phase, s.runde, s.nr, s.dranUid, (s.raus || []).join(','), s.ok, s.loesung, (s.gezogen || []).length, (s.bingos || []).length, (s.weg || []).join(','), JSON.stringify(s.teams || 0),
-    s.phase === 'lobby' ? lspGemeldet().map(function(a){ return a.uid; }).join(',') + '#' + Object.keys(lsp.aus).join(',') + '#' + klasseRoster.list.length : ''].join('|');
+    s.phase === 'lobby' ? lspGemeldet().map(function(a){ return a.uid; }).join(',') + '#' + Object.keys(lsp.aus).join(',') + '#' + klasseRoster.list.length : '',
+    sp.art === 'gauntlet' && s.phase !== 'lobby' ? gntHSig(s, sp) : ''].join('|');
   if(sig !== lsp.sig || !stage.firstChild){
     lsp.sig = sig;
-    stage.innerHTML = s.phase === 'lobby' ? lspLobbyHtml(s) : sp.art === 'schaetz' ? schaetzHHtml(s, sp) : sp.art === 'bingo' ? bingoHHtml(s, sp) : buzzerHHtml(s, sp);
+    stage.innerHTML = s.phase === 'lobby' ? lspLobbyHtml(s) : sp.art === 'schaetz' ? schaetzHHtml(s, sp) : sp.art === 'bingo' ? bingoHHtml(s, sp) : sp.art === 'gauntlet' ? gntHHtml(s, sp) : buzzerHHtml(s, sp);
     if(s.phase === 'ende' || s.konfetti === s.runde) quizConfetti(stage);
   }
   lspHostTick();
@@ -24698,6 +25684,7 @@ function lspHostTick(){
   if(sp.art === 'schaetz') schaetzHTick(s, sp);
   else if(sp.art === 'bingo') bingoHTick(s, sp);
   else if(sp.art === 'buzzer') buzzerHTick(s, sp);
+  else if(sp.art === 'gauntlet') gntHTick(s, sp);
 }
 // Wartelobby wie beim Millionär: ganze Klasse, eingeloggt = hell, antippen = spielt nicht mit.
 function lspLobbyHtml(s){
@@ -25335,6 +26322,518 @@ function buzzerSKlick(s, b){
     setDoc(doc(lspAnswersCol(), state.user.uid), {spiel:s.spielId, runde:s.runde, buzz:true, name:state.profile.displayName, at:serverTimestamp()})
       .catch(function(err){ console.error(err); my.buzz = false; lsp.sSig = null; lspPaintS(); toast('Der Buzzer kam nicht an – nochmals drücken.'); });
   }
+  lspPaintS();
+}
+
+/* ===================== 🔦 EINS GEGEN ALLE =====================
+   Nachbau von «Class Gauntlet» (github.com/teacherdotdev/class-gauntlet), das
+   seinerseits auf github.com/deadbeef101010/1v100-edtechathon beruht
+   (Copyright 2026 deadbeef101010 and contributors). Lizenz: Apache License 2.0,
+   http://www.apache.org/licenses/LICENSE-2.0
+   GEÄNDERT (20.10.2026) für die Library: Spielablauf, Joker und Punktwerte aus
+   src/lib/game/engine.ts und src/lib/game/scoring.ts in Vanilla-JS übertragen,
+   deutsche Texte; statt WebRTC/PeerJS läuft es über quizSessions/spiel wie
+   Schätzmeister, Bingo und Buzzer (keine neue Regel); Fragen aus den Spiel-Sets
+   und Klassen-Quizzen der Klasse; die Zusatzregel «On a Roll» (im Original
+   standardmässig aus) ist weggelassen.
+
+   Ablauf einer Runde (eine Person im Spotlight gegen die Klasse):
+     spot  -> Spotlight lost aus (oder die Lehrperson tippt einen Namen an)
+     frage -> die Klasse antwortet still auf den Geräten; am Beamer steht die
+              Frage NICHT, das Gerät der Person im Spotlight zeigt sie auch nicht
+     zu    -> Antworten geschlossen (Stand eingefroren)
+     one   -> jetzt sieht die Person im Spotlight die Frage (Beamer + Gerät) und
+              antwortet – am Gerät oder laut, dann tippt die Lehrperson an. Joker
+              je einmal pro Runde, höchstens einer pro Frage:
+              📊 Klasse befragen · 🗣️ Zwei fragen (+5 je) · 🤝 Mit der Klasse
+     fix   -> eingeloggt, Trommelwirbel
+     aufgeloest -> Punkte: Klasse richtig +10 (Comeback-Crew +5) und +2 pro
+              Richtige in Folge. Person im Spotlight richtig: wer aus der Klasse
+              falsch lag, wechselt in die Comeback-Crew, der Topf wächst um 20
+              pro Person; falsch: eine Chance weniger. Jede überstandene Frage +10.
+     rang  -> Runde vorbei: keine Chance mehr = die Klasse (ohne Crew) teilt den
+              Topf · alle Fragen überstanden = Topf für die Person, Klasse +15 je ·
+              ganze Klasse in der Crew = Jackpot, Topf × 1,5.
+   Die richtige Antwort liegt bis zum Auflösen nur auf dem Lehrergerät (lsp.spiel). */
+
+var GNT_REGELN = {klasseRichtig:10, crewRichtig:5, serieBonus:2, durchhalten:10, proCrew:20, jackpot:1.5, klasseBonus:15, sprecherBonus:5};
+var GNT_JOKER = [
+  {id:'poll',  icon:'📊', name:'Klasse befragen', info:'Eine Antwort wählen und sehen, wie viele aus der Klasse sie getippt haben.'},
+  {id:'ask',   icon:'🗣️', name:'Zwei fragen',     info:'Eine Person mit richtiger und eine mit falscher Antwort erklären laut (je +5) – wer recht hat, bleibt geheim.'},
+  {id:'trust', icon:'🤝', name:'Mit der Klasse',  info:'Die häufigste Antwort der Klasse wird eingeloggt.'}
+];
+function gntOpt(){
+  var o = {}; try{ o = JSON.parse(lsGet(LIB_PREFIX + 'gnt_opt') || '{}') || {}; }catch(e){}
+  return {anz:+o.anz || 12, chancen:+o.chancen || 2, sec:+o.sec || 20};
+}
+function gntRegelnHtml(){
+  var R = GNT_REGELN;
+  return '<ul class="gnt-regeln-liste">'+
+    '<li><b>Die Klasse</b> antwortet zuerst still auf dem Gerät: richtig = +'+R.klasseRichtig+' (in der Comeback-Crew +'+R.crewRichtig+'), dazu +'+R.serieBonus+' für jede Richtige in Folge.</li>'+
+    '<li><b>Die Person im Spotlight</b> antwortet danach. Richtig: Wer aus der Klasse falsch lag, wechselt in die Comeback-Crew (spielt weiter, weniger Punkte) – der Topf wächst um '+R.proCrew+' pro Person. Falsch: eine Chance weniger. Jede überstandene Frage +'+R.durchhalten+'.</li>'+
+    '<li><b>Joker</b> (je einmal pro Runde, höchstens einer pro Frage): '+GNT_JOKER.map(function(j){ return j.icon+' '+esc(j.name); }).join(' · ')+'. Bei «Zwei fragen» bekommen beide +'+R.sprecherBonus+'.</li>'+
+    '<li><b>Ende der Runde:</b> keine Chance mehr = die Klasse (ohne Crew) teilt den Topf · alle Fragen überstanden = Topf für die Person im Spotlight, die Klasse +'+R.klasseBonus+' je · ganze Klasse in der Crew = Jackpot, Topf × 1,5.</li></ul>';
+}
+function gntSetup(titel, fragen){
+  if(lsp.overlay){ toast('Es läuft schon ein Spiel.'); return; }
+  var o = gntOpt();
+  var sel = function(id, werte, akt, txt){ return '<select id="'+id+'" class="modal-input">'+werte.map(function(x){ return '<option value="'+x+'"'+(x === akt ? ' selected' : '')+'>'+txt(x)+'</option>'; }).join('')+'</select>'; };
+  var h = '<h3>🔦 Eins gegen alle</h3><p class="pr-hinweis"><b>'+esc(titel)+'</b> · '+fragen.length+' Fragen. Eine Person im Spotlight spielt gegen die ganze Klasse – niemand scheidet aus. '+
+    'Zuerst antwortet die Klasse still auf den Geräten (die Frage steht nicht am Beamer), danach die Person im Spotlight, mit drei Jokern.</p>';
+  h += '<div class="pr-grid2"><div><label class="modal-label">Fragen pro Runde</label>'+sel('gntAnz', [5, 8, 12, 15], o.anz, function(x){ return x+' Fragen'; })+'</div>'+
+    '<div><label class="modal-label">Chancen der Person im Spotlight</label>'+sel('gntCh', [1, 2, 3], o.chancen, function(x){ return x === 1 ? '1 Chance' : x+' Chancen'; })+'</div></div>';
+  h += '<label class="modal-label">Zeit für die Klasse</label>'+sel('gntSec', [15, 20, 30, 45, 60], o.sec, function(x){ return x+' Sekunden'; });
+  h += '<details class="gnt-regeln"><summary>📜 Punkte und Regeln</summary>'+gntRegelnHtml()+'</details>';
+  h += '<div class="modal-actions"><button class="btn btn-ghost btn-sm" id="modalCancel" type="button">Abbrechen</button><button class="btn btn-primary btn-sm" id="gntGo" type="button">▶︎ Spiel starten</button></div>';
+  openModal(h, 'modal-wide');
+  document.getElementById('modalCancel').addEventListener('click', closeModal);
+  document.getElementById('gntGo').addEventListener('click', function(){
+    var e = {anz:+document.getElementById('gntAnz').value || 12, chancen:+document.getElementById('gntCh').value || 2, sec:+document.getElementById('gntSec').value || 20};
+    lsSet(LIB_PREFIX + 'gnt_opt', JSON.stringify(e));
+    closeModal();
+    lspStart({art:'gauntlet', spielId:spielId(), titel:titel, fragen:pruefMischen(fragen, Math.random), pos:0, anz:e.anz, chancenMax:e.chancen, sec:e.sec,
+      runde:0, nr:0, punkte:{}, serie:{}, warOne:{}, g:null, ordinal:0, wahlUid:null, sweep:false, rundeStart:0},
+      {total:e.anz, frage:'', optionen:null, sec:e.sec, startedAt:0, oneUid:null, oneName:null, spotUid:null, spotName:null, chancen:e.chancen, chancenMax:e.chancen,
+       topf:0, joker:{}, jokerErg:null, oneWahl:null, loesung:null, counts:null, crew:[], neuCrew:null, plus:null, rang:[], ende:null, ordinal:0});
+  });
+}
+
+/* ---------- Lehrergerät ---------- */
+
+function gntName(sp, uid){
+  var g = sp.g;
+  if(g && uid === g.oneUid) return g.oneName;
+  if(g && g.namen[uid]) return g.namen[uid];
+  return (sp.punkte[uid] && sp.punkte[uid].n) || '?';
+}
+// Vorschlag für die nächste Runde (wie im Original): wer am meisten Punkte hat und noch nie im Spotlight war.
+function gntVorschlag(sp){
+  var dabei = lspDabei(), pool = dabei.filter(function(a){ return !sp.warOne[a.uid]; });
+  var liste = pool.length ? pool : dabei, p = function(u){ return sp.punkte[u] ? sp.punkte[u].p : 0; };
+  return liste.slice().sort(function(a, b){ return p(b.uid) - p(a.uid) || String(a.name).localeCompare(String(b.name), 'de'); })[0] || null;
+}
+function gntSpot(sp){
+  sp.sweep = false; sp.g = null;
+  var v = sp.ordinal ? gntVorschlag(sp) : null;   // erste Runde: Spotlight oder selbst wählen
+  sp.wahlUid = v ? v.uid : null;
+  lspSchreiben({phase:'spot', spotUid:sp.wahlUid, spotName:v ? (v.name || '?') : null, oneUid:null, oneName:null, frage:'', optionen:null,
+    jokerErg:null, oneWahl:null, loesung:null, counts:null, crew:[], neuCrew:null, plus:null, ende:null, rang:lspRang(sp.punkte)});
+}
+// Das Spotlight wandert über die Namen und bleibt bei jemandem stehen, der noch nie dran war.
+function gntSweept(sp){ return !!(sp.sweep && Date.now() - (sp.sweepAt || 0) < 9000); }
+function gntSpotlight(sp){
+  if(gntSweept(sp)) return;
+  var dabei = lspDabei();
+  if(dabei.length < 2){ toast('Es braucht mindestens zwei Mitspielende.'); return; }
+  var pool = dabei.filter(function(a){ return !sp.warOne[a.uid]; });
+  if(!pool.length) pool = dabei;
+  var ziel = pool[Math.floor(Math.random() * pool.length)], uids = dabei.map(function(a){ return a.uid; });
+  var schritte = 16 + Math.floor(Math.random() * 6), start = Math.floor(Math.random() * uids.length), i = 0;
+  sp.sweep = true; sp.sweepAt = Date.now();
+  (function schritt(){
+    if(!lsp.overlay || lsp.spiel !== sp || !sp.sweep){ sp.sweep = false; return; }
+    i++;
+    var u = i >= schritte ? ziel.uid : uids[(start + i) % uids.length];
+    Array.prototype.forEach.call(lsp.overlay.el.querySelectorAll('[data-gkand]'), function(el){ el.classList.toggle('gnt-licht', el.getAttribute('data-gkand') === u); });
+    if(i < schritte){ playTone(620 + (i % 2) * 140, 0.05, 'square', 0.05); setTimeout(schritt, 60 + i * i); return; }
+    sp.sweep = false; sp.wahlUid = ziel.uid; lsp.sig = null;
+    lspSchreiben({spotUid:ziel.uid, spotName:ziel.name || '?'});
+    playGong();
+  })();
+}
+function gntStart(sp, uid){
+  var dabei = lspDabei(), one = dabei.filter(function(a){ return a.uid === uid; })[0];
+  if(!one){ toast('Wähle zuerst, wer ins Spotlight kommt.'); return; }
+  var klasse = dabei.filter(function(a){ return a.uid !== uid; });
+  if(!klasse.length){ uiInfo('Zu wenig Mitspielende', 'Es braucht mindestens zwei Personen: eine im Spotlight und die Klasse.'); return; }
+  sp.ordinal++; sp.warOne[uid] = true; sp.sweep = false;
+  sp.g = {oneUid:uid, oneName:one.name || '?', namen:{}, mob:{}, crew:{}, nr:0, total:Math.min(sp.anz, sp.fragen.length), chancen:sp.chancenMax, topf:0,
+    joker:{}, cur:null, eligible:[], antw:{}, jokerErg:null, jokerFertig:{}, pollModus:false, oneWahl:null};
+  klasse.forEach(function(a){ sp.g.namen[a.uid] = a.name || '?'; sp.g.mob[a.uid] = true; lspPunkt(sp, a.uid, a.name, 0); });
+  lspPunkt(sp, uid, one.name, 0);
+  Object.keys(sp.serie).forEach(function(u){ sp.serie[u] = 0; });   // Serien beginnen in jeder Runde neu
+  gntFrage(sp);
+}
+function gntFrage(sp){
+  var g = sp.g;
+  if(sp.pos >= sp.fragen.length){ sp.fragen = pruefMischen(sp.fragen, Math.random); sp.pos = 0; }   // Vorrat aufgebraucht: von vorn, neu gemischt
+  var f = sp.fragen[sp.pos++], idx = f.a.map(function(x, i){ return i; });
+  if(!f.fix) idx = pruefMischen(idx, Math.random);
+  g.cur = {q:f.q, a:idx.map(function(i){ return f.a[i]; }), c:idx.indexOf(f.c)};
+  g.nr++; sp.runde++; sp.nr++; sp.rundeStart = Date.now();
+  g.antw = {}; g.jokerErg = null; g.jokerFertig = {}; g.pollModus = false; g.oneWahl = null;
+  // Wer erst während der Runde dazukommt, spielt bis zur nächsten Runde in der Comeback-Crew mit.
+  g.eligible = lspDabei().filter(function(a){ return a.uid !== g.oneUid; }).map(function(a){
+    if(!g.namen[a.uid]){ g.namen[a.uid] = a.name || '?'; g.crew[a.uid] = true; lspPunkt(sp, a.uid, a.name, 0); }
+    return a.uid;
+  });
+  lspSchreiben({phase:'frage', runde:sp.runde, nr:g.nr, total:g.total, frage:g.cur.q, optionen:g.cur.a, sec:sp.sec, startedAt:sp.rundeStart,
+    oneUid:g.oneUid, oneName:g.oneName, spotUid:null, spotName:null, chancen:g.chancen, chancenMax:sp.chancenMax, topf:g.topf, joker:g.joker,
+    jokerErg:null, oneWahl:null, loesung:null, counts:null, crew:Object.keys(g.crew), neuCrew:null, plus:null, ende:null, ordinal:sp.ordinal, anzahl:g.eligible.length});
+  if(!g.eligible.length) setTimeout(function(){ if(lsp.spiel === sp && lsp.session) gntZu(lsp.session, sp); }, 800);
+}
+// Antworten der Klasse in dieser Frage {uid: Antwort}.
+function gntAntworten(sp){
+  var g = sp.g, out = {};
+  lspGemeldet().forEach(function(a){
+    if(a.runde === sp.runde && typeof a.wahl === 'number' && g.eligible.indexOf(a.uid) >= 0 && a.uid !== g.oneUid) out[a.uid] = a.wahl;
+  });
+  return out;
+}
+function gntZu(s, sp){
+  if(s.phase !== 'frage' || s.runde !== sp.runde || lspBusy('zu')) return;
+  sp.g.antw = gntAntworten(sp);   // ab hier zählt nichts mehr dazu
+  lspSchreiben({phase:'zu', anzahl:sp.g.eligible.length, beantwortet:Object.keys(sp.g.antw).length});
+  mioTon('lock');
+}
+function gntZeigen(s, sp){
+  if(s.phase !== 'zu' || lspBusy('zeigen')) return;
+  lspSchreiben({phase:'one'});
+  playTone(660, 0.15, 'triangle', 0.18);
+}
+function gntZaehlen(sp){
+  var g = sp.g, c = g.cur.a.map(function(){ return 0; });
+  Object.keys(g.antw).forEach(function(u){ if(c[g.antw[u]] != null) c[g.antw[u]]++; });
+  return c;
+}
+// Ein Joker – vom Gerät der Person im Spotlight oder vom Beamer aus.
+function gntJoker(s, sp, j, w){
+  var g = sp.g;
+  if(s.phase !== 'one' || !g || g.joker[j] || (g.jokerErg && g.jokerErg.typ !== 'fehler') || lspBusy('joker' + j, 600)) return;
+  var antw = g.antw, uids = Object.keys(antw), erg = null;
+  if(j === 'poll'){
+    if(typeof w !== 'number' || w < 0 || w >= g.cur.a.length) return;
+    erg = {typ:'poll', w:w, n:uids.filter(function(u){ return antw[u] === w; }).length, total:uids.length};
+  } else if(j === 'ask'){
+    var da = {};
+    lspDabei().forEach(function(a){ da[a.uid] = 1; });
+    var hier = uids.filter(function(u){ return da[u]; });
+    var rechts = hier.filter(function(u){ return antw[u] === g.cur.c; }), falsch = hier.filter(function(u){ return antw[u] !== g.cur.c; });
+    if(!rechts.length || !falsch.length){
+      erg = {typ:'fehler', text:'«Zwei fragen» geht diesmal nicht – dafür braucht es in der Klasse verschiedene Antworten. Nimm einen anderen Joker!'};
+    } else {
+      var wer = [mtAus(rechts), mtAus(falsch)];
+      if(Math.random() < 0.5) wer.reverse();
+      wer.forEach(function(u){ lspPunkt(sp, u, gntName(sp, u), GNT_REGELN.sprecherBonus); });
+      erg = {typ:'ask', sprecher:wer.map(function(u){ return {u:u, n:gntName(sp, u), w:antw[u]}; }), bonus:GNT_REGELN.sprecherBonus};
+    }
+  } else if(j === 'trust'){
+    if(!uids.length) erg = {typ:'fehler', text:'«Mit der Klasse» geht nicht – niemand aus der Klasse hat geantwortet.'};
+    else {
+      var c = gntZaehlen(sp), max = Math.max.apply(null, c), top = [];
+      c.forEach(function(n, i){ if(n === max) top.push(i); });
+      erg = {typ:'trust', w:mtAus(top), counts:c};
+    }
+  } else return;
+  g.jokerErg = erg; g.pollModus = false;
+  if(erg.typ !== 'fehler') g.joker[j] = true;
+  if(erg.typ === 'trust'){ gntOneWahl(s, sp, erg.w, {joker:g.joker, jokerErg:erg}); return; }
+  lspSchreiben({joker:g.joker, jokerErg:erg, rang:lspRang(sp.punkte)});
+  playTone(erg.typ === 'fehler' ? 260 : 740, 0.2, 'triangle', 0.18);
+}
+function gntOneWahl(s, sp, w, extra){
+  var g = sp.g;
+  if(s.phase !== 'one' || !g || g.oneWahl !== null || typeof w !== 'number' || w < 0 || w >= g.cur.a.length) return;
+  g.oneWahl = w;
+  lspSchreiben(Object.assign({phase:'fix', oneWahl:w}, extra || {}));
+  // kleiner Trommelwirbel
+  for(var i = 0; i < 6; i++) setTimeout(function(){ playTone(150, 0.07, 'square', 0.06); }, i * 90);
+}
+// Auflösen und werten – die Regeln von scoreReveal (scoring.ts).
+function gntAufloesen(s, sp){
+  if(s.phase !== 'fix' || lspBusy('auf')) return;
+  var g = sp.g, R = GNT_REGELN, c = g.cur.c, ok = g.oneWahl === c, plus = {}, neuCrew = [];
+  var add = function(u, p){ if(!p) return; lspPunkt(sp, u, gntName(sp, u), p); plus[u] = (plus[u] || 0) + p; };
+  g.eligible.forEach(function(u){
+    var richtig = g.antw[u] === c;
+    sp.serie[u] = richtig ? (sp.serie[u] || 0) + 1 : 0;
+    if(richtig) add(u, (g.crew[u] ? R.crewRichtig : R.klasseRichtig) + R.serieBonus * sp.serie[u]);
+  });
+  if(ok) g.eligible.forEach(function(u){
+    if(g.mob[u] && !g.crew[u] && g.antw[u] !== c){ g.crew[u] = true; neuCrew.push({u:u, n:gntName(sp, u)}); }
+  });
+  var topfPlus = R.proCrew * neuCrew.length;
+  g.topf += topfPlus;
+  if(!ok) g.chancen = Math.max(0, g.chancen - 1);
+  var rest = Object.keys(g.mob).filter(function(u){ return !g.crew[u]; });
+  var grund = g.chancen === 0 ? 'aus' : !rest.length ? 'jackpot' : g.nr >= g.total ? 'durch' : null;
+  if(grund !== 'aus') add(g.oneUid, R.durchhalten);
+  var ende = null;
+  if(grund === 'aus'){
+    var anteil = rest.length ? Math.floor(g.topf / rest.length) : 0;
+    rest.forEach(function(u){ add(u, anteil); });
+    ende = {grund:grund, anteil:anteil, n:rest.length, topf:g.topf};
+  } else if(grund === 'durch'){
+    add(g.oneUid, g.topf);
+    rest.forEach(function(u){ add(u, R.klasseBonus); });
+    ende = {grund:grund, bank:g.topf, n:rest.length, topf:g.topf};
+  } else if(grund === 'jackpot'){
+    var bank = Math.floor(g.topf * R.jackpot);
+    add(g.oneUid, bank);
+    ende = {grund:grund, bank:bank, topf:g.topf};
+  }
+  lspSchreiben({phase:'aufgeloest', loesung:c, oneOk:ok, counts:gntZaehlen(sp), plus:plus, neuCrew:neuCrew.map(function(x){ return x.n; }), neuCrewU:neuCrew.map(function(x){ return x.u; }), topfPlus:topfPlus, topf:g.topf, chancen:g.chancen,
+    crew:Object.keys(g.crew), ende:ende, rang:lspRang(sp.punkte), konfetti:(grund === 'durch' || grund === 'jackpot') ? sp.runde : 0});
+  if(grund === 'durch' || grund === 'jackpot') playGong(); else mioTon(ok ? 'ok' : 'bad');
+}
+function gntAbbruch(sp){
+  if(!sp.g) return;
+  lspSchreiben({phase:'rang', ende:{grund:'abbruch'}, rang:lspRang(sp.punkte)});
+  sp.g = null;
+}
+function gntHKlick(s, sp, a, b){
+  var g = sp.g;
+  if(a === 'los' && s.phase === 'lobby'){ if(!lspBusy('los')) gntSpot(sp); }
+  else if(a === 'wahl' && s.phase === 'spot' && !gntSweept(sp)){
+    var u = b.getAttribute('data-gkand'), d = lspDabei().filter(function(x){ return x.uid === u; })[0];
+    if(!d) return;
+    sp.wahlUid = u; lsp.sig = null;
+    lspSchreiben({spotUid:u, spotName:d.name || '?'});
+  }
+  else if(a === 'spot' && s.phase === 'spot') gntSpotlight(sp);
+  else if(a === 'start' && s.phase === 'spot' && !gntSweept(sp)){ if(!lspBusy('start')) gntStart(sp, sp.wahlUid); }
+  else if(a === 'zu') gntZu(s, sp);
+  else if(a === 'zeigen') gntZeigen(s, sp);
+  else if(a === 'joker' && g && s.phase === 'one'){
+    var j = b.getAttribute('data-j');
+    if(j === 'poll'){ g.pollModus = !g.pollModus; lsp.sig = null; lspPaintHost(); }
+    else gntJoker(s, sp, j);
+  }
+  else if(a === 'ow' && g && s.phase === 'one'){
+    var i = +b.getAttribute('data-i');
+    if(g.pollModus) gntJoker(s, sp, 'poll', i); else gntOneWahl(s, sp, i);
+  }
+  else if(a === 'auf') gntAufloesen(s, sp);
+  else if(a === 'weiter' && s.phase === 'aufgeloest' && !lspBusy('weiter')){
+    if(s.ende){ lspSchreiben({phase:'rang', rang:lspRang(sp.punkte)}); sp.g = null; }
+    else gntFrage(sp);
+  }
+  else if(a === 'abbruch' && g) uiConfirm('Runde abbrechen?', 'Die Runde endet ohne Topf-Auszahlung. Die Punkte bis hierher bleiben.', 'Abbrechen', function(){ if(lsp.spiel === sp) gntAbbruch(sp); }, true);
+  else if(a === 'naechste' && s.phase === 'rang'){ if(!lspBusy('naechste')) gntSpot(sp); }
+  else if(a === 'ende' && !lspBusy('ende')){ lspSchreiben({phase:'ende', rang:lspRang(sp.punkte)}); playGong(); }
+}
+function gntHTick(s, sp){
+  var g = sp.g;
+  if(!g) return;
+  if(s.phase === 'frage'){
+    var left = lspSekunden(s), el = lsp.overlay.el, n = Object.keys(gntAntworten(sp)).length, j = g.eligible.length;
+    var t = el.querySelector('#lspTimer'); if(t) t.textContent = left;
+    var c = el.querySelector('#lspCount'); if(c) c.textContent = n + ' von ' + j + ' haben geantwortet';
+    if((j > 0 && n >= j && Date.now() - sp.rundeStart > 1500) || left <= 0) gntZu(s, sp);
+    return;
+  }
+  if(s.phase !== 'one') return;
+  // Gerät der Person im Spotlight: Joker-Wunsch oder Antwort.
+  var d = lspGemeldet().filter(function(a){ return a.uid === g.oneUid && a.runde === sp.runde; })[0];
+  if(!d) return;
+  if(d.joker && !g.jokerFertig[d.joker + '|' + (d.jw == null ? '' : d.jw)]){
+    g.jokerFertig[d.joker + '|' + (d.jw == null ? '' : d.jw)] = true;
+    gntJoker(s, sp, d.joker, typeof d.jw === 'number' ? d.jw : null);
+    return;
+  }
+  if(typeof d.wahl === 'number' && g.oneWahl === null) gntOneWahl(s, sp, d.wahl);
+}
+function gntHSig(s, sp){
+  if(s.phase === 'spot') return lspDabei().map(function(a){ return a.uid; }).join(',') + '#' + s.spotUid;
+  return [s.oneUid, s.chancen, s.topf, JSON.stringify(s.joker || {}), JSON.stringify(s.jokerErg || null), s.oneWahl, (s.crew || []).length, JSON.stringify(s.ende || null), sp.g ? sp.g.pollModus : ''].join('|');
+}
+function gntHerzen(s){
+  var h = '';
+  for(var i = 0; i < (s.chancenMax || 0); i++) h += i < (s.chancen || 0) ? '❤️' : '🖤';
+  return h;
+}
+function gntKopfHtml(s, sp){
+  var mob = sp.g ? Object.keys(sp.g.mob).length : 0, crew = sp.g ? Object.keys(sp.g.crew).filter(function(u){ return sp.g.mob[u]; }).length : 0;
+  return '<div class="gnt-kopf"><span class="gnt-one">🔦 '+esc(s.oneName || '?')+'</span><span>'+gntHerzen(s)+'</span>'+
+    '<span>💰 Topf <b>'+(s.topf || 0)+'</b></span><span>🧑‍🤝‍🧑 Klasse <b>'+(mob - crew)+'</b> · 🛟 Crew <b>'+(s.crew || []).length+'</b></span>'+
+    '<span class="gnt-nr">Frage '+(s.nr || 0)+' / '+(s.total || 0)+'</span></div>';
+}
+function gntJokerErgHtml(e, optionen){
+  if(!e) return '';
+  var b = function(i){ return MIO_BUCHST[i] + (optionen && optionen[i] != null ? ': ' + esc(optionen[i]) : ''); };
+  if(e.typ === 'fehler') return '<div class="gnt-erg fehler">⚠️ '+esc(e.text)+'</div>';
+  if(e.typ === 'poll') return '<div class="gnt-erg">📊 <b>'+e.n+' von '+e.total+'</b> aus der Klasse haben <b>'+b(e.w)+'</b> getippt.</div>';
+  if(e.typ === 'ask') return '<div class="gnt-erg">🗣️ Erklärt laut, warum ihr so getippt habt (je +'+e.bonus+'):'+(e.sprecher || []).map(function(x){ return '<span class="gnt-sprecher"><b>'+esc(x.n)+'</b> → '+b(x.w)+'</span>'; }).join('')+'<small>Eine Antwort ist richtig, eine falsch – welche, bleibt geheim.</small></div>';
+  if(e.typ === 'trust') return '<div class="gnt-erg">🤝 Mit der Klasse: die häufigste Antwort war <b>'+b(e.w)+'</b>.</div>';
+  return '';
+}
+function gntEndeText(e, name){
+  if(!e) return '';
+  if(e.grund === 'aus') return '💔 '+esc(name)+' hat keine Chance mehr. '+(e.anteil ? 'Die Klasse teilt sich den Topf: <b>je +'+e.anteil+'</b> für '+e.n+' Person'+(e.n === 1 ? '' : 'en')+'.' : 'Der Topf war leer.');
+  if(e.grund === 'durch') return '🏅 '+esc(name)+' hat alle Fragen überstanden und holt den Topf: <b>+'+e.bank+'</b>.'+(e.n ? ' Wer aus der Klasse noch dabei ist: je +'+GNT_REGELN.klasseBonus+'.' : '');
+  if(e.grund === 'jackpot') return '🎰 Jackpot! '+esc(name)+' hat die ganze Klasse in die Comeback-Crew geschickt: Topf × 1,5 = <b>+'+e.bank+'</b>.';
+  if(e.grund === 'abbruch') return 'Die Runde wurde abgebrochen.';
+  return '';
+}
+function gntPlusHtml(s){
+  var plus = s.plus || {}, rang = {};
+  (s.rang || []).forEach(function(r){ rang[r.u] = r.n; });
+  var liste = Object.keys(plus).filter(function(u){ return u !== s.oneUid; }).sort(function(a, b){ return plus[b] - plus[a]; });
+  if(!liste.length) return '';
+  return '<div class="gnt-plus">'+liste.slice(0, 12).map(function(u){ return '<span>'+esc(rang[u] || '?')+' <b>+'+plus[u]+'</b></span>'; }).join('')+(liste.length > 12 ? '<span>… und '+(liste.length - 12)+' weitere</span>' : '')+'</div>';
+}
+function gntHHtml(s, sp){
+  var h = '<div class="lsp-main">';
+  if(s.phase === 'ende'){
+    h += '<div class="lsp-frage">🏆 Eins gegen alle – Schlussstand'+(s.rang && s.rang.length ? '<small>Gewonnen hat <b>'+esc(s.rang[0].n)+'</b></small>' : '')+'</div>'+lspRangHtml(s.rang, 10);
+    return h + '<div class="lsp-aktion"><button class="btn btn-primary" data-lh="schluss" type="button">Beenden</button></div></div>';
+  }
+  if(s.phase === 'spot'){
+    var dabei = lspDabei();
+    h += '<div class="lsp-frage">🔦 Wer spielt gegen die Klasse?<small>Name antippen – oder das Spotlight auslosen lassen (⭐ = war schon dran).</small></div>';
+    h += '<div class="lsp-namen gnt-kand">'+dabei.map(function(a){
+      return '<button class="lsp-kind on'+(a.uid === s.spotUid ? ' gnt-gewaehlt' : '')+'" data-lh="wahl" data-gkand="'+mioAttr(a.uid)+'" type="button">'+(sp.warOne[a.uid] ? '⭐ ' : '')+esc(a.name || '?')+'</button>';
+    }).join('')+'</div>';
+    if(s.spotUid && s.spotName) h += '<div class="bz-wer gnt-wer">🔦 '+esc(s.spotName)+'<small>gegen '+(dabei.length - 1)+' aus der Klasse</small></div>';
+    h += '<div class="lsp-aktion"><button class="btn '+(s.spotUid ? 'btn-ghost' : 'btn-primary')+'" data-lh="spot" type="button">🔦 Spotlight auslosen</button>'+
+      '<button class="btn '+(s.spotUid ? 'btn-primary' : 'btn-ghost')+'" data-lh="start" type="button"'+(s.spotUid && dabei.length >= 2 ? '' : ' disabled')+'>▶︎ Runde starten</button>'+
+      (sp.ordinal ? '<button class="btn btn-ghost" data-lh="ende" type="button">🏁 Spiel beenden</button>' : '')+'</div>';
+    if(sp.ordinal) h += '<div class="lsp-zwei"><div><div class="lsp-klein">Stand</div>'+lspRangHtml(s.rang, 5)+'</div></div>';
+    return h + '</div>';
+  }
+  if(s.phase === 'rang'){
+    h += '<div class="lsp-frage">🏁 Runde '+(s.ordinal || '')+' ist vorbei<small>'+gntEndeText(s.ende, s.oneName || '?')+'</small></div>'+lspRangHtml(s.rang, 10);
+    return h + '<div class="lsp-aktion"><button class="btn btn-primary" data-lh="naechste" type="button">🔦 Nächste Runde</button><button class="btn btn-ghost" data-lh="ende" type="button">🏁 Spiel beenden</button></div></div>';
+  }
+  h += gntKopfHtml(s, sp);
+  var abbruch = '<button class="btn btn-ghost" data-lh="abbruch" type="button">⏹ Runde abbrechen</button>';
+  if(s.phase === 'frage' || s.phase === 'zu'){
+    h += '<div class="gnt-geheim">'+(s.phase === 'frage' ? '🤫 <b>Die Klasse antwortet</b><small>Die Frage steht nur auf euren Geräten. '+esc(s.oneName || '?')+', nicht hinschauen!</small>'
+      : '🔒 <b>Die Klasse hat geantwortet</b><small>'+(s.beantwortet || 0)+' von '+(s.anzahl || 0)+' Antworten · jetzt ist '+esc(s.oneName || '?')+' dran.</small>')+'</div>';
+    if(s.phase === 'frage'){
+      h += '<div class="lsp-status">⏱ <span class="lsp-timer" id="lspTimer">'+lspSekunden(s)+'</span> s · <span id="lspCount"></span></div>';
+      h += '<div class="lsp-aktion"><button class="btn btn-primary" data-lh="zu" type="button">⏹ Antworten schliessen</button>'+abbruch+'</div>';
+    } else h += '<div class="lsp-aktion"><button class="btn btn-primary" data-lh="zeigen" type="button">👀 Frage für '+esc(s.oneName || '?')+' zeigen</button>'+abbruch+'</div>';
+    return h + '</div>';
+  }
+  var g = sp.g, poll = !!(g && g.pollModus && s.phase === 'one');
+  h += '<div class="lsp-frage">'+esc(s.frage)+'</div>';
+  h += '<div class="lsp-opts">'+(s.optionen || []).map(function(o, i){
+    var cls = '', zahl = '';
+    if(s.phase === 'aufgeloest'){
+      cls = i === s.loesung ? ' ok' : i === s.oneWahl ? ' bad' : ' dim';
+      zahl = '<small class="gnt-zahl" title="so viele aus der Klasse">'+((s.counts || [])[i] || 0)+'</small>';
+    } else if(s.phase === 'fix') cls = i === s.oneWahl ? ' gnt-lock' : ' dim';
+    else if(poll) cls = ' gnt-poll';
+    return '<button class="lsp-opt'+cls+'" data-lh="ow" data-i="'+i+'" type="button"'+(s.phase === 'one' ? '' : ' disabled')+'><b>'+MIO_BUCHST[i]+'</b><span>'+esc(o)+'</span>'+zahl+'</button>';
+  }).join('')+'</div>';
+  if(s.phase === 'one'){
+    var jokerFrei = !s.jokerErg || s.jokerErg.typ === 'fehler';
+    h += '<div class="gnt-joker">'+GNT_JOKER.map(function(j){
+      var weg = (s.joker || {})[j.id];
+      return '<button class="gnt-jk'+(weg ? ' weg' : '')+(poll && j.id === 'poll' ? ' an' : '')+'" data-lh="joker" data-j="'+j.id+'" type="button" title="'+mioAttr(j.info)+'"'+(weg || !jokerFrei ? ' disabled' : '')+'>'+j.icon+' '+esc(j.name)+'</button>';
+    }).join('')+'</div>';
+  }
+  h += gntJokerErgHtml(s.jokerErg, s.optionen);
+  if(s.phase === 'one'){
+    h += '<div class="lsp-status">'+(poll ? '📊 Welche Antwort soll geprüft werden? Antippen.' : '🤔 <b>'+esc(s.oneName || '?')+'</b> antwortet – am Gerät oder laut, dann hier antippen.')+'</div>';
+    h += '<div class="lsp-aktion">'+abbruch+'</div>';
+  } else if(s.phase === 'fix'){
+    h += '<div class="lsp-status">🔒 '+esc(s.oneName || '?')+' loggt <b>'+MIO_BUCHST[s.oneWahl]+'</b> ein …</div>';
+    h += '<div class="lsp-aktion"><button class="btn btn-primary" data-lh="auf" type="button">🔓 Auflösen</button></div>';
+  } else if(s.phase === 'aufgeloest'){
+    var n = (s.neuCrew || []).length;
+    h += '<div class="gnt-ausgang '+(s.oneOk ? 'ok' : 'bad')+'">'+(s.oneOk
+      ? '✅ Richtig! '+(n ? n+' aus der Klasse lagen falsch und wechseln in die Comeback-Crew – der Topf wächst um <b>'+s.topfPlus+'</b>.' : 'Die ganze Klasse lag auch richtig.')
+      : '❌ Falsch – '+esc(s.oneName || '?')+' verliert eine Chance.')+'</div>';
+    if(n) h += '<div class="gnt-plus crew">'+s.neuCrew.map(function(x){ return '<span>🛟 '+esc(x)+'</span>'; }).join('')+'</div>';
+    h += gntPlusHtml(s);
+    if(s.ende) h += '<div class="gnt-ende">'+gntEndeText(s.ende, s.oneName || '?')+'</div>';
+    h += '<div class="lsp-aktion"><button class="btn btn-primary" data-lh="weiter" type="button">'+(s.ende ? '🏆 Stand zeigen' : '▶︎ Nächste Frage')+'</button>'+(s.ende ? '' : abbruch)+'</div>';
+  }
+  return h + '</div>';
+}
+
+/* ---------- Schülergerät ---------- */
+
+function gntSSig(s, my){
+  return [s.oneUid, s.spotUid, s.chancen, s.topf, JSON.stringify(s.joker || {}), JSON.stringify(s.jokerErg || null), s.oneWahl, (s.crew || []).join(','), JSON.stringify(s.ende || null), s.ordinal,
+    my.wahl, my.joker, my.jw, my.poll, my.oneWahl].join('|');
+}
+function gntSHtml(s, my){
+  var ich = state.user.uid, istOne = s.oneUid === ich, crew = (s.crew || []).indexOf(ich) >= 0, h = '';
+  var meine = my.runde === s.runde && typeof my.wahl === 'number' ? my.wahl : null;
+  if(s.phase === 'ende') return '<div class="lsp-s-gross">🏆 Fertig!</div><p class="lsp-s-status">'+esc(lspRangText(s, ich) || 'Danke fürs Mitspielen.')+'</p>';
+  if(s.phase === 'spot'){
+    if(s.spotUid === ich) return '<div class="lsp-s-gross">🔦 Du bist im Spotlight!</div><p class="lsp-s-status">Gleich spielst du gegen die ganze Klasse. Viel Glück!</p>';
+    return '<div class="lsp-s-gross">🔦 Wer kommt ins Spotlight?</div><p class="lsp-s-status">'+(s.spotName ? '<b>'+esc(s.spotName)+'</b> ist ausgewählt – ihr seid die Klasse.' : 'Gleich wird ausgelost …')+'<br>'+esc(lspRangText(s, ich))+'</p>';
+  }
+  if(s.phase === 'rang') return '<div class="lsp-s-gross">🏁 Runde vorbei</div><p class="lsp-s-status">'+gntEndeText(s.ende, s.oneName || '?')+'<br>'+esc(lspRangText(s, ich))+'</p>';
+  h += '<div class="gnt-s-kopf"><span>🔦 '+esc(s.oneName || '?')+' '+gntHerzen(s)+'</span><span>💰 '+(s.topf || 0)+' · Frage '+(s.nr || 0)+'/'+(s.total || 0)+'</span></div>';
+  if(istOne){
+    if(s.phase === 'frage' || s.phase === 'zu') return h + '<div class="lsp-s-gross">🙈 Nicht hinschauen!</div><p class="lsp-s-status">Die Klasse beantwortet gerade die Frage. Gleich bist du dran.</p>';
+    var darf = s.phase === 'one', jokerFrei = darf && (!s.jokerErg || s.jokerErg.typ === 'fehler'), poll = darf && my.poll && my.runde === s.runde;
+    var gewaehlt = my.runde === s.runde && typeof my.oneWahl === 'number' ? my.oneWahl : null;
+    h += '<div class="lsp-s-frage">'+esc(s.frage)+'</div><div class="mio-s-opts">';
+    (s.optionen || []).forEach(function(o, i){
+      var cls = '';
+      if(s.phase === 'aufgeloest') cls = i === s.loesung ? ' ok' : i === s.oneWahl ? ' bad' : ' dim';
+      else if(s.phase === 'fix') cls = i === s.oneWahl ? ' lock' : ' dim';
+      else if(poll) cls = ' kand';
+      else if(gewaehlt === i) cls = ' pick';
+      h += '<button class="mio-opt'+cls+'" data-ls="ow" data-i="'+i+'" type="button"'+(darf && gewaehlt === null ? '' : ' disabled')+'><b>'+MIO_BUCHST[i]+':</b><span>'+esc(o)+'</span></button>';
+    });
+    h += '</div>';
+    if(darf) h += '<div class="gnt-joker">'+GNT_JOKER.map(function(j){
+      var weg = (s.joker || {})[j.id];
+      return '<button class="gnt-jk'+(weg ? ' weg' : '')+(poll && j.id === 'poll' ? ' an' : '')+'" data-ls="joker" data-j="'+j.id+'" type="button"'+(weg || !jokerFrei || gewaehlt !== null ? ' disabled' : '')+'>'+j.icon+' '+esc(j.name)+'</button>';
+    }).join('')+'</div>';
+    h += gntJokerErgHtml(s.jokerErg, s.optionen);
+    h += '<p class="lsp-s-status">';
+    if(darf) h += poll ? '📊 Welche Antwort willst du prüfen? Tippe sie an.' : gewaehlt !== null ? '✔ Antwort gesendet …' : '<b>Du bist dran!</b> Tippe deine Antwort an – oder nimm zuerst einen Joker.';
+    else if(s.phase === 'fix') h += '🔒 Eingeloggt: <b>'+MIO_BUCHST[s.oneWahl]+'</b> – gleich wird aufgelöst …';
+    else if(s.phase === 'aufgeloest') h += (s.oneOk ? '✅ Richtig! '+((s.neuCrew || []).length ? 'Der Topf wächst um '+s.topfPlus+'.' : '') : '❌ Leider falsch – eine Chance weniger.')+((s.plus || {})[ich] ? ' <b>+'+s.plus[ich]+'</b>' : '')+(s.ende ? '<br>'+gntEndeText(s.ende, s.oneName || '?') : '');
+    return h + '</p>';
+  }
+  // Die Klasse (und die Comeback-Crew)
+  if(crew) h += '<div class="gnt-crew-hinweis">🛟 Du bist in der Comeback-Crew – richtige Antworten geben trotzdem Punkte.</div>';
+  h += '<div class="lsp-s-frage">'+esc(s.frage)+'</div><div class="mio-s-opts">';
+  (s.optionen || []).forEach(function(o, i){
+    var cls = '';
+    if(s.phase === 'aufgeloest') cls = i === s.loesung ? ' ok' : i === meine ? ' bad' : ' dim';
+    else if(meine === i) cls = ' pick';
+    else if(meine !== null) cls = ' dim';
+    h += '<button class="mio-opt'+cls+'" data-ls="w" data-i="'+i+'" type="button"'+(s.phase === 'frage' && meine === null ? ' data-zeit' : ' disabled')+'><b>'+MIO_BUCHST[i]+':</b><span>'+esc(o)+'</span></button>';
+  });
+  h += '</div>';
+  if(s.phase === 'one' || s.phase === 'fix') h += gntJokerErgHtml(s.jokerErg, s.optionen);
+  h += '<p class="lsp-s-status">';
+  if(s.phase === 'frage') h += (meine === null ? '🤫 Tippe still deine Antwort an.' : '✔ Antwort gespeichert.')+' · ⏱ <span id="lspSTimer">'+lspSekunden(s)+'</span> s';
+  else if(s.phase === 'zu') h += (meine === null ? 'Die Antworten sind geschlossen.' : '🔒 Deine Antwort: <b>'+MIO_BUCHST[meine]+'</b>')+' – jetzt ist '+esc(s.oneName || '?')+' dran.';
+  else if(s.phase === 'one') h += '🤞 '+esc(s.oneName || '?')+' überlegt …'+(meine !== null ? ' Deine Antwort: <b>'+MIO_BUCHST[meine]+'</b>' : '');
+  else if(s.phase === 'fix') h += '🔒 '+esc(s.oneName || '?')+' loggt <b>'+MIO_BUCHST[s.oneWahl]+'</b> ein …';
+  else if(s.phase === 'aufgeloest'){
+    var p = (s.plus || {})[ich] || 0, neu = (s.neuCrewU || []).indexOf(ich) >= 0;
+    h += (meine === null ? 'Du hast nicht geantwortet.' : meine === s.loesung ? '✅ Richtig!' : '❌ Leider falsch.')+(p ? ' <b>+'+p+'</b>' : '')+
+      (neu ? ' Du wechselst in die Comeback-Crew.' : '')+'<br>'+esc(s.oneName || '?')+(s.oneOk ? ' lag richtig.' : ' lag falsch.')+
+      (s.ende ? '<br>'+gntEndeText(s.ende, s.oneName || '?') : '')+'<br>'+esc(lspRangText(s, ich));
+  }
+  return h + '</p>';
+}
+function gntSKlick(s, b){
+  var a = b.getAttribute('data-ls'), my = lspMy(s), ich = state.user.uid;
+  var senden = function(){ lspSenden({wahl:my.oneWahl != null ? my.oneWahl : null, joker:my.joker || null, jw:typeof my.jw === 'number' ? my.jw : null}); };
+  if(my.runde !== s.runde){ my.runde = s.runde; my.wahl = null; my.joker = null; my.jw = null; my.poll = false; my.oneWahl = null; }
+  if(a === 'w'){
+    if(s.phase !== 'frage' || s.oneUid === ich || typeof my.wahl === 'number') return;
+    if(s.sec && lspSekunden(s) <= 0) return;
+    my.wahl = +b.getAttribute('data-i');
+    playBlip();
+    lspSenden({wahl:my.wahl});
+  } else if(a === 'joker'){
+    if(s.phase !== 'one' || s.oneUid !== ich || typeof my.oneWahl === 'number') return;
+    var j = b.getAttribute('data-j');
+    if(j === 'poll'){ my.poll = !my.poll; lsp.sSig = null; lspPaintS(); return; }
+    my.joker = j; my.jw = null; my.poll = false;
+    senden();
+  } else if(a === 'ow'){
+    if(s.phase !== 'one' || s.oneUid !== ich || typeof my.oneWahl === 'number') return;
+    var i = +b.getAttribute('data-i');
+    if(my.poll){ my.joker = 'poll'; my.jw = i; my.poll = false; }
+    else { my.oneWahl = i; playBlip(); }
+    senden();
+  } else return;
+  lsp.sSig = null;
   lspPaintS();
 }
 
@@ -28361,6 +29860,7 @@ var KZ_BEREICHE = [
 var KZ_TILES = [
   { id:'quiz',    bereich:'spiele', icon:'🎮', name:'Klassen-Quiz',        desc:'📱 Live-Quiz auf den Geräten der Klasse, Rangliste am Beamer — einzeln oder in Teams.' },
   { id:'million', bereich:'spiele', icon:'💰', name:'Wer wird Millionär',  desc:'📱 Die Klasse spielt gemeinsam: alle stimmen still am Gerät ab, die Mehrheit entscheidet — bei Gleichstand Stichwahl, dann Veto.' },
+  { id:'gauntlet', bereich:'spiele', icon:'🔦', name:'Eins gegen alle',     desc:'📱 Eine Person im Spotlight gegen die ganze Klasse: Die Klasse antwortet zuerst still, dann die Person im Spotlight – mit Jokern. Niemand scheidet aus.' },
   { id:'schaetz', bereich:'spiele', icon:'🎯', name:'Schätzmeister',      desc:'📱 Alle tippen eine Zahl — am Beamer erscheinen die Tipps auf dem Zahlenstrahl, am nächsten gewinnt.' },
   { id:'bingo',   bereich:'spiele', icon:'🎱', name:'Bingo',               desc:'📱 Jedes Gerät hat eine eigene Karte mit Antworten. Frage am Beamer — wer zuerst eine Reihe voll hat, ruft Bingo.' },
   { id:'buzzer',  bereich:'spiele', icon:'🔔', name:'Buzzer',              desc:'📱 Jedes Gerät ist ein Buzzer: wer zuerst drückt, darf antworten. Einzeln oder in Teams, mit oder ohne Fragen.' },
@@ -28372,7 +29872,7 @@ var KZ_TILES = [
   { id:'lernphase', bereich:'live', icon:'📚', name:'Lernphase',          desc:'Links siehst du live, wer in der Library ist — wer rausgeht, leuchtet rot. Ohne Sperre.' },
   { id:'fragen',  bereich:'live', icon:'❓', name:'Fragebox',            desc:'Anonyme Fragen der Klasse lesen und beantworten.' },
   { id:'abstimmung', bereich:'live', icon:'🗳️', name:'Abstimmungen',      desc:'Über mehrere Klassen oder Jahrgänge abstimmen — Auswertung pro Klasse, auch als Excel.' },
-  { id:'beamer',  bereich:'beamer', icon:'⏱',  name:'Ruhephase',           desc:'Countdown, Lärmampel und wer gerade sprechen darf — in einem Bild.' },
+  { id:'beamer',  bereich:'beamer', icon:'⏱',  name:'Ruhephase',           desc:'Countdown, Lärmampel oder 🦒 Stille Safari und wer gerade sprechen darf — in einem Bild.' },
   { id:'zufall',  bereich:'beamer', icon:'🎲', name:'Zufall',              desc:'Wer ist dran? (fair — wer oft dran war, kommt seltener), Würfel und Glücksrad.' },
   { id:'slf',     bereich:'spiele', icon:'🌍', name:'Stadt Land Fluss',    desc:'📽️ Buchstaben-Drehscheibe, Kategorien und Sanduhr (1–3 Min.) mit STOPP-Knopf.' },
   { id:'energizer', bereich:'spiele', icon:'⚡', name:'Energizer',          desc:'📽️ Über 60 Aktivierungsspiele mit Timer und Spielhelfern – Bewegung, Kopf, Ruhe und mit Unterrichtsinhalt.' },
@@ -28846,7 +30346,8 @@ function kzmMaterialZeichnen(){
     '<option value="'+KZM_TRIVIA.id+'"'+(fach === KZM_TRIVIA.id ? ' selected' : '')+'>'+esc(kzmFachName(KZM_TRIVIA.id))+(zahl[KZM_TRIVIA.id] ? ' ('+zahl[KZM_TRIVIA.id]+')' : '')+'</option>'+
     (zahl[''] || fach === '' ? '<option value=""'+(fach === '' ? ' selected' : '')+'>Ohne Fach ('+(zahl[''] || 0)+')</option>' : '')+
     '</select>'+(fach && fach !== KZM_TRIVIA.id ? '<button class="btn btn-ghost btn-sm" id="kzmZumFach" type="button">📂 Im Fach öffnen</button>' : '')+
-    '<button class="btn btn-ghost btn-sm" id="kzmPaket" type="button" title="Quizze, Umfragen, Wortwolken und Karteikarten aus einer .json-Datei (z. B. aus einer Unterrichtsplanung) auf einmal anlegen">📥 Paket importieren</button></div>';
+    '<button class="btn btn-ghost btn-sm" id="kzmPaket" type="button" title="Quizze, Umfragen, Wortwolken und Karteikarten aus einer .json-Datei (z. B. aus einer Unterrichtsplanung) auf einmal anlegen">📥 Paket importieren</button>'+
+    '<button class="btn btn-ghost btn-sm" id="kzmFragenImport" type="button" title="Quizlet-, Kahoot-, Blooket-, Moodle-Dateien … als Karteikarten oder Klassen-Quiz">📥 Quizlet, Kahoot …</button></div>';
   if(fach && !trivia){
     var pfad = [], f = kzmFolder(ordner), g = 0;
     while(f && g++ < 10){ pfad.unshift(f); f = kzmFolder(f.parentId); }
@@ -28899,6 +30400,9 @@ function kzmMaterialZeichnen(){
   var zumFach = document.getElementById('kzmZumFach');
   if(zumFach) zumFach.addEventListener('click', function(){ goSubject(fach, ordner); });
   document.getElementById('kzmPaket').addEventListener('click', function(){ kzmPaketDialog(fach, ordner); });
+  document.getElementById('kzmFragenImport').addEventListener('click', function(){
+    openFragenImport({ziel:fach && !trivia ? 'kk' : 'quiz', fach:fach, ordner:ordner, onDone:kzmNachAenderung});
+  });
   box.onclick = function(e){
     var b = e.target.closest('button'); if(!b || !box.contains(b)) return;
     if(b.hasAttribute('data-kzmcrumb')){ r.ordner = b.getAttribute('data-kzmcrumb') || null; kzmMaterialZeichnen(); }
@@ -29158,6 +30662,7 @@ function kzmHolenDialog(subject, here){
     var h = '<h3>🏫 Aus dem Klassenzimmer</h3><p class="kk-ed-info">Neu erstellen oder Vorhandenes hierher holen: <b>'+esc(ort)+'</b></p>';
     h += '<div class="back-row" style="flex-wrap:wrap;margin:0 0 12px;">';
     Object.keys(KZM_TYPEN).forEach(function(t){ h += '<button class="btn btn-primary btn-sm" data-kzmhneu="'+t+'" type="button">➕ '+KZM_TYPEN[t].icon+' '+esc(KZM_TYPEN[t].name)+'</button>'; });
+    h += '<button class="btn btn-ghost btn-sm" data-kzmhimport="1" type="button">📥 Aus Quizlet, Kahoot …</button>';
     h += '</div>';
     var andere = items.filter(function(it){ return !(it.fach === subject && (it.ordner || null) === (here || null)); });
     andere.sort(function(a, b){
@@ -29177,6 +30682,7 @@ function kzmHolenDialog(subject, here){
     modalEl.querySelector('.modal').addEventListener('click', function(e){
       var b = e.target.closest('button'); if(!b) return;
       if(b.hasAttribute('data-kzmhneu')){ closeModal(); kzmNeu(b.getAttribute('data-kzmhneu'), subject, here); }
+      else if(b.hasAttribute('data-kzmhimport')){ closeModal(); openFragenImport({ziel:'kk', fach:subject, ordner:here, onDone:kzmNachAenderung}); }
       else if(b.hasAttribute('data-kzmhol')){
         var t = b.getAttribute('data-kzmhol').split('|'), it = kzmItemById(t[0], t.slice(1).join('|'));
         if(!it) return;
@@ -36437,11 +37943,21 @@ function sikoreStufenHtml(aktiv, eigenes){
 }
 
 /* ---------- Mathe › 🧮 SIKORE: virtuelle Übung (direkt im Fach) + Trainer ---------- */
+/* 🧊 Mathe-Werkzeuge: statische Builds von teacher.dev-Apps (Apache-2.0, angepasst, siehe NOTICE.md im Ordner)
+   in geometrie-koerper/ und algebra-kacheln/. Öffnen im Link-Viewer (iframe src, nicht srcdoc: SvelteKit lädt
+   seine Dateien relativ zum Ordner). Kein Firestore, kein Fortschritt. */
+var MWZ_ORDNER = 'mwz_werkzeuge';
 function sikoreVirtuell(){
   return {
-    folders:[],
+    folders:[{id:MWZ_ORDNER, subject:'mathe', parentId:null, name:'🧊 Werkzeuge: 3D-Körper & Algebra-Kacheln', order:-1990, virtual:true}],
     resources:[{id:'sikore_trainer', subject:'mathe', folderId:null, order:-2000, virtual:true, sikore:true, imHub:true,
-      title:'🧮 SIKORE – Sicher Kopfrechnen'}]
+      title:'🧮 SIKORE – Sicher Kopfrechnen'},
+      {id:'mwz_koerper', subject:'mathe', folderId:MWZ_ORDNER, order:0, virtual:true, werkzeug:true, linkUrl:'geometrie-koerper/', linkLabel:'Werkzeug',
+        title:'🧊 Geometrische Körper – Netz, Oberfläche, Volumen',
+        meta:'Quader, Würfel, Prisma, Pyramide, Zylinder, Kegel, Kugel in 3D drehen · Netz auffalten · Oberfläche und Volumen exakt mit Formel · Ergebnisse ausblendbar'},
+      {id:'mwz_kacheln', subject:'mathe', folderId:MWZ_ORDNER, order:1, virtual:true, werkzeug:true, linkUrl:'algebra-kacheln/', linkLabel:'Werkzeug',
+        title:'🟦 Algebra-Kacheln – ausmultiplizieren und faktorisieren',
+        meta:'Terme wie (x + 2)(x − 3) mit Kacheln legen · Schritt für Schritt mit Kontrolle · Lehrperson erstellt eine Aufgabe und teilt sie per Link oder QR-Code'}]
   };
 }
 // Eigenes Level (Schüler:in): jüngste SIKORE-Note (mit Auf-/Abstieg) oder
@@ -38111,7 +39627,8 @@ function paintKkVerwaltung(){
   var sets = (kkDaten.sets || []).slice().sort(function(a, b){ return a.titel.localeCompare(b.titel, 'de'); });
   var h = '<h3>🗂️ Karteikarten</h3>';
   h += '<p class="kk-ed-info">Pro Fach beliebig viele Sets. Die Klasse findet sie im jeweiligen Fach zuoberst unter «🗂️ Karteikarten» und übt sie mit fünf Leitner-Boxen – liegt ein Set in einem Ordner, steht es zusätzlich direkt in diesem Ordner.</p>';
-  h += '<div class="back-row"><button class="btn btn-primary btn-sm" id="kkVwNeu" type="button">➕ Neues Set</button></div>';
+  h += '<div class="back-row"><button class="btn btn-primary btn-sm" id="kkVwNeu" type="button">➕ Neues Set</button>'+
+    '<button class="btn btn-ghost btn-sm" id="kkVwImport" type="button" title="Quizlet, Kahoot, Blooket, Moodle, Anki …">📥 Importieren (Quizlet, Kahoot …)</button></div>';
   if(!sets.length) h += '<div class="empty-state">Noch keine Sets. Leg oben das erste an.</div>';
   h += '<div class="kk-liste">'+kzmGruppiert('kk', sets.map(function(set){
     return {fach:set.fach || '', ordner:set.ordner || null, html:'<div class="kk-set-zeile"><b>'+esc(set.titel)+'</b> <span>'+set.karten.length+' Karten</span>'+
@@ -38123,6 +39640,9 @@ function paintKkVerwaltung(){
   document.getElementById('kkVwClose').addEventListener('click', closeModal);
   document.getElementById('kkVwNeu').addEventListener('click', function(){
     openKkEditor(null, 'englisch', paintKkVerwaltung);
+  });
+  document.getElementById('kkVwImport').addEventListener('click', function(){
+    openFragenImport({ziel:'kk', onDone:paintKkVerwaltung});
   });
   Array.prototype.forEach.call(document.querySelectorAll('[data-kked]'), function(b){
     b.addEventListener('click', function(){
@@ -38136,6 +39656,409 @@ function paintKkVerwaltung(){
       if(set) kkUebersicht(set);
     });
   });
+}
+
+/* ===================== 📥 FRAGEN-IMPORT (Quizlet, Kahoot, Moodle …) =====================
+   Eine Lehrperson holt eine Fragensammlung aus einem anderen Werkzeug in die
+   Library: Datei wählen (oder Quizlet-Text einfügen) → Vorschau mit Häkchen →
+   als 🗂️ Karteikarten-Set oder 🎮 Klassen-Quiz speichern.
+   Gelesen wird mit «Question Commons» (teacher.dev, Apache-2.0, selbst gehostet
+   in assets/vendor/, siehe LIZENZEN.txt) — nur im Browser, die Datei wird nie
+   hochgeladen. Das Paket liefert «Question Banks» mit Fragetypen (multiple-
+   choice, true-false, short-answer, matching …); qiKarten/qiQuiz übersetzen sie
+   in Karten {v,r} bzw. Quizfragen {q,a,c,sec}. Gespeichert wird an den
+   bestehenden Orten (klasseninfo/karteikarten, quizzes/{id}) — darum keine
+   neue Regel in firestore.rules. Quizlet-Exporte (zwei Spalten) erkennt das
+   Paket nur auf Wunsch: klappt das automatische Erkennen bei .txt/.csv/.tsv
+   nicht, wird darum als Quizlet-Export gelesen. */
+
+var QC_URL = './assets/vendor/question-commons-0.3.1.mjs';   // selbst gehostet, siehe assets/vendor/LIZENZEN.txt
+var QI_MAX_BYTES = 20 * 1024 * 1024;
+var qcLaden = null;
+function ladeQc(){
+  if(qcLaden) return qcLaden;
+  qcLaden = import(QC_URL).catch(function(err){ qcLaden = null; throw err; });
+  return qcLaden;
+}
+
+// Die Fehler des Pakets sind englisch — für die Lehrperson auf Deutsch.
+function qiFehlerText(err){
+  var c = err && err.code;
+  if(c === 'not-recognized') return 'Diese Datei kennt der Import nicht. Er liest Exporte bzw. Vorlagen von Quizlet, Kahoot, Blooket, Moodle (GIFT/XML), Canvas/QTI, Blackboard, Brightspace, Respondus, Aiken und Anki.';
+  if(c === 'no-questions') return 'In dieser Datei wurden keine Fragen gefunden.';
+  if(c === 'unsafe-archive') return 'Diese ZIP-Datei ist zu gross oder ungewöhnlich gebaut und wird darum nicht geöffnet.';
+  return 'Die Datei konnte nicht gelesen werden.';
+}
+function qiLesen(name, bytes, format){
+  return ladeQc().catch(function(err){ throw {qiLaden:true, err:err}; }).then(function(qc){
+    var opt = format ? {format:format} : {};
+    return qc.readQuestionFile({name:name, bytes:bytes}, opt).catch(function(err){
+      if(!format && err && err.code === 'not-recognized' && /\.(txt|tsv|csv)$/i.test(name)){
+        return qc.readQuestionFile({name:name, bytes:bytes}, {format:'quizlet'});
+      }
+      throw err;
+    }).then(function(lesung){ return {qc:qc, lesung:lesung}; });
+  });
+}
+
+/* ---------- Übersetzen: Question Bank → Library ---------- */
+
+function qiText(qc, rt){ return rt ? String(qc.plainText(rt) || '').replace(/\s*\n\s*/g, ' ').replace(/\s+/g, ' ').trim() : ''; }
+function qiHatBild(rt){
+  var ja = false;
+  (function lauf(l){ (l || []).forEach(function(n){ if(!n) return; if(n.type === 'block-image') ja = true; lauf(n.content); }); })(rt);
+  return ja;
+}
+function qiAlleFragen(lesung){
+  var out = [];
+  (lesung.banks || []).forEach(function(b){ (b.questions || []).forEach(function(f){ out.push(f); }); });
+  return out;
+}
+function qiKurz(s, n, hin){
+  if(s.length <= n) return s;
+  if(hin) hin.push('gekürzt');
+  return s.slice(0, n - 1).trim() + '…';
+}
+
+// Karteikarten: eine Frage gibt meist eine Karte, eine Zuordnung pro Paar eine.
+function qiKarten(qc, fragen){
+  var out = [];
+  fragen.forEach(function(f, nr){
+    var v = qiText(qc, f.stem), hin = [], r = '', grund = '';
+    if(qiHatBild(f.stem)) hin.push('Bild fehlt');
+    function karte(vv, rr, h){
+      var hh = (h || hin).slice();
+      out.push({nr:nr, v:qiKurz(vv, 200, hh), r:qiKurz(rr, 200, hh), hin:hh});
+    }
+    if(f.type === 'matching'){
+      var paare = (f.pairs || []).filter(function(p){ return p.left && p.right; });
+      if(!paare.length){ out.push({nr:nr, v:v, fehlt:'Zuordnung ohne vollständige Paare'}); return; }
+      paare.forEach(function(p){
+        var h = qiHatBild(p.left) || qiHatBild(p.right) ? ['Bild fehlt'] : [];
+        var l = qiText(qc, p.left), rr = qiText(qc, p.right);
+        if(l && rr) karte(l, rr, h);
+      });
+      return;
+    }
+    if(f.type === 'short-answer'){
+      if(f.suggestedAnswer) r = qiText(qc, f.suggestedAnswer); else grund = 'keine Antwort in der Datei';
+    } else if(f.type === 'multiple-choice' || f.type === 'multiple-answer'){
+      var ok = (f.choices || []).filter(function(c){ return c.correct; }).map(function(c){ return qiText(qc, c.content); }).filter(Boolean);
+      if(!ok.length) grund = 'keine richtige Antwort markiert';
+      else if(f.type === 'multiple-answer'){ r = ok.join(', '); hin.push('mehrere richtige'); }
+      else r = ok[0];
+    } else if(f.type === 'true-false'){
+      r = f.answer ? 'richtig' : 'falsch';
+    } else if(f.type === 'fill-in-the-blank'){
+      var bl = f.blanks || [];
+      if(!bl.length || !bl[0].accepted || !bl[0].accepted.length) grund = 'Lücke ohne Lösung';
+      else if(bl.length === 1) r = bl[0].accepted.join(' / ');
+      else r = bl.map(function(b){ return (b.accepted || [])[0] || '?'; }).join(', ');
+    } else if(f.type === 'numeric'){
+      r = (f.answers || []).map(function(a){ return a.value + (a.tolerance ? ' (±' + a.tolerance + ')' : ''); }).join(' / ');
+      if(!r) grund = 'keine Zahl als Lösung';
+    } else if(f.type === 'ordering'){
+      r = (f.items || []).map(function(x){ return qiText(qc, x); }).join(' → ');
+    } else grund = 'Fragetyp wird nicht unterstützt';
+    if(!v && !grund) grund = qiHatBild(f.stem) ? 'Frage besteht nur aus einem Bild' : 'Frage ohne Text';
+    if(!grund && !r) grund = 'leere Antwort';
+    if(grund){ out.push({nr:nr, v:v, fehlt:grund}); return; }
+    karte(v, r);
+  });
+  return out;
+}
+
+// Klassen-Quiz: genau eine richtige von 2–4 Antworten. Fragen ohne
+// Auswahlantworten (Quizlet-Karten, Lücken, Zahlen, Zuordnungen) bekommen
+// falsche Antworten aus den Lösungen der anderen Fragen derselben Datei.
+function qiQuiz(qc, fragen, sec){
+  var out = [], offen = [];
+  fragen.forEach(function(f, nr){
+    var q = qiText(qc, f.stem), hin = [];
+    if(qiHatBild(f.stem)) hin.push('Bild fehlt');
+    if(!q){ out.push({nr:nr, q:'', fehlt:qiHatBild(f.stem) ? 'Frage besteht nur aus einem Bild' : 'Frage ohne Text'}); return; }
+    if(f.type === 'multiple-choice'){
+      var ch = (f.choices || []).map(function(c){ return {t:qiText(qc, c.content), ok:c.correct}; }).filter(function(c){ return c.t; });
+      var richtig = ch.filter(function(c){ return c.ok; })[0];
+      if(!richtig || ch.length < 2){ out.push({nr:nr, q:q, fehlt:'braucht eine richtige und eine falsche Antwort'}); return; }
+      if(ch.length > 4){
+        hin.push('nur 4 von ' + ch.length + ' Antworten');
+        var falsch = ch.filter(function(c){ return c !== richtig; }).slice(0, 3);
+        ch = ch.filter(function(c){ return c === richtig || falsch.indexOf(c) >= 0; });
+      }
+      var a = ch.map(function(c){ return qiKurz(c.t, 120, hin); });
+      out.push({nr:nr, q:qiKurz(q, 300, hin), a:a, c:ch.indexOf(richtig), sec:sec, hin:hin});
+    } else if(f.type === 'true-false'){
+      out.push({nr:nr, q:qiKurz(q, 300, hin), a:['Richtig', 'Falsch'], c:f.answer ? 0 : 1, sec:sec, hin:hin});
+    } else if(f.type === 'multiple-answer'){
+      out.push({nr:nr, q:q, fehlt:'mehrere richtige Antworten – das Klassen-Quiz kennt nur eine'});
+    } else if(f.type === 'matching'){
+      var paare = (f.pairs || []).filter(function(p){ return p.left && p.right; });
+      if(!paare.length){ out.push({nr:nr, q:q, fehlt:'Zuordnung ohne vollständige Paare'}); return; }
+      paare.forEach(function(p){
+        var l = qiText(qc, p.left), rr = qiText(qc, p.right);
+        if(l && rr) offen.push({nr:nr, q:qiKurz(l, 300, []), loesung:qiKurz(rr, 120, []), hin:[]});
+      });
+    } else {
+      var lsg = '';
+      if(f.type === 'short-answer' && f.suggestedAnswer) lsg = qiText(qc, f.suggestedAnswer);
+      else if(f.type === 'fill-in-the-blank' && (f.blanks || []).length === 1) lsg = ((f.blanks[0].accepted || [])[0]) || '';
+      else if(f.type === 'numeric' && (f.answers || []).length) lsg = f.answers[0].value;
+      if(!lsg){ out.push({nr:nr, q:q, fehlt:f.type === 'ordering' ? 'Reihenfolge – geht im Klassen-Quiz nicht' : 'keine eindeutige Lösung in der Datei'}); return; }
+      offen.push({nr:nr, q:qiKurz(q, 300, hin), loesung:qiKurz(lsg, 120, hin), hin:hin});
+    }
+  });
+  // Falsche Antworten aus den anderen Lösungen ziehen (ohne Doppelte).
+  var pool = [], gesehen = {};
+  offen.forEach(function(o){ var k = o.loesung.toLowerCase(); if(!gesehen[k]){ gesehen[k] = 1; pool.push(o.loesung); } });
+  offen.forEach(function(o){
+    var andere = kkMisch(pool.filter(function(x){ return x.toLowerCase() !== o.loesung.toLowerCase(); })).slice(0, 3);
+    if(!andere.length){ out.push({nr:o.nr, q:o.q, fehlt:'keine anderen Antworten in der Datei, aus denen falsche gebildet werden könnten'}); return; }
+    var a = kkMisch(andere.concat([o.loesung]));
+    out.push({nr:o.nr, q:o.q, a:a, c:a.indexOf(o.loesung), sec:sec, hin:o.hin.concat(['falsche Antworten aus anderen Fragen'])});
+  });
+  out.sort(function(x, y){ return x.nr - y.nr; });
+  return out;
+}
+
+/* ---------- Dialog ---------- */
+
+// opt: {ziel:'kk'|'quiz', fach, ordner, onDone}
+function openFragenImport(opt){
+  opt = opt || {};
+  var st = {ziel:opt.ziel === 'quiz' ? 'quiz' : 'kk', datei:null, lesung:null, qc:null, format:'', posten:[], aus:{}, sec:20};
+
+  function schritt1(meldung){
+    var h = '<h3>📥 Fragen importieren</h3>';
+    h += '<p class="kk-ed-info">Aus Quizlet, Kahoot, Blooket, Moodle (GIFT oder XML), Canvas/QTI, Blackboard, Brightspace, Aiken oder Anki. Die Datei wird nur hier im Browser gelesen, nichts wird hochgeladen. Vor dem Speichern siehst du alle Fragen und wählst aus.</p>';
+    h += '<label class="qi-drop" id="qiDrop"><input type="file" id="qiFile"><span>📄 <b>Datei wählen</b> oder hierher ziehen</span></label>';
+    h += '<details class="qi-hilfe"><summary>Quizlet: Text einfügen</summary>'+
+      '<p class="kk-ed-info">In Quizlet beim Set auf «…» › «Exportieren», «Tabulator» und «Neue Zeile» wählen, Text kopieren und hier einfügen.</p>'+
+      '<textarea class="modal-input" id="qiText" rows="6" spellcheck="false" placeholder="house&#9;Haus&#10;to run&#9;rennen"></textarea>'+
+      '<div class="back-row" style="margin-top:6px;"><button class="btn btn-primary btn-sm" id="qiTextOk" type="button">Text lesen</button></div></details>';
+    h += '<details class="qi-hilfe"><summary>Kahoot und andere: Welche Datei?</summary><p class="kk-ed-info">'+
+      '<b>Kahoot:</b> die Excel-Vorlage (.xlsx), mit der man bei Kahoot Fragen importiert (Spalten «Question», «Answer 1–4», «Time limit», «Correct answer(s)»).<br>'+
+      '<b>Blooket:</b> die CSV- bzw. Excel-Vorlage. <b>Moodle:</b> Fragensammlung als GIFT oder Moodle-XML exportieren. '+
+      '<b>Canvas, Brightspace, Blackboard:</b> den Quiz- bzw. Pool-Export (.zip oder .xml). <b>Anki:</b> «Notizen als Text» (.txt).</p></details>';
+    h += '<p class="kk-ed-info" id="qiStatus">'+(meldung ? '<span style="color:var(--bad);">'+esc(meldung)+'</span>' : '')+'</p>';
+    h += '<div class="modal-actions"><button class="btn btn-ghost btn-sm" id="qiCancel" type="button">Abbrechen</button></div>';
+    openModal(h, 'pr-modal pr-modal-breit');
+    document.getElementById('qiCancel').addEventListener('click', closeModal);
+    var inp = document.getElementById('qiFile'), drop = document.getElementById('qiDrop');
+    ladeQc().then(function(qc){ if(document.body.contains(inp)) inp.setAttribute('accept', qc.QUESTION_FILE_EXTENSIONS.concat(['.csv', '.tsv']).join(',')); }).catch(function(){});
+    inp.addEventListener('change', function(){ if(inp.files && inp.files[0]) dateiNehmen(inp.files[0]); });
+    drop.addEventListener('dragover', function(e){ e.preventDefault(); drop.classList.add('an'); });
+    drop.addEventListener('dragleave', function(){ drop.classList.remove('an'); });
+    drop.addEventListener('drop', function(e){
+      e.preventDefault(); drop.classList.remove('an');
+      var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+      if(f) dateiNehmen(f);
+    });
+    document.getElementById('qiTextOk').addEventListener('click', function(){
+      var t = document.getElementById('qiText').value;
+      if(!t.trim()){ toast('Bitte zuerst den Text aus Quizlet einfügen.'); return; }
+      st.datei = {name:'Quizlet.txt', bytes:new TextEncoder().encode(t)};
+      lesen('quizlet');
+    });
+  }
+
+  function status(t){ var el = document.getElementById('qiStatus'); if(el) el.textContent = t; }
+
+  function dateiNehmen(file){
+    if(file.size > QI_MAX_BYTES){ status('Die Datei ist grösser als 20 MB.'); return; }
+    status('Wird gelesen …');
+    file.arrayBuffer().then(function(buf){
+      st.datei = {name:file.name, bytes:new Uint8Array(buf)};
+      lesen('');
+    }).catch(function(){ status('Die Datei konnte nicht geöffnet werden.'); });
+  }
+
+  function lesen(format){
+    status('Wird gelesen …');
+    qiLesen(st.datei.name, st.datei.bytes, format).then(function(r){
+      st.qc = r.qc; st.lesung = r.lesung; st.format = r.lesung.format;
+      if(!qiAlleFragen(r.lesung).length) throw {code:'no-questions'};
+      st.titel = ((r.lesung.banks || [])[0] || {}).name || st.datei.name.replace(/\.[^.]+$/, '');
+      st.kopf = /^(quizlet|anki)$/.test(st.format) ? {v:'Begriff', r:'Definition'} : {v:'Frage', r:'Antwort'};
+      umrechnen();
+      schritt2();
+    }).catch(function(err){
+      console.error('Fragen-Import', err);
+      schritt1(err && err.qiLaden
+        ? 'Der Import konnte nicht geladen werden – keine Verbindung oder ein älterer Browser. Bitte mit einem aktuellen Chrome, Edge oder Safari nochmals versuchen.'
+        : qiFehlerText(err));
+    });
+  }
+
+  function umrechnen(){
+    var fragen = qiAlleFragen(st.lesung);
+    st.posten = st.ziel === 'kk' ? qiKarten(st.qc, fragen) : qiQuiz(st.qc, fragen, st.sec);
+    st.aus = {};
+  }
+
+  function formatName(id){
+    var f = (st.qc.FORMATS || []).filter(function(x){ return x.id === id; })[0];
+    return f ? f.label : id;
+  }
+
+  function postenHtml(p, i){
+    var an = !p.fehlt && !st.aus[i];
+    var h = '<label class="qi-posten'+(p.fehlt ? ' qi-fehlt' : '')+'">';
+    h += '<input type="checkbox" data-qi="'+i+'"'+(an ? ' checked' : '')+(p.fehlt ? ' disabled' : '')+'>';
+    h += '<span class="qi-posten-txt">';
+    if(st.ziel === 'kk'){
+      h += '<b>'+esc(p.v || '(ohne Text)')+'</b>'+(p.fehlt ? '' : ' <span class="qi-pfeil">→</span> '+esc(p.r));
+    } else {
+      h += '<b>'+esc(p.q || '(ohne Text)')+'</b>';
+      if(!p.fehlt) h += '<span class="qi-antw">'+p.a.map(function(a, j){ return '<span class="'+(j === p.c ? 'ok' : '')+'">'+(j === p.c ? '✓ ' : '')+esc(a)+'</span>'; }).join('')+'</span>';
+    }
+    if(p.fehlt) h += '<small class="qi-grund">⛔ '+esc(p.fehlt)+'</small>';
+    else if(p.hin && p.hin.length) h += '<small class="qi-hin">⚠️ '+esc(p.hin.join(' · '))+'</small>';
+    h += '</span></label>';
+    return h;
+  }
+
+  function zaehlen(){
+    var n = st.posten.filter(function(p, i){ return !p.fehlt && !st.aus[i]; }).length;
+    var el = document.getElementById('qiZahl');
+    var txt = n + ' von ' + st.posten.filter(function(p){ return !p.fehlt; }).length + ' ' + (st.ziel === 'kk' ? 'Karten' : 'Fragen') + ' ausgewählt';
+    if(st.ziel === 'kk' && n > KK_MAX_KARTEN) txt += ' – wird auf ' + Math.ceil(n / KK_MAX_KARTEN) + ' Sets zu höchstens ' + KK_MAX_KARTEN + ' Karten verteilt';
+    if(el) el.textContent = txt;
+    var ok = document.getElementById('qiSave');
+    if(ok){ ok.disabled = !n; ok.textContent = '📥 ' + n + ' übernehmen'; }
+  }
+
+  function eingabenLesen(){
+    var t = document.getElementById('qiTitel'); if(t) st.titel = t.value;
+    var v = document.getElementById('qiKopfV'), r = document.getElementById('qiKopfR');
+    if(v && r) st.kopf = {v:v.value, r:r.value};
+    var s = document.getElementById('qiSec'); if(s){ var x = parseInt(s.value, 10); st.sec = x >= 5 && x <= 180 ? x : 20; }
+    var ab = kzmAblageLesen(); if(ab){ opt.fach = ab.fach; opt.ordner = ab.ordner; }
+  }
+
+  function schritt2(){
+    var l = st.lesung, fehler = l.issues || [];
+    var andere = (l.candidates || []).filter(function(c){ return c.format !== st.format; }).map(function(c){ return c.format; });
+    if(st.format !== 'quizlet' && /\.(txt|tsv|csv)$/i.test(st.datei.name)) andere.push('quizlet');
+    var h = '<h3>📥 Fragen importieren</h3>';
+    h += '<p class="kk-ed-info">📄 <b>'+esc(st.datei.name)+'</b> · gelesen als <b>'+esc(formatName(st.format))+'</b>';
+    if(andere.length){
+      h += ' · <select class="qi-format" id="qiFormat"><option value="">anders lesen …</option>'+
+        andere.filter(function(x, i){ return andere.indexOf(x) === i; }).map(function(id){ return '<option value="'+esc(id)+'">'+esc(formatName(id))+'</option>'; }).join('')+'</select>';
+    }
+    h += '</p>';
+    h += '<div class="qi-ziel" role="radiogroup">'+
+      '<button type="button" class="btn btn-sm '+(st.ziel === 'kk' ? 'btn-primary' : 'btn-ghost')+'" data-qiziel="kk">🗂️ als Karteikarten-Set</button>'+
+      '<button type="button" class="btn btn-sm '+(st.ziel === 'quiz' ? 'btn-primary' : 'btn-ghost')+'" data-qiziel="quiz">🎮 als Klassen-Quiz</button></div>';
+    h += '<label class="modal-label">Titel</label><input class="modal-input" id="qiTitel" maxlength="'+(st.ziel === 'kk' ? 60 : 80)+'" value="'+esc(String(st.titel || '').slice(0, st.ziel === 'kk' ? 60 : 80))+'">';
+    h += kzmAblageHtml(opt.fach || (st.ziel === 'kk' ? 'englisch' : ''), opt.ordner || null, st.ziel === 'kk');
+    if(st.ziel === 'kk'){
+      h += '<div class="pr-grid2"><div><label class="modal-label">Vorderseite heisst</label><input class="modal-input" id="qiKopfV" maxlength="30" value="'+esc(st.kopf.v)+'"></div>'+
+        '<div><label class="modal-label">Rückseite heisst</label><input class="modal-input" id="qiKopfR" maxlength="30" value="'+esc(st.kopf.r)+'"></div></div>';
+    } else {
+      h += '<label class="qz-sec">Zeit pro Frage <input type="number" id="qiSec" min="5" max="180" value="'+st.sec+'"> Sekunden</label>';
+    }
+    if(fehler.length){
+      h += '<details class="qi-hilfe"><summary>⚠️ '+fehler.length+' Stelle'+(fehler.length === 1 ? '' : 'n')+' in der Datei konnte'+(fehler.length === 1 ? '' : 'n')+' nicht gelesen werden</summary><ul class="qi-issues">'+
+        fehler.slice(0, 30).map(function(x){ return '<li>'+esc(x.message)+(x.excerpt ? ' <i>«'+esc(x.excerpt)+'»</i>' : '')+'</li>'; }).join('')+
+        (fehler.length > 30 ? '<li>…</li>' : '')+'</ul><p class="kk-ed-info">Meldungen des Lese-Programms (englisch).</p></details>';
+    }
+    h += '<div class="back-row" style="margin:12px 0 6px;"><button class="btn btn-ghost btn-sm" id="qiAlle" type="button">Alle</button>'+
+      '<button class="btn btn-ghost btn-sm" id="qiKeine" type="button">Keine</button><span class="kk-ed-info" id="qiZahl" style="margin:0 0 0 6px;"></span></div>';
+    h += '<div class="qi-liste" id="qiListe">'+st.posten.map(postenHtml).join('')+'</div>';
+    h += '<div class="modal-actions"><button class="btn btn-ghost btn-sm" id="qiZurueck" type="button">← Andere Datei</button>'+
+      '<button class="btn btn-ghost btn-sm" id="qiCancel" type="button">Abbrechen</button>'+
+      '<button class="btn btn-primary btn-sm" id="qiSave" type="button">📥 übernehmen</button></div>';
+    openModal(h, 'pr-modal pr-modal-breit');
+    kzmAblageVerdrahten();
+    zaehlen();
+    document.getElementById('qiCancel').addEventListener('click', closeModal);
+    document.getElementById('qiZurueck').addEventListener('click', function(){ eingabenLesen(); schritt1(); });
+    var fmt = document.getElementById('qiFormat');
+    if(fmt) fmt.addEventListener('change', function(){ if(fmt.value){ eingabenLesen(); lesen(fmt.value); } });
+    Array.prototype.forEach.call(document.querySelectorAll('[data-qiziel]'), function(b){
+      b.addEventListener('click', function(){
+        var z = b.getAttribute('data-qiziel'); if(z === st.ziel) return;
+        eingabenLesen(); st.ziel = z; umrechnen(); schritt2();
+      });
+    });
+    var sec = document.getElementById('qiSec');
+    if(sec) sec.addEventListener('change', function(){ eingabenLesen(); st.posten.forEach(function(p){ if(!p.fehlt) p.sec = st.sec; }); });
+    document.getElementById('qiListe').addEventListener('change', function(e){
+      var c = e.target.closest('[data-qi]'); if(!c) return;
+      st.aus[c.getAttribute('data-qi')] = !c.checked;
+      zaehlen();
+    });
+    function alle(an){
+      st.posten.forEach(function(p, i){ st.aus[i] = !an; });
+      Array.prototype.forEach.call(document.querySelectorAll('[data-qi]'), function(c){ if(!c.disabled) c.checked = an; });
+      zaehlen();
+    }
+    document.getElementById('qiAlle').addEventListener('click', function(){ alle(true); });
+    document.getElementById('qiKeine').addEventListener('click', function(){ alle(false); });
+    document.getElementById('qiSave').addEventListener('click', speichern);
+  }
+
+  function speichern(){
+    eingabenLesen();
+    var titel = String(st.titel || '').trim();
+    var wahl = st.posten.filter(function(p, i){ return !p.fehlt && !st.aus[i]; });
+    if(!titel){ toast('Bitte einen Titel eingeben.'); return; }
+    if(!wahl.length){ toast('Keine Frage ausgewählt.'); return; }
+    var knopf = document.getElementById('qiSave'); if(knopf) knopf.disabled = true;
+    var p = st.ziel === 'kk' ? kkSpeichern(titel, wahl) : quizSpeichern(titel, wahl);
+    p.then(function(msg){
+      closeModal(); toast(msg);
+      if(opt.onDone) opt.onDone();
+    }).catch(function(err){
+      if(knopf) knopf.disabled = false;
+      if(err && err.qiMeldung){ toast(err.qiMeldung); return; }
+      console.error('Fragen-Import speichern', err); toast('Konnte nicht gespeichert werden.');
+    });
+  }
+
+  function kkSpeichern(titel, wahl){
+    var fach = opt.fach;
+    if(!fach || fach === KZM_TRIVIA.id) return Promise.reject({qiMeldung:'Karteikarten brauchen ein Fach.'});
+    // Doppelte Vorderseiten zusammenlegen: der Lernstand hängt an der Vorderseite (kkKarteKey).
+    var karten = [], idx = {};
+    wahl.forEach(function(p){
+      var k = p.v.trim().toLowerCase();
+      if(idx[k] != null){ var a = karten[idx[k]]; if(a.r.split(' / ').indexOf(p.r) < 0) a.r = qiKurz(a.r + ' / ' + p.r, 200, []); return; }
+      idx[k] = karten.length; karten.push({v:p.v, r:p.r});
+    });
+    var teile = [];
+    for(var i=0;i<karten.length;i+=KK_MAX_KARTEN) teile.push(karten.slice(i, i + KK_MAX_KARTEN));
+    return kkLoad(true).then(function(sets){
+      sets = (sets || []).slice();
+      if(sets.length + teile.length > KK_MAX_SETS) throw {qiMeldung:'Mehr als '+KK_MAX_SETS+' Sets sind nicht vorgesehen.'};
+      teile.forEach(function(k, n){
+        sets.push({
+          id: 'kk'+Date.now().toString(36)+Math.random().toString(36).slice(2, 6),
+          fach: fach, titel: (teile.length > 1 ? titel.slice(0, 50) + ' (Teil ' + (n + 1) + ')' : titel).slice(0, 60),
+          kopf: {v:String(st.kopf.v || '').trim() || 'Vorderseite', r:String(st.kopf.r || '').trim() || 'Rückseite'},
+          karten: k, ordner: opt.ordner || '',
+          von: (state.profile && state.profile.displayName) || '',
+          vonUid: (state.user && state.user.uid) || '',
+          geaendert: Date.now()
+        });
+      });
+      return kkSetsSpeichern(sets);
+    }).then(function(){
+      return karten.length + ' Karten importiert' + (teile.length > 1 ? ' (' + teile.length + ' Sets)' : '') + '.';
+    });
+  }
+
+  function quizSpeichern(titel, wahl){
+    var fach = opt.fach || '';
+    return setDoc(doc(kcol('quizzes')), {
+      title: titel.slice(0, 80), subject: fach, folderId: fach ? (opt.ordner || null) : null,
+      questions: wahl.map(function(p){ return {q:p.q, a:p.a.slice(0, 4), c:p.c, sec:st.sec}; }),
+      createdBy: state.profile.displayName, createdAt: serverTimestamp()
+    }).then(function(){ return wahl.length + ' Fragen als Klassen-Quiz importiert.'; });
+  }
+
+  schritt1();
 }
 
 /* ---------- Klassenübersicht ---------- */
@@ -38352,6 +40275,7 @@ function mtAnzeige(s){ return /^-?\d{4,}(\.\d+)?$/.test(String(s)) ? mtZahl(s) :
 // exakt:'soft' → Gross-/Kleinschreibung egal, aber Leerzeichen und Apostroph
 //                zählen (z. B. «Rad fahren» vs. «radfahren»)
 function mtVgl(f, s){
+  if(f && f.typ === 'geld') return String(cafeGeldSumme(s));   // ☕ Kassenschublade: die Summe zählt
   s = String(s == null ? '' : s).trim();
   if(!f || !f.exakt) return mtNorm(s);
   if(f.exakt === 'soft') return s.toLowerCase().replace(/[\u2019`\u00b4]/g, "'").replace(/\s+/g, ' ');
@@ -39098,6 +41022,203 @@ function mtGenWRezept(l){
     felder:[{loesung:mtFmt(erg), nach:z[1]}],
     tipp:'Dreisatz: zuerst für 1 Person ('+mtZahl(mtFmt(menge))+' : '+von+'), dann mal '+nach+'.'};
 }
+
+/* ---------- ☕ Rechen-Café ----------
+   Kassen-Simulation für Alltagsmathe (Niveau G): Bestellung eintippen,
+   Zwischensumme, Aktion in %, darin enthaltene MWST (8,1 %, in der Schweiz im
+   Preis inbegriffen), Trinkgeld, auf 5 Rappen runden und Rückgeld mit Noten und
+   Münzen. Idee nach «Calculation Cafe» und «Class Grocery» von teacher.dev
+   (Apache-2.0) – hier eigenständig neu geschrieben, kein Code übernommen.
+   Gerechnet wird intern immer in Rappen (ganze Zahlen), damit keine
+   Kommafehler entstehen. Die Bilder (Preistafel, Kassenzettel) sind echte SVG
+   mit festen Farben – so kommen sie auch ins Prüfungs-PDF (q.svg).
+   Antwortfeld «geld» = Kassenschublade: Noten und Münzen antippen, die Summe
+   zählt (jede Stückelung mit dem richtigen Betrag ist richtig). */
+var CAFE_KARTE = [
+  ['Gipfeli', 180], ['Schoggigipfeli', 240], ['Nussgipfel', 320], ['Laugenbrezel', 250], ['Berliner', 280], ['Zopfbrötli', 150],
+  ['Cremeschnitte', 550], ['Rüeblitorte', 540], ['Carac', 490], ['Birchermüesli', 650], ['Schinkensandwich', 750], ['Käseküchlein', 480],
+  ['Kafi Crème', 430], ['Espresso', 400], ['Cappuccino', 520], ['Ovomaltine', 500], ['Heisse Schoggi', 490], ['Rivella', 450],
+  ['Süssmost', 400], ['Mineral', 350], ['Eistee', 420]
+];
+var CAFE_LEUTE = ['Lea', 'Luca', 'Mia', 'Noah', 'Elin', 'Jonas', 'Frau Meier', 'Herr Keller', 'Frau Gashi', 'Herr Rüegg', 'Grosi Vreni', 'Familie Huber'];
+var CAFE_NOTEN = [10000, 5000, 2000, 1000];
+var CAFE_GELD = [5000, 2000, 1000, 500, 200, 100, 50, 20, 10, 5];
+var MT_CAFE_LEVEL = ['Bestellung eintippen (Preise auf 50 Rp.)', 'Mehrere Stück: 2 × Gipfeli …', 'Rückgeld berechnen',
+  'Rückgeld mit Noten und Münzen', 'Auf 5 Rappen runden', 'Aktion: Rabatt in %', 'MWST: Wie viel steckt im Preis?',
+  'Trinkgeld', 'Die ganze Kasse', 'Alles gemischt'];
+
+function cafeFr(rp){ return (Math.round(rp) / 100).toFixed(2); }
+function cafeR5(rp){ return Math.round(rp / 5) * 5; }
+function cafeGeldName(rp){ return rp >= 100 ? (rp / 100) + (rp >= 1000 ? '' : ' Fr.') : rp + ' Rp.'; }
+// Gekürzt wie auf dem Notizblock: 10 + 2 + 0.50
+function cafeGeldText(st){ return st.map(function(rp){ return rp % 100 ? cafeFr(rp) : String(rp / 100); }).join(' + '); }
+function cafeGeldStuecke(t){
+  return String(t == null ? '' : t).split('+').map(function(x){ return Math.round(parseFloat(x.replace(',', '.')) * 100); })
+    .filter(function(rp){ return CAFE_GELD.indexOf(rp) >= 0; });
+}
+function cafeGeldSumme(t){ return cafeGeldStuecke(t).reduce(function(s, rp){ return s + rp; }, 0); }
+// Möglichst wenige Stücke – so steht es in der Lösung.
+function cafeStueckeln(rp){
+  var out = [];
+  CAFE_GELD.forEach(function(w){ while(rp >= w){ out.push(w); rp -= w; } });
+  return out;
+}
+function cafeMenge(n, name){ return n + ' × ' + name; }
+function cafeBestellung(anz, maxStk, einfach){
+  var karte = CAFE_KARTE.filter(function(x){ return !einfach || x[1] % 50 === 0; });
+  return mtMisch(karte).slice(0, anz).map(function(x){ return {name:x[0], preis:x[1], n:maxStk > 1 ? mtZuf(1, maxStk) : 1}; });
+}
+function cafeSumme(zeilen){ return zeilen.reduce(function(s, z){ return s + z.preis * z.n; }, 0); }
+
+/* SVG-Bilder: Preistafel und Kassenzettel */
+function cafeSvgText(x, y, t, opt){
+  opt = opt || {};
+  return '<text x="'+x+'" y="'+y+'"'+(opt.r ? ' text-anchor="end"' : opt.m ? ' text-anchor="middle"' : '')+' font-size="'+(opt.gr || 15)+'"'+
+    (opt.b ? ' font-weight="700"' : '')+' fill="#1f1a14" font-family="Carlito,Calibri,Arial,sans-serif">'+esc(t)+'</text>';
+}
+function cafeTafel(zeilen){
+  // Die bestellten Sachen plus ein paar andere – die Preise sucht man selbst.
+  var namen = {}, liste = zeilen.map(function(z){ namen[z.name] = 1; return [z.name, z.preis]; });
+  mtMisch(CAFE_KARTE.filter(function(x){ return !namen[x[0]]; })).slice(0, Math.max(3, 8 - liste.length)).forEach(function(x){ liste.push(x); });
+  liste.sort(function(a, b){ return CAFE_KARTE.map(function(x){ return x[0]; }).indexOf(a[0]) - CAFE_KARTE.map(function(x){ return x[0]; }).indexOf(b[0]); });
+  var hoehe = 58 + liste.length * 24, h = '<svg class="cafe-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 '+hoehe+'" role="img" aria-label="Preistafel">';
+  h += '<rect x="2" y="2" width="296" height="'+(hoehe - 4)+'" rx="12" fill="#fff8ec" stroke="#8a6a3d" stroke-width="3"/>';
+  h += cafeSvgText(150, 30, 'CAFÉ SEEBLICK · PREISE', {m:1, b:1, gr:16});
+  h += '<line x1="20" y1="42" x2="280" y2="42" stroke="#8a6a3d" stroke-width="1.5"/>';
+  liste.forEach(function(x, i){
+    var y = 66 + i * 24;
+    h += cafeSvgText(22, y, x[0]) + '<line x1="'+(30 + x[0].length * 7.4)+'" y1="'+(y - 4)+'" x2="226" y2="'+(y - 4)+'" stroke="#c9b48f" stroke-width="1.2" stroke-dasharray="2 4"/>' + cafeSvgText(278, y, cafeFr(x[1]), {r:1, b:1});
+  });
+  return h + '</svg>';
+}
+// zeilen: [[links, rechts, fett]] – rechts darf '' oder '?' sein.
+function cafeBon(zeilen){
+  var hoehe = 66 + zeilen.length * 24, h = '<svg class="cafe-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 '+hoehe+'" role="img" aria-label="Kassenzettel">';
+  h += '<path d="M4 4 H296 V'+(hoehe - 12)+' l-12 8 l-12 -8 l-12 8 l-12 -8 l-12 8 l-12 -8 l-12 8 l-12 -8 l-12 8 l-12 -8 l-12 8 l-12 -8 l-12 8 l-12 -8 l-12 8 l-12 -8 l-12 8 l-12 -8 l-12 8 l-12 -8 l-12 8 l-12 -8 l-12 8 l-12 -8 l-8 6 Z" fill="#ffffff" stroke="#9a9a9a" stroke-width="1.5"/>';
+  h += cafeSvgText(150, 30, 'CAFÉ SEEBLICK', {m:1, b:1, gr:16}) + cafeSvgText(150, 47, 'Seestrasse 1 · Altnau', {m:1, gr:11});
+  zeilen.forEach(function(z, i){
+    var y = 76 + i * 24;
+    if(z === '-'){ h += '<line x1="16" y1="'+(y - 8)+'" x2="284" y2="'+(y - 8)+'" stroke="#555" stroke-width="1" stroke-dasharray="4 3"/>'; return; }
+    h += cafeSvgText(18, y, z[0], {b:z[2]}) + (z[1] === '?' ? '<rect x="214" y="'+(y - 15)+'" width="66" height="20" rx="4" fill="#fff3c4" stroke="#d9a400"/>' + cafeSvgText(247, y, '?', {m:1, b:1}) : cafeSvgText(282, y, z[1], {r:1, b:z[2]}));
+  });
+  return h + '</svg>';
+}
+function cafeBonZeilen(zeilen){ return zeilen.map(function(z){ return [cafeMenge(z.n, z.name), cafeFr(z.preis * z.n)]; }); }
+
+function mtGenCafe(l){
+  if(l === 10) l = mtZuf(1, 9);
+  var wer = mtAus(CAFE_LEUTE), z, sum;
+  if(l <= 2){
+    z = cafeBestellung(l === 1 ? mtZuf(2, 3) : 3, l === 1 ? 1 : 4, l === 1);
+    sum = cafeSumme(z);
+    return {frage:'☕ '+wer+' bestellt. Tippe die Bestellung in die Kasse – die Preise stehen auf der Tafel.', svg:cafeTafel(z), dedup:z.map(function(x){ return x.n + x.name; }).join(','),
+      felder:z.map(function(x){ return {vor:cafeMenge(x.n, x.name)+' =', loesung:cafeFr(x.preis * x.n), nach:'Fr.'}; }).concat([{vor:'Zwischensumme =', loesung:cafeFr(sum), nach:'Fr.'}]),
+      tipp:(l === 2 ? 'Zuerst jede Zeile: Anzahl · Preis. ' : '')+'Dann alle Zeilen zusammenzählen: '+z.map(function(x){ return cafeFr(x.preis * x.n); }).join(' + ')+' = '+cafeFr(sum)+'.'};
+  }
+  if(l <= 4){
+    z = cafeBestellung(mtZuf(1, 3), 2, false); sum = cafeSumme(z);
+    var note = CAFE_NOTEN.filter(function(n){ return n > sum && n <= sum * 6 + 1000; });
+    note = note.length ? mtAus(note) : CAFE_NOTEN.filter(function(n){ return n > sum; }).pop();
+    var rueck = note - sum, bon = cafeBon(cafeBonZeilen(z).concat(['-', ['TOTAL CHF', cafeFr(sum), 1], ['Bar', cafeFr(note)], ['Rückgeld', '?', 1]]));
+    var f = [{vor:'Rückgeld =', loesung:cafeFr(rueck), nach:'Fr.'}];
+    if(l === 4) f.push({typ:'geld', vor:'Aus der Kasse:', loesung:cafeGeldText(cafeStueckeln(rueck))});
+    return {frage:'💵 '+wer+' bezahlt mit einer '+(note / 100)+'er-Note. '+(l === 4 ? 'Berechne das Rückgeld und gib es aus der Kasse – tippe Noten und Münzen an.' : 'Wie viel Rückgeld gibst du?'),
+      svg:bon, felder:f, tipp:cafeFr(note)+' − '+cafeFr(sum)+' = '+cafeFr(rueck)+'. Tipp: vom Preis aus hochzählen bis '+cafeFr(note)+'.'+(l === 4 ? ' Mit wenigen Stücken: '+cafeGeldText(cafeStueckeln(rueck))+'.' : '')};
+  }
+  if(l === 5){
+    // Pralinés werden gewogen – darum krumme Rappen; bar wird auf 5 Rappen gerundet.
+    var g = mtZuf(70, 260), proKg = mtAus([7200, 8900, 9600, 11800]), pral = Math.round(g * proKg / 1000), dazu = mtAus(CAFE_KARTE);
+    sum = pral + dazu[1];
+    if(sum % 5 === 0){ g++; pral = Math.round(g * proKg / 1000); sum = pral + dazu[1]; }
+    var gerundet = cafeR5(sum), rest = sum % 10;
+    return {frage:'🪙 '+wer+' bezahlt bar. Bargeld wird auf 5 Rappen gerundet. Wie viel verlangst du?',
+      svg:cafeBon([['Pralinés '+g+' g', cafeFr(pral)], ['1 × '+dazu[0], cafeFr(dazu[1])], '-', ['TOTAL CHF', cafeFr(sum), 1], ['Bar, gerundet', '?', 1]]),
+      felder:[{vor:'Bar gerundet =', loesung:cafeFr(gerundet), nach:'Fr.'}],
+      tipp:'Schau die letzte Ziffer an: '+rest+' Rappen. 1 und 2 → abrunden auf 0 · 3, 4, 6, 7 → auf 5 · 8 und 9 → aufrunden auf 10. Also '+cafeFr(sum)+' → '+cafeFr(gerundet)+'.'};
+  }
+  if(l === 6 || l === 9){
+    var proz, rab, tot, v = 0;
+    do{
+      z = cafeBestellung(l === 9 ? 3 : mtZuf(2, 3), 3, false); sum = cafeSumme(z);
+      proz = mtAus(l === 9 ? [10, 20, 25] : [10, 20, 25, 50]); rab = sum * proz / 100; v++;
+    } while(rab !== Math.round(rab) && v < 60);
+    rab = Math.round(rab); tot = cafeR5(sum - rab);
+    var ff = [{vor:'Zwischensumme =', loesung:cafeFr(sum), nach:'Fr.'}, {vor:'Rabatt '+proz+' % =', loesung:cafeFr(rab), nach:'Fr.'}, {vor:'Total (auf 5 Rp.) =', loesung:cafeFr(tot), nach:'Fr.'}];
+    var zl = cafeBonZeilen(z).concat(['-', ['Zwischensumme', '?'], ['Aktion −'+proz+' %', '?'], ['TOTAL CHF', '?', 1]]);
+    var txt = '🏷️ Heute Aktion: −'+proz+' % auf alles! '+wer+' bestellt.';
+    if(l === 9){
+      var note9 = [1000, 2000, 5000, 10000].filter(function(n){ return n > tot; })[0];
+      ff.push({vor:'Rückgeld von '+(note9 / 100)+' Fr. =', loesung:cafeFr(note9 - tot), nach:'Fr.'});
+      zl.push(['Bar', cafeFr(note9)], ['Rückgeld', '?', 1]);
+      txt = '🧾 Die ganze Kasse: Heute gibt es −'+proz+' % auf alles. '+wer+' bezahlt mit einer '+(note9 / 100)+'er-Note.';
+    }
+    return {frage:txt, svg:cafeBon(zl), felder:ff,
+      tipp:'Zwischensumme '+cafeFr(sum)+'. '+proz+' % davon: '+cafeFr(sum)+' : 100 · '+proz+' = '+cafeFr(rab)+'. Total: '+cafeFr(sum)+' − '+cafeFr(rab)+' = '+cafeFr(sum - rab)+(sum - rab !== tot ? ', auf 5 Rp. gerundet '+cafeFr(tot) : '')+'.'};
+  }
+  if(l === 7){
+    z = cafeBestellung(mtZuf(2, 4), 2, false); sum = cafeSumme(z);
+    var mwst = Math.round(sum * 81 / 1081), ohne = sum - mwst;
+    return {frage:'🧾 Auf dem Kassenzettel steht: «inkl. 8.1 % MWST». Wie viel MWST steckt im Total – und wie viel bekommt das Café selbst?',
+      svg:cafeBon(cafeBonZeilen(z).concat(['-', ['TOTAL CHF', cafeFr(sum), 1], ['davon MWST 8.1 %', '?'], ['ohne MWST', '?']])),
+      // ±1 Rappen: je nach Rechenweg wird an einer anderen Stelle gerundet
+      felder:[{vor:'MWST =', loesung:[cafeFr(mwst), cafeFr(mwst - 1), cafeFr(mwst + 1)], nach:'Fr.'}, {vor:'ohne MWST =', loesung:[cafeFr(ohne), cafeFr(ohne + 1), cafeFr(ohne - 1)], nach:'Fr.'}],
+      tipp:'Das Total sind 108.1 %. MWST = '+cafeFr(sum)+' : 108.1 · 8.1 = '+cafeFr(mwst)+' (auf Rappen runden). Ohne MWST: '+cafeFr(sum)+' − '+cafeFr(mwst)+' = '+cafeFr(ohne)+'.'};
+  }
+  // Level 8: Trinkgeld
+  var art = mtZuf(0, 2);
+  z = cafeBestellung(mtZuf(2, 3), 2, false); sum = cafeSumme(z);
+  if(sum % 100 === 0) sum += 40;   // sonst gibt es nichts aufzurunden
+  var bonT = cafeBon([['Ihre Bestellung', ''], '-', ['TOTAL CHF', cafeFr(sum), 1]]);
+  if(art === 0){
+    var auf = Math.ceil(sum / 100) * 100;
+    return {frage:'🙂 '+wer+' war zufrieden und rundet auf den nächsten ganzen Franken auf.', svg:bonT,
+      felder:[{vor:'bezahlt =', loesung:cafeFr(auf), nach:'Fr.'}, {vor:'Trinkgeld =', loesung:cafeFr(auf - sum), nach:'Fr.'}],
+      tipp:'Der nächste ganze Franken nach '+cafeFr(sum)+' ist '+cafeFr(auf)+'. Trinkgeld = '+cafeFr(auf)+' − '+cafeFr(sum)+'.'};
+  }
+  if(art === 1){
+    var mach = Math.ceil((sum + 1) / 500) * 500;
+    return {frage:'🙂 '+wer+' gibt dir das Geld und sagt: «Mach '+(mach / 100)+'!» Wie viel Trinkgeld ist das?', svg:bonT,
+      felder:[{vor:'Trinkgeld =', loesung:cafeFr(mach - sum), nach:'Fr.'}],
+      tipp:'«Mach '+(mach / 100)+'» heisst: '+cafeFr(mach)+' bezahlen. '+cafeFr(mach)+' − '+cafeFr(sum)+' = '+cafeFr(mach - sum)+'.'};
+  }
+  var tg = cafeR5(sum / 10);
+  return {frage:'🙂 '+wer+' gibt 10 % Trinkgeld (auf 5 Rappen gerundet). Wie viel ist das – und wie viel bezahlt '+(/^(Frau|Herr|Grosi|Familie)/.test(wer) ? 'die Person' : wer)+' total?', svg:bonT,
+    felder:[{vor:'Trinkgeld =', loesung:cafeFr(tg), nach:'Fr.'}, {vor:'total =', loesung:cafeFr(sum + tg), nach:'Fr.'}],
+    tipp:'10 % = durch 10: '+cafeFr(sum)+' : 10 = '+(sum / 1000).toFixed(3)+', auf 5 Rp. gerundet '+cafeFr(tg)+'. Total: '+cafeFr(sum)+' + '+cafeFr(tg)+'.'};
+}
+
+// Antwortfeld «geld»: Kassenschublade. Der Wert liegt in einem versteckten
+// .mt-in – Trainer und Prüfung speichern ihn über das normale input-Ereignis.
+function cafeGeldHtml(k, wert, mark){
+  var st = cafeGeldStuecke(wert), sum = st.reduce(function(s, rp){ return s + rp; }, 0);
+  var stueck = function(rp, attr){
+    return '<button type="button" class="cafe-st '+(rp >= 1000 ? 'note n'+(rp / 100) : 'muenze'+(rp === 5 ? ' gold' : rp < 100 ? ' klein' : ''))+'" '+attr+(mark ? ' disabled' : '')+' title="'+esc(cafeGeldName(rp))+'">'+esc(cafeGeldName(rp))+'</button>';
+  };
+  var h = '<span class="cafe-geld'+(mark ? ' fix' : '')+'"><input class="mt-in cafe-geld-in" data-k="'+esc(k)+'" type="hidden" value="'+esc(wert == null ? '' : String(wert))+'">';
+  h += '<span class="cafe-ablage">'+(st.length ? st.map(function(rp, i){ return stueck(rp, 'data-geld-weg="'+i+'"'); }).join('') : '<span class="cafe-leer">Noch leer – tippe unten Noten und Münzen an.</span>')+
+    '<span class="cafe-summe">= '+cafeFr(sum)+' Fr.</span></span>';
+  if(!mark) h += '<span class="cafe-lade" aria-label="Kassenschublade">'+CAFE_GELD.map(function(rp){ return stueck(rp, 'data-geld="'+rp+'"'); }).join('')+'</span>'+
+    '<small class="cafe-klein">Antippen = hinlegen · in der Ablage antippen = zurücknehmen</small>';
+  return h + '</span>';
+}
+document.addEventListener('click', function(e){
+  var b = e.target && e.target.closest ? e.target.closest('[data-geld],[data-geld-weg]') : null;
+  if(!b || b.disabled) return;
+  var box = b.closest('.cafe-geld');
+  if(!box || box.classList.contains('fix')) return;
+  var inp = box.querySelector('.cafe-geld-in'), st = cafeGeldStuecke(inp.value);
+  if(b.hasAttribute('data-geld')){
+    if(st.length >= 12){ toast('Höchstens 12 Stücke – nimm grössere Noten oder Münzen.'); return; }
+    st.push(+b.getAttribute('data-geld'));
+  } else st.splice(+b.getAttribute('data-geld-weg'), 1);
+  st.sort(function(x, y){ return y - x; });
+  var k = inp.getAttribute('data-k'), hilfe = document.createElement('span');
+  hilfe.innerHTML = cafeGeldHtml(k, cafeGeldText(st), '');
+  var neu = hilfe.firstChild;
+  box.parentNode.replaceChild(neu, box);
+  try{ playBlip(); }catch(err){}
+  neu.querySelector('.cafe-geld-in').dispatchEvent(new Event('input', {bubbles:true}));
+});
 
 /* ---------- Registry: welcher Trainer gehört zu welchem Fach ----------
    fach = Fach-Id aus SUBJECTS · num = Zahlen-Tastatur auf dem Handy ·
@@ -40007,6 +42128,9 @@ var MT_TRAINER = [
    deko:['½','0.5','50%','¾','25%'], grad:'linear-gradient(135deg,#6B1220 0%,#A82238 55%,#E63950 100%)', levels:MT_BDP_LEVEL, gen:mtGenBdp},
   {id:'mt_terme', fach:'mathe', num:true, icon:'🧩', name:'Gleichungen lösen', kurz:'x auflösen – Schritt für Schritt schwieriger.',
    deko:['x','=','+','−','( )'], grad:'linear-gradient(135deg,#123A5F 0%,#1D5C93 55%,#3A7BBF 100%)', levels:MT_TERM_LEVEL, gen:mtGenTerm},
+  {id:'mt_cafe', fach:'mathe', num:true, icon:'☕', name:'Rechen-Café', kurz:'An der Kasse: Bestellung, Rabatt, MWST, Trinkgeld und Rückgeld.',
+   kurz2:'Du arbeitest an der Kasse vom Café Seeblick: Bestellungen eintippen, Aktionen abziehen, die MWST ausrechnen, auf 5 Rappen runden und das Rückgeld mit Noten und Münzen geben. Beträge in Franken eintippen (z. B. 6.90) und «Kontrollieren» drücken – bei Fehlern gibt es einen Tipp.',
+   deko:['☕','🥐','Fr.','%','5 Rp.'], grad:'linear-gradient(135deg,#4A2C17 0%,#7A4A26 55%,#C08040 100%)', levels:MT_CAFE_LEVEL, gen:mtGenCafe},
 
   /* 📕 Deutsch */
   {id:'mt_d_gross', fach:'deutsch', gruppe:'Gross- und Kleinschreibung', icon:'🔠', name:'Gross und klein', kurz:'Welches Wort muss grossgeschrieben werden?',
@@ -40356,7 +42480,7 @@ function renderMtTrainer(r){
     if(hot && (e.key === 'Enter' || e.key === ' ')){ e.preventDefault(); hot.dispatchEvent(new MouseEvent('click', {bubbles:true})); return; }
     if(e.key !== 'Enter' || !e.target.classList.contains('mt-in')) return;
     e.preventDefault();
-    var alle = Array.prototype.slice.call(blatt.querySelectorAll('.mt-in:not([readonly])')), i = alle.indexOf(e.target);
+    var alle = Array.prototype.slice.call(blatt.querySelectorAll('.mt-in:not([readonly]):not([type="hidden"])')), i = alle.indexOf(e.target);
     if(alle[i+1]) alle[i+1].focus(); else document.getElementById('mtPruefen').focus();
   });
   mtLevelSetzen(mtT.level, true);
@@ -40409,6 +42533,8 @@ function mtFeldHtml(k, f, wert, mark, num){
   if(f.vor) h += '<span class="mt-vor">'+esc(f.vor)+'</span>';
   if(f.typ === 'bild'){
     h += mtHotbildHtml(k, f, wert, mark);
+  } else if(f.typ === 'geld'){
+    h += cafeGeldHtml(k, wert, mark);
   } else if(f.typ === 'wahl'){
     var soll = [].concat(f.loesung)[0];
     h += '<span class="mt-wahl">'+f.optionen.map(function(o){
@@ -40745,7 +42871,7 @@ function mtPrStart(p, sess, ov, saved){
     return n;
   }
   function merken(k, v){
-    if(String(v).trim()) st.ans[k] = String(v).slice(0, 40); else delete st.ans[k];
+    if(String(v).trim()) st.ans[k] = String(v).slice(0, 80); else delete st.ans[k];
     pruefStand(sess, Object.assign({}, st.ans), zaehlen());
   }
   zaehlen();
@@ -40771,7 +42897,7 @@ function mtPrStart(p, sess, ov, saved){
     if(hot && (e.key === 'Enter' || e.key === ' ')){ e.preventDefault(); hot.dispatchEvent(new MouseEvent('click', {bubbles:true})); return; }
     if(e.key !== 'Enter' || !e.target.classList.contains('mt-in')) return;
     e.preventDefault();
-    var alle = Array.prototype.slice.call(el.querySelectorAll('.mt-in')), i = alle.indexOf(e.target);
+    var alle = Array.prototype.slice.call(el.querySelectorAll('.mt-in:not([type="hidden"])')), i = alle.indexOf(e.target);
     if(alle[i+1]) alle[i+1].focus();
   });
   var erstes = el.querySelector('.mt-in');
