@@ -3182,7 +3182,7 @@ import {
   initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
   getFirestore, doc, getDoc, getDocFromCache, getDocs, getDocsFromServer, collection, query, where, onSnapshot, serverTimestamp, increment,
   setDoc as fsSetDoc, updateDoc as fsUpdateDoc, deleteDoc as fsDeleteDoc, writeBatch as fsWriteBatch, Bytes, deleteField, arrayUnion, arrayRemove,
-  connectFirestoreEmulator
+  connectFirestoreEmulator, waitForPendingWrites
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 
 /* =====================================================================
@@ -8349,6 +8349,20 @@ function doLogout(){
 }
 
 var lastAuthedUid = null, profilVersuche = 0;
+// 🪟 Aktivitäts-Fenster (siehe «AKTIVITÄT IM EIGENEN FENSTER»): ?akt=<ziel>&kl=<klasse>.
+// Die Klasse vor dem Anmelden in diesen Tab übernehmen, danach die Adresse aufräumen
+// (ein Neuladen des Fensters startet nichts ein zweites Mal).
+var AKT_ZIEL = null;
+(function(){
+  var m = /[?&]akt=([^&]*)/.exec(location.search);
+  if(!m) return;
+  try{ AKT_ZIEL = decodeURIComponent(m[1]); }catch(e){ return; }
+  var k = /[?&]kl=([^&]*)/.exec(location.search);
+  if(k){ try{ sessionStorage.setItem(KLASSE_ANSICHT_KEY, decodeURIComponent(k[1])); }catch(e){} }
+  try{ history.replaceState(history.state, '', location.pathname + location.hash); }catch(e){}
+})();
+var AKT_FENSTER = !!AKT_ZIEL;
+
 onAuthStateChanged(auth, authGeaendert);
 async function authGeaendert(user){
   // onAuthStateChanged feuert nicht nur bei An-/Abmeldung, sondern z.B. auch
@@ -8452,9 +8466,14 @@ async function authGeaendert(user){
     startPruefungWatcher();
     startLernphaseWatcher();
     gruppenMitgliederNachtragen().catch(function(err){ console.error('Gruppen-Mitglieder', err); });
-    setTimeout(einfuehrungPruefen, 1500);
-    setTimeout(pwHinweis, 4000);
-    setTimeout(rmHinweis, 6500);
+    if(AKT_FENSTER){
+      // Im Aktivitäts-Fenster keine Einführung/Hinweise — die würden den Start-Dialog verdrängen.
+      if(state.profile.role === 'teacher' && !alsSchueler()) aktFensterBoot();
+    } else {
+      setTimeout(einfuehrungPruefen, 1500);
+      setTimeout(pwHinweis, 4000);
+      setTimeout(rmHinweis, 6500);
+    }
     // Ämtliplan gleich nach dem Anmelden im Hintergrund holen. Er ist winzig,
     // wird von Startseiten-Hinweis, Besen und Plan gleichermassen gebraucht —
     // und ohne dieses Vorladen sah man beim ersten Öffnen des Plans erst ein
@@ -13250,10 +13269,10 @@ var SVA_CHECKS = [2,1,2,2,2,2,2,1,2,2,1,2,2,2];   // Selbstcheck-Punkte pro Stat
 var SVA_AUFFRISCHEN = [1,2,1,1];                     // Selbstcheck-Punkte der Pflicht-Stationen a1…a4 (zuerst)
 var SVA_ABGABE_PUNKTE = 21;
 var SVA_TERMINE = [
-  {id:'thema',      d:'2026-11-02', bis:null,         typ:'erinnerung', t:'SVA: Themenfindung', text:'Montagmorgen in der Schule. Ziel: Dein Thema ist konkret und bereit zur Umsetzung.'},
-  {id:'grundstein', d:'2026-11-23', bis:'2026-11-25', typ:'erinnerung', t:'SVA: Grundsteine und erste Schritte (23.–25.11.)', text:'Schule / zu Hause. Grobkonzept, Dossier-Gerüst und Materialliste stehen, erste Arbeitsschritte sind gemacht.'},
-  {id:'grob',       d:'2026-11-25', bis:null,         typ:'abgabe',     t:'SVA: Grobkonzept abgeben', text:'Unterschrieben von dir, deinen Eltern und der Lehrperson.'},
-  {id:'geruest',    d:'2026-11-25', bis:null,         typ:'abgabe',     t:'SVA: Dossier-Gerüst abgeben', text:'Titelseite, Kapitel, Verzeichnisse, Kopf- und Fusszeile stehen.'},
+  {id:'thema',      d:'2026-11-02', bis:null,         typ:'erinnerung', t:'SVA: Thema und Grobkonzept (ganzer Montagmorgen)', text:'07:30–12:00 in der Schule bei deiner Klassenlehrperson. Dein Thema steht, du schreibst dein Grobkonzept fertig und gibst es ab. Wer fertig ist, darf nach Hause. Du kannst schon vorher selbstständig damit beginnen – ein gutes Grobkonzept ist das A und O!'},
+  {id:'grob',       d:'2026-11-02', bis:null,         typ:'abgabe',     t:'SVA: Grobkonzept abgeben (bis 12 Uhr)', text:'Bis Montag, 2.11., 12:00 im Briefkasten. Ausgedruckt unterschreiben lassen: du, deine Eltern und die Lehrperson.'},
+  {id:'geruest',    d:'2026-11-18', bis:null,         typ:'abgabe',     t:'SVA: Dossier-Gerüst abgeben', text:'Titelseite, Kapitel, Verzeichnisse, Kopf- und Fusszeile stehen.'},
+  {id:'grundstein', d:'2026-11-23', bis:'2026-11-25', typ:'erinnerung', t:'SVA: Grundsteine und erste Schritte (23.–25.11.)', text:'Schule / zu Hause. Grobkonzept und Dossier-Gerüst sind abgegeben, die Materialliste steht – jetzt kommen die ersten Arbeitsschritte.'},
   {id:'frei1',      d:'2026-12-09', bis:'2026-12-11', typ:'erinnerung', t:'SVA: Freie Arbeitszeit zu Hause (9.–11.12.)', text:'Arbeitsplatz und Material sind bereit. Protokoll laufend schreiben.'},
   {id:'stand1',     d:'2026-12-11', bis:null,         typ:'abgabe',     t:'SVA: Zwischenstand + erster Rapport', text:'Aktuelles Dossier abgeben und der Lehrperson kurz berichten.'},
   {id:'frei2',      d:'2027-01-19', bis:'2027-01-21', typ:'erinnerung', t:'SVA: Freie Arbeitszeit zu Hause (19.–21.1.)', text:'Die SVA ist danach zum grossen Teil gemacht, das Dossier ziemlich fertig.'},
@@ -13790,7 +13809,7 @@ function svaAchtungGruende(x, daten, heute){
   if(!p) return g;
   ['dez','jan'].forEach(function(k){ if(p.r[k] && p.r[k].hilfe) g.push({art:'rot', t:'wünscht ein Gespräch (Rapport '+(k === 'dez' ? 'Dezember' : 'Januar')+')'}); });
   var felder = SVA_GK_FELDER.filter(function(f){ return (p.g[f[0]] || '').trim(); }).length;
-  if(heute >= svaTagePlus('2026-11-25', -7) && r.status !== 'ok' && felder < SVA_GK_FELDER.length) g.push({art:'rot', t:'Grobkonzept unvollständig ('+felder+' von '+SVA_GK_FELDER.length+' Feldern), Abgabe 25.11.'});
+  if(heute >= svaTagePlus('2026-11-02', -7) && r.status !== 'ok' && felder < SVA_GK_FELDER.length) g.push({art:'rot', t:'Grobkonzept unvollständig ('+felder+' von '+SVA_GK_FELDER.length+' Feldern), Abgabe Mo 2.11., 12 Uhr'});
   if(r.status === 'ueber') g.push({art:'gelb', t:'Grobkonzept: Überarbeitung offen'});
   if(p.g.bereit && !r.status) g.push({art:'gelb', t:'Grobkonzept bereit – wartet auf deine Rückmeldung'});
   if(heute > '2026-12-11' && !(p.r.dez && p.r.dez.am)) g.push({art:'gelb', t:'Rapport Dezember fehlt'});
@@ -16874,14 +16893,16 @@ function openOverlay(innerHtml, onClose, extraClass){
   el.className = 'kz-overlay' + (extraClass ? ' ' + extraClass : '');
   el.innerHTML = innerHtml;
   document.body.appendChild(el);
-  var entry = { el: el, onClose: onClose || null };
+  var entry = { el: el, onClose: onClose || null, akt: aktIstBuehne(el) };
   overlayStack.push(entry);
   // Dialoge und Toasts mit ins Overlay nehmen. Im nativen Vollbild wird NUR
   // das Vollbild-Element samt Nachfahren gerendert — als Geschwister von
   // #app blieben Dialog und Toast unsichtbar (genau der Fehler, der die
   // Übungsseiten schon einmal weiss gerendert hat).
   adoptOverlayChrome(el);
-  try{ if(el.requestFullscreen) el.requestFullscreen().catch(function(){}); }catch(e){}
+  try{ if(el.requestFullscreen) el.requestFullscreen().catch(function(){ aktVollbildBeiKlick(el); }); }catch(e){}
+  aktVollbildKnopf(el);
+  if(entry.akt && aktBuehnen().length === 1) aktBelegen();
   document.addEventListener('keydown', overlayEscHandler);
   return {
     el: el,
@@ -16900,6 +16921,7 @@ function closeOverlay(entry){
     document.removeEventListener('keydown', overlayEscHandler);
     try{ if(document.fullscreenElement) document.exitFullscreen(); }catch(e){}
   }
+  if(entry.akt && !aktBuehnen().length) aktFertig();
 }
 
 // Hängt Dialog-Overlay und Toast unter das angegebene Element. Beide sind
@@ -16916,6 +16938,187 @@ function overlayEscHandler(e){
   // Läuft ein Dialog über dem Overlay, schliesst Escape zuerst den Dialog.
   if(modalEl.classList.contains('show')) return;
   closeOverlay(overlayStack[overlayStack.length-1]);
+}
+
+/* ===================== 🪟 AKTIVITÄT IM EIGENEN FENSTER · NUR EINE AUFS MAL =====================
+   Wunsch von Jan (20.10.2026): Wortwolken, Umfragen, Spiele, Beamer-Werkzeuge usw.
+   lassen sich in einem eigenen Fenster im Vollbild starten (Schalter «🪟 Eigenes Fenster»
+   im Klassenzimmer, gemerkt pro Gerät; gilt auch für «▶︎ Starten» im Fach-Ordner).
+   Gleichzeitig läuft aber immer nur EINE Aktivität — über alle Fenster und Tabs hinweg.
+   - Das Fenster ist eine zweite Library (?akt=tool:<id> bzw. item:<typ>:<id>, Klasse in
+     &kl=); sie meldet sich über die gemeinsame Anmeldung selbst an und startet dort
+     dasselbe wie die Kachel. Ohne Klick darf der Browser nicht ins Vollbild → der erste
+     Klick ins Overlay holt es nach (dazu ⛶ in der Leiste). Schliesst die letzte Bühne,
+     schliesst sich das Fenster (erst wenn die Schreibvorgänge, z. B. «aktiv:false» für
+     die Schülergeräte, beim Server sind).
+   - Sperre: wer ein Overlay offen hat, steht in localStorage hl_aktLaeuft
+     {id, name, fenster, at} (alle 20 s aufgefrischt, nach 150 s ohne Lebenszeichen frei —
+     Tabs im Hintergrund drosselt der Browser auf einen Takt pro Minute). Startet man
+     etwas anderes, fragt die Library «… läuft noch — beenden & starten?»; der Befehl
+     geht über hl_aktBefehl an das andere Fenster, das seine Bühnen schliesst. Erst wenn
+     es frei gemeldet hat, startet das Neue (sonst würde z. B. eine alte Wortwolke beim
+     Schliessen die neue gleich wieder auf «aktiv:false» setzen).
+   - Verschachtelte Overlays im selben Fenster (z. B. Rangverkündigung im Quiz) sind
+     dieselbe Aktivität und bleiben erlaubt. Als Aktivität zählen nur die Bühnen der
+     Lehrperson (aktIstBuehne), nicht Live-Klassenraum, QR-Code gross usw. */
+var AKT_KEY = LIB_PREFIX + 'aktLaeuft', AKT_BEFEHL_KEY = LIB_PREFIX + 'aktBefehl', AKT_PREF_KEY = LIB_PREFIX + 'kzFenster';
+var AKT_ICH = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+var AKT_ALT_MS = 150000;
+var akt = { herz:null, fertigNr:0, warten:null };
+// Werkzeuge (Kachel-IDs), die eine Bühne öffnen und darum ins eigene Fenster dürfen.
+var AKT_TOOLS = {beamer:1, zufall:1, slf:1, energizer:1, quiz:1, million:1, schaetz:1, umfrage:1, wolke:1, gruppen:1};
+var AKT_TYPEN = {quiz:1, million:1, schaetz:1, wolke:1, umfrage:1};
+function aktToolOk(id){ return !!(AKT_TOOLS[id] || SPIEL_ARTEN[id]); }
+// Als Aktivität zählen die Bühnen der Lehrperson (Spiele, Quiz, Wolke, Umfrage, Beamer-Werkzeuge,
+// Energizer, Gruppen) — nicht z. B. der Live-Klassenraum oder ein grosser QR-Code.
+function aktIstBuehne(el){
+  return /(^|\s)kz-overlay-(beamer|quiz|mio|lsp|tsp)(\s|$)/.test(el.className) &&
+    !!state.profile && state.profile.role === 'teacher' && !alsSchueler();
+}
+function aktBuehnen(){ return overlayStack.filter(function(o){ return o.akt; }); }
+
+function aktLesen(){
+  try{
+    var a = JSON.parse(lsGet(AKT_KEY) || 'null');
+    return a && a.id && Date.now() - (+a.at || 0) < AKT_ALT_MS ? a : null;
+  }catch(e){ return null; }
+}
+function aktFremd(){ var a = aktLesen(); return a && a.id !== AKT_ICH ? a : null; }
+function aktName(){
+  var b = aktBuehnen(), t = b.length ? b[0].el.querySelector('.kz-bar-title') : null;
+  var n = t ? t.textContent.replace(/[\s·]+$/, '').trim() : '';
+  return n ? n.slice(0, 60) : 'Eine Aktivität';
+}
+function aktMelden(){
+  if(aktBuehnen().length) lsSet(AKT_KEY, JSON.stringify({id:AKT_ICH, name:aktName(), fenster:AKT_FENSTER, at:Date.now()}));
+}
+function aktBelegen(){
+  akt.fertigNr++;   // eine noch ausstehende Freigabe gilt nicht mehr
+  var fremd = aktFremd();
+  if(fremd) aktBefehl(fremd.id, 'beenden');   // Notbremse, falls etwas an der Abfrage vorbei startet
+  aktMelden();
+  if(!akt.herz) akt.herz = setInterval(aktMelden, 20000);
+}
+function aktFreigeben(){
+  clearInterval(akt.herz); akt.herz = null;
+  var a = aktLesen();
+  if(a && a.id === AKT_ICH){ try{ localStorage.removeItem(AKT_KEY); }catch(e){} }
+}
+// Letzte Bühne zu: erst freigeben (bzw. das Fenster schliessen), wenn die Schreibvorgänge
+// aus den onClose-Aufräumern beim Server sind — offline höchstens 4 s warten.
+function aktFertig(){
+  clearInterval(akt.herz); akt.herz = null;
+  var nr = ++akt.fertigNr;
+  Promise.race([waitForPendingWrites(db), new Promise(function(r){ setTimeout(r, 4000); })])
+    .catch(function(){})
+    .then(function(){
+      if(nr !== akt.fertigNr || aktBuehnen().length) return;
+      aktFreigeben();
+      if(AKT_FENSTER && !overlayStack.length) try{ window.close(); }catch(e){}
+    });
+}
+function aktBefehl(an, was){ lsSet(AKT_BEFEHL_KEY, JSON.stringify({an:an, was:was, von:AKT_ICH, t:Date.now()})); }
+function aktAlleSchliessen(){
+  closeModal();
+  while(overlayStack.length) closeOverlay(overlayStack[overlayStack.length-1]);
+}
+window.addEventListener('storage', function(e){
+  if(e.key !== AKT_BEFEHL_KEY || !e.newValue) return;
+  var b = null;
+  try{ b = JSON.parse(e.newValue); }catch(x){}
+  if(!b || b.an !== AKT_ICH || b.was !== 'beenden') return;
+  if(aktBuehnen().length){ aktAlleSchliessen(); toast('Beendet — es wurde etwas anderes gestartet.'); }
+  else aktFreigeben();
+});
+window.addEventListener('pagehide', aktFreigeben);
+
+// fn ausführen, sobald keine andere Aktivität mehr läuft (höchstens ~8 s warten).
+function aktWennFrei(fn){
+  clearInterval(akt.warten); akt.warten = null;
+  if(!aktFremd()){ fn(); return; }
+  var bis = Date.now() + 8000;
+  toast('Die andere Aktivität wird beendet …');
+  akt.warten = setInterval(function(){
+    if(aktFremd() && Date.now() < bis) return;
+    clearInterval(akt.warten); akt.warten = null;
+    fn();
+  }, 200);
+}
+
+// Eigenes Fenster: Schalter (pro Gerät). Homescreen-App auf iPhone/iPad kennt keine Fenster.
+function aktFensterMoeglich(){ return !AKT_FENSTER && !(navigator.standalone && navigator.maxTouchPoints > 0); }
+function aktFensterAn(){ return aktFensterMoeglich() && lsGet(AKT_PREF_KEY) === '1'; }
+
+// Einstieg für alles, was eine Bühne öffnet: ziel = 'tool:<id>' oder 'item:<typ>:<id>'.
+function aktStarten(ziel){
+  var los = function(){
+    if(aktFensterAn()) aktFensterOeffnen(ziel);
+    else aktWennFrei(function(){ aktZielAusfuehren(ziel); });
+  };
+  var fremd = aktFremd();
+  if(!fremd){ los(); return; }
+  uiConfirm('«' + fremd.name + '» läuft noch',
+    'Es läuft immer nur eines aufs Mal' + (fremd.fenster ? ' – es ist im eigenen Fenster offen.' : ' – es ist in einem anderen Fenster oder Tab offen.') +
+    ' Beenden und das Neue starten?', 'Beenden & starten', function(){ aktBefehl(fremd.id, 'beenden'); los(); }, true);
+}
+function aktZielAusfuehren(ziel){
+  var t = String(ziel || '').split(':');
+  if(t[0] === 'tool') kzToolStarten(t[1]);
+  else if(t[0] === 'item'){
+    var id = t.slice(2).join(':');
+    var it = kzmItemById(t[1], id);
+    if(it){ kzmStartenHier(it); return; }
+    kzmLoad(true).then(function(){
+      var it2 = kzmItemById(t[1], id);
+      if(it2) kzmStartenHier(it2); else toast('Nicht gefunden – wurde es gelöscht?');
+    });
+  }
+}
+function aktFensterOeffnen(ziel){
+  var bw = screen.availWidth || 1280, bh = screen.availHeight || 800;
+  var url = location.pathname + '?akt=' + encodeURIComponent(ziel) + '&kl=' + encodeURIComponent(state.klasse || '');
+  var w = window.open(url, 'libAkt_' + Date.now(), 'popup=yes,width='+bw+',height='+bh+',left=0,top=0,resizable=yes,scrollbars=yes');
+  if(!w){ toast('Das Fenster wurde blockiert — bitte Pop-ups für die Library erlauben.'); return; }
+  try{ w.focus(); }catch(e){}
+}
+// Im Aktivitäts-Fenster nach dem Anmelden: Klassenzimmer im Hintergrund, dann starten.
+function aktFensterBoot(){
+  var ziel = AKT_ZIEL;
+  AKT_ZIEL = null;
+  document.title = '🪟 ' + document.title;
+  state.route = {name:'klassenzimmer'}; render();
+  aktWennFrei(function(){ aktZielAusfuehren(ziel); });
+}
+
+// Vollbild nachholen: ohne Klick (Fenster eben erst geöffnet, oder nach dem Warten) lehnt
+// der Browser ab — dann geht es beim ersten Klick in die Bühne ins Vollbild.
+function aktVollbildBeiKlick(el){
+  if(!el.requestFullscreen || el.__aktFsKlick) return;
+  el.__aktFsKlick = true;
+  el.addEventListener('pointerdown', function(){
+    if(!el.isConnected || document.fullscreenElement) return;
+    try{ el.requestFullscreen().catch(function(){}); }catch(e){}
+  }, {once:true, capture:true});
+}
+// ⛶ in der Leiste, solange die Bühne nicht im Vollbild ist (z. B. nach Esc).
+function aktVollbildKnopf(el){
+  var bar = el.querySelector('.kz-bar'), zu = bar ? bar.querySelector('.kz-close') : null;
+  if(!el.requestFullscreen || !zu) return;
+  var b = document.createElement('button');
+  b.className = 'kz-close';
+  b.type = 'button';
+  b.title = 'Vollbild';
+  b.setAttribute('aria-label', 'Vollbild');
+  b.textContent = '⛶';
+  b.style.marginRight = '6px';
+  zu.parentNode.insertBefore(b, zu);
+  var zeigen = function(){
+    if(!el.isConnected){ document.removeEventListener('fullscreenchange', zeigen); return; }
+    b.hidden = document.fullscreenElement === el;
+  };
+  b.addEventListener('click', function(){ try{ el.requestFullscreen().catch(function(){}); }catch(e){} });
+  document.addEventListener('fullscreenchange', zeigen);
+  zeigen();
 }
 
 /* ---------- Töne ohne Audiodatei (WebAudio) ---------- */
@@ -21530,6 +21733,8 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-10-20-eigenes-fenster', datum:'2026-10-20', fuer:'lehrer', text:'🪟 Klassenzimmer › «🪟 Eigenes Fenster: an»: Wortwolken, Umfragen, Spiele und Beamer-Werkzeuge starten dann in einem eigenen Fenster im Vollbild (z. B. auf den Beamer ziehen), die Library bleibt daneben frei. Es läuft immer nur eines aufs Mal: Startest du etwas Neues, fragt die Library, ob das Laufende beendet werden soll.'},
+  {id:'2026-10-20-sva-grobkonzept', datum:'2026-10-20', fuer:'alle', text:'🎓 SVA: Neue Abgaben! Dein Grobkonzept gibst du schon am Montag, 2. November, bis 12 Uhr ab – an diesem Morgen schreibst du es in der Schule fertig, wer fertig ist, darf nach Hause. Du kannst ab sofort selbstständig damit beginnen. Das Dossier-Gerüst ist neu am Mittwoch, 18. November, fällig.'},
   {id:'2026-10-19-dossier-drucken', datum:'2026-10-19', fuer:'lehrer', text:'📖 🧰 Tools › «Dossier drucken» (früher «Broschüre drucken»): A5- oder A4-Dossier, gefalzt und in der Mitte geheftet, Dicke Dossiers werden automatisch auf Teile mit höchstens 16 Bogen verteilt – mehr schafft der Hefter nicht. In der Desktop-App der Library druckst du direkt: Drucker, Exemplare, Farbe und Heften wählen, fertig.'},
   {id:'2026-10-19-ausblenden', datum:'2026-10-19', fuer:'lehrer', text:'🙈 Neu bei jeder Übung, jedem PDF und Link: «🙈 Ausblenden». Die Klasse sieht sie dann nicht (z. B. ein Lösungsdossier), du siehst sie gestrichelt. Ist das Thema durch, mit «👁 Einblenden» freigeben.'},
   {id:'2026-10-19-neues-fenster', datum:'2026-10-19', fuer:'alle', text:'🪟 Übungen, LMVZ-Seiten und PDFs kannst du neben «Vollbild» jetzt auch «In neuem Fenster» öffnen. Das Fenster ist bildschirmgross, du kannst es aber kleiner machen und in der Library nebenher etwas anderes machen – dein Stand wird trotzdem gespeichert. In Prüfungen geht das nicht.'},
@@ -28077,7 +28282,8 @@ function renderKlassenzimmer(){
   html += '<h2 class="page-welcome" style="margin-bottom:6px;">🏫 Klassenzimmer</h2>';
   html += '<p class="kz-intro">Werkzeuge für den Unterricht — nur für dich sichtbar. '+
     '<button class="btn btn-ghost btn-sm" id="kzAnordnenBtn" type="button" title="Werkzeuge verschieben oder ausblenden (oder lange auf eine Kachel drücken) – nochmals klicken beendet das Anordnen">✏️ Anordnen</button> '+
-    '<button class="btn btn-ghost btn-sm anordnen-widgets" id="kzAnordnenWidgetsBtn" type="button" title="Ausgeblendetes zurückholen">🧩 Widgets</button></p>';
+    '<button class="btn btn-ghost btn-sm anordnen-widgets" id="kzAnordnenWidgetsBtn" type="button" title="Ausgeblendetes zurückholen">🧩 Widgets</button>'+
+    (aktFensterMoeglich() ? ' <button class="btn '+(aktFensterAn() ? 'btn-primary' : 'btn-ghost')+' btn-sm" id="kzFensterBtn" type="button" aria-pressed="'+aktFensterAn()+'" title="Wortwolken, Umfragen, Spiele und Beamer-Werkzeuge in einem eigenen Fenster im Vollbild starten (gilt auch für ▶︎ Starten im Fach-Ordner). Es läuft immer nur eines aufs Mal.">🪟 Eigenes Fenster: '+(aktFensterAn() ? 'an' : 'aus')+'</button>' : '')+'</p>';
   var sichtbar = kzSichtbar();
   KZ_BEREICHE.forEach(function(b){
     var tiles = sichtbar.filter(function(t){ return t.bereich === b.id; });
@@ -28098,33 +28304,42 @@ function renderKlassenzimmer(){
   document.getElementById('backBtn').addEventListener('click', goHome);
   document.getElementById('kzAnordnenBtn').addEventListener('click', function(){ wackelnUmschalten(); });
   document.getElementById('kzAnordnenWidgetsBtn').addEventListener('click', openWidgetDrawer);
+  var fensterBtn = document.getElementById('kzFensterBtn');
+  if(fensterBtn) fensterBtn.addEventListener('click', function(){
+    lsSet(AKT_PREF_KEY, aktFensterAn() ? '0' : '1');
+    toast(aktFensterAn() ? '🪟 Startet ab jetzt im eigenen Fenster.' : 'Startet wieder hier.');
+    renderKlassenzimmer();
+  });
   wackelMarken();
   Array.prototype.forEach.call(document.querySelectorAll('[data-tool]'), function(b){
     b.addEventListener('click', function(){
       var id = b.getAttribute('data-tool');
-      if(id === 'material'){ state.route = {name:'kzmaterial'}; render(); }
-      else if(id === 'beamer') openBeamerTools('ruhe');
-      else if(id === 'zufall') openBeamerTools('dran');
-      else if(id === 'slf') openBeamerTools('slf');
-      else if(id === 'energizer'){ state.route = {name:'energizer'}; render(); }
-      else if(id === 'raeume'){ rbu.von = 'klassenzimmer'; state.route = {name:'raeume'}; render(); }
-      else if(id === 'sitzplan'){ state.route = {name:'sitzplan'}; render(); }
-      else if(id === 'quiz'){ state.route = {name:'quiz'}; render(); }
-      else if(id === 'million'){ state.route = {name:'million'}; render(); }
-      else if(id === 'schaetz') openSchaetz();
-      else if(SPIEL_ARTEN[id]) spielQuelle(id);
-      else if(id === 'lernphase') openLernphase();
-      else if(id === 'pruefung'){ state.route = {name:'pruefungen'}; render(); }
-      else if(id === 'fragen') openFragebox();
-      else if(id === 'umfrage') openUmfrageSetup();
-      else if(id === 'abstimmung') openAbstVerwaltung();
-      else if(id === 'wolke') openWolkeSetup();
-      else if(id === 'karten') openKkVerwaltung();
-      else if(id === 'gruppen') openGruppen();
-      else if(id === 'aemtli'){ aemtliUi.view = 'plan'; aemtliUi.scrollTo = 'now'; state.route = {name:'aemtliplan'}; render(); }
-      else if(id === 'vergessen'){ state.route = {name:'vergessen'}; render(); }
+      if(aktToolOk(id)) aktStarten('tool:' + id); else kzToolStarten(id);
     });
   });
+}
+function kzToolStarten(id){
+  if(id === 'material'){ state.route = {name:'kzmaterial'}; render(); }
+  else if(id === 'beamer') openBeamerTools('ruhe');
+  else if(id === 'zufall') openBeamerTools('dran');
+  else if(id === 'slf') openBeamerTools('slf');
+  else if(id === 'energizer'){ state.route = {name:'energizer'}; render(); }
+  else if(id === 'raeume'){ rbu.von = 'klassenzimmer'; state.route = {name:'raeume'}; render(); }
+  else if(id === 'sitzplan'){ state.route = {name:'sitzplan'}; render(); }
+  else if(id === 'quiz'){ state.route = {name:'quiz'}; render(); }
+  else if(id === 'million'){ state.route = {name:'million'}; render(); }
+  else if(id === 'schaetz') openSchaetz();
+  else if(SPIEL_ARTEN[id]) spielQuelle(id);
+  else if(id === 'lernphase') openLernphase();
+  else if(id === 'pruefung'){ state.route = {name:'pruefungen'}; render(); }
+  else if(id === 'fragen') openFragebox();
+  else if(id === 'umfrage') openUmfrageSetup();
+  else if(id === 'abstimmung') openAbstVerwaltung();
+  else if(id === 'wolke') openWolkeSetup();
+  else if(id === 'karten') openKkVerwaltung();
+  else if(id === 'gruppen') openGruppen();
+  else if(id === 'aemtli'){ aemtliUi.view = 'plan'; aemtliUi.scrollTo = 'now'; state.route = {name:'aemtliplan'}; render(); }
+  else if(id === 'vergessen'){ state.route = {name:'vergessen'}; render(); }
 }
 
 /* ===================== 🗃️ UNTERRICHTSMATERIAL (Klassenzimmer) =====================
@@ -28316,6 +28531,11 @@ function kzmItems(){
 function kzmItemById(typ, id){ return kzmItems().filter(function(it){ return it.typ === typ && it.id === id; })[0] || null; }
 
 function kzmStarten(it){
+  if(!it) return;
+  if(AKT_TYPEN[it.typ] && it.id) aktStarten('item:' + it.typ + ':' + it.id);
+  else kzmStartenHier(it);
+}
+function kzmStartenHier(it){
   if(!it) return;
   if(it.typ === 'quiz') quizStartDialog(it.raw);
   else if(it.typ === 'million') spielWahl(it.raw.title, mioAusQuiz(it.raw));
