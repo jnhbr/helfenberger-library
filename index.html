@@ -21780,6 +21780,7 @@ const NEUIGKEITEN = [
   {id:'2026-10-20-pruefung-download', datum:'2026-10-20', fuer:'lehrer', text:'📄 Prüfungen: «Abgaben herunterladen» speichert pro Person ein PDF mit allen Aufgaben samt Bildern, Antworten, Punkten, der Note und einer Zeile für die Unterschrift der Eltern in einen Ordner deiner Wahl (Chrome, Edge, Desktop-App). Dazu kommt ein Sammel-PDF zum Drucken in einem Rutsch, in dem jede Person auf einem neuen Blatt beginnt. Neu ist auch «✍️ Note von Hand» unter «Details»: Damit überschreibst du die berechnete Note, z. B. nach einer Korrektur auf Papier. Die Note gilt dann überall.'},
   {id:'2026-10-20-notenrechner-anpassen', datum:'2026-10-20', fuer:'alle', text:'🎶 Notenrechner: Die Note einer Online-Prüfung kannst du jetzt selbst anpassen, falls deine Lehrperson sie auf Papier noch korrigiert hat. Daneben steht weiterhin die Note der Lehrperson, und mit ↺ stellst du sie wieder her.'},
   {id:'2026-10-20-spiel-vor-aemtli', datum:'2026-10-20', fuer:'alle', text:'🎮 Startet deine Lehrperson ein Live-Spiel, während der Hinweis «Heute bist du mit dem Ämtli dran» offen ist, öffnet sich das Spiel jetzt trotzdem von selbst. Dein Ämtli siehst du weiterhin auf der Startseite.'},
+  {id:'2026-10-20-live-haengt', datum:'2026-10-20', fuer:'alle', text:'☁️ «Wortwolke läuft» und «Blitzumfrage läuft» bleiben nicht mehr stundenlang stehen, wenn die Runde längst vorbei ist.'},
   {id:'2026-10-20-antwort-fix', datum:'2026-10-20', fuer:'alle', text:'🔒 Abgegeben ist abgegeben: Bei Wortwolke, Blitzumfrage, Abstimmungen, Wer wird Millionär und Schätzmeister kannst du deine Antwort nach dem Senden nicht mehr ändern. Also zuerst gut überlegen, dann abschicken.'},
   {id:'2026-10-20-eigenes-fenster', datum:'2026-10-20', fuer:'lehrer', text:'🪟 Klassenzimmer › «🪟 Eigenes Fenster: an»: Wortwolken, Umfragen, Spiele und Beamer-Werkzeuge starten dann in einem eigenen Fenster im Vollbild (z. B. auf den Beamer ziehen), die Library bleibt daneben frei. Es läuft immer nur eines aufs Mal: Startest du etwas Neues, fragt die Library, ob das Laufende beendet werden soll.'},
   {id:'2026-10-20-sva-grobkonzept', datum:'2026-10-20', fuer:'alle', text:'🎓 SVA: Neue Abgaben! Dein Grobkonzept gibst du schon am Montag, 2. November, bis 12 Uhr ab – an diesem Morgen schreibst du es in der Schule fertig, wer fertig ist, darf nach Hause. Du kannst ab sofort selbstständig damit beginnen. Das Dossier-Gerüst ist neu am Mittwoch, 18. November, fällig.'},
@@ -22715,11 +22716,42 @@ var UMFRAGE_MODI = {
   skala:  { label:'Skala 1 – 5', optionen:['1','2','3','4','5'] }
 };
 
-var umfrage = { session:null, unsub:null, unsubAnswers:null, answers:[], overlay:null, sig:null, voteOpen:false, myChoice:null };
+/* ---------- 💓 Lebenszeichen für Live-Runden (Blitzumfrage, Wortwolke) ----------
+   Beendet wird eine Runde, wenn die Lehrperson die Bühne schliesst. Macht sie
+   stattdessen einfach den Tab, das Fenster oder den Laptop zu, bleibt aktiv:true
+   stehen und auf den Schülergeräten stand stundenlang «… läuft — mitmachen»
+   (20.10.2026). Darum frischt das Lehrergerät, solange die Bühne offen ist, jede
+   Minute «lebt» auf; ohne Lebenszeichen seit 10 Min. gilt die Runde als beendet
+   (grosszügig wegen gedrosselter Hintergrund-Tabs und ungenauer Geräte-Uhren).
+   Runden ohne «lebt» (vor dieser Änderung oder von der Live-Seite gestartet):
+   höchstens 3 Stunden ab Start. */
+var LIVE_HERZ_MS = 60000, LIVE_ALT_MS = 600000, LIVE_OHNE_HERZ_MS = 3 * 3600000;
+function liveRundeFrisch(s){
+  if(!s || !s.aktiv) return false;
+  if(s.lebt) return Date.now() - s.lebt < LIVE_ALT_MS;
+  return !s.startedAt || Date.now() - s.startedAt < LIVE_OHNE_HERZ_MS;
+}
+function liveHerzStart(ref, sessionFn){
+  var schlag = function(){
+    var s = sessionFn();
+    if(s && s.aktiv) updateDoc(ref, { lebt:Date.now() }).catch(function(){});
+  };
+  schlag();
+  return setInterval(schlag, LIVE_HERZ_MS);
+}
+// Auf den Schülergeräten verschwindet der Knopf auch ohne neuen Schnappschuss.
+setInterval(function(){
+  if(!state.profile) return;
+  try{ updateUmfrageBanner(); updateWolkeBanner(); }catch(e){}
+  if(umfrage.voteOpen && !umfrageLaeuft(umfrage.session)) paintUmfrageVote();
+  if(wolke.voteOpen && !wolkeLaeuft(wolke.session)) paintWolkeVote();
+}, LIVE_HERZ_MS);
+
+var umfrage = { session:null, unsub:null, unsubAnswers:null, answers:[], overlay:null, sig:null, voteOpen:false, myChoice:null, herz:null };
 
 function umfrageRef(){ return kdoc('quizSessions', 'umfrage'); }
 function umfrageAnswersCol(){ return kcol('quizSessions', 'umfrage', 'antworten'); }
-function umfrageLaeuft(s){ return !!(s && s.aktiv); }
+function umfrageLaeuft(s){ return liveRundeFrisch(s); }
 
 function startUmfrageWatcher(){
   if(umfrage.unsub) return;
@@ -22770,7 +22802,7 @@ function openUmfrageVote(){
 
 function paintUmfrageVote(){
   var s = umfrage.session;
-  if(!s || !s.aktiv){
+  if(!umfrageLaeuft(s)){
     if(umfrage.voteOpen){ umfrage.voteOpen = false; closeModal(); }
     return;
   }
@@ -22943,7 +22975,7 @@ function umfrageStartSerie(fragen, titel){
   umfrageClearAnswers().then(function(){
     return setDoc(umfrageRef(), {
       aktiv:true, frage:f.frage, optionen:f.optionen, peer:!!f.peer,
-      runde:1, ergebnis1:null, zeigen:false, startedAt:Date.now(),
+      runde:1, ergebnis1:null, zeigen:false, startedAt:Date.now(), lebt:Date.now(),
       serie:fragen, idx:0, titel:titel || '', ergebnisse:[]
     });
   }).then(function(){
@@ -22963,7 +22995,7 @@ function umfrageNaechste(s){
   var f = serie[idx];
   umfrageClearAnswers().then(function(){
     return updateDoc(umfrageRef(), { frage:f.frage, optionen:f.optionen, peer:!!f.peer, runde:1, ergebnis1:null, zeigen:false,
-      startedAt:Date.now(), idx:idx, ergebnisse:erg });
+      startedAt:Date.now(), lebt:Date.now(), idx:idx, ergebnisse:erg });
   }).catch(function(err){ console.error(err); toast('Nächste Frage konnte nicht gestartet werden.'); });
 }
 
@@ -22995,6 +23027,7 @@ function openUmfrageHost(){
   html += '<div class="kz-stage" id="ufStage"></div>';
   umfrage.overlay = openOverlay(html, function(){
     if(umfrage.unsubAnswers){ umfrage.unsubAnswers(); umfrage.unsubAnswers = null; }
+    clearInterval(umfrage.herz); umfrage.herz = null;
     umfrage.overlay = null;
     umfrage.sig = null;
     umfrage.uebersicht = false;
@@ -23003,6 +23036,7 @@ function openUmfrageHost(){
     updateDoc(umfrageRef(), { aktiv:false }).catch(function(){});
   }, 'kz-overlay-beamer');
   umfrage.overlay.el.querySelector('#ufClose').addEventListener('click', function(){ umfrage.overlay.close(); });
+  umfrage.herz = liveHerzStart(umfrageRef(), function(){ return umfrage.session; });
 
   klasseRosterLoad().then(function(){ umfrage.sig = null; paintUmfrageHost(); }).catch(function(){});
   if(!umfrage.unsubAnswers){
@@ -25731,11 +25765,11 @@ function svHtml(sp){
 var WOLKE_MAX = [1, 2, 3, 5];
 var WOLKE_FARBEN = ['#3A3F73', '#4361EE', '#17A398', '#E8752C', '#8B5CF6', '#2E9E5B', '#E63950', '#0F766E'];
 
-var wolke = { session:null, unsub:null, unsubAnswers:null, answers:[], overlay:null, sig:null, voteOpen:false, meine:null };
+var wolke = { session:null, unsub:null, unsubAnswers:null, answers:[], overlay:null, sig:null, voteOpen:false, meine:null, herz:null };
 
 function wolkeRef(){ return kdoc('quizSessions', 'wolke'); }
 function wolkeAnswersCol(){ return kcol('quizSessions', 'wolke', 'antworten'); }
-function wolkeLaeuft(s){ return !!(s && s.aktiv); }
+function wolkeLaeuft(s){ return liveRundeFrisch(s); }
 
 function startWolkeWatcher(){
   if(wolke.unsub) return;
@@ -25820,7 +25854,7 @@ function openWolkeVote(){
 
 function paintWolkeVote(){
   var s = wolke.session;
-  if(!s || !s.aktiv){
+  if(!wolkeLaeuft(s)){
     if(wolke.voteOpen){ wolke.voteOpen = false; closeModal(); }
     return;
   }
@@ -25914,7 +25948,7 @@ function openWolkeSetup(vorlage, ablage){
 function wolkeStart(frage, max, zeigen){
   wolkeClearAnswers().then(function(){
     return setDoc(wolkeRef(), {
-      aktiv:true, frage:frage, max:max, zeigen:!!zeigen, sperre:[], startedAt:Date.now()
+      aktiv:true, frage:frage, max:max, zeigen:!!zeigen, sperre:[], startedAt:Date.now(), lebt:Date.now()
     });
   }).then(function(){
     openWolkeHost();
@@ -25938,6 +25972,7 @@ function openWolkeHost(){
   html += '<div class="kz-stage" id="wkStage"></div>';
   wolke.overlay = openOverlay(html, function(){
     if(wolke.unsubAnswers){ wolke.unsubAnswers(); wolke.unsubAnswers = null; }
+    clearInterval(wolke.herz); wolke.herz = null;
     wolke.overlay = null;
     wolke.sig = null;
     // Beim Schliessen die Runde beenden, damit auf den Schülergeräten nicht
@@ -25945,6 +25980,7 @@ function openWolkeHost(){
     updateDoc(wolkeRef(), { aktiv:false }).catch(function(){});
   }, 'kz-overlay-beamer');
   wolke.overlay.el.querySelector('#wkClose').addEventListener('click', function(){ wolke.overlay.close(); });
+  wolke.herz = liveHerzStart(wolkeRef(), function(){ return wolke.session; });
 
   klasseRosterLoad().then(function(){ wolke.sig = null; paintWolkeHost(); }).catch(function(){});
   if(!wolke.unsubAnswers){
