@@ -9497,7 +9497,7 @@ var KIB_WISSEN = [
   {id:'aemtli', fuer:'sus', f:'Wo sehe ich mein Ämtli?', w:'ämtli amt ämtliplan besen putzen eingeteilt dienst',
    a:'Unter 🧹 Ämtli (in der Leiste unter «Mehr») stehen deine nächsten Ämtli-Termine und mit wem du eingeteilt bist.'},
   {id:'mitmachen', fuer:'sus', f:'Wie mache ich bei Quiz, Umfrage oder Abstimmung mit?', w:'quiz umfrage wortwolke abstimmung millionär mitmachen beamer abstimmen läuft knopf spiel rangliste',
-   a:'Läuft etwas, erscheint oben ein Knopf, z. B. «🎮 Quiz läuft – mitmachen» oder «🗳️ Abstimmung». Einfach antippen und mitmachen. Bei einer Abstimmung kannst du deine Stimme ändern, bis sie geschlossen wird.'},
+   a:'Läuft etwas, erscheint oben ein Knopf, z. B. «🎮 Quiz läuft – mitmachen» oder «🗳️ Abstimmung». Einfach antippen und mitmachen. Überleg gut: Ist deine Antwort einmal abgegeben, kannst du sie nicht mehr ändern.'},
   {id:'lernphase', fuer:'sus', f:'Was ist die Lernphase?', w:'lernphase hand hochstrecken melden',
    a:'In der 📚 Lernphase sieht die Lehrperson, ob du in der Library bist (nicht, was du sonst auf dem Gerät machst). Oben steht, an welcher Übung du arbeiten sollst. Ein Tipp darauf öffnet sie.\nBrauchst du Hilfe, tippst du auf «✋ Ich habe eine Frage».'},
   {id:'gruppen', fuer:'sus', f:'Wo finde ich die Übungen einer anderen Lehrperson?', w:'gruppe gruppen andere lehrperson niveau niveaugruppe halbklasse wahlfach andere klasse mathe englisch',
@@ -21733,6 +21733,8 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-10-20-spiel-vor-aemtli', datum:'2026-10-20', fuer:'alle', text:'🎮 Startet deine Lehrperson ein Live-Spiel, während der Hinweis «Heute bist du mit dem Ämtli dran» offen ist, öffnet sich das Spiel jetzt trotzdem von selbst. Dein Ämtli siehst du weiterhin auf der Startseite.'},
+  {id:'2026-10-20-antwort-fix', datum:'2026-10-20', fuer:'alle', text:'🔒 Abgegeben ist abgegeben: Bei Wortwolke, Blitzumfrage, Abstimmungen, Wer wird Millionär und Schätzmeister kannst du deine Antwort nach dem Senden nicht mehr ändern. Also zuerst gut überlegen, dann abschicken.'},
   {id:'2026-10-20-eigenes-fenster', datum:'2026-10-20', fuer:'lehrer', text:'🪟 Klassenzimmer › «🪟 Eigenes Fenster: an»: Wortwolken, Umfragen, Spiele und Beamer-Werkzeuge starten dann in einem eigenen Fenster im Vollbild (z. B. auf den Beamer ziehen), die Library bleibt daneben frei. Es läuft immer nur eines aufs Mal: Startest du etwas Neues, fragt die Library, ob das Laufende beendet werden soll.'},
   {id:'2026-10-20-sva-grobkonzept', datum:'2026-10-20', fuer:'alle', text:'🎓 SVA: Neue Abgaben! Dein Grobkonzept gibst du schon am Montag, 2. November, bis 12 Uhr ab – an diesem Morgen schreibst du es in der Schule fertig, wer fertig ist, darf nach Hause. Du kannst ab sofort selbstständig damit beginnen. Das Dossier-Gerüst ist neu am Mittwoch, 18. November, fällig.'},
   {id:'2026-10-19-dossier-drucken', datum:'2026-10-19', fuer:'lehrer', text:'📖 🧰 Tools › «Dossier drucken» (früher «Broschüre drucken»): A5- oder A4-Dossier, gefalzt und in der Mitte geheftet, Dicke Dossiers werden automatisch auf Teile mit höchstens 16 Bogen verteilt – mehr schafft der Hefter nicht. In der Desktop-App der Library druckst du direkt: Drucker, Exemplare, Farbe und Heften wählen, fertig.'},
@@ -22183,7 +22185,8 @@ function aemtliTagesHinweis(cfg){
   openModal(
     '<div class="ae-pop"><div class="ae-pop-icon">🧹</div>'
     + '<h3>Heute bist du mit dem Ämtli dran</h3>' + zeile + '</div>'
-    + '<div class="modal-actions"><button class="btn btn-primary btn-sm" id="modalOk" type="button">Alles klar</button></div>'
+    + '<div class="modal-actions"><button class="btn btn-primary btn-sm" id="modalOk" type="button">Alles klar</button></div>',
+    'modal-hinweis'
   );
   document.getElementById('modalOk').addEventListener('click', closeModal);
 }
@@ -22700,10 +22703,23 @@ function updateUmfrageBanner(){
 
 /* ---------- Schülergerät: abstimmen ---------- */
 
+// Abgegeben ist abgegeben (20.10.2026): nach einem Neuladen die eigene Stimme
+// nachschlagen (die Antworten werden bei jeder neuen Frage/Runde gelöscht),
+// damit man nicht ein zweites Mal wählen kann.
 function openUmfrageVote(){
   if(!umfrageLaeuft(umfrage.session)) return;
   umfrage.voteOpen = true;
   paintUmfrageVote();
+  if(umfrage.myChoice !== null || !state.user) return;
+  var s0 = umfrage.session;
+  getDoc(doc(umfrageAnswersCol(), state.user.uid)).then(function(snap){
+    var s = umfrage.session;
+    if(!snap.exists() || !s || s !== s0 || umfrage.myChoice !== null) return;
+    var a = snap.data();
+    if((a.runde || 1) !== (s.runde || 1) || typeof a.choice !== 'number') return;
+    umfrage.myChoice = a.choice;
+    if(umfrage.voteOpen) paintUmfrageVote();
+  }).catch(function(err){ console.error(err); });
 }
 
 function paintUmfrageVote(){
@@ -22717,15 +22733,16 @@ function paintUmfrageVote(){
   if(s.peer) h += '<p style="margin:0 0 6px;color:var(--text-muted);">Runde '+(s.runde||1)+' von 2'+((s.runde||1) === 2 ? ' — jetzt nach dem Gespräch' : '')+'</p>';
   h += '<div class="uf-vote">';
   (s.optionen||[]).forEach(function(o, i){
-    h += '<button type="button" data-vote="'+i+'"'+(umfrage.myChoice === i ? ' class="uf-picked"' : '')+'>'+esc(o)+'</button>';
+    h += '<button type="button" data-vote="'+i+'"'+(umfrage.myChoice === i ? ' class="uf-picked"' : '')+(umfrage.myChoice !== null ? ' disabled' : '')+'>'+esc(o)+'</button>';
   });
   h += '</div>';
-  h += '<p style="margin:0;color:var(--good);font-weight:700;min-height:22px;">'+(umfrage.myChoice === null ? '' : '✔ Antwort gespeichert – du kannst sie noch ändern.')+'</p>';
+  h += '<p style="margin:0;color:var(--good);font-weight:700;min-height:22px;">'+(umfrage.myChoice === null ? '' : '✔ Antwort gespeichert.')+'</p>';
   h += '<div class="modal-actions"><button class="btn btn-ghost btn-sm" id="ufVoteClose" type="button">Schliessen</button></div>';
   openModal(h, 'modal-wide');
   document.getElementById('ufVoteClose').addEventListener('click', function(){ umfrage.voteOpen = false; closeModal(); });
   Array.prototype.forEach.call(document.querySelectorAll('[data-vote]'), function(b){
     b.addEventListener('click', function(){
+      if(umfrage.myChoice !== null) return;   // eine Stimme pro Frage, nicht mehr änderbar
       var i = +b.getAttribute('data-vote');
       umfrage.myChoice = i;
       setDoc(doc(umfrageAnswersCol(), state.user.uid), {
@@ -23273,7 +23290,7 @@ function paintMioVote(){
     h += '<div class="mio-s-kopf"><span>Frage um <b>'+esc(mioUm(s))+'</b></span><span>'+mioHerzen(s)+'</span></div>';
     h += '<div class="mio-s-frage">'+esc(s.frage)+'</div><div class="mio-s-opts">';
     (s.optionen || []).forEach(function(o, i){
-      var cls = '', aus = !darf || waehlbar.indexOf(i) < 0;
+      var cls = '', aus = !darf || waehlbar.indexOf(i) < 0 || meine !== null;
       if(weg.indexOf(i) >= 0) cls = ' weg';
       else if(s.phase === 'aufgeloest') cls = i === s.richtig ? ' ok' : (i === s.wahl ? ' bad' : ' dim');
       else if(s.phase === 'falsch') cls = i === s.wahl ? ' bad' : '';
@@ -23285,7 +23302,7 @@ function paintMioVote(){
     });
     h += '</div><p class="mio-s-status">';
     var uhr = ' · ⏱ <span id="mioSTimer">'+mioSekunden(s)+'</span> s';
-    if(s.phase === 'frage') h += (meine === null ? '🤫 Tippe still deine Antwort an.' : '✔ Stimme gespeichert – du kannst sie noch ändern.') + uhr;
+    if(s.phase === 'frage') h += (meine === null ? '🤫 Tippe still deine Antwort an.' : '✔ Stimme gespeichert.') + uhr;
     else if(s.phase === 'stich') h += '⚖️ Gleichstand! Stichwahl – '+(meine === null ? 'wähle zwischen den markierten Antworten.' : '✔ Stimme gespeichert.') + uhr;
     else if(s.phase === 'veto') h += vetoIch ? '⚡ <b>Du hast das Veto!</b> Du entscheidest jetzt allein für die Klasse.' : '⚡ Wieder Gleichstand – <b>'+esc(s.vetoName || 'jemand')+'</b> entscheidet allein.';
     else if(s.phase === 'fixiert') h += '🔒 Eingeloggt: <b>'+MIO_BUCHST[s.wahl]+'</b> – gleich wird aufgelöst …';
@@ -23307,6 +23324,7 @@ function mioStimme(i){
   var veto = s.phase === 'veto';
   if(!(s.phase === 'frage' || s.phase === 'stich' || (veto && s.vetoUid === state.user.uid))) return;
   if(mioWaehlbar(s).indexOf(i) < 0) return;
+  if(mioMeine(s) !== null) return;   // eine Stimme pro Runde, nicht mehr änderbar
   mio.my = {spiel:s.spielId, runde:s.runde, choice:i};
   var d = {spiel:s.spielId, runde:s.runde, choice:i, name:state.profile.displayName, at:Date.now()};
   if(veto) d.veto = true;
@@ -24375,7 +24393,10 @@ function lspAuto(){
   lspDabeiMelden();
   if(lsp.autoFor === s.spielId || lsp.offen || s.phase === 'ende') return;
   if(pruef.sess) return;
-  if(modalEl.classList.contains('show')) return;
+  // Ein reiner Hinweis (z. B. «Heute bist du mit dem Ämtli dran») darf ein
+  // Live-Spiel nicht blockieren — das Spiel ersetzt ihn, der Ämtli-Hinweis
+  // steht ja auch auf der Startseite. Andere offene Dialoge bleiben.
+  if(modalEl.classList.contains('show') && !modalEl.querySelector('.modal-hinweis')) return;
   lsp.autoFor = s.spielId;
   openLspS();
 }
@@ -24863,10 +24884,12 @@ function schaetzSHtml(s, my){
   var ich = state.user.uid, meiner = my.runde === s.runde ? my.wert : null, h = '';
   if(s.phase === 'ende') return '<div class="lsp-s-gross">🏆 Fertig!</div><p class="lsp-s-status">'+esc(lspRangText(s, ich) || 'Danke fürs Mitspielen.')+'</p>';
   h += '<div class="lsp-s-frage">'+esc(s.frage)+'</div>';
-  if(s.phase === 'frage'){
+  if(s.phase === 'frage' && meiner !== null){
+    h += '<p class="lsp-s-status">✔ Dein Tipp: <b>'+esc(schaetzFmt(meiner))+'</b>'+(s.einheit ? ' '+esc(s.einheit) : '')+' – gleich wird aufgelöst … · ⏱ <span id="lspSTimer">'+lspSekunden(s)+'</span> s</p>';
+  } else if(s.phase === 'frage'){
     h += '<div class="sch-eingabe"><input type="text" id="schaetzFeld" class="modal-input" inputmode="decimal" autocomplete="off" data-zeit placeholder="Deine Zahl" value="'+(meiner !== null ? mioAttr(String(meiner)) : '')+'">'+
       (s.einheit ? '<span>'+esc(s.einheit)+'</span>' : '')+'<button class="btn btn-primary" data-ls="tipp" data-zeit type="button">✔ Tippen</button></div>';
-    h += '<p class="lsp-s-status">'+(meiner !== null ? '✔ Dein Tipp: <b>'+esc(schaetzFmt(meiner))+'</b> – du kannst ihn noch ändern.' : 'Nur Zahlen – keine Einheit dazuschreiben.')+' · ⏱ <span id="lspSTimer">'+lspSekunden(s)+'</span> s</p>';
+    h += '<p class="lsp-s-status">'+'Nur Zahlen – keine Einheit dazuschreiben. Tippen geht nur einmal.'+' · ⏱ <span id="lspSTimer">'+lspSekunden(s)+'</span> s</p>';
   } else if(s.phase === 'zu'){
     h += '<p class="lsp-s-status">'+(meiner !== null ? '🔒 Dein Tipp: <b>'+esc(schaetzFmt(meiner))+'</b> – gleich wird aufgelöst …' : 'Die Tipps sind geschlossen.')+'</p>';
   } else if(s.phase === 'aufgeloest'){
@@ -24882,6 +24905,7 @@ function schaetzSKlick(s, b){
   var feld = document.getElementById('schaetzFeld'), v = schaetzZahl(feld && feld.value);
   if(v === null){ toast('Bitte nur eine Zahl eintippen.'); return; }
   var my = lspMy(s);
+  if(my.runde === s.runde && my.wert !== null) return;   // ein Tipp pro Frage, nicht mehr änderbar
   my.runde = s.runde; my.wert = v;
   lspSenden({wert:v});
   lspPaintS();
@@ -25730,10 +25754,22 @@ function wolkeFarbe(key){
 
 /* ---------- Schülergerät: Wörter eintippen ---------- */
 
+// Abgegeben ist abgegeben (20.10.2026): nach einem Neuladen die eigenen Wörter
+// nachschlagen (die Antworten werden bei jeder neuen Wolke gelöscht).
 function openWolkeVote(){
   if(!wolkeLaeuft(wolke.session)) return;
   wolke.voteOpen = true;
   paintWolkeVote();
+  if(wolke.meine || !state.user) return;
+  var s0 = wolke.session;
+  getDoc(doc(wolkeAnswersCol(), state.user.uid)).then(function(snap){
+    var s = wolke.session;
+    if(!snap.exists() || !s || s.startedAt !== s0.startedAt || wolke.meine) return;
+    var w = snap.data().woerter;
+    if(!Array.isArray(w) || !w.length) return;
+    wolke.meine = w;
+    if(wolke.voteOpen) paintWolkeVote();
+  }).catch(function(err){ console.error(err); });
 }
 
 function paintWolkeVote(){
@@ -25743,19 +25779,21 @@ function paintWolkeVote(){
     return;
   }
   var max = Math.max(1, Math.min(5, +s.max || 3));
-  var meine = wolke.meine || [];
+  var meine = wolke.meine || [], fertig = !!wolke.meine;
   var h = '<h3>☁️ '+esc(s.frage)+'</h3>';
-  h += '<p style="margin:0 0 10px;color:var(--text-muted);">Tipp '+(max === 1 ? 'ein Wort' : 'bis zu '+max+' Wörter')+' ein – kurz und knapp, ein Begriff pro Feld.</p>';
-  for(var i=0;i<max;i++){
+  if(!fertig) h += '<p style="margin:0 0 10px;color:var(--text-muted);">Tipp '+(max === 1 ? 'ein Wort' : 'bis zu '+max+' Wörter')+' ein – kurz und knapp, ein Begriff pro Feld. Senden geht nur einmal.</p>';
+  for(var i=0;i<(fertig ? meine.length : max);i++){
     h += '<div class="wk-in-row"><span class="wk-in-nr">'+(i+1)+'</span>'+
-      '<input class="modal-input" data-wort="'+i+'" maxlength="40" autocomplete="off" value="'+esc(meine[i] || '')+'" placeholder="'+(i ? 'noch ein Begriff …' : 'dein Begriff …')+'"></div>';
+      '<input class="modal-input" data-wort="'+i+'" maxlength="40" autocomplete="off" value="'+esc(meine[i] || '')+'" placeholder="'+(i ? 'noch ein Begriff …' : 'dein Begriff …')+'"'+(fertig ? ' disabled' : '')+'></div>';
   }
-  h += '<p style="margin:2px 0 0;color:var(--good);font-weight:700;min-height:22px;" id="wkVoteOk">'+(wolke.meine ? '✔ Gesendet – du kannst noch ändern.' : '')+'</p>';
+  h += '<p style="margin:2px 0 0;color:var(--good);font-weight:700;min-height:22px;" id="wkVoteOk">'+(fertig ? '✔ Gesendet.' : '')+'</p>';
   h += '<div class="modal-actions"><button class="btn btn-ghost btn-sm" id="wkVoteClose" type="button">Schliessen</button>'
-     + '<button class="btn btn-primary btn-sm" id="wkVoteSend" type="button">Senden</button></div>';
+     + (fertig ? '' : '<button class="btn btn-primary btn-sm" id="wkVoteSend" type="button">Senden</button>')+'</div>';
   openModal(h, 'modal-wide');
   document.getElementById('wkVoteClose').addEventListener('click', function(){ wolke.voteOpen = false; closeModal(); });
+  if(fertig) return;
   function senden(){
+    if(wolke.meine) return;   // einmal gesendet, nicht mehr änderbar
     var woerter = [];
     Array.prototype.forEach.call(document.querySelectorAll('[data-wort]'), function(inp){
       var w = inp.value.trim().replace(/\s+/g, ' ');
@@ -25765,10 +25803,11 @@ function paintWolkeVote(){
     wolke.meine = woerter;
     setDoc(doc(wolkeAnswersCol(), state.user.uid), {
       woerter: woerter, name: state.profile.displayName, at: Date.now()
-    }).then(function(){
-      var ok = document.getElementById('wkVoteOk');
-      if(ok) ok.textContent = '✔ Gesendet – du kannst noch ändern.';
-    }).catch(function(err){ console.error(err); toast('Wörter konnten nicht gesendet werden.'); });
+    }).catch(function(err){
+      console.error(err); toast('Wörter konnten nicht gesendet werden.');
+      if(wolke.meine === woerter){ wolke.meine = null; if(wolke.voteOpen) paintWolkeVote(); }
+    });
+    paintWolkeVote();
   }
   document.getElementById('wkVoteSend').addEventListener('click', senden);
   Array.prototype.forEach.call(document.querySelectorAll('[data-wort]'), function(inp){
@@ -30095,8 +30134,8 @@ function tlTon(){
      abstimmungen/{id}/stimmen/{uid} -> {antworten:[Index je Frage], klasse, name ('' wenn anonym), at}
    Schüler:innen lesen mit where('klassen','array-contains', eigene Klasse) —
    ein einziges where(), also kein Composite Index. Oben erscheint
-   «🗳️ Abstimmung», solange eine offene läuft; die eigene Stimme lässt sich bis
-   zum Schliessen ändern. Lehrpersonen: Klassenzimmer › Abstimmungen, mit
+   «🗳️ Abstimmung», solange eine offene läuft; die eigene Stimme lässt sich
+   seit 20.10.2026 nicht mehr ändern (abgegeben ist abgegeben). Lehrpersonen: Klassenzimmer › Abstimmungen, mit
    Auswertung am Bildschirm und als .xlsx (ExcelJS, erst beim Herunterladen
    vom CDN geladen). */
 var ABST_MAX_FRAGEN = 10, ABST_MAX_OPT = 8;
@@ -30163,7 +30202,7 @@ function updateAbstBanner(){
   var neu = offen.filter(function(a){ return !abst.meine[a.id]; }).length;
   btn.hidden = !offen.length || !state.profile || state.profile.role === 'teacher';
   btn.textContent = neu ? '🗳️ Abstimmung — jetzt abstimmen' + (neu > 1 ? ' (' + neu + ')' : '') : '🗳️ Abstimmung ✔';
-  btn.title = neu ? 'Es läuft eine Abstimmung für deine Klasse' : 'Du hast abgestimmt – hier kannst du deine Stimme noch ändern';
+  btn.title = neu ? 'Es läuft eine Abstimmung für deine Klasse' : 'Du hast abgestimmt';
   btn.classList.toggle('abst-fertig', !neu);
 }
 function openAbstVote(){ abst.voteOpen = true; paintAbstVote(); }
@@ -30187,14 +30226,15 @@ function paintAbstVote(){
       if(fragen.length > 1 || (f.text || '') !== (a.titel || '')) h += '<div class="abst-frage">'+(fragen.length > 1 ? (fi + 1) + '. ' : '')+esc(f.text || '')+'</div>';
       h += '<div class="uf-vote abst-vote">';
       (f.optionen || []).forEach(function(o, oi){
-        h += '<button type="button" data-av="'+esc(a.id)+'|'+fi+'|'+oi+'"'+(wahl[fi] === oi ? ' class="uf-picked"' : '')+'>'+esc(o)+'</button>';
+        h += '<button type="button" data-av="'+esc(a.id)+'|'+fi+'|'+oi+'"'+(wahl[fi] === oi ? ' class="uf-picked"' : '')+(mein ? ' disabled' : '')+'>'+esc(o)+'</button>';
       });
       h += '</div>';
     });
     var komplett = fragen.every(function(f, fi){ return typeof wahl[fi] === 'number'; });
     var gleich = !!(mein && Array.isArray(mein.antworten) && mein.antworten.join(',') === wahl.join(','));
-    h += '<div class="abst-send"><span>'+(mein ? (gleich ? '✔ Deine Stimme ist gespeichert – du kannst sie noch ändern.' : 'Änderung noch nicht gesendet.') : (komplett ? '' : 'Wähle bei jeder Frage eine Antwort.'))+'</span>'+
-      '<button class="btn btn-primary btn-sm" data-asend="'+esc(a.id)+'" type="button"'+(komplett && !gleich ? '' : ' disabled')+'>'+(mein ? 'Stimme ändern' : 'Stimme abgeben')+'</button></div>';
+    if(mein) h += '<div class="abst-send"><span>✔ Deine Stimme ist gespeichert.</span></div>';
+    else h += '<div class="abst-send"><span>'+(komplett ? 'Abgeben geht nur einmal.' : 'Wähle bei jeder Frage eine Antwort.')+'</span>'+
+      '<button class="btn btn-primary btn-sm" data-asend="'+esc(a.id)+'" type="button"'+(komplett ? '' : ' disabled')+'>Stimme abgeben</button></div>';
     h += '</div>';
   });
   h += '<div class="modal-actions"><button class="btn btn-ghost btn-sm" id="abstVoteClose" type="button">Schliessen</button></div>';
@@ -30205,6 +30245,7 @@ function paintAbstVote(){
   Array.prototype.forEach.call(modalEl.querySelectorAll('[data-av]'), function(b){
     b.addEventListener('click', function(){
       var t = b.getAttribute('data-av').split('|');
+      if(abst.meine[t[0]]) return;   // abgegeben, nicht mehr änderbar
       (abst.entwurf[t[0]] = abst.entwurf[t[0]] || [])[+t[1]] = +t[2];
       paintAbstVote();
     });
@@ -30214,6 +30255,7 @@ function paintAbstVote(){
       var id = b.getAttribute('data-asend'), a = abst.list.filter(function(x){ return x.id === id; })[0];
       var wahl = (abst.entwurf[id] || []).slice();
       if(!a || !abstOffen(a)){ toast('Diese Abstimmung ist schon geschlossen.'); return; }
+      if(abst.meine[id]) return;
       b.disabled = true;
       setDoc(doc(abstStimmenCol(id), state.user.uid), {
         antworten:wahl, klasse:state.profile.klasse, name:a.anonym ? '' : (state.profile.displayName || ''), at:Date.now()

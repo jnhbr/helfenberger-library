@@ -75,6 +75,9 @@ async function seed(){
   const base = 'klassen/' + K + '/';
   await db.doc(base + 'resources/r_a').set({ subject:'mathe', title:'Übung Alle', fileName:'a.html', order:1, contentId:'c_a', niveau:'B', uploadedAt:TS });
   await db.doc(base + 'resources/r_b').set({ subject:'mathe', title:'Übung nur Anna', fileName:'b.html', order:2, contentId:'c_b', niveau:'C', nurFuer:['u_anna'], uploadedAt:TS });
+  // Ämtliplan erst ab 2099: sonst steht dienstags vor 08:15 / freitags vor 11:00 (UTC)
+  // «Heute bist du mit dem Ämtli dran» über der Seite und verdeckt die Klicks der Kinder.
+  await db.doc(base + 'klasseninfo/aemtli').set({ startDate:'2099-01-06' });
   // Heute dran: Karteikarten + eine alte Übung mit 50 %
   await db.doc(base + 'klasseninfo/karteikarten').set({ sets:[{ id:'s1', fach:'englisch', titel:'Voci Test', kopf:{ v:'Englisch', r:'Deutsch' }, karten:[{ v:'cat', r:'Katze' }, { v:'dog', r:'Hund' }, { v:'bird', r:'Vogel' }] }] });
   await db.doc('progress/u_anna/resources/kk_s1').set({ kk:{ boxen:{ ['vr_' + kkHash('cat')]:{ b:1, f:'2020-01-01' }, ['vr_' + kkHash('dog')]:{ b:2, f:'2020-01-01' }, ['vr_' + kkHash('bird')]:{ b:3, f:'2999-01-01' } } } });
