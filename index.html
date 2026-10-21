@@ -603,7 +603,9 @@
   .eb-feld select{width:auto;max-width:100%;}
   .eb-zahl{color:var(--text-muted);font-size:14px;font-weight:600;margin-right:auto;}
   .eb-von{color:var(--text-muted);}
-  .eb-liste{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:2px 14px;}
+  .submission-list.eb-liste{max-height:none;overflow:visible;align-items:start;}
+  .sub-kachel .eb-von{color:inherit;opacity:.8;font-weight:600;}
+  .sub-kachel:has(input:disabled){cursor:default;}
   .eb-card{overflow-x:auto;}
   .eb-tab{width:100%;border-collapse:collapse;font-size:14.5px;}
   .eb-tab th,.eb-tab td{padding:7px 8px;border-bottom:1px solid var(--border);text-align:left;}
@@ -611,7 +613,7 @@
   .eb-tab td:first-child,.eb-tab th:first-child{width:80px;text-align:center;}
   .eb-tab input[type=checkbox]{width:20px;height:20px;cursor:pointer;}
   .eb-tab tr.eb-da td{background:color-mix(in srgb, var(--good, #2E8B57) 10%, transparent);}
-  .eb-zeile{display:flex;flex-direction:column;gap:2px;min-width:0;padding-bottom:4px;}
+  .eb-zeile{display:flex;flex-direction:column;gap:5px;min-width:0;}
   .eb-auftrag{width:100%;font-size:13.5px;padding:5px 8px;}
   .eb-tab .eb-auftrag{min-width:180px;}
   /* 🚪 Räume */
@@ -6077,10 +6079,10 @@ function earlybirdEintragenZeigen(body, alle, schueler){
   var inKlasse = schueler.filter(function(s){ return drin[s.uid]; }).length;
   h += '<span class="eb-zahl">'+inKlasse+' von '+schueler.length+' eingetragen</span></div>';
   if(!schueler.length) h += '<div class="empty-state">Keine Schüler:innen gefunden.</div>';
-  else h += '<div class="submission-list eb-liste">'+schueler.map(function(s){
+  else h += '<div class="submission-list sub-kacheln eb-liste">'+schueler.map(function(s){
     var e = drin[s.uid];
     var von = e && e.vonUid !== state.user.uid && e.vonName ? ' <small class="eb-von">von '+esc(e.vonName)+'</small>' : '';
-    return '<div class="eb-zeile"><label class="submission-row"><input type="checkbox" class="eb-check" value="'+esc(s.uid)+'"'+(e ? ' checked' : '')+(isLeitung() ? ' disabled' : '')+'> <span>'+esc(s.n)+' '+esc(s.nn)+von+'</span></label>'+(e ? earlybirdAuftragFeld(e) : '')+'</div>';
+    return '<div class="eb-zeile"><label class="sub-kachel"><input type="checkbox" class="eb-check" value="'+esc(s.uid)+'"'+(e ? ' checked' : '')+(isLeitung() ? ' disabled' : '')+'><span>'+esc(s.n)+' '+esc(s.nn)+von+'</span></label>'+(e ? earlybirdAuftragFeld(e) : '')+'</div>';
   }).join('')+'</div>';
   h += '</div>';
   body.innerHTML = h;
@@ -6197,13 +6199,15 @@ function earlybirdDrucken(datum, alle){
   var zeilen = alle.map(function(x, i){
     return '<tr><td class="nr">'+(i+1)+'</td><td>'+esc(earlybirdName(x))+'</td><td>'+esc(x.klasse || '')+'</td><td>'+esc(x.vonName || '')+'</td><td>'+esc(x.auftrag || '')+'</td><td class="box">'+(x.anwesend ? '☒' : '☐')+'</td></tr>';
   }).join('');
+  // 3 leere Zeilen für Schüler:innen, die jemand einzutragen vergessen hat
+  for(var i = 0; i < 3; i++) zeilen += '<tr class="leer"><td class="nr">'+(alle.length+i+1)+'</td><td></td><td></td><td></td><td></td><td class="box">☐</td></tr>';
   var css = '@page{size:A4;margin:2cm;'+DRUCK_OHNE_KOPF+'}' +
     'body{font-family:Calibri,Carlito,"Segoe UI",Arial,sans-serif;font-size:11pt;line-height:1.4;color:#000;background:#fff;margin:0;}' +
-    '.blatt{max-width:17cm;margin:0 auto;padding:16px;} @media print{.blatt{padding:0;max-width:none;} .werkzeug{display:none;}}' +
+    '.blatt{max-width:17cm;margin:0 auto;padding:16px;} @media print{.blatt{padding:0;max-width:none;} .werkzeug{display:none!important;}}' +
     'table{border-collapse:collapse;width:100%;} .kopf td{vertical-align:middle;padding:0;} .kopf .logo{width:4.2cm;} .kopf td + td{padding-left:10pt;}' +
     '.k1{font-size:10pt;} .k2{font-size:16pt;font-weight:bold;}' +
     '.liste{margin-top:14pt;} .liste th,.liste td{border:0.5pt solid #000;padding:5pt 6pt;text-align:left;} .liste th{background:#F2F2F2;}' +
-    '.liste tr{break-inside:avoid;} .nr{width:1cm;text-align:right!important;} .box{width:2.2cm;text-align:center!important;font-size:15pt;line-height:1;}' +
+    '.liste tr{break-inside:avoid;} .liste tr.leer td{height:22pt;} .nr{width:1cm;text-align:right!important;} .box{width:2.2cm;text-align:center!important;font-size:15pt;line-height:1;}' +
     '.fuss{margin-top:14pt;font-size:10pt;display:flex;justify-content:space-between;}' +
     '.werkzeug{position:sticky;top:0;background:#fffbe6;border-bottom:1px solid #e5d58a;padding:10px 16px;font-family:system-ui,sans-serif;font-size:14px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;}' +
     '.werkzeug button{font:inherit;font-weight:600;padding:7px 14px;border-radius:8px;border:0;background:#4361EE;color:#fff;cursor:pointer;}';
@@ -15325,6 +15329,15 @@ async function syncedResourceEntries(r){
   };
 }
 
+// Wer eine gespiegelte Kopie (originKlasse gesetzt) ersetzt, ändert nur die eigene
+// Seite – nie das Original und nie die Kopien der anderen Lehrpersonen. Nur wer
+// das Original hat, zieht seine Kopien mit.
+function nurEigeneWennKopie(sync){
+  var own = sync.entries.filter(function(e){ return e.klasse === state.klasse; })[0];
+  if(own && own.data.originKlasse) sync.entries = [own];
+  return sync;
+}
+
 // Zeigt für alle synchronen Einträge einen anderen Inhalt an. Der bisherige
 // Inhalt bleibt als prevContentId erhalten («Vorherige Version wiederherstellen»);
 // erst die davor liegende Fassung wird aufgeräumt, sobald sie niemand mehr nutzt.
@@ -15348,7 +15361,7 @@ async function publishResourceContent(r, htmlText, fileName){
   var chunks = contentChunkDocs(htmlText);
   var bytes = contentBytes(htmlText);
   await assertQuota(bytes);
-  var sync = await syncedResourceEntries(r);
+  var sync = nurEigeneWennKopie(await syncedResourceEntries(r));
   // Nie einen Inhalt überschreiben (er kann geteilt sein), sondern neu ablegen
   // und die Übung(en) umhängen.
   var newContentId = r.id + '_' + Date.now().toString(36);
@@ -15368,7 +15381,7 @@ async function publishResourceContent(r, htmlText, fileName){
 
 // Tauscht aktuelle und vorherige Fassung (nochmals klicken = wieder zurück).
 async function restorePreviousContent(r){
-  var sync = await syncedResourceEntries(r);
+  var sync = nurEigeneWennKopie(await syncedResourceEntries(r));
   var own = sync.entries.filter(function(e){ return e.klasse === state.klasse; })[0];
   var prev = own && own.data.prevContentId;
   if(!prev) throw new Error('Keine vorherige Version vorhanden.');
@@ -22850,6 +22863,10 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-10-21-druck-ohne-leiste', datum:'2026-10-21', fuer:'lehrer', text:'🖨️ Earlybird-Liste und gedruckte Prüfungen: Die gelbe Leiste mit «Drucken / Als PDF sichern» erscheint nicht mehr auf dem Ausdruck.'},
+  {id:'2026-10-21-earlybird-leerzeilen', datum:'2026-10-21', fuer:'lehrer', text:'🐦 Earlybird: Die gedruckte Liste hat unten 3 leere Zeilen – für alle, die jemand einzutragen vergessen hat.'},
+  {id:'2026-10-21-earlybird-kacheln', datum:'2026-10-21', fuer:'lehrer', text:'🐦 Earlybird: Eintragen geht jetzt mit denselben Namens-Kacheln wie bei der Abgabe-Checkliste – antippen, und sie wird grün mit Haken.'},
+  {id:'2026-10-21-eigene-aenderungen', datum:'2026-10-21', fuer:'lehrer', text:'🪞 Übungen, Quizze, Spiel-Sets, Karteikarten, Wortwolken und Blitzumfragen von Jan kommen jede Nacht automatisch auf deine Seite – neu auch alle Klassen-Quizze und 50 🎲 Trivia-Quizze. Was du an einer Kopie änderst (Inhalt ersetzen, umbenennen, verschieben, ausblenden, Fragen bearbeiten) oder löschst, bleibt jetzt nur bei dir und wird nicht mehr überschrieben.'},
   {id:'2026-10-21-bleistift-weg', datum:'2026-10-21', fuer:'alle', text:'✏️ Der versteckte Bleistift unten rechts ist weg – das Rätsel ist gelöst.'},
   {id:'2026-10-21-earlybird-nur-eingetragen', datum:'2026-10-21', fuer:'alle', text:'🐦 Earlybird steht jetzt nur noch in deinem Kalender, wenn du dafür eingetragen bist. Siehst du keinen Earlybird, musst du nicht kommen.'},
   {id:'2026-10-21-sva-logo', datum:'2026-10-21', fuer:'alle', text:'🎓 SVA: Das Logo der Sek Altnau für Titelseite und Fusszeile deines Dossiers kannst du jetzt im Fach SVA mit «⬇️ Logo Sek Altnau» herunterladen.'},
@@ -37064,7 +37081,7 @@ function pruefDruckHtml(cfg, mitL, bilder){
   });
   var css = '@page{size:A4;margin:2cm;'+DRUCK_OHNE_KOPF+'}' +
     'body{font-family:Calibri,Carlito,"Segoe UI",Arial,sans-serif;font-size:11pt;line-height:1.5;color:#000;background:#fff;margin:0;}' +
-    '.blatt{max-width:17cm;margin:0 auto;padding:16px;} @media print{.blatt{padding:0;max-width:none;} .werkzeug{display:none;}}' +
+    '.blatt{max-width:17cm;margin:0 auto;padding:16px;} @media print{.blatt{padding:0;max-width:none;} .werkzeug{display:none!important;}}' +
     'p{margin:0;} table{border-collapse:collapse;width:100%;}' +
     '.kopf td{vertical-align:middle;padding:0;} .kopf .logo{width:4.2cm;} .kopf td + td{padding-left:10pt;}' +
     '.k1{font-size:10pt;margin-bottom:1pt;} .k2{font-size:15pt;font-weight:bold;margin-bottom:1pt;}' +
