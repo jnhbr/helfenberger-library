@@ -1445,6 +1445,9 @@
   .kz-tile h3{margin:0 0 4px;font-size:16px;}
   .kz-tile p{margin:0;font-size:13px;color:var(--text-muted);line-height:1.45;}
   .kz-tile-icon{font-size:28px;line-height:1;flex-shrink:0;}
+  .kz-tile-fenster{position:absolute;top:8px;right:8px;font-size:15px;line-height:1;padding:5px 7px;border-radius:8px;border:1px solid var(--border);background:var(--surface);opacity:.75;}
+  .kz-tile-fenster:hover,.kz-tile-fenster:focus-visible{opacity:1;border-color:var(--brand);}
+  body.wackeln .kz-tile-fenster{display:none;}
 
   /* ---------- Sitzplan ---------- */
   .sp-select{border:1px solid var(--border);background:var(--surface);color:var(--text);border-radius:999px;padding:7px 12px;font:inherit;font-size:13px;}
@@ -17343,7 +17346,7 @@ function openOverlay(innerHtml, onClose, extraClass){
   el.className = 'kz-overlay' + (extraClass ? ' ' + extraClass : '');
   el.innerHTML = innerHtml;
   document.body.appendChild(el);
-  var entry = { el: el, onClose: onClose || null, akt: aktIstBuehne(el) };
+  var entry = { el: el, onClose: onClose || null, akt: aktIstBuehne(el), frei: /(^|\s)kz-frei(\s|$)/.test(el.className) };
   overlayStack.push(entry);
   // Dialoge und Toasts mit ins Overlay nehmen. Im nativen Vollbild wird NUR
   // das Vollbild-Element samt Nachfahren gerendert — als Geschwister von
@@ -17372,6 +17375,8 @@ function closeOverlay(entry){
     try{ if(document.fullscreenElement) document.exitFullscreen(); }catch(e){}
   }
   if(entry.akt && !aktBuehnen().length) aktFertig();
+  // Eigenes Fenster mit einem freien Werkzeug (Ruhephase …): letzte Bühne zu → Fenster zu.
+  else if(entry.frei && AKT_FENSTER && !overlayStack.length && state.route.name !== 'energizer') try{ window.close(); }catch(e){}
 }
 
 // Hängt Dialog-Overlay und Toast unter das angegebene Element. Beide sind
@@ -17410,7 +17415,12 @@ function overlayEscHandler(e){
      Schliessen die neue gleich wieder auf «aktiv:false» setzen).
    - Verschachtelte Overlays im selben Fenster (z. B. Rangverkündigung im Quiz) sind
      dieselbe Aktivität und bleiben erlaubt. Als Aktivität zählen nur die Bühnen der
-     Lehrperson (aktIstBuehne), nicht Live-Klassenraum, QR-Code gross usw. */
+     Lehrperson (aktIstBuehne), nicht Live-Klassenraum, QR-Code gross usw.
+   - Ausnahme (Wunsch von Jan, 21.10.2026): Werkzeuge, die nur auf diesem Gerät laufen
+     (⏱ Ruhephase, 🎲 Zufall, 🌍 Stadt Land Fluss, 👥 Gruppen, ⚡ Energizer — Overlay mit
+     Klasse kz-frei), zählen NICHT als Aktivität: Sie laufen unabhängig neben allem anderen,
+     auch mehrfach, werden von «Beenden & starten» nicht geschlossen und lassen sich über
+     das 🪟 auf ihrer Kachel jederzeit in einem eigenen Fenster öffnen (auch bei Schalter aus). */
 var AKT_KEY = LIB_PREFIX + 'aktLaeuft', AKT_BEFEHL_KEY = LIB_PREFIX + 'aktBefehl', AKT_PREF_KEY = LIB_PREFIX + 'kzFenster';
 var AKT_ICH = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 var AKT_ALT_MS = 150000;
@@ -17418,11 +17428,14 @@ var akt = { herz:null, fertigNr:0, warten:null };
 // Werkzeuge (Kachel-IDs), die eine Bühne öffnen und darum ins eigene Fenster dürfen.
 var AKT_TOOLS = {beamer:1, zufall:1, slf:1, energizer:1, quiz:1, million:1, schaetz:1, umfrage:1, wolke:1, gruppen:1};
 var AKT_TYPEN = {quiz:1, million:1, schaetz:1, wolke:1, umfrage:1};
+// Freie Werkzeuge: nur auf diesem Gerät, ohne Schülergeräte → laufen unabhängig (keine Sperre).
+var AKT_FREI = {beamer:1, zufall:1, slf:1, energizer:1, gruppen:1};
+function aktFreiZiel(ziel){ var t = String(ziel || '').split(':'); return t[0] === 'tool' && !!AKT_FREI[t[1]]; }
 function aktToolOk(id){ return !!(AKT_TOOLS[id] || SPIEL_ARTEN[id]); }
 // Als Aktivität zählen die Bühnen der Lehrperson (Spiele, Quiz, Wolke, Umfrage, Beamer-Werkzeuge,
 // Energizer, Gruppen) — nicht z. B. der Live-Klassenraum oder ein grosser QR-Code.
 function aktIstBuehne(el){
-  return /(^|\s)kz-overlay-(beamer|quiz|mio|lsp|tsp)(\s|$)/.test(el.className) &&
+  return !/(^|\s)kz-frei(\s|$)/.test(el.className) && /(^|\s)kz-overlay-(beamer|quiz|mio|lsp|tsp)(\s|$)/.test(el.className) &&
     !!state.profile && state.profile.role === 'teacher' && !alsSchueler();
 }
 function aktBuehnen(){ return overlayStack.filter(function(o){ return o.akt; }); }
@@ -17470,7 +17483,8 @@ function aktFertig(){
 function aktBefehl(an, was){ lsSet(AKT_BEFEHL_KEY, JSON.stringify({an:an, was:was, von:AKT_ICH, t:Date.now()})); }
 function aktAlleSchliessen(){
   closeModal();
-  while(overlayStack.length) closeOverlay(overlayStack[overlayStack.length-1]);
+  // Freie Werkzeuge (Ruhephase …) laufen weiter — nur die Aktivität samt ihren Dialog-Overlays schliessen.
+  overlayStack.filter(function(o){ return !o.frei; }).reverse().forEach(closeOverlay);
 }
 window.addEventListener('storage', function(e){
   if(e.key !== AKT_BEFEHL_KEY || !e.newValue) return;
@@ -17501,6 +17515,10 @@ function aktFensterAn(){ return aktFensterMoeglich() && lsGet(AKT_PREF_KEY) === 
 
 // Einstieg für alles, was eine Bühne öffnet: ziel = 'tool:<id>' oder 'item:<typ>:<id>'.
 function aktStarten(ziel){
+  if(aktFreiZiel(ziel)){
+    if(aktFensterAn()) aktFensterOeffnen(ziel); else aktZielAusfuehren(ziel);
+    return;
+  }
   var los = function(){
     if(aktFensterAn()) aktFensterOeffnen(ziel);
     else aktWennFrei(function(){ aktZielAusfuehren(ziel); });
@@ -17537,7 +17555,8 @@ function aktFensterBoot(){
   AKT_ZIEL = null;
   document.title = '🪟 ' + document.title;
   state.route = {name:'klassenzimmer'}; render();
-  aktWennFrei(function(){ aktZielAusfuehren(ziel); });
+  if(aktFreiZiel(ziel)) aktZielAusfuehren(ziel);
+  else aktWennFrei(function(){ aktZielAusfuehren(ziel); });
 }
 
 // Vollbild nachholen: ohne Klick (Fenster eben erst geöffnet, oder nach dem Warten) lehnt
@@ -17627,7 +17646,7 @@ function openBeamerTools(initialTab){
   beamer.overlay = openOverlay(html, function(){
     runBeamerCleanups();
     beamer.overlay = null;
-  }, 'kz-overlay-beamer');
+  }, 'kz-overlay-beamer kz-frei');
 
   var root = beamer.overlay.el;
   root.querySelector('#kzClose').addEventListener('click', function(){ beamer.overlay.close(); });
@@ -22907,6 +22926,7 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-10-21-frei-fenster', datum:'2026-10-21', fuer:'lehrer', text:'🪟 Im 🏫 Klassenzimmer haben ⏱ Ruhephase, 🎲 Zufall, 🌍 Stadt Land Fluss, 👥 Gruppen & Partner und ⚡ Energizer oben rechts auf der Kachel ein 🪟: öffnet sie in einem eigenen Fenster (z. B. auf den Beamer ziehen). Sie laufen unabhängig – neben einer Wortwolke, einem Quiz oder einem Spiel, auch mehrere gleichzeitig – und werden beim Start von etwas anderem nicht mehr beendet.'},
   {id:'2026-10-21-verlaengern-nur-offene', datum:'2026-10-21', fuer:'lehrer', text:'⏰ Hausaufgaben, Abgaben und Unterschriften verlängern: Schiebst du das Datum unter «Bearbeiten» nach hinten oder nutzt «↺ Reaktivieren», sehen den Eintrag nur noch die, die in der Abgabe-Checkliste (☑) noch nicht abgehakt sind. Die Checkliste bleibt dabei stehen. Erkennbar am Zeichen «⏰ nur noch Offene»; im Formular lässt sich das Häkchen wieder entfernen.'},
   {id:'2026-10-20-figuren-werkstatt', datum:'2026-10-20', fuer:'lehrer', text:'📐 Klassenzimmer › «Figuren-Werkstatt»: Koordinatensysteme, Dreiecke, Körper, Schaltpläne, Messgeräte, Heizkurven, Kreuzungsschemas … einstellen und als Bild direkt in Word oder PowerPoint kopieren – für Prüfungen und Arbeitsblätter. Die Seiten sind englisch, oben steht eine kurze deutsche Anleitung mit den Begriffen.'},
   {id:'2026-10-20-rueckgaengig', datum:'2026-10-20', fuer:'lehrer', text:'↩️ Aus Versehen etwas gelöscht, verschoben oder geändert? Mit Cmd+Z (Mac) bzw. Ctrl+Z (Windows) machst du die letzte Änderung in der Library rückgängig – mehrmals drücken geht weiter zurück (bis 15 Schritte, bis zum Neuladen der Seite). In Textfeldern macht Cmd+Z wie gewohnt nur den Text rückgängig.'},
@@ -27751,7 +27771,7 @@ function openGruppen(){
   html += mitKnopfHtml('grMit');
   html += '<button class="kz-close" id="grClose" type="button" title="Schliessen (Esc)">✕</button></div>';
   html += '<div class="kz-stage" id="grStage"><div class="qh-sub">Wird geladen …</div></div>';
-  gruppen.overlay = openOverlay(html, function(){ gruppen.overlay = null; }, 'kz-overlay-beamer');
+  gruppen.overlay = openOverlay(html, function(){ gruppen.overlay = null; }, 'kz-overlay-beamer kz-frei');
   gruppen.overlay.el.querySelector('#grClose').addEventListener('click', function(){ gruppen.overlay.close(); });
   mitKnopfVerdrahten(gruppen.overlay.el.querySelector('#grMit'), function(){
     mitRoster().then(function(list){
@@ -29001,7 +29021,7 @@ function enOeffnen(s){
       enAufraeumen();
       en.overlay = null; en.aktuell = null;
       if(state.route.name === 'energizer') enListeZeichnen();
-    }, 'kz-overlay-beamer');
+    }, 'kz-overlay-beamer kz-frei');
     var root = en.overlay.el;
     root.querySelector('#enOvClose').addEventListener('click', function(){ en.overlay.close(); });
     root.querySelector('#enOvZufall').addEventListener('click', function(){ enZufall(en.aktuell && en.aktuell.id); });
@@ -30067,7 +30087,7 @@ function renderKlassenzimmer(){
   html += '<p class="kz-intro">Werkzeuge für den Unterricht — nur für dich sichtbar. '+
     '<button class="btn btn-ghost btn-sm" id="kzAnordnenBtn" type="button" title="Werkzeuge verschieben oder ausblenden (oder lange auf eine Kachel drücken) – nochmals klicken beendet das Anordnen">✏️ Anordnen</button> '+
     '<button class="btn btn-ghost btn-sm anordnen-widgets" id="kzAnordnenWidgetsBtn" type="button" title="Ausgeblendetes zurückholen">🧩 Widgets</button>'+
-    (aktFensterMoeglich() ? ' <button class="btn '+(aktFensterAn() ? 'btn-primary' : 'btn-ghost')+' btn-sm" id="kzFensterBtn" type="button" aria-pressed="'+aktFensterAn()+'" title="Wortwolken, Umfragen, Spiele und Beamer-Werkzeuge in einem eigenen Fenster im Vollbild starten (gilt auch für ▶︎ Starten im Fach-Ordner). Es läuft immer nur eines aufs Mal.">🪟 Eigenes Fenster: '+(aktFensterAn() ? 'an' : 'aus')+'</button>' : '')+'</p>';
+    (aktFensterMoeglich() ? ' <button class="btn '+(aktFensterAn() ? 'btn-primary' : 'btn-ghost')+' btn-sm" id="kzFensterBtn" type="button" aria-pressed="'+aktFensterAn()+'" title="Wortwolken, Umfragen, Spiele und Beamer-Werkzeuge in einem eigenen Fenster im Vollbild starten (gilt auch für ▶︎ Starten im Fach-Ordner). Es läuft immer nur eines aufs Mal – ausser Ruhephase, Zufall, Stadt Land Fluss, Gruppen und Energizer: die laufen unabhängig.">🪟 Eigenes Fenster: '+(aktFensterAn() ? 'an' : 'aus')+'</button>' : '')+'</p>';
   var sichtbar = kzSichtbar();
   KZ_BEREICHE.forEach(function(b){
     var tiles = sichtbar.filter(function(t){ return t.bereich === b.id; });
@@ -30077,7 +30097,9 @@ function renderKlassenzimmer(){
     tiles.forEach(function(t){
       html += '<button class="kz-tile" data-tool="'+t.id+'" data-sort="'+t.id+'" data-ausblendbar="kz:'+t.id+'" type="button">';
       html += '<div class="kz-tile-icon">'+t.icon+'</div>';
-      html += '<div><h3>'+esc(t.name)+'</h3><p>'+esc(t.desc)+'</p></div></button>';
+      html += '<div><h3>'+esc(t.name)+'</h3><p>'+esc(t.desc)+'</p></div>';
+      if(AKT_FREI[t.id] && aktFensterMoeglich() && !aktFensterAn()) html += '<span class="kz-tile-fenster" data-fenster="'+t.id+'" role="button" tabindex="0" title="In einem eigenen Fenster öffnen – läuft unabhängig weiter (z. B. auf den Beamer ziehen)" aria-label="'+esc(t.name)+' in eigenem Fenster öffnen">🪟</span>';
+      html += '</button>';
     });
     html += '</div>';
   });
@@ -30095,6 +30117,15 @@ function renderKlassenzimmer(){
     renderKlassenzimmer();
   });
   wackelMarken();
+  Array.prototype.forEach.call(document.querySelectorAll('[data-fenster]'), function(f){
+    var auf = function(e){
+      e.preventDefault(); e.stopPropagation();
+      if(document.body.classList.contains('wackeln')) return;
+      aktFensterOeffnen('tool:' + f.getAttribute('data-fenster'));
+    };
+    f.addEventListener('click', auf);
+    f.addEventListener('keydown', function(e){ if(e.key === 'Enter' || e.key === ' ') auf(e); });
+  });
   Array.prototype.forEach.call(document.querySelectorAll('[data-tool]'), function(b){
     b.addEventListener('click', function(){
       var id = b.getAttribute('data-tool');
