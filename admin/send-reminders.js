@@ -131,10 +131,12 @@ async function main(){
     var liste = (entriesByKlasse[st.klasse || 'G3b'] || []).slice();
     // Fach-Gäste (students/{uid}.nurFach) bekommen nur Einträge ihres Fachs.
     if(st.nurFach) liste = liste.filter(function(e){ return e.subject === st.nurFach; });
+    // ⏰ Verlängert (nurOffen): wer schon abgegeben hat, bekommt keine Erinnerung mehr.
+    liste = liste.filter(function(e){ return !(e.nurOffen && e.submitted && e.submitted[d.id]); });
     // Gruppen-Einträge: Mitglieder + die Lehrperson(en) der Seite.
     gruppenEintraege.forEach(function(e){
       var dabei = e.mitglieder.indexOf(d.id) >= 0 || (st.role === 'teacher' && st.klasse === e.seite);
-      if(dabei && liste.indexOf(e) < 0) liste.push(e);
+      if(dabei && !(e.nurOffen && e.submitted && e.submitted[d.id]) && liste.indexOf(e) < 0) liste.push(e);
     });
     if(liste.length) bodyByUid[d.id] = liste.map(zeile).join('\n');
   });
