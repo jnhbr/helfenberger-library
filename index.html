@@ -125,21 +125,7 @@
   }
   .desk-prop{position:fixed;bottom:0;font-size:64px;line-height:1;opacity:.5;pointer-events:none;z-index:0;filter:saturate(.9);}
   .desk-prop-left{left:14px;}
-  .desk-prop-right{right:70px;}
-  /* Bleistift-Easter-Egg: eigenes Element statt Teil des dekorativen
-     "☕✏️"-Texts, damit genau dieser Bleistift klickbar sein kann, ohne die
-     ganze Kaffeetasse mit-interaktiv zu machen. */
-  .desk-prop-pencil{right:14px;z-index:2;background:none;border:0;padding:0;margin:0;color:inherit;pointer-events:auto;cursor:pointer;transition:opacity .15s ease;}
-  .desk-prop-pencil:hover,.desk-prop-pencil:focus-visible{opacity:.75;}
-  .desk-prop-pencil:focus-visible{outline:2px solid var(--brand);outline-offset:3px;border-radius:8px;}
-  .desk-prop-pencil-off{opacity:.22;filter:grayscale(1) saturate(.9);}
-  .pencil-bubble{position:fixed;bottom:92px;right:14px;z-index:70;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:0 10px 30px rgba(0,0,0,.18);padding:14px 16px;width:280px;max-width:calc(calc(100vw/var(--lz,1)) - 28px);}
-  .pencil-bubble::after{content:'';position:absolute;bottom:-9px;right:26px;width:16px;height:16px;background:var(--surface);border-right:1px solid var(--border);border-bottom:1px solid var(--border);transform:rotate(45deg);}
-  .pencil-bubble-close{position:absolute;top:4px;right:6px;background:none;border:0;font-size:19px;line-height:1;cursor:pointer;color:var(--text-muted);padding:4px 7px;}
-  .pencil-bubble-msg{font-size:14px;line-height:1.5;padding-right:16px;}
-  .pencil-bubble-teacher{margin-top:10px;padding-top:10px;border-top:1px dashed var(--border);}
-  .pencil-bubble-teacher textarea{width:100%;box-sizing:border-box;margin:6px 0 10px;font:inherit;padding:8px 10px;border:1px solid var(--border);border-radius:10px;background:var(--surface-2);color:var(--text);resize:vertical;}
-  .pencil-bubble-actions{display:flex;gap:8px;flex-wrap:wrap;}
+  .desk-prop-right{right:14px;}
 
   /* ---------- Schulden ("Geld-Symbol" oben links) ---------- */
   .topbar-coin{position:relative;font-size:17px;line-height:1;padding:7px 10px;flex-shrink:0;}
@@ -793,7 +779,7 @@
   }
 
   @media print{
-    .topbar,.back-row,.da-toolbar,.push-popover,.modal-overlay,.toast,.desk-prop,.pencil-bubble,.coin-bubble{display:none !important;}
+    .topbar,.back-row,.da-toolbar,.push-popover,.modal-overlay,.toast,.desk-prop,.coin-bubble{display:none !important;}
     body{background:#fff;}
     .content{padding:0;}
     .table-scroll{overflow:visible;}
@@ -3033,9 +3019,9 @@
   :root[data-design="neu"] .btn-danger{border-color:var(--bad);}
 
   /* Karten: Kontur + Tasten-Schatten statt weicher Schatten */
-  :root[data-design="neu"] :is(.subject-card,.resource-card,.folder-card,.kz-tile,.login-card,.modal,.empty-state,.da-student-card,.todo-popover,.push-popover,.coin-bubble,.pencil-bubble,.dropzone){border-width:2px;border-color:var(--kontur);}
+  :root[data-design="neu"] :is(.subject-card,.resource-card,.folder-card,.kz-tile,.login-card,.modal,.empty-state,.da-student-card,.todo-popover,.push-popover,.coin-bubble,.dropzone){border-width:2px;border-color:var(--kontur);}
   :root[data-design="neu"] :is(.resource-card,.folder-card,.kz-tile,.login-card){box-shadow:0 5px 0 var(--kontur);border-radius:14px;}
-  :root[data-design="neu"] :is(.modal,.todo-popover,.push-popover,.coin-bubble,.pencil-bubble){box-shadow:0 8px 0 var(--kontur);}
+  :root[data-design="neu"] :is(.modal,.todo-popover,.push-popover,.coin-bubble){box-shadow:0 8px 0 var(--kontur);}
   :root[data-design="neu"] .resource-list{gap:18px;}
   :root[data-design="neu"] .resource-card.current, :root[data-design="neu"] .folder-card.has-current{border-color:var(--bad);box-shadow:0 5px 0 var(--bad);}
   :root[data-design="neu"] .resource-card.sk-karte:hover{border-color:var(--kontur);box-shadow:0 7px 0 var(--kontur);}
@@ -3418,7 +3404,6 @@
 <body>
 <div class="desk-prop desk-prop-left" aria-hidden="true">📚</div>
 <div class="desk-prop desk-prop-right" aria-hidden="true">☕</div>
-<button type="button" id="pencilEgg" class="desk-prop desk-prop-pencil" hidden>✏️</button>
 <div id="app"><div class="spinner-wrap">Lädt …</div></div>
 <div class="toast" id="toast"></div>
 <div class="modal-overlay" id="modalOverlay"></div>
@@ -5945,7 +5930,8 @@ function renderKalender(){
    Schule» (alle eines Termins, Anwesenheit abhaken, drucken mit Logo).
    `auftrag` = was die Person in der Stunde macht (für die Aufsicht); wird nur
    in der Lehrpersonen-Ansicht angezeigt, nie bei Schüler:innen.
-   Im 📅 Kalender stehen für alle die nächsten zwei Termine. */
+   Im 📅 Kalender: Lehrpersonen sehen die nächsten zwei Termine, Schüler:innen
+   nur die Termine, für die sie eingetragen sind. */
 var EARLYBIRD_DATEN = [
   '2026-09-09','2026-09-23','2026-10-28','2026-11-11','2026-11-25','2026-12-09',
   '2027-01-06','2027-01-20','2027-02-17','2027-03-10','2027-03-17','2027-04-14',
@@ -5973,12 +5959,22 @@ function earlybirdLadenDatum(datum){
   });
 }
 
-// Kalender: die nächsten zwei Termine. Schüler:innen sehen, ob sie eingetragen
-// sind, Lehrpersonen wie viele (aus der offenen Klasse / total).
+// Kalender: Lehrpersonen sehen die nächsten zwei Termine (wie viele eingetragen,
+// aus der offenen Klasse / total). Schüler:innen sehen nur die kommenden Termine,
+// für die sie eingetragen sind – sonst gar keinen Earlybird.
 function earlybirdKalenderLaden(){
-  var daten = earlybirdKommende(2);
-  if(!daten.length || !state.user) return Promise.resolve([]);
+  if(!state.user) return Promise.resolve([]);
   var lehrer = state.profile.role === 'teacher';
+  if(!lehrer){
+    var kommend = earlybirdKommende();
+    return getDocs(query(earlybirdCol(), where('uid','==',state.user.uid))).then(function(snap){
+      var meine = {};
+      snap.forEach(function(d){ meine[d.data().datum] = true; });
+      return kommend.filter(function(d){ return meine[d]; }).map(function(d){ return {datum:d, liste:[{uid:state.user.uid}]}; });
+    }).catch(function(err){ console.error('Earlybird nicht lesbar', err); return []; });
+  }
+  var daten = earlybirdKommende(2);
+  if(!daten.length) return Promise.resolve([]);
   var job = lehrer
     ? Promise.all(daten.map(earlybirdLadenDatum))
     : getDocs(query(earlybirdCol(), where('uid','==',state.user.uid))).then(function(snap){
@@ -7918,97 +7914,6 @@ function esc(s){ return (s||'').toString().replace(/&/g,'&amp;').replace(/</g,'&
    Druck-CSS der Library (@page{…}). Safari und Firefox kennen das nicht – dort bleibt es bei der Einstellung im Druckdialog. */
 var DRUCK_OHNE_KOPF = '@top-left{content:""}@top-center{content:""}@top-right{content:""}@bottom-left{content:""}@bottom-center{content:""}@bottom-right{content:""}';
 
-/* ===================== "BLEISTIFT"-EASTER-EGG (unten rechts) =====================
-   Rein dekoratives Detail für aufmerksame Schüler:innen: der Bleistift neben der
-   Kaffeetasse ist klickbar und öffnet eine Sprechblase mit einer versteckten
-   Nachricht. An/Aus + Text liegen in Firestore unter appMeta/pencilEgg (appMeta
-   erlaubt laut firestore.rules bereits: alle lesen, nur die Lehrperson schreibt -
-   keine Regeländerung nötig). Für die Lehrperson bleibt der Bleistift auch im
-   ausgeblendeten Zustand sichtbar (nur schwächer/entsättigt), damit sie ihn
-   jederzeit wieder einschalten kann; für alle anderen verschwindet er komplett. */
-var PENCIL_EGG_DEFAULT_MESSAGE = "Du bist die erste Person, die mich entdeckt hat. Hol dir dein Schoggibrötli bei Herrn Helfenberger ab.";
-var pencilEgg = { enabled:true, message:PENCIL_EGG_DEFAULT_MESSAGE };
-var pencilEggBtn = document.getElementById('pencilEgg');
-if(pencilEggBtn){
-  pencilEggBtn.addEventListener('click', function(e){
-    e.stopPropagation();
-    if(document.getElementById('pencilBubble')){ closePencilBubble(); } else { openPencilBubble(); }
-  });
-}
-function loadPencilEgg(){
-  // Neue Klassen: standardmässig aus, bis die Lehrperson ihn einschaltet.
-  pencilEgg = {
-    enabled: state.klasse === 'G3b',
-    message: "Du bist die erste Person, die mich entdeckt hat. Hol dir dein Schoggibrötli bei "+lpDativ()+" ab."
-  };
-  getDoc(kdoc('appMeta','pencilEgg')).then(function(snap){
-    if(snap.exists()){
-      var data = snap.data();
-      if(typeof data.enabled === 'boolean') pencilEgg.enabled = data.enabled;
-      if(typeof data.message === 'string' && data.message.trim()) pencilEgg.message = data.message;
-    }
-    applyPencilEggVisibility();
-  }).catch(function(err){ console.error(err); applyPencilEggVisibility(); });
-}
-function applyPencilEggVisibility(){
-  if(!pencilEggBtn) return;
-  var isTeacher = state.profile && state.profile.role === 'teacher';
-  pencilEggBtn.hidden = !(pencilEgg.enabled || isTeacher);
-  pencilEggBtn.classList.toggle('desk-prop-pencil-off', !pencilEgg.enabled);
-}
-function openPencilBubble(){
-  var isTeacher = state.profile && state.profile.role === 'teacher';
-  var html = '<div class="pencil-bubble" id="pencilBubble">'+
-    '<button type="button" class="pencil-bubble-close" id="pencilBubbleClose" aria-label="Schliessen">×</button>'+
-    '<div class="pencil-bubble-msg">'+esc(pencilEgg.message)+'</div>';
-  if(isTeacher){
-    html += '<div class="pencil-bubble-teacher">'+
-      '<label class="modal-label">Nachricht (nur du siehst dieses Feld)</label>'+
-      '<textarea id="pencilMsgInput" rows="3" maxlength="300">'+esc(pencilEgg.message)+'</textarea>'+
-      '<div class="pencil-bubble-actions">'+
-        '<button class="btn btn-ghost btn-sm" id="pencilSaveBtn" type="button">Speichern</button>'+
-        '<button class="btn btn-ghost btn-sm" id="pencilHideBtn" type="button">'+(pencilEgg.enabled ? 'Funktion ausblenden' : 'Funktion einblenden')+'</button>'+
-      '</div></div>';
-  }
-  html += '</div>';
-  document.body.insertAdjacentHTML('beforeend', html);
-  document.getElementById('pencilBubbleClose').addEventListener('click', closePencilBubble);
-  if(isTeacher){
-    document.getElementById('pencilSaveBtn').addEventListener('click', function(){
-      var val = document.getElementById('pencilMsgInput').value.trim().slice(0,300);
-      if(!val) return;
-      savePencilEgg({message:val});
-      closePencilBubble();
-    });
-    document.getElementById('pencilHideBtn').addEventListener('click', function(){
-      savePencilEgg({enabled: !pencilEgg.enabled});
-      closePencilBubble();
-    });
-  }
-  setTimeout(function(){ document.addEventListener('click', onOutsidePencilClick); }, 0);
-}
-function closePencilBubble(){
-  var el = document.getElementById('pencilBubble');
-  if(el) el.remove();
-  document.removeEventListener('click', onOutsidePencilClick);
-}
-function onOutsidePencilClick(e){
-  var el = document.getElementById('pencilBubble');
-  if(!el) return;
-  if(el.contains(e.target) || e.target === pencilEggBtn) return;
-  closePencilBubble();
-}
-function savePencilEgg(patch){
-  Object.assign(pencilEgg, patch);
-  applyPencilEggVisibility();
-  setDoc(kdoc('appMeta','pencilEgg'), patch, {merge:true}).then(function(){
-    toast('Gespeichert.');
-  }).catch(function(err){
-    console.error(err);
-    toast('Konnte nicht gespeichert werden.');
-  });
-}
-
 /* ===================== HOVER-PANELS (To-dos & Schulden) =====================
    Die beiden Topbar-Fenster (To-do-Panel, Schulden-Fenster) gehen schon beim
    Drüberfahren mit der Maus auf und wieder zu, sobald der Zeiger Knopf und
@@ -8741,7 +8646,6 @@ async function authGeaendert(user){
     state.profile = null;
     state.klasse = null;
     state.route = {name:'login'};
-    closePencilBubble();
     stopOverviewListener();
     stopDebtWatch();
     stopQuizWatcher();
@@ -8751,7 +8655,6 @@ async function authGeaendert(user){
     stopAbstWatcher();
     stopPruefungWatcher();
     stopLernphaseWatcher();
-    applyPencilEggVisibility();
     render();
     return;
   }
@@ -8820,7 +8723,6 @@ async function authGeaendert(user){
     layoutLoad();
     i18nKontoLaden();
     stpVorladen();
-    loadPencilEgg();
     startDebtWatch();
     startQuizWatcher();
     startUmfrageWatcher();
@@ -9868,7 +9770,7 @@ var KIB_WISSEN = [
   {id:'gruppen', fuer:'sus', f:'Wo finde ich die Übungen einer anderen Lehrperson?', w:'gruppe gruppen andere lehrperson niveau niveaugruppe halbklasse wahlfach andere klasse mathe englisch',
    a:'Bist du in einer Gruppe einer anderen Lehrperson (z. B. Mathe in einer anderen Klasse), siehst du im Fach auch ihre Übungen und im Kalender ihre Hausaufgaben. Fehlt etwas, sag es dieser Lehrperson: Sie muss dich in ihre Gruppe aufnehmen.'},
   {id:'earlybird', fuer:'sus', f:'Was ist Earlybird?', w:'earlybird early bird mittwoch morgen früh eingetragen nachholen',
-   a:'🐦 Earlybird ist jeweils am Mittwoch von 06:30 bis 07:30. Die nächsten Termine stehen im Kalender. Bist du eingetragen, steht es dort.', ziel:'kalender'},
+   a:'🐦 Earlybird ist jeweils am Mittwoch von 06:30 bis 07:30. Bist du eingetragen, steht der Termin in deinem Kalender. Steht nichts dort, musst du nicht kommen.', ziel:'kalender'},
   {id:'rechner', fuer:'sus', f:'Gibt es einen Taschenrechner?', w:'taschenrechner rechner rechnen tastatur mathe lehrmittel mathematik kapitel niveau',
    a:'In den Mathe-Übungen gibt es den Taschenrechner 🧮. Du kannst ihn auch mit der Tastatur bedienen.\nIn Mathe findest du zudem alle Online-Übungen der Lehrmittel Mathematik 1, 2 und 3, geordnet nach Kapitel und Niveau.'},
   {id:'werkstatt', fuer:'sus', f:'Was ist die Rechtschreib-Werkstatt?', w:'rechtschreib-werkstatt werkstatt posten pass werkstatt-pass hördiktat diktat langsamer schneller tempo abspielen',
@@ -13750,7 +13652,8 @@ function svaKopfHtml(isTeacher){
     }).join('')+'</table></details>';
   html += '<div class="sva-knoepfe"><a class="btn btn-ghost btn-sm" href="sva/SVA-Leitfaden-2026-27.pdf" target="_blank" rel="noopener">📄 Leitfaden SVA (PDF)</a>'+
     '<a class="btn btn-ghost btn-sm" href="https://youtu.be/nVc2cYSEgpA" target="_blank" rel="noopener">▶️ Erklärvideo Arbeitsdossier</a>'+
-    '<a class="btn btn-ghost btn-sm" href="sva/SVA-Arbeitsdossier-Praesentation.pdf" target="_blank" rel="noopener" title="Die Folien aus dem Erklärvideo zum Nachlesen">🖼️ Präsentation Arbeitsdossier (PDF)</a>';
+    '<a class="btn btn-ghost btn-sm" href="sva/SVA-Arbeitsdossier-Praesentation.pdf" target="_blank" rel="noopener" title="Die Folien aus dem Erklärvideo zum Nachlesen">🖼️ Präsentation Arbeitsdossier (PDF)</a>'+
+    '<a class="btn btn-ghost btn-sm" href="sva/Logo_Sek_Altnau.png" download="Logo_Sek_Altnau.png" title="Für Titelseite und Fusszeile deines Dossiers">⬇️ Logo Sek Altnau</a>';
   if(isTeacher){
     html += '<button class="btn btn-ghost btn-sm" id="svaStandBtn" type="button">📊 Wer steht wo?</button>'+
       '<button class="btn btn-ghost btn-sm" id="svaProjBtn" type="button">📋 Projekte der Klasse</button>'+
@@ -22947,6 +22850,9 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-10-21-bleistift-weg', datum:'2026-10-21', fuer:'alle', text:'✏️ Der versteckte Bleistift unten rechts ist weg – das Rätsel ist gelöst.'},
+  {id:'2026-10-21-earlybird-nur-eingetragen', datum:'2026-10-21', fuer:'alle', text:'🐦 Earlybird steht jetzt nur noch in deinem Kalender, wenn du dafür eingetragen bist. Siehst du keinen Earlybird, musst du nicht kommen.'},
+  {id:'2026-10-21-sva-logo', datum:'2026-10-21', fuer:'alle', text:'🎓 SVA: Das Logo der Sek Altnau für Titelseite und Fusszeile deines Dossiers kannst du jetzt im Fach SVA mit «⬇️ Logo Sek Altnau» herunterladen.'},
   {id:'2026-10-21-sva-praesentation', datum:'2026-10-21', fuer:'alle', text:'🎓 SVA: Die Präsentation zum Arbeitsdossier (die Folien aus dem Erklärvideo) findest du jetzt im Fach SVA unter «🖼️ Präsentation Arbeitsdossier (PDF)». So kannst du alles in Ruhe nachlesen.'},
   {id:'2026-10-21-neue-version-offen', datum:'2026-10-21', fuer:'alle', text:'🔄 Neues kommt jetzt schneller in die Library – nicht mehr erst über Nacht. Ist die Library schon offen, erscheint unten «🔄 Neue Version der Library». Antippen, und du hast die neueste Fassung. Während einer Prüfung kommt der Hinweis nie.'},
   {id:'2026-10-21-safari-ohne-timer', datum:'2026-10-21', fuer:'lehrer', text:'🦒 Stille Safari geht jetzt auch ohne Timer: unten in der Leiste «🌿 Ohne Timer» antippen. Die Szene läuft ohne Countdown, bleibt es ruhig, kommen die Tiere. Nochmals tippen = Pause (die Tiere hören zu). Startest du doch den Timer, übernimmt er.'},
