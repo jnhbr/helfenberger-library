@@ -9957,7 +9957,7 @@ var KIB_WISSEN = [
   {id:'lp-material', fuer:'lp', f:'Wie lege ich ein Quiz oder eine Umfrage in einen Fach-Ordner?', w:'unterrichtsmaterial zusatzmaterial material ordner ablegen quiz umfrage wortwolke karteikarten paket importieren aus dem klassenzimmer lehrer-html planung', ziel:'klassenzimmer',
    a:'Im Fach auf «🏫 Aus dem Klassenzimmer»: Klassen-Quiz, Karteikarten, Wortwolke, Blitzumfrage, Millionär-Set oder Prüfung neu anlegen oder Vorhandenes in den offenen Ordner holen. Es steht dann unter den Übungen, mit «▶︎ Starten».\nGesammelt findest du alles unter 🏫 Klassenzimmer › «🗃️ Unterrichtsmaterial».'},
   {id:'lp-stille-safari', fuer:'lp', f:'Was ist die «Stille Safari» in der Ruhephase?', w:'stille safari shy safari tiere ruhe lärm leise ruhephase lärmampel savanne riff wald mikrofon belohnen', ziel:'klassenzimmer',
-   a:'Im 🏫 Klassenzimmer › ⏱ Ruhephase in der Mitte von «🚦 Lärmampel» auf «🦒 Stille Safari» umschalten. Am Beamer ist dann eine ruhige Szene (Savanne, Korallenriff oder Wald). Solange der Timer läuft und es leise bleibt, kommen nach und nach Tiere hervor – das erste nach 10–20 Sekunden, insgesamt etwa 9 in einer ruhigen Ruhephase, manche sind selten. Wird es zu laut, wird die Szene neblig und die Tiere verstecken sich, bis es wieder ruhig ist (oder sie laufen davon / es wird nur neblig – unter ⚙️). Keine Punkte, kein Rot.\nPausierst du den Timer, drehen sich die Tiere zur Klasse und hören zu. ↺ oder eine neue Dauer starten eine neue, leere Szene.\n📖 Entdeckt: alle Tiere der Szene – entdeckte mit Namen und Steckbrief, die anderen als graue Silhouette (pro Klasse auf diesem Gerät gespeichert).\n⚙️ unten: Ruhe-Grenze (mit Pegelanzeige), Tempo, Verhalten bei Lärm. Das Mikrofon misst nur den Pegel auf deinem Gerät, nichts wird aufgezeichnet oder gesendet.\nIdee und Grafiken: verändert nach teacher.dev/shy-safari (Open Source, Apache-2.0).'},
+   a:'Im 🏫 Klassenzimmer › ⏱ Ruhephase in der Mitte von «🚦 Lärmampel» auf «🦒 Stille Safari» umschalten. Am Beamer ist dann eine ruhige Szene (Savanne, Korallenriff oder Wald). Solange der Timer läuft (oder du «🌿 Ohne Timer» antippst) und es leise bleibt, kommen nach und nach Tiere hervor – das erste nach 10–20 Sekunden, insgesamt etwa 9 in einer ruhigen Ruhephase, manche sind selten. Wird es zu laut, wird die Szene neblig und die Tiere verstecken sich, bis es wieder ruhig ist (oder sie laufen davon / es wird nur neblig – unter ⚙️). Keine Punkte, kein Rot.\nPausierst du den Timer, drehen sich die Tiere zur Klasse und hören zu. ↺ oder eine neue Dauer starten eine neue, leere Szene.\n📖 Entdeckt: alle Tiere der Szene – entdeckte mit Namen und Steckbrief, die anderen als graue Silhouette (pro Klasse auf diesem Gerät gespeichert).\n⚙️ unten: Ruhe-Grenze (mit Pegelanzeige), Tempo, Verhalten bei Lärm. Das Mikrofon misst nur den Pegel auf deinem Gerät, nichts wird aufgezeichnet oder gesendet.\nIdee und Grafiken: verändert nach teacher.dev/shy-safari (Open Source, Apache-2.0).'},
   {id:'lp-wer-macht-mit', fuer:'lp', f:'Wie mische ich Klassen im Glücksrad oder bei den Gruppen?', w:'glücksrad wer ist dran gruppen partner ruhephase flüstern andere klasse mischen gäste einzelne schüler dazunehmen auswahl wer macht mit abwesend', ziel:'klassenzimmer',
    a:'Im 🏫 Klassenzimmer oben rechts in 🎲 Zufall, ⏱ Ruhephase und 👥 Gruppen & Partner auf «👥 …» tippen. Dort wählst du ganze Klassen aus der ganzen Schule, deine 👥 Gruppen und einzelne Schüler:innen (Suchfeld) – z. B. die G2b und drei aus der E3a. Wer heute fehlt: Namen antippen.\nDie Auswahl gilt für Glücksrad, Wer ist dran?, Gruppen & Partner und die Flüsterliste und bleibt auf deinem Gerät gespeichert.'},
   {id:'lp-energizer', fuer:'lp', f:'Wo finde ich Energizer und Aktivierungsspiele?', w:'energizer aktivierung aktivierungsspiel bewegung pause spiel spiele auflockern konzentration ruhe atmung', ziel:'klassenzimmer',
@@ -18264,6 +18264,7 @@ function mountSafariRuhephase(stage){
   h += '<div class="ss-quelle">Es wird nichts aufgezeichnet. Idee &amp; Grafiken: verändert nach teacher.dev/shy-safari (Apache-2.0).</div>';
   h += '</div>';
   h += '<div class="ss-bar">' + ruheModusHtml('safari');
+  h += '<button class="ss-szene" id="ssFrei" type="button" title="Die Szene läuft ohne Countdown – bleibt es ruhig, kommen die Tiere trotzdem">🌿 Ohne Timer</button>';
   SAFARI_SZENEN.forEach(function(s){
     h += '<button class="ss-szene' + (s.id === cfg.szene ? ' on' : '') + '" data-szene="' + s.id + '" type="button">' + s.icon + ' ' + esc(s.name) + '</button>';
   });
@@ -18285,7 +18286,8 @@ function mountSafariRuhephase(stage){
   var S = {
     daten:null, ladeFehler:false, tiere:[], nextId:1, phase:'bereit', hush:false, total:300,
     clock:null, noise:'quiet', since:-Infinity, samples:[], aktivVorher:false,
-    scare:{left:3000, first:true}, fertigSeit:0, neuJetzt:{}
+    scare:{left:3000, first:true}, fertigSeit:0, neuJetzt:{},
+    frei:null   // 🌿 Ohne Timer: null | 'laeuft' | 'pause' (Wunsch von Jan, 21.10.2026)
   };
   S.clock = ssNewClock(ssIntervallMs(S.total, cfg.tempo), true);
   var stopped = false, raf = null, stream = null, ctx = null, analyser = null, buf = null, smooth = 0, lastSample = 0;
@@ -18305,7 +18307,7 @@ function mountSafariRuhephase(stage){
     var t = '';
     if(S.ladeFehler) t = 'Die Szene konnte nicht geladen werden — Internet prüfen und Szene nochmals antippen.';
     else if(!S.daten) t = '';
-    else if(S.phase === 'bereit' && !S.tiere.length) t = 'Timer starten — bleibt es ruhig, kommen die Tiere hervor.';
+    else if(S.phase === 'bereit' && !S.tiere.length) t = 'Timer starten oder 🌿 Ohne Timer — bleibt es ruhig, kommen die Tiere hervor.';
     else if(S.phase === 'fertig') t = 'Geschafft — danke für die Ruhe! 🌿 Unter 📖 seht ihr, wen ihr entdeckt habt.';
     if(hintEl.textContent !== t) hintEl.textContent = t;
   }
@@ -18557,6 +18559,9 @@ function mountSafariRuhephase(stage){
   // Vom Timer: art = 'reset' (neue Dauer / ↺) oder 'tick' (jede Änderung).
   function vomTimer(art, t){
     S.total = t.total || S.total;
+    // Läuft die Szene 🌿 ohne Timer, übernimmt erst ein gestarteter Timer oder eine neue Dauer.
+    if(S.frei && !t.running && art !== 'reset'){ S.phase = S.frei; S.hush = false; hinweis(); return; }
+    if(S.frei){ S.frei = null; freiKnopf(); }
     if(art === 'reset'){
       alleTiereWeg();
       S.clock = ssNewClock(ssIntervallMs(S.total, cfg.tempo), true);
@@ -18568,6 +18573,20 @@ function mountSafariRuhephase(stage){
     S.hush = t.running && t.left <= 6;
     hinweis();
   }
+
+  // 🌿 Ohne Timer: startet die Szene ohne Countdown, nochmals tippen = Pause (Tiere hören zu).
+  var freiBtn = stage.querySelector('#ssFrei');
+  function freiKnopf(){
+    freiBtn.textContent = S.frei === 'laeuft' ? '❚❚ Pause' : (S.frei === 'pause' ? '🌿 Weiter' : '🌿 Ohne Timer');
+    freiBtn.classList.toggle('on', !!S.frei);
+  }
+  freiBtn.addEventListener('click', function(){
+    if(!S.frei && (S.phase === 'laeuft' || S.phase === 'pause')){ toast('Der Timer läuft schon – dort pausieren oder mit ↺ zurücksetzen.'); return; }
+    if(!S.frei && S.phase === 'fertig'){ alleTiereWeg(); S.clock = ssNewClock(ssIntervallMs(S.total, cfg.tempo), true); S.samples = []; }
+    S.frei = S.frei === 'laeuft' ? 'pause' : 'laeuft';
+    S.phase = S.frei; S.hush = false;
+    freiKnopf(); hinweis();
+  });
 
   mountTimer(stage.querySelector('#rpTimer'), {onChange:vomTimer});
   mountSprecher(stage.querySelector('#rpSpeak'));
@@ -22926,6 +22945,7 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-10-21-safari-ohne-timer', datum:'2026-10-21', fuer:'lehrer', text:'🦒 Stille Safari geht jetzt auch ohne Timer: unten in der Leiste «🌿 Ohne Timer» antippen. Die Szene läuft ohne Countdown, bleibt es ruhig, kommen die Tiere. Nochmals tippen = Pause (die Tiere hören zu). Startest du doch den Timer, übernimmt er.'},
   {id:'2026-10-21-frei-fenster', datum:'2026-10-21', fuer:'lehrer', text:'🪟 Im 🏫 Klassenzimmer haben ⏱ Ruhephase, 🎲 Zufall, 🌍 Stadt Land Fluss, 👥 Gruppen & Partner und ⚡ Energizer oben rechts auf der Kachel ein 🪟: öffnet sie in einem eigenen Fenster (z. B. auf den Beamer ziehen). Sie laufen unabhängig – neben einer Wortwolke, einem Quiz oder einem Spiel, auch mehrere gleichzeitig – und werden beim Start von etwas anderem nicht mehr beendet.'},
   {id:'2026-10-21-verlaengern-nur-offene', datum:'2026-10-21', fuer:'lehrer', text:'⏰ Hausaufgaben, Abgaben und Unterschriften verlängern: Schiebst du das Datum unter «Bearbeiten» nach hinten oder nutzt «↺ Reaktivieren», sehen den Eintrag nur noch die, die in der Abgabe-Checkliste (☑) noch nicht abgehakt sind. Die Checkliste bleibt dabei stehen. Erkennbar am Zeichen «⏰ nur noch Offene»; im Formular lässt sich das Häkchen wieder entfernen.'},
   {id:'2026-10-20-figuren-werkstatt', datum:'2026-10-20', fuer:'lehrer', text:'📐 Klassenzimmer › «Figuren-Werkstatt»: Koordinatensysteme, Dreiecke, Körper, Schaltpläne, Messgeräte, Heizkurven, Kreuzungsschemas … einstellen und als Bild direkt in Word oder PowerPoint kopieren – für Prüfungen und Arbeitsblätter. Die Seiten sind englisch, oben steht eine kurze deutsche Anleitung mit den Begriffen.'},
