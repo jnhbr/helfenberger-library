@@ -67,22 +67,25 @@ Lehrperson über eine Anfrage zurück (`admin/passwort-reset.js`).
 Firebase-Tarif Blaze: abgerechnet wird pro Lese- und Schreibzugriff und pro gespeichertem Gigabyte. Für die ganze
 Schule sind das einige Franken pro Monat. GitHub Pages und die GitHub Actions kosten nichts.
 
-## Testseite & nächtliche Freigabe
+## Testseite & automatische Freigabe
 
 - **Live (Schüler:innen):** https://jnhbr.github.io/helfenberger-library/ — Repo `jnhbr/helfenberger-library`
 - **Test:** https://jnhbr.github.io/helfenberger-library-test/ — Repo `jnhbr/helfenberger-library-test`
 
-Änderungen immer nur ins **Test-Repo** pushen. Der Workflow `.github/workflows/nightly-release.yml`
-im Live-Repo kopiert den Stand der Testseite jede Nacht um 00:00 (Schweizer Zeit) auf die Live-Seite —
-nur wenn sich etwas geändert hat und die Syntaxprüfung besteht. Läuft komplett bei GitHub.
+Änderungen immer nur ins **Test-Repo** pushen. Dort läuft bei jedem Push «Prüfen» (Leitplanken, Smoke-,
+Regel-, Login- und Funktionstest). Der Workflow `.github/workflows/nightly-release.yml` im Live-Repo schaut
+seit 21.10.2026 **alle 15 Minuten** nach und kopiert einen neuen Stand der Testseite auf die Live-Seite,
+sobald dessen «Prüfen» grün ist (rot oder noch laufend → nichts). Live geht also ca. 5–20 Minuten nach dem Push.
+Offene Library-Tabs merken das selbst: still neu laden, solange niemand etwas tut, sonst unten
+«🔄 Neue Version der Library» — nie während einer Prüfung.
 
-- **Sofort live:** Live-Repo → *Actions* → „Testseite live schalten" → *Run workflow*.
-- **Heute Nacht nicht:** im Test-Repo eine Datei `PAUSE` anlegen (wieder löschen, um fortzufahren).
+- **Sofort live (ohne auf «Prüfen» zu warten):** «🚀 Jetzt live» auf der Testseite oder Live-Repo → *Actions* → „Testseite live schalten" → *Run workflow*.
+- **Vorläufig nichts live:** im Test-Repo eine Datei `PAUSE` anlegen (wieder löschen, um fortzufahren).
 - Beide Seiten nutzen **dieselbe Firebase-Datenbank** — Daten, die du auf der Testseite anlegst/löschst, sind echt.
   `firestore.rules` gelten sofort für beide; Regeländerungen, die neuen Code voraussetzen, erst nach der Freigabe publizieren.
 - Auf der Testseite steht oben „🧪 Testseite"; Push-Erinnerungen sind dort ausgeschaltet.
 - `manifest.json` und `assets/icon-*.png` sind im Test-Repo absichtlich anders (Name „Library Test", Icon mit ⚙️) und werden nie live kopiert. Icon-/Manifest-Änderungen für die Live-Seite also direkt im Live-Repo machen.
-- Direkte Pushes aufs Live-Repo werden in der nächsten Nacht vom Stand der Testseite überschrieben (ausser `.github/`).
+- Direkte Pushes aufs Live-Repo werden bei der nächsten Freigabe vom Stand der Testseite überschrieben (ausser `.github/`).
 
 ## Regeln der Datenbank publizieren
 

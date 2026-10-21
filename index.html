@@ -11960,7 +11960,8 @@ function paintSettingsAbgleich(force){
 
 /* ===================== TESTSEITE: SOFORT LIVE =====================
    Nur auf der Testseite (IS_TEST_SITE) für die Lehrperson. Startet im Live-Repo
-   den Workflow "Testseite live schalten" (sonst läuft er nachts um 00:00).
+   den Workflow "Testseite live schalten" sofort, ohne auf «Prüfen» zu warten
+   (sonst geht ein Stand ca. 15 Min. nach grünem «Prüfen» von selbst live).
    Braucht einen fein begrenzten GitHub-Token (nur Repo helfenberger-library,
    nur "Actions: Read and write"), der nur in diesem Browser liegt - nie im Code.
    Key bewusst ohne hl_-Präfix (gehört der Shell-Logik nicht). */
@@ -11975,7 +11976,7 @@ function goLiveToken(){
 function confirmGoLive(){
   if(!goLiveToken()){ askGoLiveToken(); return; }
   uiConfirm('🚀 Jetzt live schalten?',
-    'Der zuletzt gepushte Stand der Testseite wird sofort auf die Live-Seite übernommen. Nach ca. 1–2 Minuten sehen ihn die Schüler:innen (nach dem Neuladen).',
+    'Der zuletzt gepushte Stand der Testseite wird sofort auf die Live-Seite übernommen – ohne auf «Prüfen» zu warten. (Von selbst geht er ca. 15 Minuten nach grünem «Prüfen» live.) Nach ca. 1–2 Minuten sehen ihn die Schüler:innen: Offene Library-Tabs zeigen «🔄 Neue Version».',
     'Live schalten', runGoLive);
 }
 
@@ -13748,7 +13749,8 @@ function svaKopfHtml(isTeacher){
         (t.typ === 'abgabe' ? ' <span class="sva-chip abgabe">Abgabe</span>' : '')+'<br><span class="sva-klein">'+esc(t.text)+'</span></td></tr>';
     }).join('')+'</table></details>';
   html += '<div class="sva-knoepfe"><a class="btn btn-ghost btn-sm" href="sva/SVA-Leitfaden-2026-27.pdf" target="_blank" rel="noopener">📄 Leitfaden SVA (PDF)</a>'+
-    '<a class="btn btn-ghost btn-sm" href="https://youtu.be/nVc2cYSEgpA" target="_blank" rel="noopener">▶️ Erklärvideo Arbeitsdossier</a>';
+    '<a class="btn btn-ghost btn-sm" href="https://youtu.be/nVc2cYSEgpA" target="_blank" rel="noopener">▶️ Erklärvideo Arbeitsdossier</a>'+
+    '<a class="btn btn-ghost btn-sm" href="sva/SVA-Arbeitsdossier-Praesentation.pdf" target="_blank" rel="noopener" title="Die Folien aus dem Erklärvideo zum Nachlesen">🖼️ Präsentation Arbeitsdossier (PDF)</a>';
   if(isTeacher){
     html += '<button class="btn btn-ghost btn-sm" id="svaStandBtn" type="button">📊 Wer steht wo?</button>'+
       '<button class="btn btn-ghost btn-sm" id="svaProjBtn" type="button">📋 Projekte der Klasse</button>'+
@@ -22945,6 +22947,8 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-10-21-sva-praesentation', datum:'2026-10-21', fuer:'alle', text:'🎓 SVA: Die Präsentation zum Arbeitsdossier (die Folien aus dem Erklärvideo) findest du jetzt im Fach SVA unter «🖼️ Präsentation Arbeitsdossier (PDF)». So kannst du alles in Ruhe nachlesen.'},
+  {id:'2026-10-21-neue-version-offen', datum:'2026-10-21', fuer:'alle', text:'🔄 Neues kommt jetzt schneller in die Library – nicht mehr erst über Nacht. Ist die Library schon offen, erscheint unten «🔄 Neue Version der Library». Antippen, und du hast die neueste Fassung. Während einer Prüfung kommt der Hinweis nie.'},
   {id:'2026-10-21-safari-ohne-timer', datum:'2026-10-21', fuer:'lehrer', text:'🦒 Stille Safari geht jetzt auch ohne Timer: unten in der Leiste «🌿 Ohne Timer» antippen. Die Szene läuft ohne Countdown, bleibt es ruhig, kommen die Tiere. Nochmals tippen = Pause (die Tiere hören zu). Startest du doch den Timer, übernimmt er.'},
   {id:'2026-10-21-frei-fenster', datum:'2026-10-21', fuer:'lehrer', text:'🪟 Im 🏫 Klassenzimmer haben ⏱ Ruhephase, 🎲 Zufall, 🌍 Stadt Land Fluss, 👥 Gruppen & Partner und ⚡ Energizer oben rechts auf der Kachel ein 🪟: öffnet sie in einem eigenen Fenster (z. B. auf den Beamer ziehen). Sie laufen unabhängig – neben einer Wortwolke, einem Quiz oder einem Spiel, auch mehrere gleichzeitig – und werden beim Start von etwas anderem nicht mehr beendet.'},
   {id:'2026-10-21-verlaengern-nur-offene', datum:'2026-10-21', fuer:'lehrer', text:'⏰ Hausaufgaben, Abgaben und Unterschriften verlängern: Schiebst du das Datum unter «Bearbeiten» nach hinten oder nutzt «↺ Reaktivieren», sehen den Eintrag nur noch die, die in der Abgabe-Checkliste (☑) noch nicht abgehakt sind. Die Checkliste bleibt dabei stehen. Erkennbar am Zeichen «⏰ nur noch Offene»; im Formular lässt sich das Häkchen wieder entfernen.'},
@@ -45110,9 +45114,29 @@ function registerAppServiceWorker(){
    hier. Hat noch niemand etwas getan (frisch geladen, Startseite oder Login,
    kein Dialog, keine Prüfung), lädt die Seite still neu — sonst erscheint
    unten ein kleiner Hinweis, der nichts unterbricht. Höchstens ein stilles
-   Neuladen pro Tab (sessionStorage), damit nie eine Schleife entsteht. */
+   Neuladen pro Tab (sessionStorage), damit nie eine Schleife entsteht.
+   Seit 21.10.2026 geht ein neuer Stand nicht mehr nur nachts live, sondern
+   etwa 15 Minuten nach grünem «Prüfen». Darum fragt auch ein Tab, der lange
+   offen bleibt (Beamer, iPads), alle 10 Minuten und beim Zurückkommen in den
+   Tab nach, ob index.html einen anderen Stempel (ETag) hat als beim ersten
+   Nachsehen – nur die Kopfzeilen (HEAD), nicht die ganze Datei. */
 var NEU_CACHE = 'hl-app-v2';   // = CACHE in sw-push.js
-var neueVersion = { start:Date.now(), bedient:false, gemeldet:false };
+var neueVersion = { start:Date.now(), bedient:false, gemeldet:false, stempel:null, zuletzt:0 };
+function neueVersionStempel(){
+  return fetch(new URL('index.html', location.href).href, { method:'HEAD', cache:'no-store' }).then(function(r){
+    if(!r.ok) return null;
+    return r.headers.get('etag') || r.headers.get('last-modified') || null;
+  }).catch(function(){ return null; });
+}
+function neueVersionNachsehen(){
+  if(neueVersion.gemeldet || document.visibilityState === 'hidden' || navigator.onLine === false) return;
+  neueVersion.zuletzt = Date.now();
+  neueVersionStempel().then(function(st){
+    if(!st) return;
+    if(!neueVersion.stempel){ neueVersion.stempel = st; return; }
+    if(st !== neueVersion.stempel) neueVersionDa();
+  });
+}
 function neueVersionBeobachten(){
   var merk = function(){ neueVersion.bedient = true; };
   document.addEventListener('keydown', merk, true);
@@ -45125,11 +45149,19 @@ function neueVersionBeobachten(){
       if(v && v.at > neueVersion.start - 4000) neueVersionDa();
     }).catch(function(){});
   }, 6000);
+  // Offene Tabs: Stempel beim Start merken, dann regelmässig vergleichen.
+  setTimeout(neueVersionNachsehen, 8000);
+  setInterval(neueVersionNachsehen, 10 * 60 * 1000);
+  document.addEventListener('visibilitychange', function(){
+    if(document.visibilityState === 'visible' && Date.now() - neueVersion.zuletzt > 2 * 60 * 1000) neueVersionNachsehen();
+  });
 }
 function neueVersionDa(){
   if(neueVersion.gemeldet) return;
+  // Nie während einer Prüfung stören. Nicht als gemeldet merken: Das regelmässige
+  // Nachsehen findet die neue Fassung nach der Prüfung wieder und zeigt dann den Knopf.
+  if(pruef.sess) return;
   neueVersion.gemeldet = true;
-  if(pruef.sess) return;   // nie während einer Prüfung stören — beim nächsten Start ist die neue Fassung ohnehin da
   var schon = false;
   try{ schon = sessionStorage.getItem('hl_neu_geladen') === '1'; }catch(e){}
   var ruhig = !neueVersion.bedient && Date.now() - neueVersion.start < 25000 && !overlayStack.length && !modalEl.classList.contains('show') &&
