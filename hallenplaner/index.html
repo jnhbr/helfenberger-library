@@ -416,19 +416,19 @@ function grundflaeche(it){
 /* ===================== Zustand ===================== */
 var S = {
   klasse:null, namen:true, ansicht:'T', linien:{vb:true, bb:false, hb:false, uh:false, bm:false, fb:false}, fest:true, raster:true, magnet:true, druck:false,
-  ebenen:{spr:true, tueren:true, korb:true, ringe:false, vorhang:true, runter:false}, lfarbe:{}, lmodus:'gross', ringeRunter:{}, phasen:[], phase:0,
+  ebenen:{spr:true, tueren:true, korb:true, ringe:false, vorhang:true, runter:false}, lfarbe:{}, lmodus:'gross', ringeRunter:{}, kletterP:0, phasen:[], phase:0,
   items:[], titel:'', notizen:'', sel:[], modus:null, ansicht3d:false
 };
 var vb = null;                 // aktuelle viewBox {x,y,w,h}
 var verlauf = [], verlaufPos = -1;
 
-function datenJetzt(){ phasenSichern(); return {v:1, ansicht:S.ansicht, lmodus:S.lmodus, ringeRunter:S.ringeRunter, linien:S.linien, items:S.items, titel:S.titel, notizen:S.notizen, phasen:S.phasen, phase:S.phase}; }
+function datenJetzt(){ phasenSichern(); return {v:1, ansicht:S.ansicht, lmodus:S.lmodus, ringeRunter:S.ringeRunter, kletterP:S.kletterP, linien:S.linien, items:S.items, titel:S.titel, notizen:S.notizen, phasen:S.phasen, phase:S.phase}; }
 function datenLaden(d){
   if(!d || !Array.isArray(d.items)) return false;
   S.items = d.items.filter(function(it){ return it && K[it.t]; }).map(function(it){ return Object.assign({}, it, {id:it.id || neueId()}); });
   if(d.ansicht && ANSICHTEN[d.ansicht]) S.ansicht = d.ansicht;
   if(d.linien) S.linien = Object.assign({vb:false, bb:false, hb:false, uh:false, bm:false, fb:false}, d.linien);
-  S.lmodus = d.lmodus === 'klein' ? 'klein' : 'gross'; S.ringeRunter = d.ringeRunter || {};
+  S.lmodus = d.lmodus === 'klein' ? 'klein' : 'gross'; S.ringeRunter = d.ringeRunter || {}; S.kletterP = d.kletterP || 0;
   S.titel = d.titel || ''; S.notizen = d.notizen || ''; S.sel = [];
   S.phasen = Array.isArray(d.phasen) && d.phasen.length > 1 ? d.phasen.filter(function(ph){ return ph && Array.isArray(ph.items); }).map(function(ph){ return {name:String(ph.name || 'Phase'), text:String(ph.text || ''), items:ph.items}; }) : [];
   S.phase = S.phasen.length ? Math.min(Math.max(0, +d.phase || 0), S.phasen.length - 1) : 0;
@@ -643,7 +643,7 @@ function festSvg(druck){
     } else if(a === 'reck' && E.ringe){
       // Wand-Reckstangen: an der Wandhalterung eingehängt, im Plan als Stangen, die von der Wand abstehen
       s += rect(0, f.y - 1.3, 0.12, 2.6, blau, null, 0);
-      for(i = 0; i < f.n; i++){ var ry = f.y + (i - (f.n - 1) / 2) * 0.42; s += linie(0.1, ry, 1.0, ry, blau, 0.07) + kreis(1.0, ry, 0.06, blau, '#fff', 0.015); }
+      for(i = 0; i < f.n; i++){ var ry = f.y + (i - (f.n - 1) / 2) * 0.42; var ex = 0.1 + 0.9 * S.kletterP; s += linie(0.1, ry, ex, ry, blau, 0.07) + kreis(ex, ry, 0.06, blau, '#fff', 0.015); }
       s += drehTxt(-0.25, f.y, -90, 'Kletterstangen', 0.28, druck ? '#555' : '#1f3f94');
     } else if(a === 'kletter' && E.ringe){
       for(i = 0; i < f.n; i++) s += rect(0.21, f.y + (i - (f.n - 1) / 2) * 0.2 - 0.09, 0.18, 0.18, druck ? '#e9ecef' : '#dde1e6', blau, 0.025) + kreis(0.3, f.y + (i - (f.n - 1) / 2) * 0.2, 0.03, blau);
@@ -1405,8 +1405,8 @@ function eigenschaftenZeichnen(){
   box.querySelectorAll('[data-farbe]').forEach(function(b){ b.addEventListener('click', function(){ var f = b.getAttribute('data-farbe'); setzen(function(i){ i.farbe = f; }); eigenschaftenZeichnen(); }); });
   var bind = function(id, fn, ev){ var el = document.getElementById(id); if(el) el.addEventListener(ev || 'change', function(){ setzen(function(i){ fn(i, el.value); }); }); };
   bind('eEnde', function(i, v){ i.ende = v; });
-  bind('eRn', function(i, v){ i.n = +v; i.hoehen = (i.hoehen || []).slice(0, i.n - 1); while(i.hoehen.length < i.n - 1) i.hoehen.push(1.4); });
-  bind('eRab', function(i, v){ i.ab = +v; });
+  bind('eRn', function(i, v){ var bue = reckBuendig(i); i.n = +v; if(bue) i.x = r2(0.3 + (i.n - 1) * (i.ab || 2.4) / 2); i.hoehen = (i.hoehen || []).slice(0, i.n - 1); while(i.hoehen.length < i.n - 1) i.hoehen.push(1.4); });
+  bind('eRab', function(i, v){ var bue = reckBuendig(i); i.ab = +v; if(bue) i.x = r2(0.3 + ((i.n || 4) - 1) * i.ab / 2); });
   box.querySelectorAll('[data-rh]').forEach(function(sel){ sel.addEventListener('change', function(){ setzen(function(i){ i.hoehen = (i.hoehen || []).slice(); i.hoehen[+sel.getAttribute('data-rh')] = +sel.value; }); }); });
   bind('eName', function(i, v){ i.name = v; }, 'input');
   var hk = document.getElementById('eHaken');
@@ -1709,10 +1709,12 @@ function ebenenZeichnen(){
   document.getElementById('ebenenKarte').innerHTML = '<h3>🧭 Halle &amp; Ebenen</h3>' +
     EBENEN.map(function(e){ return '<label style="display:flex;gap:7px;align-items:center;margin:4px 0;font-size:13px;color:var(--text)"><input type="checkbox" data-eb="' + e.id + '"' + (S.ebenen[e.id] ? ' checked' : '') + '>' + esc(e.n) + '</label>'; }).join('') +
     ringeKnoepfe() +
+    '<div class="zeile" style="margin:8px 0 2px"><button class="btn klein" id="kletterBtn" type="button" title="Kletterstangen von der Wand weg schräg ausfahren / wieder an die Wand">' + (S.kletterP > 0.5 ? '⇤ Kletterstangen einfahren' : '⇥ Kletterstangen ausfahren') + '</button></div>' +
     '<div class="zeile" style="margin:8px 0 2px"><button class="btn klein" id="reckAusBtn" type="button" title="Das Reck aus der Wand ziehen: die 4 Pfähle in eine Linie stellen, Reckstangen dazwischen">⇥ Reck ausfahren</button></div>' +
     '<div class="pg-titel" style="margin-top:10px">Legende</div>' +
     leg.map(function(l){ return '<div style="display:flex;gap:7px;align-items:center;font-size:12px;margin:3px 0">' + l[0] + '<span>' + esc(l[1]) + '</span></div>'; }).join('') +
     '<p class="leer" style="margin-top:8px">Lage der festen Einrichtungen nach den Fotos geschätzt.</p>';
+  document.getElementById('kletterBtn').addEventListener('click', kletterUmschalten);
   document.getElementById('reckAusBtn').addEventListener('click', function(){
     var vor = S.items.filter(function(i){ return i.t === 'reckreihe'; })[0], anz = vor ? (vor.n || 4) - 1 : 3;
     var dl = dialog('⇥ Reck ausfahren', '<p>Wie viele Recke sollen in der Halle stehen? Die Pfähle werden aus der Wand gezogen (am Pfahl hängen die Reckstangen).</p><div class="zeile">' + [1, 2, 3].map(function(n){ return '<label style="margin:0 12px 0 0"><input type="radio" name="reckAnz" value="' + n + '"' + (n === anz ? ' checked' : '') + '> ' + n + (n === 1 ? ' Reck' : ' Recke') + '</label>'; }).join('') + '</div>',
@@ -1742,7 +1744,21 @@ function ringeKnoepfe(){
   return n ? h + '<div class="zeile" style="margin-top:4px"><button type="button" class="chip" data-ringalle="1">alle runter</button> <button type="button" class="chip" data-ringalle="0">alle hoch</button></div>' : '';
 }
 // Reck aus der Wand ziehen: die Pfähle fahren aus der Wandhalterung (x 0.3, y 8.6) in ihre Stellung, in Grundriss und 3D
-var reckLaeuft = false;
+var reckLaeuft = false, kletterLaeuft = false;
+// Kletterstangen: hängen senkrecht an der Wand und gleiten mit Animation schräg in die Halle (und zurück)
+function kletterUmschalten(){
+  if(kletterLaeuft) return;
+  var von = S.kletterP, nach = von > 0.5 ? 0 : 1, t0 = performance.now(), dauer = 1500, letzter = 0; kletterLaeuft = true;
+  function schritt(now){
+    var p = Math.min(1, (now - t0) / dauer), e = p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2;
+    S.kletterP = von + (nach - von) * e;
+    if(p >= 1){ S.kletterP = nach; kletterLaeuft = false; autosave(); ebenenZeichnen(); bodenZeichnen(); if(S.ansicht3d) drei.neu(); return; }
+    if(now - letzter > 40){ letzter = now; bodenZeichnen(); if(S.ansicht3d) drei.neu(); }
+    requestAnimationFrame(schritt);
+  }
+  requestAnimationFrame(schritt);
+}
+function reckBuendig(i){ return (i.r || 0) === 0 && Math.abs(i.x - ((i.n || 4) - 1) * (i.ab || 2.4) / 2 - 0.3) < 0.06; }
 function reckAusfahren(recke){
   if(reckLaeuft) return;
   var it = S.items.filter(function(i){ return i.t === 'reckreihe'; })[0], neuIt = !it;
@@ -2406,7 +2422,7 @@ var drei = (function(){
         g.add(kiste(0.1, 1.1, 3, '#1a1d24', x0w + 0.06, 5.0, wz(f.y)));
       } else if(a === 'reck' && E.ringe){
         g.add(kiste(0.1, 0.12, 2.6, '#2b5fb4', x0w + 0.06, 5.2, wz(f.y)));
-        for(i = 0; i < f.n; i++){ var zr = wz(f.y + (i - (f.n - 1) / 2) * 0.42); g.add(stange(x0w + 0.12, 5.15, zr, x0w + 1.0, 0.05, zr, 0.03, '#2b5fb4')); }
+        for(i = 0; i < f.n; i++){ var zr = wz(f.y + (i - (f.n - 1) / 2) * 0.42); g.add(stange(x0w + 0.12, 5.15, zr, x0w + 0.12 + 0.88 * S.kletterP, 0.05, zr, 0.03, '#2b5fb4')); }
       } else if(a === 'kletter' && E.ringe){
         for(i = 0; i < f.n; i++){ var zk = wz(f.y + (i - (f.n - 1) / 2) * 0.2); g.add(kiste(0.12, 2.6, 0.12, '#eef0f2', x0w + 0.3, 1.3, zk)); g.add(stange(x0w + 0.3, 2.6, zk, x0w + 0.3, hh, zk, 0.008, '#6b7380')); }
       } else if(a === 'taue' && E.ringe){
