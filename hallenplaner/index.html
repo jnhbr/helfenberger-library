@@ -260,7 +260,7 @@ function lfarbe(id){ return (S.lfarbe && S.lfarbe[id]) || LINIEN.filter(function
 // Feste Einrichtungen der Halle: Ebenen einzeln ein-/ausblendbar.
 var EBENEN = [
   {id:'spr', n:'Sprossenwände'}, {id:'tueren', n:'Türen & Tore (mit Freihalte-Zone)'}, {id:'korb', n:'Basketballkörbe'},
-  {id:'ringe', n:'Ringe, Taue, Kletterstangen, Reckstangen & Reck'}, {id:'runter', n:'Ringe heruntergelassen (zeigt Fallzone)'}, {id:'vorhang', n:'Trennvorhänge (Stoff)'}
+  {id:'ringe', n:'Ringe, Herunterlass-Hilfen, Kletterstangen & Reck'}, {id:'runter', n:'Ringe heruntergelassen (zeigt Fallzone)'}, {id:'vorhang', n:'Trennvorhänge (Stoff)'}
 ];
 var SPR_B = 4.2, TOR_B = 3.2;
 var TEAMS = [
@@ -415,19 +415,19 @@ function grundflaeche(it){
 /* ===================== Zustand ===================== */
 var S = {
   klasse:null, namen:true, ansicht:'T', linien:{vb:true, bb:false, hb:false, uh:false, bm:false, fb:false}, fest:true, raster:true, magnet:true, druck:false,
-  ebenen:{spr:true, tueren:true, korb:true, ringe:true, vorhang:true, runter:false}, lfarbe:{}, lmodus:'gross', phasen:[], phase:0,
+  ebenen:{spr:true, tueren:true, korb:true, ringe:false, vorhang:true, runter:false}, lfarbe:{}, lmodus:'gross', ringeRunter:{}, phasen:[], phase:0,
   items:[], titel:'', notizen:'', sel:[], modus:null, ansicht3d:false
 };
 var vb = null;                 // aktuelle viewBox {x,y,w,h}
 var verlauf = [], verlaufPos = -1;
 
-function datenJetzt(){ phasenSichern(); return {v:1, ansicht:S.ansicht, lmodus:S.lmodus, linien:S.linien, items:S.items, titel:S.titel, notizen:S.notizen, phasen:S.phasen, phase:S.phase}; }
+function datenJetzt(){ phasenSichern(); return {v:1, ansicht:S.ansicht, lmodus:S.lmodus, ringeRunter:S.ringeRunter, linien:S.linien, items:S.items, titel:S.titel, notizen:S.notizen, phasen:S.phasen, phase:S.phase}; }
 function datenLaden(d){
   if(!d || !Array.isArray(d.items)) return false;
   S.items = d.items.filter(function(it){ return it && K[it.t]; }).map(function(it){ return Object.assign({}, it, {id:it.id || neueId()}); });
   if(d.ansicht && ANSICHTEN[d.ansicht]) S.ansicht = d.ansicht;
   if(d.linien) S.linien = Object.assign({vb:false, bb:false, hb:false, uh:false, bm:false, fb:false}, d.linien);
-  S.lmodus = d.lmodus === 'klein' ? 'klein' : 'gross';
+  S.lmodus = d.lmodus === 'klein' ? 'klein' : 'gross'; S.ringeRunter = d.ringeRunter || {};
   S.titel = d.titel || ''; S.notizen = d.notizen || ''; S.sel = [];
   S.phasen = Array.isArray(d.phasen) && d.phasen.length > 1 ? d.phasen.filter(function(ph){ return ph && Array.isArray(ph.items); }).map(function(ph){ return {name:String(ph.name || 'Phase'), text:String(ph.text || ''), items:ph.items}; }) : [];
   S.phase = S.phasen.length ? Math.min(Math.max(0, +d.phase || 0), S.phasen.length - 1) : 0;
@@ -437,7 +437,7 @@ function speicherLesen(){ try{ return JSON.parse(lsGet(SPEICHER) || '{}') || {};
 function speicherSchreiben(sp){ if(!lsSet(SPEICHER, JSON.stringify(sp))) toast('Speichern im Browser hat nicht geklappt (Speicher voll?).'); }
 function autosave(){
   var sp = speicherLesen(); sp.aktuell = datenJetzt();
-  sp.einst = {fest:S.fest, raster:S.raster, magnet:S.magnet, druck:S.druck, ebenen:S.ebenen, lfarbe:S.lfarbe, klasse:S.klasse, namen:S.namen};
+  sp.einst = {fest:S.fest, raster:S.raster, magnet:S.magnet, druck:S.druck, ebenen:S.ebenen, lfarbe:S.lfarbe, klasse:S.klasse, namen:S.namen, ebV:2};
   speicherSchreiben(sp);
 }
 function merken(){
@@ -579,7 +579,7 @@ function bodenSvg(o){
 }
 /* Feste Einrichtungen (nach den Fotos, Positionen geschätzt – bei Bedarf hier anpassen):
    Fensterseite oben (y = 0): Sprossenwand – Geräteraum-Tor – Sprossenwand – … im Abstand von 49/6 m, Basketballkörbe über der 1., 4. und 7. Position;
-   Galerieseite unten (y = 28): Glastüren und Korbtafeln; Kopfwand links: Anzeigetafel, Taue, Kletterstangen, Wandkörbe;
+   Galerieseite unten (y = 28): Glastüren und Korbtafeln; Kopfwand links: Anzeigetafel, Herunterlass-Hilfen für die Ringe, Kletterstangen, Wandkörbe;
    Kopfwand rechts: Ausgang; Ringe an einer Deckenschiene nahe der Fensterseite. */
 function festeTeile(){
   var t = [], P6 = HALLE.W / 6, k, i;
@@ -592,10 +592,13 @@ function festeTeile(){
   for(i = 0; i < 3; i++){
     var c = drittelMitte(i);
     t.push({art:'glas', x:c - 5.6, w:2.8}, {art:'glas', x:c - 2.4, w:2.8}, {art:'korbtafel', x:c + 3.4, w:3.0, wand:'u'});
-    t.push({art:'ringe', x:c - 4, y:1.6}, {art:'ringe', x:c, y:1.6}, {art:'ringe', x:c + 4, y:1.6});
+    var rz = i === 0 ? 6 : i === 1 ? 5 : 0, rab = i === 0 ? 2.6 : 3;
+    for(var rk = 0; rk < rz; rk++) t.push({art:'ringe', x:c + (rk - (rz - 1) / 2) * rab, y:1.6, key:'r' + (i + 1) + '-' + (rk + 1)});
   }
-  t.push({art:'tafel', y:14}, {art:'reck', y:4.2, n:6}, {art:'kletter', y:8.6, n:4}, {art:'taue', y:12.6, n:3});
-  [10.5, 16.5, 20, 24.5].forEach(function(y){ t.push({art:'wandkorb', y:y}); });
+  var rr0 = S.items.filter(function(i){ return i.t === 'reckreihe'; })[0], kn = 4 - (rr0 ? Math.min(4, rr0.n || 4) : 0);
+  t.push({art:'tafel', y:14}, {art:'reck', y:4.2, n:6});
+  if(kn > 0) t.push({art:'kletter', y:8.6, n:kn});
+  t.push({art:'taue', y:12.6, n:3});
   t.push({art:'tuer', y:24, w:2.0});
   return t;
 }
@@ -641,18 +644,19 @@ function festSvg(druck){
       // Wand-Reckstangen: an der Wandhalterung eingehängt, im Plan als Stangen, die von der Wand abstehen
       s += rect(0, f.y - 1.3, 0.12, 2.6, blau, null, 0);
       for(i = 0; i < f.n; i++){ var ry = f.y + (i - (f.n - 1) / 2) * 0.42; s += linie(0.1, ry, 1.0, ry, blau, 0.07) + kreis(1.0, ry, 0.06, blau, '#fff', 0.015); }
-      s += drehTxt(-0.25, f.y, -90, 'Reckstangen', 0.28, druck ? '#555' : '#1f3f94');
+      s += drehTxt(-0.25, f.y, -90, 'Kletterstangen', 0.28, druck ? '#555' : '#1f3f94');
     } else if(a === 'kletter' && E.ringe){
       for(i = 0; i < f.n; i++) s += rect(0.2, f.y + (i - (f.n - 1) / 2) * 0.5 - 0.09, 0.18, 0.18, druck ? '#e9ecef' : '#dde1e6', blau, 0.025) + kreis(0.29, f.y + (i - (f.n - 1) / 2) * 0.5, 0.03, blau);
       s += drehTxt(-0.25, f.y, -90, 'Reck (' + f.n + ' Pfähle)', 0.28, druck ? '#555' : '#1f3f94');
     } else if(a === 'taue' && E.ringe){
       for(i = 0; i < f.n; i++) s += kreis(0.3, f.y + (i - (f.n - 1) / 2) * 0.45, 0.09, druck ? '#ced4da' : '#c8a46a', druck ? '#868e96' : '#7a5c00', 0.02);
-      s += drehTxt(-0.25, f.y, -90, 'Taue', 0.28, druck ? '#555' : '#6b5332');
+      s += drehTxt(-0.25, f.y, -90, 'Ring-Hilfen', 0.28, druck ? '#555' : '#6b5332');
     } else if(a === 'schiene' && E.ringe){
       s += linie(Math.max(0, b.x0), f.y, Math.min(W, b.x1), f.y, blau, 0.05, ' stroke-dasharray="0.4 0.25" stroke-opacity="0.55"');
     } else if(a === 'ringe' && E.ringe){
-      if(E.runter) s += kreis(f.x, f.y, 1.3, druck ? '#ced4da' : '#e8590c', druck ? '#868e96' : '#e8590c', 0.04, ' fill-opacity="0.16" stroke-dasharray="0.3 0.2"');
-      s += kreis(f.x, f.y - 0.28, E.runter ? 0.17 : 0.13, 'none', druck ? '#868e96' : '#e8590c', E.runter ? 0.07 : 0.045) + kreis(f.x, f.y + 0.28, E.runter ? 0.17 : 0.13, 'none', druck ? '#868e96' : '#e8590c', E.runter ? 0.07 : 0.045);
+      var rn = E.runter || S.ringeRunter[f.key];
+      if(rn) s += kreis(f.x, f.y, 1.3, druck ? '#ced4da' : '#e8590c', druck ? '#868e96' : '#e8590c', 0.04, ' fill-opacity="0.16" stroke-dasharray="0.3 0.2"');
+      s += kreis(f.x, f.y - 0.28, rn ? 0.17 : 0.13, 'none', druck ? '#868e96' : '#e8590c', rn ? 0.07 : 0.045) + kreis(f.x, f.y + 0.28, rn ? 0.17 : 0.13, 'none', druck ? '#868e96' : '#e8590c', rn ? 0.07 : 0.045);
     }
   });
   return s;
@@ -1696,30 +1700,70 @@ function ebenenZeichnen(){
     [sw('<rect x="1" y="1" width="24" height="10" fill="#9d90c4" fill-opacity=".6"/><polyline points="1,3 5,9 9,3 13,9 17,3 21,9 25,3" fill="none" stroke="#4b3f78"/>'), 'Trennvorhang = Stoff, nicht anspielen'],
     [sw('<line x1="1" y1="6" x2="25" y2="6" stroke="#4b3f78" stroke-dasharray="3 2.5"/>'), 'Vorhang hochgezogen'],
     [sw('<circle cx="7" cy="6" r="3.3" fill="none" stroke="#e8590c" stroke-width="1.4"/><circle cx="17" cy="6" r="3.3" fill="none" stroke="#e8590c" stroke-width="1.4"/>'), 'Ringe (Deckenschiene)'],
-    [sw('<line x1="2" y1="3" x2="12" y2="3" stroke="#2b5fb4" stroke-width="2"/><line x1="2" y1="7" x2="12" y2="7" stroke="#2b5fb4" stroke-width="2"/><circle cx="17" cy="6" r="2.4" fill="#2b5fb4"/><circle cx="23" cy="6" r="2.4" fill="#c8a46a" stroke="#7a5c00"/>'), 'Kletterstangen · Reckpfähle (Wand) · Taue'],
+    [sw('<line x1="2" y1="3" x2="12" y2="3" stroke="#2b5fb4" stroke-width="2"/><line x1="2" y1="7" x2="12" y2="7" stroke="#2b5fb4" stroke-width="2"/><circle cx="17" cy="6" r="2.4" fill="#2b5fb4"/><circle cx="23" cy="6" r="2.4" fill="#c8a46a" stroke="#7a5c00"/>'), 'Kletterstangen · Reckpfähle (Wand) · Ring-Hilfen'],
     [sw('<rect x="3" y="4" width="20" height="2" fill="#fff" stroke="#343a40" stroke-width=".6"/><circle cx="13" cy="9" r="2.4" fill="none" stroke="#e8590c" stroke-width="1.2"/>'), 'Basketballkorb']
   ];
   document.getElementById('ebenenKarte').innerHTML = '<h3>🧭 Halle &amp; Ebenen</h3>' +
     EBENEN.map(function(e){ return '<label style="display:flex;gap:7px;align-items:center;margin:4px 0;font-size:13px;color:var(--text)"><input type="checkbox" data-eb="' + e.id + '"' + (S.ebenen[e.id] ? ' checked' : '') + '>' + esc(e.n) + '</label>'; }).join('') +
+    ringeKnoepfe() +
     '<div class="zeile" style="margin:8px 0 2px"><button class="btn klein" id="reckAusBtn" type="button" title="Das Reck aus der Wand ziehen: die 4 Pfähle in eine Linie stellen, Reckstangen dazwischen">⇥ Reck ausfahren</button></div>' +
     '<div class="pg-titel" style="margin-top:10px">Legende</div>' +
     leg.map(function(l){ return '<div style="display:flex;gap:7px;align-items:center;font-size:12px;margin:3px 0">' + l[0] + '<span>' + esc(l[1]) + '</span></div>'; }).join('') +
     '<p class="leer" style="margin-top:8px">Lage der festen Einrichtungen nach den Fotos geschätzt.</p>';
   document.getElementById('reckAusBtn').addEventListener('click', function(){
-    if(S.items.some(function(i){ return i.t === 'reckreihe'; })){ toast('Das Reck steht schon in der Halle – die Pfähle gibt es nur einmal (höchstens 4).'); return; }
-    var it = beispiel('reckreihe', 3.5, 12); it.r = 90; it.n = 4;
-    hinzufuegen(it); toast('Reck aus der Wand gezogen – Anzahl, Abstand und Reckstangen-Höhen rechts einstellen');
+    var vor = S.items.filter(function(i){ return i.t === 'reckreihe'; })[0], anz = vor ? (vor.n || 4) - 1 : 3;
+    var dl = dialog('⇥ Reck ausfahren', '<p>Wie viele Recke sollen in der Halle stehen? Die Pfähle werden aus der Wand gezogen (am Pfahl hängen die Reckstangen).</p><div class="zeile">' + [1, 2, 3].map(function(n){ return '<label style="margin:0 12px 0 0"><input type="radio" name="reckAnz" value="' + n + '"' + (n === anz ? ' checked' : '') + '> ' + n + (n === 1 ? ' Reck' : ' Recke') + '</label>'; }).join('') + '</div>',
+      [{t:'Abbrechen'}, {t:'Ausfahren', primaer:true, fn:function(hg){ var c = hg.querySelector('input[name="reckAnz"]:checked'); reckAusfahren(c ? +c.value : 3); }}]);
+  });
+  document.querySelectorAll('#ebenenKarte [data-ring], #ebenenKarte [data-ringalle]').forEach(function(c){
+    c.addEventListener('click', function(){
+      var k = c.getAttribute('data-ring'), al = c.getAttribute('data-ringalle');
+      if(k) S.ringeRunter[k] = !S.ringeRunter[k];
+      else festeTeile().forEach(function(f){ if(f.art === 'ringe'){ if(al === '1') S.ringeRunter[f.key] = true; else delete S.ringeRunter[f.key]; } });
+      ebenenZeichnen(); bodenZeichnen(); autosave(); if(S.ansicht3d) drei.neu();
+    });
   });
   document.querySelectorAll('#ebenenKarte [data-eb]').forEach(function(c){
     c.addEventListener('change', function(){ S.ebenen[c.getAttribute('data-eb')] = c.checked; bodenZeichnen(); autosave(); if(S.ansicht3d) drei.neu(); });
   });
+}
+// Ringe einzeln herunterlassen: hinten (Drittel 1) 6, Mitte (Drittel 2) 5 Ringe
+function ringeKnoepfe(){
+  var b = bereich(), h = '<div class="pg-titel" style="margin-top:10px">Ringe herunterlassen</div>', n = 0;
+  festeTeile().forEach(function(f){
+    if(f.art !== 'ringe' || !festSichtbar(f, b)) return;
+    var dr = +f.key.slice(1, 2), nr = +f.key.split('-')[1];
+    if(nr === 1) h += '<div style="font-size:12px;margin:5px 0 2px;color:var(--text)">' + (dr === 1 ? 'Hinten' : dr === 2 ? 'Mitte' : 'Vorne') + ' (Drittel ' + dr + ')</div>';
+    h += '<button type="button" class="chip' + (S.ringeRunter[f.key] ? ' an' : '') + '" data-ring="' + f.key + '" title="Dieses Ringpaar herunterlassen / hochziehen">' + nr + '</button> '; n++;
+  });
+  return n ? h + '<div class="zeile" style="margin-top:4px"><button type="button" class="chip" data-ringalle="1">alle runter</button> <button type="button" class="chip" data-ringalle="0">alle hoch</button></div>' : '';
+}
+// Reck aus der Wand ziehen: die Pfähle fahren aus der Wandhalterung (x 0.3, y 8.6) in ihre Stellung, in Grundriss und 3D
+var reckLaeuft = false;
+function reckAusfahren(recke){
+  if(reckLaeuft) return;
+  var it = S.items.filter(function(i){ return i.t === 'reckreihe'; })[0], neuIt = !it;
+  // Das Reck steht rechtwinklig zur Wand: die Pfähle stehen in einer Reihe von der Wand weg (x), die Reckstangen laufen in dieser Richtung
+  var ab0 = it ? (it.ab || 2.4) : 2.4, n0 = recke + 1;
+  var fin = {x:r2(1.5 + (n0 - 1) * ab0 / 2), y:8.6, r:0, ab:ab0};
+  if(!it){ it = beispiel('reckreihe', fin.x, fin.y); it.r = 90; S.items.push(it); }
+  it.n = n0; it.ab = fin.ab; S.sel = [it.id]; reckLaeuft = true;
+  var t0 = performance.now(), dauer = 1500, letzter = 0;
+  function schritt(now){
+    var p = Math.min(1, (now - t0) / dauer), e = p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2;
+    it.x = r2(0.3 + (fin.x - 0.3) * e); it.y = r2(8.6 + (fin.y - 8.6) * e); it.ab = 0.5 + (fin.ab - 0.5) * e; it.r = Math.round(90 + (fin.r - 90) * e);
+    if(p >= 1){ it.x = fin.x; it.y = fin.y; it.ab = fin.ab; it.r = fin.r; reckLaeuft = false; merken(); allesZeichnen(); toast('Reck ausgefahren – Abstand und Reckstangen-Höhen rechts einstellen'); return; }
+    if(now - letzter > 40){ letzter = now; allesZeichnen(); }
+    requestAnimationFrame(schritt);
+  }
+  allesZeichnen(); requestAnimationFrame(schritt);
 }
 function schalter(id, feld){
   var b = document.getElementById(id);
   b.classList.toggle('aus', !S[feld]);
   b.addEventListener('click', function(){ S[feld] = !S[feld]; b.classList.toggle('aus', !S[feld]); bodenZeichnen(); itemsZeichnen(); autosave(); if(S.ansicht3d) drei.neu(); });
 }
-document.getElementById('ansicht').addEventListener('change', function(){ S.ansicht = this.value; bodenZeichnen(); einpassen(); autosave(); if(S.ansicht3d) drei.neu(); });
+document.getElementById('ansicht').addEventListener('change', function(){ S.ansicht = this.value; ebenenZeichnen(); bodenZeichnen(); einpassen(); autosave(); if(S.ansicht3d) drei.neu(); });
 document.getElementById('undoBtn').addEventListener('click', function(){ zurueck(-1); });
 document.getElementById('redoBtn').addEventListener('click', function(){ zurueck(1); });
 document.getElementById('titelIn').addEventListener('input', function(){ S.titel = this.value; autosave(); });
@@ -1728,7 +1772,7 @@ document.getElementById('notizIn').addEventListener('input', function(){ S.notiz
 document.getElementById('notizIn').addEventListener('change', merken);
 document.getElementById('neuBtn').addEventListener('click', function(){
   bestaetigen('Neuer Aufbau', 'Alle Elemente aus der Halle entfernen? (Rückgängig mit ↶ möglich)', 'Leeren', function(){
-    S.items = []; S.sel = []; S.titel = ''; S.notizen = ''; S.phasen = []; S.phase = 0; phasenZeichnen();
+    S.items = []; S.sel = []; S.ringeRunter = {}; S.titel = ''; S.notizen = ''; S.phasen = []; S.phase = 0; phasenZeichnen();
     document.getElementById('titelIn').value = ''; document.getElementById('notizIn').value = '';
     merken(); allesZeichnen();
   });
@@ -2133,8 +2177,10 @@ var drei = (function(){
     reckreihe:function(it){
       var g = new T.Group(), n = it.n || 4, ab = it.ab || 2.4, x0 = -(n - 1) * ab / 2;
       for(var i = 0; i < n; i++){
-        g.add(kiste(0.12, 2.6, 0.12, '#dde1e6', x0 + i * ab, 1.3));
+        g.add(kiste(0.12, 2.6, 0.12, '#eef0f2', x0 + i * ab, 1.3));
         g.add(kiste(0.3, 0.03, 0.3, '#868e96', x0 + i * ab, 0.015));
+        for(var lk = 0; lk < 12; lk++){ g.add(kiste(0.05, 0.045, 0.002, '#4a4f57', x0 + i * ab, 0.3 + lk * 0.2, 0.061)); g.add(kiste(0.05, 0.045, 0.002, '#4a4f57', x0 + i * ab, 0.3 + lk * 0.2, -0.061)); }
+        g.add(stange(x0 + i * ab, 2.6, 0, x0 + i * ab, HALLE.wandH, 0, 0.008, '#6b7380'));
       }
       for(var j = 0; j < n - 1; j++){
         var hh = (it.hoehen || [])[j] || 1.4, st = rohr(0.016, ab - 0.12, '#ced4da', {metalness:0.8}); st.rotation.z = Math.PI / 2; st.position.set(x0 + (j + 0.5) * ab, hh, 0); g.add(st);
@@ -2350,18 +2396,18 @@ var drei = (function(){
       } else if(a === 'tafel' && E.korb){
         g.add(kiste(0.1, 1.1, 3, '#1a1d24', x0w + 0.06, 5.0, wz(f.y)));
       } else if(a === 'reck' && E.ringe){
-        g.add(kiste(0.1, 0.12, 2.6, '#2b5fb4', x0w + 0.06, 3.5, wz(f.y)));
-        for(i = 0; i < f.n; i++){ var zr = wz(f.y + (i - (f.n - 1) / 2) * 0.42); g.add(stange(x0w + 0.12, 3.45, zr, x0w + 1.0, 0.05, zr, 0.03, '#2b5fb4')); }
+        g.add(kiste(0.1, 0.12, 2.6, '#2b5fb4', x0w + 0.06, 5.2, wz(f.y)));
+        for(i = 0; i < f.n; i++){ var zr = wz(f.y + (i - (f.n - 1) / 2) * 0.42); g.add(stange(x0w + 0.12, 5.15, zr, x0w + 1.0, 0.05, zr, 0.03, '#2b5fb4')); }
       } else if(a === 'kletter' && E.ringe){
-        for(i = 0; i < f.n; i++){ var zk = wz(f.y + (i - (f.n - 1) / 2) * 0.5); g.add(kiste(0.12, hh - 0.05, 0.12, '#dde1e6', x0w + 0.3, (hh - 0.05) / 2, zk)); }
+        for(i = 0; i < f.n; i++){ var zk = wz(f.y + (i - (f.n - 1) / 2) * 0.5); g.add(kiste(0.12, 4.8, 0.12, '#dde1e6', x0w + 0.3, 2.4, zk)); }
       } else if(a === 'taue' && E.ringe){
-        for(i = 0; i < f.n; i++){ var zt = wz(f.y + (i - (f.n - 1) / 2) * 0.45); g.add(stange(x0w + 0.3, 0.4, zt, x0w + 0.3, hh - 0.1, zt, 0.03, '#c8a46a')); }
+        for(i = 0; i < f.n; i++){ var zt = wz(f.y + (i - (f.n - 1) / 2) * 0.45); g.add(stange(x0w + 0.3, 0.4, zt, x0w + 0.3, hh - 0.1, zt, 0.02, '#6b7380')); }
       } else if(a === 'schiene' && E.ringe){
         g.add(stange(wx(Math.max(0, b.x0)), hh - 0.35, wz(f.y), wx(Math.min(HALLE.W, b.x1)), hh - 0.35, wz(f.y), 0.05, '#2b5fb4'));
       } else if(a === 'ringe' && E.ringe){
         var wi = rohr(0.11, 0.9, '#1f3f94'); wi.rotation.x = Math.PI / 2; wi.position.set(wx(f.x), hh - 0.4, wz(f.y)); g.add(wi);
         [-0.28, 0.28].forEach(function(dz){
-          var rh = E.runter ? 2.4 : 3.8;
+          var rh = (E.runter || S.ringeRunter[f.key]) ? 2.4 : 3.8;
           g.add(stange(wx(f.x), hh - 0.4, wz(f.y + dz), wx(f.x), rh + 0.1, wz(f.y + dz), 0.008, '#555'));
           var rr = new T.Mesh(new T.TorusGeometry(0.09, 0.012, 8, 24), mat('#c8955a')); rr.position.set(wx(f.x), rh, wz(f.y + dz)); g.add(rr);
         });
@@ -2413,7 +2459,7 @@ var drei = (function(){
   var sp = speicherLesen();
   if(sp.einst){
     S.fest = sp.einst.fest !== false; S.raster = sp.einst.raster !== false; S.magnet = sp.einst.magnet !== false; S.druck = !!sp.einst.druck;
-    S.ebenen = Object.assign(S.ebenen, sp.einst.ebenen || {}); S.lfarbe = sp.einst.lfarbe || {}; S.klasse = sp.einst.klasse || null; S.namen = sp.einst.namen !== false;
+    S.ebenen = Object.assign(S.ebenen, sp.einst.ebenen || {}); if(sp.einst.ebV !== 2) S.ebenen.ringe = false;   // Turngeräte (Ringe, Reck, Kletterstangen) sind standardmässig aus S.lfarbe = sp.einst.lfarbe || {}; S.klasse = sp.einst.klasse || null; S.namen = sp.einst.namen !== false;
   }
   if(sp.aktuell) datenLaden(sp.aktuell);
   document.getElementById('ansicht').value = S.ansicht;
