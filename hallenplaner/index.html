@@ -259,7 +259,7 @@ function lfarbe(id){ return (S.lfarbe && S.lfarbe[id]) || LINIEN.filter(function
 // Feste Einrichtungen der Halle: Ebenen einzeln ein-/ausblendbar.
 var EBENEN = [
   {id:'spr', n:'Sprossenwände'}, {id:'tueren', n:'Türen & Tore (mit Freihalte-Zone)'}, {id:'korb', n:'Basketballkörbe'},
-  {id:'ringe', n:'Ringe, Taue, Kletter- & Reckstangen'}, {id:'runter', n:'Ringe heruntergelassen (zeigt Fallzone)'}, {id:'vorhang', n:'Trennvorhänge (Stoff)'}
+  {id:'ringe', n:'Ringe, Taue, Kletterstangen, Reckstangen & Reck'}, {id:'runter', n:'Ringe heruntergelassen (zeigt Fallzone)'}, {id:'vorhang', n:'Trennvorhänge (Stoff)'}
 ];
 var SPR_B = 4.2, TOR_B = 3.2;
 var TEAMS = [
@@ -339,6 +339,15 @@ var K = {
     svg:function(){ return rect(-1.1, -0.7, 2.2, 1.4, '#adb5bd', '#495057', 0.04, ' rx="0.06" fill-opacity="0.55"') + rect(-1.5, -0.3, 3, 0.07, '#d9a86c', HOLZ2, 0.02) + rect(-1.5, 0.23, 3, 0.07, '#d9a86c', HOLZ2, 0.02); }},
   reck:{n:'Reck', g:'turnen', w:2.4, d:1.8, e:2, h:function(){ return 2.4; },
     svg:function(){ return linie(-1.05, 0, -1.05, -0.9, '#868e96', 0.02, ' stroke-dasharray="0.1 0.08"') + linie(-1.05, 0, -1.05, 0.9, '#868e96', 0.02, ' stroke-dasharray="0.1 0.08"') + linie(1.05, 0, 1.05, -0.9, '#868e96', 0.02, ' stroke-dasharray="0.1 0.08"') + linie(1.05, 0, 1.05, 0.9, '#868e96', 0.02, ' stroke-dasharray="0.1 0.08"') + linie(-1.2, 0, 1.2, 0, '#495057', 0.06) + kreis(-1.05, 0, 0.07, '#343a40') + kreis(1.05, 0, 0.07, '#343a40'); }},
+  reckreihe:{n:'Reck (ausgefahren)', g:'turnen', w:7.5, d:0.35, e:2, h:function(){ return 2.6; },
+    svg:function(it){
+      var n = it.n || 4, ab = it.ab || 2.4, x0 = -(n - 1) * ab / 2, s = '';
+      for(var i = 0; i < n - 1; i++){
+        var hh = (it.hoehen || [])[i] || 1.4;
+        s += linie(x0 + i * ab, 0, x0 + (i + 1) * ab, 0, '#868e96', 0.07) + txt(x0 + (i + 0.5) * ab, -0.28, hh.toFixed(1) + ' m', 0.26, '#495057', ' paint-order="stroke" stroke="#fff" stroke-width="0.09"');
+      }
+      for(var j = 0; j < n; j++) s += rect(x0 + j * ab - 0.09, -0.09, 0.18, 0.18, '#dde1e6', '#2b5fb4', 0.03) + kreis(x0 + j * ab, 0, 0.03, '#2b5fb4');
+      return s; }},
   balken:{n:'Schwebebalken', g:'turnen', w:5, d:0.5, e:2, h:function(){ return 1.25; },
     svg:function(){ return rect(-2.1, -0.25, 0.25, 0.5, '#868e96') + rect(1.85, -0.25, 0.25, 0.5, '#868e96') + rect(-2.5, -0.05, 5, 0.1, '#d9a86c', HOLZ2, 0.02); }},
   huetchen:{n:'Hütchen', g:'klein', w:0.25, d:0.25, e:2, h:function(){ return 0.25; },
@@ -396,6 +405,7 @@ var AUFLAGE = {kasten:1, bock:1, turnmatte:1, weichmatte:1, langbank:1, minitram
 function grundflaeche(it){
   var k = K[it.t];
   if(it.t === 'langbank' && it.an) return {w:banklaenge(it.an.h), d:k.d};
+  if(it.t === 'reckreihe') return {w:((it.n || 4) - 1) * (it.ab || 2.4) + 0.4, d:0.5};
   if(it.t === 'text'){ var fs = it.fs || 0.6; return {w:Math.max(0.6, String(it.text || 'Text').length * fs * 0.56), d:fs * 1.3}; }
   if(k.groesse) return {w:it.w, d:it.d};
   return {w:k.w, d:k.d};
@@ -550,7 +560,7 @@ function festeTeile(){
     t.push({art:'ringe', x:c - 2.6, y:1.6}, {art:'ringe', x:c + 2.6, y:1.6});
   }
   t.push({art:'schiene', y:1.6});
-  t.push({art:'tafel', y:14}, {art:'reck', y:4.2, n:6}, {art:'kletter', y:8.4, n:2}, {art:'taue', y:12.6, n:3});
+  t.push({art:'tafel', y:14}, {art:'reck', y:4.2, n:6}, {art:'kletter', y:8.6, n:4}, {art:'taue', y:12.6, n:3});
   [10.5, 16.5, 20, 24.5].forEach(function(y){ t.push({art:'wandkorb', y:y}); });
   t.push({art:'tuer', y:24, w:2.0});
   return t;
@@ -599,8 +609,8 @@ function festSvg(druck){
       for(i = 0; i < f.n; i++){ var ry = f.y + (i - (f.n - 1) / 2) * 0.42; s += linie(0.1, ry, 1.0, ry, blau, 0.07) + kreis(1.0, ry, 0.06, blau, '#fff', 0.015); }
       s += drehTxt(-0.25, f.y, -90, 'Reckstangen', 0.28, druck ? '#555' : '#1f3f94');
     } else if(a === 'kletter' && E.ringe){
-      for(i = 0; i < f.n; i++) s += kreis(0.35, f.y + (i - (f.n - 1) / 2) * 0.55, 0.1, blau, '#fff', 0.02);
-      s += drehTxt(-0.25, f.y, -90, 'Kletterstangen', 0.28, druck ? '#555' : '#1f3f94');
+      for(i = 0; i < f.n; i++) s += rect(0.2, f.y + (i - (f.n - 1) / 2) * 0.5 - 0.09, 0.18, 0.18, druck ? '#e9ecef' : '#dde1e6', blau, 0.025) + kreis(0.29, f.y + (i - (f.n - 1) / 2) * 0.5, 0.03, blau);
+      s += drehTxt(-0.25, f.y, -90, 'Reck (' + f.n + ' Pfähle)', 0.28, druck ? '#555' : '#1f3f94');
     } else if(a === 'taue' && E.ringe){
       for(i = 0; i < f.n; i++) s += kreis(0.3, f.y + (i - (f.n - 1) / 2) * 0.45, 0.09, druck ? '#ced4da' : '#c8a46a', druck ? '#868e96' : '#7a5c00', 0.02);
       s += drehTxt(-0.25, f.y, -90, 'Taue', 0.28, druck ? '#555' : '#6b5332');
@@ -928,6 +938,7 @@ function beispiel(t, x, y){
   if(t === 'text'){ it.text = 'Text'; it.fs = 0.6; }
   if(t === 'ball') it.sorte = S.letzterBall || 'volleyball';
   if(t === 'vbnetz') it.hoehe = 2.24;
+  if(t === 'reckreihe'){ it.n = 4; it.ab = 2.4; it.hoehen = [1.2, 1.5, 1.8]; }
   if(t === 'bmnetz') it.hoehe = 1.55;
   if(t === 'reifen') it.farbe = '#e03131';
   if(t === 'teller') it.farbe = '#fcc419';
@@ -1314,6 +1325,11 @@ function eigenschaftenZeichnen(){
       h += '<label for="eNr">Nummer (leer = ohne)</label><input class="feld" id="eNr" type="number" min="0" max="99" value="' + esc(it.nr || '') + '">';
     }
     if(it.t === 'posten') h += '<label for="eNr">Posten-Nummer</label><input class="feld" id="eNr" type="number" min="1" max="99" value="' + esc(it.nr || 1) + '">';
+    if(it.t === 'reckreihe'){
+      h += '<label for="eRn">Anzahl Reck-Pfähle (höchstens 4 in der Halle)</label><select class="feld" id="eRn">' + [2, 3, 4].map(function(n){ return '<option' + (n === (it.n || 4) ? ' selected' : '') + '>' + n + '</option>'; }).join('') + '</select>';
+      h += '<label for="eRab">Abstand der Pfähle</label><select class="feld" id="eRab">' + [1.5, 2, 2.4, 3].map(function(a){ return '<option value="' + a + '"' + (a === (it.ab || 2.4) ? ' selected' : '') + '>' + a + ' m</option>'; }).join('') + '</select>';
+      for(var rb = 0; rb < (it.n || 4) - 1; rb++) h += '<label for="eRh' + rb + '">Höhe Reckstange ' + (rb + 1) + '</label><select class="feld" data-rh="' + rb + '" id="eRh' + rb + '">' + [0.8, 1.0, 1.2, 1.4, 1.6, 1.8, 2.0, 2.2, 2.4].map(function(v){ return '<option value="' + v + '"' + (Math.abs(v - ((it.hoehen || [])[rb] || 1.4)) < 0.01 ? ' selected' : '') + '>' + v.toFixed(1) + ' m</option>'; }).join('') + '</select>';
+    }
     if(it.t === 'kasten') h += '<label for="eTeile">Kastenteile (Höhe)</label><select class="feld" id="eTeile">' + [1, 2, 3, 4, 5, 6, 7].map(function(n){ return '<option' + (n === (it.teile || 5) ? ' selected' : '') + '>' + n + '</option>'; }).join('') + '</select>';
     if(it.t === 'vbnetz') h += '<label for="eHoehe">Netzhöhe</label><select class="feld" id="eHoehe">' + [[2.00, '2.00 m (Mittelstufe)'], [2.10, '2.10 m'], [2.15, '2.15 m'], [2.24, '2.24 m (Frauen / U17)'], [2.35, '2.35 m'], [2.43, '2.43 m (Männer)']].map(function(o){ return '<option value="' + o[0] + '"' + (Math.abs(o[0] - (it.hoehe || 2.24)) < 0.001 ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select>';
     if(it.t === 'bmnetz') h += '<label for="eHoehe">Netzhöhe</label><select class="feld" id="eHoehe">' + [[1.55, '1.55 m (Badminton)'], [1.8, '1.80 m'], [2.0, '2.00 m (Kleinfeld-Volleyball)'], [2.1, '2.10 m'], [2.24, '2.24 m']].map(function(o){ return '<option value="' + o[0] + '"' + (Math.abs(o[0] - (it.hoehe || 1.55)) < 0.001 ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select>';
@@ -1344,11 +1360,14 @@ function eigenschaftenZeichnen(){
   });
   if(its.length !== 1) return;
   var it1 = its[0];
-  function setzen(fn){ fn(it1); merken(); itemsZeichnen(); materialZeichnen(); if(S.ansicht3d) drei.neu(); }
+  function setzen(fn){ fn(it1); merken(); itemsZeichnen(); materialZeichnen(); if(S.ansicht3d) drei.neu(); if(it1.t === 'reckreihe') eigenschaftenZeichnen(); }
   box.querySelectorAll('[data-team]').forEach(function(b){ b.addEventListener('click', function(){ var t = b.getAttribute('data-team'); setzen(function(i){ i.team = t; S.letztesTeam = t; }); eigenschaftenZeichnen(); }); });
   box.querySelectorAll('[data-farbe]').forEach(function(b){ b.addEventListener('click', function(){ var f = b.getAttribute('data-farbe'); setzen(function(i){ i.farbe = f; }); eigenschaftenZeichnen(); }); });
   var bind = function(id, fn, ev){ var el = document.getElementById(id); if(el) el.addEventListener(ev || 'change', function(){ setzen(function(i){ fn(i, el.value); }); }); };
   bind('eEnde', function(i, v){ i.ende = v; });
+  bind('eRn', function(i, v){ i.n = +v; i.hoehen = (i.hoehen || []).slice(0, i.n - 1); while(i.hoehen.length < i.n - 1) i.hoehen.push(1.4); });
+  bind('eRab', function(i, v){ i.ab = +v; });
+  box.querySelectorAll('[data-rh]').forEach(function(sel){ sel.addEventListener('change', function(){ setzen(function(i){ i.hoehen = (i.hoehen || []).slice(); i.hoehen[+sel.getAttribute('data-rh')] = +sel.value; }); }); });
   bind('eName', function(i, v){ i.name = v; }, 'input');
   var hk = document.getElementById('eHaken');
   if(hk) hk.addEventListener('change', function(){
@@ -1391,6 +1410,7 @@ function materialDaten(){
     if(k.pfeil || it.t === 'zone' || it.t === 'text' || it.t === 'posten') return;
     if(it.t === 'spieler'){ personen[it.team] = (personen[it.team] || 0) + 1; return; }
     if(it.t === 'lehrer'){ lp++; return; }
+    if(it.t === 'reckreihe'){ z['Reck (Pfähle)'] = (z['Reck (Pfähle)'] || 0) + (it.n || 4); z['Reckstangen'] = (z['Reckstangen'] || 0) + (it.n || 4) - 1; return; }
     var name = k.n;
     if(it.t === 'kasten') name = 'Schwedenkasten (' + (it.teile || 5) + ' Teile)';
     if(it.t === 'ball') name = (BAELLE[it.sorte] || BAELLE.volleyball).n;
@@ -1409,6 +1429,8 @@ function materialZeichnen(){
     h += '<li><span>Schüler:innen (' + pers.map(function(t){ return m.personen[t] + ' ' + t; }).join(', ') + ')</span><b>' + total + '</b></li>';
   }
   if(m.posten) h += '<li><span>Posten</span><b>' + m.posten + '</b></li>';
+  var rp = m.geraete.filter(function(g){ return g[0] === 'Reck (Pfähle)'; })[0];
+  if(rp && rp[1] > 4) h += '<li style="color:var(--bad)"><span>⚠️ In der Halle gibt es nur 4 Reck-Pfähle</span><b></b></li>';
   document.getElementById('material').innerHTML = h || '<li class="leer">Noch keine Geräte in der Halle.</li>';
 }
 function leibchenText(m){
@@ -1639,14 +1661,20 @@ function ebenenZeichnen(){
     [sw('<rect x="1" y="1" width="24" height="10" fill="#9d90c4" fill-opacity=".6"/><polyline points="1,3 5,9 9,3 13,9 17,3 21,9 25,3" fill="none" stroke="#4b3f78"/>'), 'Trennvorhang = Stoff, nicht anspielen'],
     [sw('<line x1="1" y1="6" x2="25" y2="6" stroke="#4b3f78" stroke-dasharray="3 2.5"/>'), 'Vorhang hochgezogen'],
     [sw('<circle cx="7" cy="6" r="3.3" fill="none" stroke="#e8590c" stroke-width="1.4"/><circle cx="17" cy="6" r="3.3" fill="none" stroke="#e8590c" stroke-width="1.4"/>'), 'Ringe (Deckenschiene)'],
-    [sw('<line x1="2" y1="3" x2="12" y2="3" stroke="#2b5fb4" stroke-width="2"/><line x1="2" y1="7" x2="12" y2="7" stroke="#2b5fb4" stroke-width="2"/><circle cx="17" cy="6" r="2.4" fill="#2b5fb4"/><circle cx="23" cy="6" r="2.4" fill="#c8a46a" stroke="#7a5c00"/>'), 'Reckstangen · Kletterstangen · Taue'],
+    [sw('<line x1="2" y1="3" x2="12" y2="3" stroke="#2b5fb4" stroke-width="2"/><line x1="2" y1="7" x2="12" y2="7" stroke="#2b5fb4" stroke-width="2"/><circle cx="17" cy="6" r="2.4" fill="#2b5fb4"/><circle cx="23" cy="6" r="2.4" fill="#c8a46a" stroke="#7a5c00"/>'), 'Kletterstangen · Reckpfähle (Wand) · Taue'],
     [sw('<rect x="3" y="4" width="20" height="2" fill="#fff" stroke="#343a40" stroke-width=".6"/><circle cx="13" cy="9" r="2.4" fill="none" stroke="#e8590c" stroke-width="1.2"/>'), 'Basketballkorb']
   ];
   document.getElementById('ebenenKarte').innerHTML = '<h3>🧭 Halle &amp; Ebenen</h3>' +
     EBENEN.map(function(e){ return '<label style="display:flex;gap:7px;align-items:center;margin:4px 0;font-size:13px;color:var(--text)"><input type="checkbox" data-eb="' + e.id + '"' + (S.ebenen[e.id] ? ' checked' : '') + '>' + esc(e.n) + '</label>'; }).join('') +
+    '<div class="zeile" style="margin:8px 0 2px"><button class="btn klein" id="reckAusBtn" type="button" title="Das Reck aus der Wand ziehen: die 4 Pfähle in eine Linie stellen, Reckstangen dazwischen">⇥ Reck ausfahren</button></div>' +
     '<div class="pg-titel" style="margin-top:10px">Legende</div>' +
     leg.map(function(l){ return '<div style="display:flex;gap:7px;align-items:center;font-size:12px;margin:3px 0">' + l[0] + '<span>' + esc(l[1]) + '</span></div>'; }).join('') +
     '<p class="leer" style="margin-top:8px">Lage der festen Einrichtungen nach den Fotos geschätzt.</p>';
+  document.getElementById('reckAusBtn').addEventListener('click', function(){
+    if(S.items.some(function(i){ return i.t === 'reckreihe'; })){ toast('Das Reck steht schon in der Halle – die Pfähle gibt es nur einmal (höchstens 4).'); return; }
+    var it = beispiel('reckreihe', 3.5, 12); it.r = 90; it.n = 4;
+    hinzufuegen(it); toast('Reck aus der Wand gezogen – Anzahl, Abstand und Reckstangen-Höhen rechts einstellen');
+  });
   document.querySelectorAll('#ebenenKarte [data-eb]').forEach(function(c){
     c.addEventListener('change', function(){ S.ebenen[c.getAttribute('data-eb')] = c.checked; bodenZeichnen(); autosave(); if(S.ansicht3d) drei.neu(); });
   });
@@ -2066,6 +2094,18 @@ var drei = (function(){
       [-1.05, 1.05].forEach(function(x){ g.add(stange(x, 0, 0, x, 2.45, 0, 0.03, '#868e96')); g.add(stange(x, 2.3, 0, x, 0, -0.9, 0.006, '#495057')); g.add(stange(x, 2.3, 0, x, 0, 0.9, 0.006, '#495057')); });
       return g;
     },
+    reckreihe:function(it){
+      var g = new T.Group(), n = it.n || 4, ab = it.ab || 2.4, x0 = -(n - 1) * ab / 2;
+      for(var i = 0; i < n; i++){
+        g.add(kiste(0.12, 2.6, 0.12, '#dde1e6', x0 + i * ab, 1.3));
+        g.add(stange(x0 + i * ab, 2.6, 0, x0 + i * ab, HALLE.wandH - 0.35, 0, 0.008, '#555'));
+        g.add(kiste(0.3, 0.03, 0.3, '#868e96', x0 + i * ab, 0.015));
+      }
+      for(var j = 0; j < n - 1; j++){
+        var hh = (it.hoehen || [])[j] || 1.4, st = rohr(0.016, ab - 0.12, '#ced4da', {metalness:0.8}); st.rotation.z = Math.PI / 2; st.position.set(x0 + (j + 0.5) * ab, hh, 0); g.add(st);
+      }
+      return g;
+    },
     balken:function(){
       var g = new T.Group(); g.add(kiste(5, 0.16, 0.1, '#d9a86c', 0, 1.17));
       [-1.95, 1.95].forEach(function(x){ g.add(kiste(0.1, 1.1, 0.1, '#868e96', x, 0.55)); g.add(kiste(0.25, 0.05, 0.5, '#868e96', x, 0.025)); });
@@ -2278,7 +2318,7 @@ var drei = (function(){
         g.add(kiste(0.1, 0.12, 2.6, '#2b5fb4', x0w + 0.06, 3.5, wz(f.y)));
         for(i = 0; i < f.n; i++){ var zr = wz(f.y + (i - (f.n - 1) / 2) * 0.42); g.add(stange(x0w + 0.12, 3.45, zr, x0w + 1.0, 0.05, zr, 0.03, '#2b5fb4')); }
       } else if(a === 'kletter' && E.ringe){
-        for(i = 0; i < f.n; i++){ var zk = wz(f.y + (i - (f.n - 1) / 2) * 0.55); g.add(stange(x0w + 0.35, 0, zk, x0w + 0.35, hh - 0.4, zk, 0.05, '#2b5fb4')); }
+        for(i = 0; i < f.n; i++){ var zk = wz(f.y + (i - (f.n - 1) / 2) * 0.5); g.add(kiste(0.12, hh - 0.6, 0.12, '#dde1e6', x0w + 0.3, (hh - 0.6) / 2 + 0.1, zk)); }
       } else if(a === 'taue' && E.ringe){
         for(i = 0; i < f.n; i++){ var zt = wz(f.y + (i - (f.n - 1) / 2) * 0.45); g.add(stange(x0w + 0.3, 0.4, zt, x0w + 0.3, hh - 0.4, zt, 0.03, '#c8a46a')); }
       } else if(a === 'schiene' && E.ringe){

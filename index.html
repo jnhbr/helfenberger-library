@@ -3718,7 +3718,25 @@ console.error = function(){
   }
   if(err) fehlerMelden('console', err, texte.join(' ').slice(0, 200));
   if(err && err.code === 'resource-exhausted') kontingentWarnung();
+  if(err && err.code === 'permission-denied') tokenNachlauf();
 };
+/* Sicherheitsnetz: lehnt Firestore in den ersten 2 Minuten nach dem Laden etwas ab, obwohl
+   die Anmeldung steht (22.10.2026: E3b und G1b, mehrere Lesezugriffe 1–3 s nach dem Laden),
+   einmal frisches Token holen und die Startseite neu aufbauen – sonst bleiben Links,
+   Ämtliplan, Stundenplan usw. leer, bis jemand neu lädt. Nur auf der Startseite und
+   nur, wenn gerade kein Dialog offen ist. */
+var tokenNachlaufGetan = false;
+function tokenNachlauf(){
+  if(tokenNachlaufGetan || performance.now() > 120000 || !auth.currentUser) return;
+  tokenNachlaufGetan = true;
+  setTimeout(function(){
+    auth.currentUser && auth.currentUser.getIdToken(true).then(function(){
+      try{
+        if(state.route && state.route.name === 'home' && !modalEl.classList.contains('show')) render();
+      }catch(e){}
+    }, function(){});
+  }, 1500);
+}
 /* Firestore-Tageslimit (Gratis-Tarif «Spark») erreicht: Schreiben/Lesen schlägt
    fehl, bis das Kontingent um 09:00 Uhr (Mitternacht US-Westküste) zurückgesetzt
    wird. Einmal pro Seitenaufruf ein Band zeigen, damit niemand neu lädt (dann
@@ -8712,10 +8730,10 @@ async function authGeaendert(user){
   // und von Firestore noch nicht anerkannt werden - dann lehnt es ALLES ab
   // (22.10.2026, Vanja E3b: Links, Neuigkeiten, Klassenliste, Ämtliplan … alle
   // 2 s nach dem Laden «permission-denied»). Darum ein älteres Token vor dem
-  // ersten Lesen erneuern.
+  // ersten Lesen erneuern. Seit 22.10. nachmittags immer (E3b und G1b bekamen es auch mit
+  // einem erst 10 Minuten alten Token).
   try{
-    var tr = await user.getIdTokenResult();
-    if(Date.now() - new Date(tr.issuedAtTime).getTime() > 10 * 60 * 1000) await user.getIdToken(true);
+    await user.getIdToken(true);
   }catch(e){ /* offline: weiter mit dem Zwischenspeicher */ }
   try{
     // Server nicht erreichbar oder Datenbank-Limit erreicht: das eigene Profil
@@ -11463,12 +11481,28 @@ function textKopieren(text, ok){
   if(navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(ok, alt);
   else alt();
 }
+/* Nach dem Kopieren sind die Meldungen im Chat gelandet: genau die kopierten gleich löschen
+   (neue, die inzwischen eingetroffen sind, bleiben). */
+function fehlerKopiertLoeschen(snap){
+  var ids = [];
+  snap.forEach(function(d){ ids.push(d.id); });
+  var teile = [];
+  for(var i = 0; i < ids.length; i += 400) teile.push(ids.slice(i, i + 400));
+  return Promise.all(teile.map(function(t){
+    var b = writeBatch(db);
+    t.forEach(function(id){ b.delete(doc(db, 'fehlerLog', id)); });
+    return b.commit();
+  }));
+}
 function fehlerSchnellKopieren(knopf){
   knopf.disabled = true;
   getDocs(collection(db, 'fehlerLog')).then(function(snap){
     knopf.disabled = false;
     if(snap.empty){ toast('Keine Fehler gemeldet. 🎉'); return; }
-    textKopieren(fehlerKopierText(snap, fehlerGruppieren(snap)), function(){ toast('Alle ' + snap.size + ' Fehler kopiert.'); });
+    textKopieren(fehlerKopierText(snap, fehlerGruppieren(snap)), function(){
+      fehlerKopiertLoeschen(snap).then(function(){ toast('Alle ' + snap.size + ' Fehler kopiert und gelöscht.'); },
+        function(err){ console.error(err); toast('Kopiert, aber Löschen hat nicht geklappt.'); });
+    });
   }, function(err){ knopf.disabled = false; console.error(err); toast('Fehler konnten nicht geladen werden.'); });
 }
 function istJan(){ return !!(state.profile && state.profile.role === 'teacher' && !isLeitung() && state.profile.username === 'helfenberger'); }
@@ -11770,8 +11804,8 @@ function openRueckmeldungen(reiter){
     getDocs(collection(db, 'fehlerLog')).then(function(snap){
       if(!document.getElementById('rmInhalt')) return;
       var liste = fehlerGruppieren(snap);
-      box.innerHTML = '<p class="pr-hinweis">Fehler, die in den Browsern aufgetreten sind (höchstens 5 pro Seitenaufruf, gleiche nur einmal). Behoben? Einfach löschen.</p>'+
-        (liste.length ? '<div class="settings-actions" style="margin-bottom:8px;"><button type="button" class="btn btn-primary btn-sm" id="flKopie">📋 Alle kopieren</button> <button type="button" class="btn btn-danger btn-sm" id="flAlle">Alle '+snap.size+' löschen</button></div>' : '')+
+      box.innerHTML = '<p class="pr-hinweis">Fehler, die in den Browsern aufgetreten sind (höchstens 5 pro Seitenaufruf, gleiche nur einmal). Beim Kopieren werden die Meldungen gleich gelöscht.</p>'+
+        (liste.length ? '<div class="settings-actions" style="margin-bottom:8px;"><button type="button" class="btn btn-primary btn-sm" id="flKopie">📋 Alle kopieren &amp; löschen</button> <button type="button" class="btn btn-danger btn-sm" id="flAlle">Alle '+snap.size+' löschen</button></div>' : '')+
         '<div class="settings-list rm-liste">'+(liste.length ? liste.map(function(g, i){
           return '<div class="rm-eintrag"><div class="rm-kopf"><span class="rm-tag">'+g.ids.length+'×</span>'+
             (g.test === g.ids.length ? '<span class="rm-tag">🧪 nur Testseite</span>' : '')+
@@ -11798,17 +11832,11 @@ function openRueckmeldungen(reiter){
       // 📋 Alles als Text (zum Einfügen im Chat mit Claude), inkl. Details.
       var kopie = document.getElementById('flKopie');
       if(kopie) kopie.addEventListener('click', function(){
-        var text = fehlerKopierText(snap, liste);
-        var ok = function(){ toast('Alle Fehler kopiert.'); };
-        var altKopie = function(){
-          var ta = document.createElement('textarea');
-          ta.value = text; ta.setAttribute('readonly', ''); ta.style.position = 'fixed'; ta.style.opacity = '0';
-          document.body.appendChild(ta); ta.select();
-          try{ document.execCommand('copy'); ok(); }catch(e){ toast('Kopieren hat nicht geklappt.'); }
-          ta.remove();
-        };
-        if(navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(ok, altKopie);
-        else altKopie();
+        textKopieren(fehlerKopierText(snap, liste), function(){
+          kopie.disabled = true;
+          fehlerKopiertLoeschen(snap).then(function(){ toast('Alle Fehler kopiert und gelöscht.'); fehlerListe(); },
+            function(err){ console.error(err); kopie.disabled = false; toast('Kopiert, aber Löschen hat nicht geklappt.'); });
+        });
       });
       var alle = document.getElementById('flAlle');
       if(alle) alle.addEventListener('click', function(){
@@ -13742,7 +13770,7 @@ function raetselVirtuell(subject){
 /* 🏟️ HALLENPLANER – Werkzeug im Fach Sport (nur Lehrperson): statische Seite hallenplaner/ im Link-Viewer (iframe src).
    Grundriss der Dreifachhalle Altnau, Geräte-Baukasten, Materialliste, Druck, 3D (three.js aus assets/vendor). Kein Firestore:
    Aufbauten liegen im Browser (localStorage hallenplaner_v1) und lassen sich als Datei weitergeben. */
-var HALLENPLANER_VERSION = 3;   // nach jeder Änderung an hallenplaner/index.html erhöhen (Browser-Cache)
+var HALLENPLANER_VERSION = 5;   // nach jeder Änderung an hallenplaner/index.html erhöhen (Browser-Cache)
 function hallenplanerVirtuell(subject){
   if(subject !== 'sport' || !(state.profile && state.profile.role === 'teacher')) return [];
   return [{id:'hallenplaner', subject:'sport', folderId:null, order:-2000, virtual:true, werkzeug:true, linkUrl:'hallenplaner/?v='+HALLENPLANER_VERSION, linkLabel:'Werkzeug',
@@ -21708,7 +21736,7 @@ function openStreakModal(){
    Kinder können ihren eigenen Punktestand nicht selbst setzen. */
 
 var QUIZ_SESSION = ['quizSessions', 'aktiv'];
-var quizLive = { session:null, unsub:null, overlay:null, unsubAnswers:null, unsubPlayers:null, tick:null, answered:{}, players:[], sig:null, busy:{} };
+var quizLive = { klasse:null, session:null, unsub:null, overlay:null, unsubAnswers:null, unsubPlayers:null, tick:null, answered:{}, players:[], sig:null, busy:{} };
 
 /* Kurzer Klickschutz fuer die Knoepfe am Beamer: er ueberbrueckt nur den Moment,
    bis Firestore die Aenderung zurueckspiegelt. Bewusst zeitbasiert und nicht an
@@ -21721,9 +21749,17 @@ function quizBusy(key){
   return false;
 }
 
-function quizSessionRef(){ return kdoc(QUIZ_SESSION[0], QUIZ_SESSION[1]); }
-function quizAnswersCol(){ return kcol(QUIZ_SESSION[0], QUIZ_SESSION[1], 'antworten'); }
-function quizPlayersCol(){ return kcol(QUIZ_SESSION[0], QUIZ_SESSION[1], 'spieler'); }
+// Lehrperson kann ein Quiz für eine andere Klasse/Gruppe starten: quizLive.klasse überschreibt dann die eigene.
+function quizK(){ return quizLive.klasse || state.klasse; }
+function quizSessionRef(){ return doc(db, 'klassen', quizK(), QUIZ_SESSION[0], QUIZ_SESSION[1]); }
+function quizAnswersCol(){ return collection(db, 'klassen', quizK(), QUIZ_SESSION[0], QUIZ_SESSION[1], 'antworten'); }
+function quizPlayersCol(){ return collection(db, 'klassen', quizK(), QUIZ_SESSION[0], QUIZ_SESSION[1], 'spieler'); }
+function quizWatcherUmstellen(klasse){
+  if(quizLive.unsub){ quizLive.unsub(); quizLive.unsub = null; }
+  quizLive.klasse = (klasse && klasse !== state.klasse) ? klasse : null;
+  quizLive.session = null;
+  startQuizWatcher();
+}
 function quizIsRunning(s){ return !!(s && s.state && s.state !== 'idle'); }
 
 /* Der Countdown darf NICHT aus s.startedAt minus der eigenen Uhr gerechnet
@@ -21771,6 +21807,7 @@ function stopQuizWatcher(){
   if(quizLive.unsubAnswers){ quizLive.unsubAnswers(); quizLive.unsubAnswers = null; }
   clearInterval(quizLive.tick); quizLive.tick = null;
   clearTimeout(quizPlay.tick);
+  quizLive.klasse = null;
   quizLive.session = null;
   quizLive.players = [];
   quizLive.answered = {};
@@ -22015,11 +22052,21 @@ function quizStartDialog(quiz){
     h += '<option value="0"'+(n > 20 ? '' : ' selected')+'>Alle '+n+' Fragen in der gespeicherten Reihenfolge</option></select>'+
       '<p class="pr-hinweis" id="qzRundeInfo"></p>';
   }
+  if(state.profile && (state.profile.role === 'teacher' || isLeitung())){
+    var kwahl = function(art){ return KLASSEN.filter(function(k){ return art === 'klasse' ? k.art === 'klasse' : k.art !== 'klasse'; }).map(function(k){
+      return '<option value="'+esc(k.id)+'"'+(k.id === state.klasse ? ' selected' : '')+'>'+esc(k.art === 'klasse' ? k.id+' · '+k.lp : k.lp+(k.art === 'isf' ? ' · ISF' : k.art === 'flp' ? ' · FLP' : ' · Praktikum'))+'</option>'; }).join(''); };
+    h += '<label class="modal-label">Für welche Klasse / Gruppe?</label><select id="qzKlasse" class="modal-input"><optgroup label="Klassen">'+kwahl('klasse')+'</optgroup><optgroup label="Fachlehrpersonen, ISF, Praktikum">'+kwahl('seite')+'</optgroup></select>'+
+      '<p class="pr-hinweis">Die Schüler:innen dieser Klasse sehen oben «Quiz läuft — mitmachen».</p>';
+  }
   h += '<div class="modal-actions"><button class="btn btn-ghost btn-sm" id="modalCancel" type="button">Abbrechen</button>'+
     '<button class="btn btn-primary btn-sm" id="qzGo" type="button">▶︎ Quiz starten</button></div>';
   openModal(h);
-  if(runden.length){
-    quizGestelltLaden().then(function(g){
+  var kSelEl = document.getElementById('qzKlasse');
+  function infoLaden(){
+    var kl = kSelEl ? kSelEl.value : null;
+    gestellt = null;
+    quizGestelltLaden(kl).then(function(g){
+      if((kSelEl ? kSelEl.value : null) !== kl) return;
       gestellt = g;
       var info = document.getElementById('qzRundeInfo');
       if(!info) return;
@@ -22029,15 +22076,21 @@ function quizStartDialog(quiz){
         : 'Diese Klasse hatte schon alle '+n+' Fragen – es beginnt wieder von vorne.';
     });
   }
+  if(runden.length){
+    infoLaden();
+    if(kSelEl) kSelEl.addEventListener('change', infoLaden);
+  }
   document.getElementById('modalCancel').addEventListener('click', closeModal);
   document.getElementById('qzGo').addEventListener('click', function(){
     var t = +document.getElementById('qzTeams').value || 0;
     var r = runden.length ? +document.getElementById('qzRunde').value || 0 : 0;
     lsSet(LIB_PREFIX + 'quiz_teams', String(t));
+    var kSel = document.getElementById('qzKlasse');
     closeModal();
-    if(!r){ startQuizSession(quiz, t); return; }
-    (gestellt ? Promise.resolve(gestellt) : quizGestelltLaden()).then(function(g){
-      startQuizSession(quizRundeZiehen(quiz, g, r), t);
+    var kz = kSel ? kSel.value : null;
+    if(!r){ startQuizSession(quiz, t, kz); return; }
+    (gestellt ? Promise.resolve(gestellt) : quizGestelltLaden(kz)).then(function(g){
+      startQuizSession(quizRundeZiehen(quiz, g, r), t, kz);
     });
   });
 }
@@ -22047,9 +22100,9 @@ function quizStartDialog(quiz){
    Gezogen wird zuerst aus den noch nie gestellten; erst wenn alle dran waren, beginnt es
    von vorne. Bewusst NICHT im Quiz-Dokument, damit das Spiegeln der Quizze es nie anfasst.
    Als gestellt zählt eine Frage erst, wenn sie am Beamer wirklich gezeigt wurde. */
-function quizGestelltRef(){ return kdoc('appMeta', 'quizGestellt'); }
-function quizGestelltLaden(){
-  return getDoc(quizGestelltRef()).then(function(snap){ return snap.exists() ? snap.data() : {}; })
+function quizGestelltRef(kl){ return doc(db, 'klassen', kl || quizK(), 'appMeta', 'quizGestellt'); }
+function quizGestelltLaden(kl){
+  return getDoc(quizGestelltRef(kl)).then(function(snap){ return snap.exists() ? snap.data() : {}; })
     .catch(function(err){ console.error(err); return {}; });
 }
 function quizFrageKey(f){
@@ -22117,8 +22170,9 @@ function quizTeamsHtml(s, mitPunkten){
   }).join('')+'</div>';
 }
 
-function startQuizSession(quiz, teamN){
+function startQuizSession(quiz, teamN, klasse){
   teamN = Math.max(0, Math.min(TEAM_FARBEN.length, +teamN || 0));
+  if(klasse && klasse !== quizK()) quizWatcherUmstellen(klasse);
   quizLive.busy = {}; quizLive.sig = null; quizClock.key = '';
   /* Reihenfolge ist wichtig: ZUERST die Spieler und Antworten der letzten Runde
      wegräumen, ERST DANN die Lobby öffnen. Früher war es umgekehrt - wer schnell
@@ -22156,6 +22210,7 @@ function openQuizHost(quiz){
     quizLive.busy = {};
     quizLive.overlay = null;
     setDoc(quizSessionRef(), { state:'idle', question:null, updatedAt: serverTimestamp() }, {merge:true}).catch(function(){});
+    if(quizLive.klasse) quizWatcherUmstellen(null);
   }, 'kz-overlay-quiz');
 
   quizLive.overlay.el.querySelector('#qhClose').addEventListener('click', function(){
@@ -23061,13 +23116,15 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-10-22-quiz-andere-klasse', datum:'2026-10-22', fuer:'lehrer', text:'🎮 Klassen-Quiz: Beim Starten kannst du jetzt wählen, für welche Klasse oder Gruppe das Quiz läuft – nicht nur für die eigene.'},
+  {id:'2026-10-22-hallenplaner-5', datum:'2026-10-22', fuer:'lehrer', text:'🏟️ Hallenplaner: Namen korrigiert – das Reck besteht aus den Pfählen (in der Wand, höchstens 4) und den Reckstangen dazwischen. Die schrägen Stangen sind die Kletterstangen.'},
+  {id:'2026-10-22-hallenplaner-4', datum:'2026-10-22', fuer:'lehrer', text:'🏟️ Hallenplaner: Reck korrigiert – die Reckpfähle stecken in der Wand und lassen sich mit «⇥ Reckpfähle ausfahren» als Reck in eine Linie ziehen (höchstens 4 Pfähle, Stangenhöhen einstellbar). Die schrägen Stangen heissen jetzt Kletterstangen.'},
   {id:'2026-10-22-hallenplaner-3', datum:'2026-10-22', fuer:'lehrer', text:'🏟️ Hallenplaner: Bodenlinien nach den Fotos der Halle (Sportart aus der Farbe abgeleitet), Reck- und Kletterstangen, Geräte auf den Kopf stellen, 3D-Ansicht direkt bearbeiten, Ablauf in Phasen mit Abspielen und Druck, Massband, eigene Geräte merken, Ringe heruntergelassen mit Fallzone – und Klassen laden (eigene Listen oder Library-Gruppen), Teams bilden und Namen im Plan zeigen.'},
   {id:'2026-10-22-hallenplaner-2', datum:'2026-10-22', fuer:'lehrer', text:'🏟️ Hallenplaner: Türen, Tore, Sprossenwände, Ringe, Stangen und Taue sind eingezeichnet, Trennvorhänge als Stoff markiert. Bodenlinien pro Sportart ein-/ausblenden, Geräte aufeinander stapeln, Bänke in die Sprossenwand einhängen, Gruppen bilden und Linien mit Biegepunkten zu Bögen formen.'},
   {id:'2026-10-22-hallenplaner', datum:'2026-10-22', fuer:'lehrer', text:'🏟️ Neu im Fach Sport: der Hallenplaner. Geräte, Personen und Laufwege in die Dreifachhalle ziehen (Einfach-, Doppel- oder ganze Halle), Linien pro Sportart ein- und ausblenden, Materialliste, Drucken und eine 3D-Ansicht. Mit Vorlagen (Volleyball 3:3, Zirkeltraining, Brennball, Prüfung + Fussball). Nur für Lehrpersonen sichtbar.'},
   {id:'2026-10-22-trivia-40', datum:'2026-10-22', fuer:'lehrer', text:'🎲 Die 50 Trivia-Quizze haben jetzt je 40 Fragen. Beim Starten wählst du 10 oder 20 Fragen – die Library merkt sich pro Klasse, welche schon gekommen sind, und zieht zuerst die neuen. Erst wenn alle 40 dran waren, beginnt es von vorne. Das gilt für jedes Klassen-Quiz mit mehr als 10 Fragen; «Alle Fragen» spielt wie bisher alles in der gespeicherten Reihenfolge.'},
   {id:'2026-10-22-listener-neustart', datum:'2026-10-22', fuer:'alle', text:'🔧 Klassen-Quiz, Umfrage und Spiele: Klappt die Verbindung direkt nach dem Öffnen nicht, versucht es die Library jetzt von selbst nochmals.'},
   {id:'2026-10-22-lernphase-fenster', datum:'2026-10-22', fuer:'alle', text:'📚 Lernphase: Wenn du eine Übung im «🪟 Neuen Fenster» machst, zählt das jetzt auch als «in der Library» – du leuchtest bei der Lehrperson nicht mehr rot.'},
-  {id:'2026-10-22-fehler-kopieren', datum:'2026-10-22', fuer:'lehrer', text:'🐞 Fehlerliste (nur Jan): «📋 Alle kopieren» kopiert alle Fehler samt Details auf einmal.'},
   {id:'2026-10-21-druck-ohne-leiste', datum:'2026-10-21', fuer:'lehrer', text:'🖨️ Earlybird-Liste und gedruckte Prüfungen: Die gelbe Leiste mit «Drucken / Als PDF sichern» erscheint nicht mehr auf dem Ausdruck.'},
   {id:'2026-10-21-earlybird-leerzeilen', datum:'2026-10-21', fuer:'lehrer', text:'🐦 Earlybird: Die gedruckte Liste hat unten 3 leere Zeilen – für alle, die jemand einzutragen vergessen hat.'},
   {id:'2026-10-21-earlybird-kacheln', datum:'2026-10-21', fuer:'lehrer', text:'🐦 Earlybird: Eintragen geht jetzt mit denselben Namens-Kacheln wie bei der Abgabe-Checkliste – antippen, und sie wird grün mit Haken.'},
