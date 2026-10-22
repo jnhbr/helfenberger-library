@@ -243,6 +243,10 @@ var NS = 'http://www.w3.org/2000/svg';
 var SPEICHER = 'hallenplaner_v1';
 // Dreifachhalle Altnau: 49 × 28 m (Normmass), drei Drittel mit Trennvorhängen.
 var HALLE = {W:49, H:28, wandH:7, x:[0, 49/3, 98/3, 49]};
+// Netz über die ganze Hallenbreite: die Pfosten stehen 1 m vor den Längswänden, das Netz hängt dazwischen (26 m)
+function netzGanz(it){ return (it.breite || 0) >= 28; }
+function netzLaenge(it){ return netzGanz(it) ? HALLE.H - 2 : (it.breite || 6.1); }
+function netzPfosten(it){ return netzGanz(it) ? netzLaenge(it) / 2 : netzLaenge(it) / 2 + 0.25; }
 var ANSICHTEN = {E1:[0,1], E2:[1,2], E3:[2,3], D12:[0,2], D23:[1,3], T:[0,3]};
 // Linienfarben der Halle Altnau, die Sportart ist aus den Fotos abgeleitet:
 // gelb mit gestrichelten 3-m-Linien = Volleyball · blau mit Zone (4.9 × 5.8 m) = Basketball · rot mit 6-m-Bogen und gestricheltem 9-m-Bogen = Handball ·
@@ -260,7 +264,7 @@ function lfarbe(id){ return (S.lfarbe && S.lfarbe[id]) || LINIEN.filter(function
 // Feste Einrichtungen der Halle: Ebenen einzeln ein-/ausblendbar.
 var EBENEN = [
   {id:'spr', n:'Sprossenwände'}, {id:'tueren', n:'Türen & Tore (mit Freihalte-Zone)'}, {id:'korb', n:'Basketballkörbe'},
-  {id:'ringe', n:'Ringe, Herunterlass-Hilfen, Kletterstangen & Reck'}, {id:'vorhang', n:'Trennvorhänge (Stoff)'}
+  {id:'ringe', n:'Ringe, Kletterstangen & Reck'}, {id:'vorhang', n:'Trennvorhänge (Stoff)'}
 ];
 var SPR_B = 4.2, TOR_B = 3.2;
 var TEAMS = [
@@ -376,7 +380,7 @@ var K = {
   vbnetz:{n:'Volleyballnetz', g:'tore', w:10, d:0.25, e:2, h:function(it){ return it.hoehe || 2.24; },
     svg:function(it){ return linie(-4.75, 0, 4.75, 0, '#222', 0.05) + linie(-4.5, 0, 4.5, 0, '#fff', 0.025, ' stroke-dasharray="0.12 0.08"') + kreis(-4.9, 0, 0.1, '#868e96', '#212529', 0.03) + kreis(4.9, 0, 0.1, '#868e96', '#212529', 0.03) + txt(0, -0.32, (it.hoehe || 2.24).toFixed(2) + ' m', 0.28, '#222'); }},
   bmnetz:{n:'Badminton-/Kleinfeldnetz', g:'tore', w:6.8, d:0.2, e:2, h:function(it){ return it.hoehe || 1.55; },
-    svg:function(it){ var b = (it.breite || 6.1) / 2; return linie(-b - 0.15, 0, b + 0.15, 0, '#222', 0.04) + linie(-b, 0, b, 0, '#fff', 0.02, ' stroke-dasharray="0.1 0.07"') + kreis(-b - 0.25, 0, 0.08, '#868e96', '#212529', 0.02) + kreis(b + 0.25, 0, 0.08, '#868e96', '#212529', 0.02) + txt(0, -0.28, (it.hoehe || 1.55).toFixed(2) + ' m', 0.24, '#222'); }},
+    svg:function(it){ var b = netzLaenge(it) / 2, pf = netzPfosten(it), ue = netzGanz(it) ? 0 : 0.15; return linie(-b - ue, 0, b + ue, 0, '#222', 0.04) + linie(-b, 0, b, 0, '#fff', 0.02, ' stroke-dasharray="0.1 0.07"') + kreis(-pf, 0, 0.08, '#868e96', '#212529', 0.02) + kreis(pf, 0, 0.08, '#868e96', '#212529', 0.02) + txt(0, -0.28, (it.hoehe || 1.55).toFixed(2) + ' m', 0.24, '#222'); }},
   bande:{n:'Unihockeybande (2 m)', g:'tore', w:2, d:0.12, e:2, h:function(){ return 0.5; },
     svg:function(){ return rect(-1, -0.06, 2, 0.12, '#f8f9fa', '#495057', 0.025); }},
   spieler:{n:'Spieler:in', g:'personen', w:0.56, d:0.56, e:3, h:function(){ return 1.6; },
@@ -407,7 +411,7 @@ function grundflaeche(it){
   var k = K[it.t];
   if(it.t === 'langbank' && it.an) return {w:banklaenge(it.an.h), d:k.d};
   if(it.t === 'reckreihe') return {w:((it.n || 4) - 1) * (it.ab || 2.4) + 0.4, d:0.5};
-  if(it.t === 'bmnetz') return {w:(it.breite || 6.1) + 0.7, d:k.d};
+  if(it.t === 'bmnetz') return {w:netzLaenge(it) + (netzGanz(it) ? 0.4 : 0.7), d:k.d};
   if(it.t === 'text'){ var fs = it.fs || 0.6; return {w:Math.max(0.6, String(it.text || 'Text').length * fs * 0.56), d:fs * 1.3}; }
   if(k.groesse) return {w:it.w, d:it.d};
   return {w:k.w, d:k.d};
@@ -580,7 +584,7 @@ function bodenSvg(o){
 }
 /* Feste Einrichtungen (nach den Fotos, Positionen geschätzt – bei Bedarf hier anpassen):
    Fensterseite oben (y = 0): Sprossenwand – Geräteraum-Tor – Sprossenwand – … im Abstand von 49/6 m, Basketballkörbe über der 1., 4. und 7. Position;
-   Galerieseite unten (y = 28): Glastüren und Korbtafeln; Kopfwand links: Anzeigetafel, Herunterlass-Hilfen für die Ringe, Kletterstangen, Wandkörbe;
+   Galerieseite unten (y = 28): Glastüren und Korbtafeln; Kopfwand links: Anzeigetafel, Kletterstangen, Wandkörbe;
    Kopfwand rechts: Ausgang; Ringe an einer Deckenschiene nahe der Fensterseite. */
 function festeTeile(){
   var t = [], P6 = HALLE.W / 6, k, i;
@@ -598,7 +602,6 @@ function festeTeile(){
   var rr0 = S.items.filter(function(i){ return i.t === 'reckreihe'; })[0], ne = rr0 ? Math.min(4, rr0.n || 4) : 0, kn = 4 - ne;
   t.push({art:'tafel', y:14}, {art:'reck', y:4.2, n:6});
   if(kn > 0) t.push({art:'kletter', y:r2(8.3 + ne * 0.2 + (kn - 1) * 0.1), n:kn});
-  t.push({art:'taue', y:12.6, n:3});
   t.push({art:'tuer', y:24, w:2.0});
   return t;
 }
@@ -606,6 +609,7 @@ function sprossenFelder(){ return festeTeile().filter(function(f){ return f.art 
 function festSichtbar(f, b){
   if(f.art === 'tuer') return b.x1 >= HALLE.W;
   if(f.x == null) return f.art === 'schiene' ? true : b.x0 <= 0;
+  if(f.art === 'sprosse') return f.x - f.w / 2 >= b.x0 - 0.01 && f.x + f.w / 2 <= b.x1 + 0.01;   // an der Ansichtsgrenze nicht halb abgeschnitten zeigen
   return f.x >= b.x0 - 1 && f.x <= b.x1 + 1;
 }
 function festSvg(druck){
@@ -648,9 +652,6 @@ function festSvg(druck){
     } else if(a === 'kletter' && E.ringe){
       for(i = 0; i < f.n; i++) s += rect(0.21, f.y + (i - (f.n - 1) / 2) * 0.2 - 0.09, 0.18, 0.18, druck ? '#e9ecef' : '#dde1e6', blau, 0.025) + kreis(0.3, f.y + (i - (f.n - 1) / 2) * 0.2, 0.03, blau);
       s += drehTxt(-0.25, f.y, -90, 'Reck (' + f.n + ' Pfähle)', 0.28, druck ? '#555' : '#1f3f94');
-    } else if(a === 'taue' && E.ringe){
-      for(i = 0; i < f.n; i++) s += kreis(0.3, f.y + (i - (f.n - 1) / 2) * 0.45, 0.09, druck ? '#ced4da' : '#c8a46a', druck ? '#868e96' : '#7a5c00', 0.02);
-      s += drehTxt(-0.25, f.y, -90, 'Ring-Hilfen', 0.28, druck ? '#555' : '#6b5332');
     } else if(a === 'schiene' && E.ringe){
       s += linie(Math.max(0, b.x0), f.y, Math.min(W, b.x1), f.y, blau, 0.05, ' stroke-dasharray="0.4 0.25" stroke-opacity="0.55"');
     } else if(a === 'ringe' && E.ringe){
@@ -1372,7 +1373,7 @@ function eigenschaftenZeichnen(){
     }
     if(it.t === 'kasten') h += '<label for="eTeile">Kastenteile (Höhe)</label><select class="feld" id="eTeile">' + [1, 2, 3, 4, 5, 6, 7].map(function(n){ return '<option' + (n === (it.teile || 5) ? ' selected' : '') + '>' + n + '</option>'; }).join('') + '</select>';
     if(it.t === 'vbnetz') h += '<label for="eHoehe">Netzhöhe</label><select class="feld" id="eHoehe">' + [[2.00, '2.00 m (Mittelstufe)'], [2.10, '2.10 m'], [2.15, '2.15 m'], [2.24, '2.24 m (Frauen / U17)'], [2.35, '2.35 m'], [2.43, '2.43 m (Männer)']].map(function(o){ return '<option value="' + o[0] + '"' + (Math.abs(o[0] - (it.hoehe || 2.24)) < 0.001 ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select>';
-    if(it.t === 'bmnetz') h += '<label for="eBreite">Netzlänge</label><select class="feld" id="eBreite">' + [[6.1, '6.1 m (ein Feld)'], [18.3, '18.3 m (3 Felder)'], [28, '28 m (ganze Hallenbreite)']].map(function(o){ return '<option value="' + o[0] + '"' + (Math.abs(o[0] - (it.breite || 6.1)) < 0.01 ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select><label for="eHoehe">Netzhöhe</label><select class="feld" id="eHoehe">' + [[1.55, '1.55 m (Badminton)'], [1.8, '1.80 m'], [2.0, '2.00 m (Kleinfeld-Volleyball)'], [2.1, '2.10 m'], [2.24, '2.24 m']].map(function(o){ return '<option value="' + o[0] + '"' + (Math.abs(o[0] - (it.hoehe || 1.55)) < 0.001 ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select>';
+    if(it.t === 'bmnetz') h += '<label for="eBreite">Netzlänge</label><select class="feld" id="eBreite">' + [[6.1, '6.1 m (ein Feld)'], [18.3, '18.3 m (3 Felder)'], [28, '26 m (ganze Hallenbreite, Pfosten 1 m vor der Wand)']].map(function(o){ return '<option value="' + o[0] + '"' + (Math.abs(o[0] - (it.breite || 6.1)) < 0.01 ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select><label for="eHoehe">Netzhöhe</label><select class="feld" id="eHoehe">' + [[1.55, '1.55 m (Badminton)'], [1.8, '1.80 m'], [2.0, '2.00 m (Kleinfeld-Volleyball)'], [2.1, '2.10 m'], [2.24, '2.24 m']].map(function(o){ return '<option value="' + o[0] + '"' + (Math.abs(o[0] - (it.hoehe || 1.55)) < 0.001 ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select>';
     if(it.t === 'ball') h += '<label for="eSorte">Ball</label><select class="feld" id="eSorte">' + Object.keys(BAELLE).map(function(b){ return '<option value="' + b + '"' + (it.sorte === b ? ' selected' : '') + '>' + BAELLE[b].n + '</option>'; }).join('') + '</select>';
     if(it.t === 'reifen' || it.t === 'teller') h += '<label>Farbe</label><div class="zeile">' + ['#e03131', '#1971c2', '#fcc419', '#2f9e44', '#f76707', '#f8f9fa'].map(function(f){ return '<button type="button" class="farbe' + (it.farbe === f ? ' an' : '') + '" data-farbe="' + f + '" style="background:' + f + '"></button>'; }).join('') + '</div>';
     if(it.t === 'zone'){
@@ -1703,7 +1704,7 @@ function ebenenZeichnen(){
     [sw('<rect x="1" y="1" width="24" height="10" fill="#9d90c4" fill-opacity=".6"/><polyline points="1,3 5,9 9,3 13,9 17,3 21,9 25,3" fill="none" stroke="#4b3f78"/>'), 'Trennvorhang = Stoff, nicht anspielen'],
     [sw('<line x1="1" y1="6" x2="25" y2="6" stroke="#4b3f78" stroke-dasharray="3 2.5"/>'), 'Vorhang hochgezogen'],
     [sw('<circle cx="7" cy="6" r="3.3" fill="none" stroke="#e8590c" stroke-width="1.4"/><circle cx="17" cy="6" r="3.3" fill="none" stroke="#e8590c" stroke-width="1.4"/>'), 'Ringe (Deckenschiene)'],
-    [sw('<line x1="2" y1="3" x2="12" y2="3" stroke="#2b5fb4" stroke-width="2"/><line x1="2" y1="7" x2="12" y2="7" stroke="#2b5fb4" stroke-width="2"/><circle cx="17" cy="6" r="2.4" fill="#2b5fb4"/><circle cx="23" cy="6" r="2.4" fill="#c8a46a" stroke="#7a5c00"/>'), 'Kletterstangen · Reckpfähle (Wand) · Ring-Hilfen'],
+    [sw('<line x1="2" y1="3" x2="12" y2="3" stroke="#2b5fb4" stroke-width="2"/><line x1="2" y1="7" x2="12" y2="7" stroke="#2b5fb4" stroke-width="2"/><circle cx="17" cy="6" r="2.4" fill="#2b5fb4"/>'), 'Kletterstangen · Reckpfähle (Wand)'],
     [sw('<rect x="3" y="4" width="20" height="2" fill="#fff" stroke="#343a40" stroke-width=".6"/><circle cx="13" cy="9" r="2.4" fill="none" stroke="#e8590c" stroke-width="1.2"/>'), 'Basketballkorb']
   ];
   document.getElementById('ebenenKarte').innerHTML = '<h3>🧭 Halle &amp; Ebenen</h3>' +
@@ -2248,7 +2249,7 @@ var drei = (function(){
       return g;
     },
     vbnetz:function(it){ return netz(9.5, it.hoehe || 2.24, 1.0, 4.9); },
-    bmnetz:function(it){ var b = it.breite || 6.1; return netz(b, it.hoehe || 1.55, (it.hoehe || 1.55) > 1.7 ? 0.9 : 0.76, b / 2 + 0.25); },
+    bmnetz:function(it){ return netz(netzLaenge(it), it.hoehe || 1.55, (it.hoehe || 1.55) > 1.7 ? 0.9 : 0.76, netzPfosten(it)); },
     bande:function(){ return kiste(2, 0.5, 0.03, '#f8f9fa', 0, 0.25); },
     spieler:function(it){
       var g = figur(teamVon(it.team).farbe, it.nr ? String(it.nr) : '', teamVon(it.team).text, 1.0);
@@ -2425,8 +2426,6 @@ var drei = (function(){
         for(i = 0; i < f.n; i++){ var zr = wz(f.y + (i - (f.n - 1) / 2) * 0.42); g.add(stange(x0w + 0.12, 5.15, zr, x0w + 0.12 + 0.88 * S.kletterP, 0.05, zr, 0.03, '#2b5fb4')); }
       } else if(a === 'kletter' && E.ringe){
         for(i = 0; i < f.n; i++){ var zk = wz(f.y + (i - (f.n - 1) / 2) * 0.2); g.add(kiste(0.12, 2.6, 0.12, '#eef0f2', x0w + 0.3, 1.3, zk)); g.add(stange(x0w + 0.3, 2.6, zk, x0w + 0.3, hh, zk, 0.008, '#6b7380')); }
-      } else if(a === 'taue' && E.ringe){
-        for(i = 0; i < f.n; i++){ var zt = wz(f.y + (i - (f.n - 1) / 2) * 0.45); g.add(stange(x0w + 0.3, 0.4, zt, x0w + 0.3, hh - 0.1, zt, 0.02, '#6b7380')); }
       } else if(a === 'schiene' && E.ringe){
         g.add(stange(wx(Math.max(0, b.x0)), hh - 0.35, wz(f.y), wx(Math.min(HALLE.W, b.x1)), hh - 0.35, wz(f.y), 0.05, '#2b5fb4'));
       } else if(a === 'ringe' && E.ringe){
