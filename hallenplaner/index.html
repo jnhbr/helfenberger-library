@@ -1,0 +1,1558 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hallenplaner</title>
+<link rel="stylesheet" href="../assets/vendor/fonts/schriften.css">
+<!--
+  🏟️ Hallenplaner (Sport) — Helfenberger's Library
+  Grundriss der Dreifachhalle Altnau (49 × 28 m, drei Drittel mit Trennvorhängen) als Baukasten:
+  Geräte, Personen, Pfeile, Zonen per Ziehen setzen, drehen, kopieren; Linien pro Sportart ein-/ausblenden;
+  Materialliste, Drucken (A4 quer), PNG, Aufbauten speichern (Browser) und als Datei teilen; 3D-Ansicht mit three.js
+  (assets/vendor, selbst gehostet). Alle Geräte-Grafiken und 3D-Modelle sind selbst gezeichnet (keine fremden Grafiken).
+  Masse in Metern. Speicher: nur localStorage «hallenplaner_v1» (kein Firestore).
+-->
+<style>
+  :root{
+    --bg:#F4F5FA; --surface:#FFFFFF; --surface-2:#EEF0F8; --border:#DDE1EE;
+    --text:#1C2033; --text-muted:#666C87;
+    --sport:#5FA829; --sport-ink:#3B7215; --sport-soft:#E4F3D9;
+    --bad:#E63950;
+    --shadow:0 1px 2px rgba(20,20,40,.06), 0 10px 26px -14px rgba(20,20,40,.28);
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#14161F; --surface:#1C1F2E; --surface-2:#242840; --border:#323752;
+      --text:#EDEEF7; --text-muted:#A0A5C2; --sport:#7CC94A; --sport-ink:#A9E07F; --sport-soft:#22331A;
+      --shadow:0 1px 2px rgba(0,0,0,.5), 0 10px 26px -14px rgba(0,0,0,.6); color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#14161F; --surface:#1C1F2E; --surface-2:#242840; --border:#323752;
+    --text:#EDEEF7; --text-muted:#A0A5C2; --sport:#7CC94A; --sport-ink:#A9E07F; --sport-soft:#22331A;
+    --shadow:0 1px 2px rgba(0,0,0,.5), 0 10px 26px -14px rgba(0,0,0,.6); color-scheme: dark;
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;margin:0;}
+  body{background:var(--bg);color:var(--text);font-family:'Atkinson Hyperlegible',-apple-system,BlinkMacSystemFont,sans-serif;font-size:14px;overflow:hidden;}
+  button,input,select,textarea{font:inherit;color:inherit;}
+  .app{display:grid;grid-template-rows:auto 1fr;height:100vh;}
+  /* Kopfleiste */
+  .kopf{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:8px 12px;background:var(--surface);border-bottom:1px solid var(--border);}
+  .titel{font-family:Montserrat,sans-serif;font-weight:800;font-size:17px;color:var(--sport-ink);margin-right:6px;white-space:nowrap;}
+  .gruppe{display:flex;align-items:center;gap:4px;flex-wrap:wrap;}
+  .trenn{width:1px;height:26px;background:var(--border);margin:0 2px;}
+  .btn{display:inline-flex;align-items:center;gap:5px;padding:6px 11px;border-radius:999px;border:1px solid var(--border);background:var(--surface-2);font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap;}
+  .btn:hover{border-color:var(--sport);}
+  .btn.an{background:var(--sport);border-color:var(--sport);color:#fff;}
+  .btn.primaer{background:var(--sport);border-color:var(--sport);color:#fff;}
+  .btn.klein{padding:4px 9px;font-size:12px;}
+  .btn:disabled{opacity:.45;cursor:default;}
+  select.feld,input.feld,textarea.feld{border:1px solid var(--border);background:var(--surface);border-radius:10px;padding:5px 8px;}
+  .chip{display:inline-flex;align-items:center;gap:5px;padding:4px 9px;border-radius:999px;border:1px solid var(--border);background:var(--surface);font-size:12px;font-weight:700;cursor:pointer;}
+  .chip i{width:12px;height:4px;border-radius:2px;display:inline-block;}
+  .chip.aus{opacity:.45;}
+  .chip.aus i{background:var(--border)!important;}
+  /* Hauptbereich */
+  .haupt{display:grid;grid-template-columns:212px 1fr 250px;min-height:0;}
+  .palette,.seite{background:var(--surface);overflow:auto;padding:10px;}
+  .palette{border-right:1px solid var(--border);}
+  .seite{border-left:1px solid var(--border);}
+  .pg-titel{font-family:Montserrat,sans-serif;font-weight:800;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted);margin:12px 2px 6px;}
+  .pg-titel:first-child{margin-top:2px;}
+  .pg{display:grid;grid-template-columns:1fr 1fr;gap:6px;}
+  .pi{display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 4px;border:1px solid var(--border);border-radius:12px;background:var(--surface-2);cursor:grab;user-select:none;touch-action:none;font-size:11.5px;line-height:1.15;text-align:center;}
+  .pi:hover{border-color:var(--sport);}
+  .pi.an{outline:2px solid var(--sport);}
+  .pi svg{width:100%;height:34px;}
+  .flaeche{position:relative;min-width:0;min-height:0;background:#5d6b7c;overflow:hidden;}
+  #plan{width:100%;height:100%;display:block;touch-action:none;user-select:none;}
+  #plan.zeichnen{cursor:crosshair;}
+  #plan.schieben{cursor:grab;}
+  .zoom{position:absolute;right:10px;bottom:10px;display:flex;flex-direction:column;gap:5px;}
+  .zoom button{width:34px;height:34px;border-radius:10px;border:1px solid var(--border);background:var(--surface);font-weight:800;font-size:16px;cursor:pointer;box-shadow:var(--shadow);}
+  .hinweis{position:absolute;left:50%;top:10px;transform:translateX(-50%);background:rgba(20,22,31,.86);color:#fff;padding:7px 14px;border-radius:999px;font-size:13px;pointer-events:none;white-space:nowrap;max-width:94%;overflow:hidden;text-overflow:ellipsis;}
+  .hinweis[hidden]{display:none;}
+  #drei{position:absolute;inset:0;display:none;background:#cfd6df;}
+  #drei.an{display:block;}
+  #drei canvas{display:block;width:100%;height:100%;}
+  .drei-leiste{position:absolute;left:10px;top:10px;display:flex;gap:6px;flex-wrap:wrap;}
+  .drei-info{position:absolute;left:10px;bottom:10px;background:rgba(255,255,255,.88);color:#223;padding:6px 10px;border-radius:10px;font-size:12px;}
+  /* Seitenleiste */
+  .karte{border:1px solid var(--border);border-radius:14px;padding:10px;margin-bottom:10px;background:var(--surface);}
+  .karte h3{font-family:Montserrat,sans-serif;font-size:13px;font-weight:800;margin:0 0 8px;}
+  .karte label{display:block;font-size:12px;color:var(--text-muted);margin:8px 0 3px;}
+  .karte .feld{width:100%;}
+  .zeile{display:flex;gap:5px;flex-wrap:wrap;align-items:center;}
+  .farbe{width:24px;height:24px;border-radius:50%;border:2px solid var(--surface);outline:1px solid var(--border);cursor:pointer;}
+  .farbe.an{outline:3px solid var(--sport);}
+  .mat{list-style:none;margin:0;padding:0;font-size:13px;}
+  .mat li{display:flex;justify-content:space-between;gap:8px;padding:3px 0;border-bottom:1px dashed var(--border);}
+  .mat li b{font-variant-numeric:tabular-nums;}
+  .leer{color:var(--text-muted);font-size:12.5px;}
+  .tipps{font-size:12px;color:var(--text-muted);line-height:1.45;margin:0;padding-left:16px;}
+  /* Dialog (kein natives confirm/alert) */
+  .dlg-hg{position:fixed;inset:0;background:rgba(10,12,20,.45);display:flex;align-items:center;justify-content:center;z-index:50;padding:16px;}
+  .dlg{background:var(--surface);border-radius:18px;box-shadow:var(--shadow);padding:18px;width:min(520px,100%);max-height:86vh;overflow:auto;}
+  .dlg h2{font-family:Montserrat,sans-serif;font-size:17px;margin:0 0 10px;}
+  .dlg .knoepfe{display:flex;justify-content:flex-end;gap:8px;margin-top:14px;flex-wrap:wrap;}
+  .liste{list-style:none;padding:0;margin:0;}
+  .liste li{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border);}
+  .liste li span{flex:1;min-width:0;}
+  .liste small{color:var(--text-muted);display:block;}
+  .toast{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);background:#1c2033;color:#fff;padding:9px 16px;border-radius:999px;font-size:13px;z-index:60;box-shadow:var(--shadow);}
+  #druck{display:none;}
+  @media (max-width:980px){
+    body{overflow:auto;}
+    .app{height:auto;min-height:100vh;}
+    .haupt{grid-template-columns:1fr;}
+    .palette{order:2;border-right:0;border-top:1px solid var(--border);}
+    .pg{grid-template-columns:repeat(auto-fill,minmax(86px,1fr));}
+    .flaeche{order:1;height:62vh;}
+    .seite{order:3;border-left:0;border-top:1px solid var(--border);}
+  }
+  @page{size:A4 landscape;margin:12mm;
+    @top-left{content:""} @top-center{content:""} @top-right{content:""}
+    @bottom-left{content:""} @bottom-center{content:""} @bottom-right{content:""}}
+  @media print{
+    html,body{height:auto;overflow:visible;background:#fff;color:#000;}
+    .app,.dlg-hg,.toast{display:none!important;}
+    #druck{display:block;font-family:'Atkinson Hyperlegible',sans-serif;}
+    #druck h1{font-family:Montserrat,sans-serif;font-size:20px;margin:0 0 2px;}
+    #druck .unter{font-size:12px;color:#444;margin-bottom:8px;}
+    #druck svg{width:100%;height:auto;max-height:118mm;display:block;}
+    #druck .spalten{display:flex;gap:10mm;margin-top:6mm;font-size:12px;}
+    #druck .spalten > div{flex:1;}
+    #druck h2{font-size:13px;margin:0 0 4px;font-family:Montserrat,sans-serif;}
+    #druck ul{margin:0;padding-left:16px;columns:2;}
+    #druck .notiz{white-space:pre-wrap;}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="kopf">
+    <span class="titel">🏟️ Hallenplaner</span>
+    <div class="gruppe">
+      <select class="feld" id="ansicht" title="Welcher Teil der Dreifachhalle?">
+        <option value="E1">Einfachhalle (Drittel 1)</option>
+        <option value="E2">Einfachhalle (Drittel 2)</option>
+        <option value="E3">Einfachhalle (Drittel 3)</option>
+        <option value="D12">Doppelhalle (Drittel 1+2)</option>
+        <option value="D23">Doppelhalle (Drittel 2+3)</option>
+        <option value="T">Dreifachhalle (ganz)</option>
+      </select>
+    </div>
+    <div class="gruppe" id="linien"></div>
+    <div class="gruppe">
+      <button class="chip" id="festBtn" type="button" title="Sprossenwände und Basketballkörbe zeigen">🪜 Feste Einrichtungen</button>
+      <button class="chip" id="rasterBtn" type="button" title="Beim Ziehen auf 25 cm einrasten (Alt-Taste: frei)">▦ Raster</button>
+      <button class="chip" id="druckBtn" type="button" title="Weisser Boden und graue Linien – spart Tinte">🖨️ Druckfarben</button>
+    </div>
+    <span class="trenn"></span>
+    <div class="gruppe">
+      <button class="btn an" id="zweiBtn" type="button">✏️ Grundriss</button>
+      <button class="btn" id="dreiBtn" type="button">🧊 3D</button>
+    </div>
+    <span class="trenn"></span>
+    <div class="gruppe">
+      <button class="btn klein" id="undoBtn" type="button" title="Rückgängig (Ctrl/⌘+Z)">↶</button>
+      <button class="btn klein" id="redoBtn" type="button" title="Wiederholen (Ctrl/⌘+Shift+Z)">↷</button>
+      <button class="btn" id="vorlagenBtn" type="button">📋 Vorlagen</button>
+      <button class="btn" id="aufbautenBtn" type="button">💾 Aufbauten</button>
+      <button class="btn" id="druckenBtn" type="button">🖨️ Drucken</button>
+      <button class="btn" id="pngBtn" type="button">🖼️ Bild</button>
+      <button class="btn" id="neuBtn" type="button">🗑️ Neu</button>
+    </div>
+  </div>
+  <div class="haupt">
+    <div class="palette" id="palette"></div>
+    <div class="flaeche" id="flaeche">
+      <svg id="plan" xmlns="http://www.w3.org/2000/svg">
+        <g id="boden"></g><g id="items"></g><g id="ueber"></g>
+      </svg>
+      <div class="hinweis" id="hinweis" hidden></div>
+      <div class="zoom" id="zoomLeiste">
+        <button type="button" id="zoomPlus" title="Hineinzoomen">＋</button>
+        <button type="button" id="zoomMinus" title="Herauszoomen">－</button>
+        <button type="button" id="zoomFit" title="Ganze Halle zeigen">⤢</button>
+      </div>
+      <div id="drei">
+        <div class="drei-leiste">
+          <button class="btn" type="button" data-kam="schraeg">📐 Schräg</button>
+          <button class="btn" type="button" data-kam="oben">⬇️ Von oben</button>
+          <button class="btn" type="button" data-kam="auge">👀 Augenhöhe</button>
+          <button class="btn" type="button" id="dreiPng">🖼️ Bild</button>
+        </div>
+        <div class="drei-info">Ziehen = drehen · Rad / zwei Finger = zoomen · Rechtsklick = verschieben · bearbeitet wird im Grundriss</div>
+      </div>
+    </div>
+    <div class="seite" id="seite">
+      <div class="karte">
+        <h3>📝 Aufbau</h3>
+        <input class="feld" id="titelIn" maxlength="80" placeholder="Titel, z. B. Volleyball DL 2 – Einstieg">
+        <label for="notizIn">Notizen (erscheinen auf dem Ausdruck)</label>
+        <textarea class="feld" id="notizIn" rows="3" placeholder="Ablauf, Regeln, Gruppen …"></textarea>
+      </div>
+      <div class="karte" id="eigenschaften"></div>
+      <div class="karte">
+        <h3>📦 Materialliste</h3>
+        <ul class="mat" id="material"></ul>
+      </div>
+      <div class="karte">
+        <h3>💡 Bedienung</h3>
+        <ul class="tipps">
+          <li>Gerät links anklicken oder in die Halle ziehen.</li>
+          <li>Ziehen = verschieben, runder Griff = drehen.</li>
+          <li>Shift + Klick oder Rahmen ziehen = mehrere wählen.</li>
+          <li>R / Shift+R drehen · Entf löschen · Ctrl/⌘+D kopieren · Pfeiltasten schieben.</li>
+          <li>Leertaste + Ziehen oder mittlere Maustaste = Halle verschieben, Mausrad = zoomen.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+<div id="druck"></div>
+
+<script>
+'use strict';
+/* ===================== Grundlagen ===================== */
+(function(){ try{ var t = localStorage.getItem('hl_theme'); if(t === 'dark' || t === 'light') document.documentElement.setAttribute('data-theme', t); }catch(e){} })();
+var NS = 'http://www.w3.org/2000/svg';
+var SPEICHER = 'hallenplaner_v1';
+// Dreifachhalle Altnau: 49 × 28 m (Normmass), drei Drittel mit Trennvorhängen.
+var HALLE = {W:49, H:28, wandH:7, x:[0, 49/3, 98/3, 49]};
+var ANSICHTEN = {E1:[0,1], E2:[1,2], E3:[2,3], D12:[0,2], D23:[1,3], T:[0,3]};
+var LINIEN = [
+  {id:'vb', name:'Volleyball', farbe:'#ffffff'},
+  {id:'bb', name:'Basketball', farbe:'#e03131'},
+  {id:'hb', name:'Handball', farbe:'#1c3f94'},
+  {id:'uh', name:'Unihockey', farbe:'#f5c400'},
+  {id:'bm', name:'Badminton', farbe:'#2f9e44'}
+];
+var TEAMS = [
+  {id:'rot', farbe:'#e03131', text:'#fff'}, {id:'blau', farbe:'#1971c2', text:'#fff'},
+  {id:'gelb', farbe:'#fcc419', text:'#222'}, {id:'gruen', farbe:'#2f9e44', text:'#fff'},
+  {id:'orange', farbe:'#f76707', text:'#fff'}, {id:'weiss', farbe:'#f8f9fa', text:'#222'}
+];
+var ZONENFARBEN = ['#ffd43b', '#ff8787', '#74c0fc', '#8ce99a', '#da77f2', '#ffa94d'];
+var BAELLE = {
+  volleyball:{n:'Volleyball', f:'#f8f9fa', f2:'#1971c2'}, basketball:{n:'Basketball', f:'#e8590c', f2:'#222'},
+  fussball:{n:'Fussball', f:'#f8f9fa', f2:'#222'}, handball:{n:'Handball', f:'#fab005', f2:'#1c3f94'},
+  softball:{n:'Softball', f:'#ff6b6b', f2:'#c92a2a'}, medizinball:{n:'Medizinball', f:'#5c3d2e', f2:'#2b1d14'},
+  gymnastikball:{n:'Gymnastikball', f:'#cc5de8', f2:'#862e9c'}
+};
+var HOLZ = '#c8955a', HOLZ2 = '#8a5a2b', LEDER = '#efe2c4', MATTE = '#1f3f8f', MATTE2 = '#5c7cc9';
+
+function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+function r2(v){ return Math.round(v * 1000) / 1000; }
+function lsGet(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } }
+function lsSet(k, v){ try{ localStorage.setItem(k, v); return true; }catch(e){ return false; } }
+function neueId(){ return 'i' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+function toast(t){
+  var d = document.createElement('div'); d.className = 'toast'; d.textContent = t; document.body.appendChild(d);
+  setTimeout(function(){ d.remove(); }, 2600);
+}
+function dialog(titel, inhaltHtml, knoepfe){
+  var hg = document.createElement('div'); hg.className = 'dlg-hg';
+  hg.innerHTML = '<div class="dlg" role="dialog" aria-modal="true"><h2>' + esc(titel) + '</h2><div class="dlg-inhalt">' + inhaltHtml + '</div><div class="knoepfe"></div></div>';
+  var kn = hg.querySelector('.knoepfe');
+  function zu(){ hg.remove(); document.removeEventListener('keydown', esc1); }
+  function esc1(e){ if(e.key === 'Escape') zu(); }
+  (knoepfe || [{t:'Schliessen'}]).forEach(function(k){
+    var b = document.createElement('button'); b.type = 'button'; b.className = 'btn' + (k.primaer ? ' primaer' : ''); b.textContent = k.t;
+    b.addEventListener('click', function(){ if(k.fn && k.fn(hg) === false) return; zu(); });
+    kn.appendChild(b);
+  });
+  hg.addEventListener('pointerdown', function(e){ if(e.target === hg) zu(); });
+  document.addEventListener('keydown', esc1);
+  document.body.appendChild(hg);
+  return {el:hg, zu:zu};
+}
+function bestaetigen(titel, text, ja, fn){
+  dialog(titel, '<p>' + esc(text) + '</p>', [{t:'Abbrechen'}, {t:ja, primaer:true, fn:fn}]);
+}
+
+/* ===================== Gerätekatalog =====================
+   Jedes Gerät: n (Name), g (Gruppe), w × d (Grundfläche in m, w = Länge in x-Richtung vor dem Drehen),
+   h (Höhe für 3D), e (Ebene: 0 Zonen, 1 Matten, 2 Geräte, 3 Personen, 4 Pfeile, 5 Beschriftung), svg(it) = Draufsicht um (0,0). */
+function rect(x, y, w, h, f, s, sw, extra){ return '<rect x="' + r2(x) + '" y="' + r2(y) + '" width="' + r2(w) + '" height="' + r2(h) + '" fill="' + f + '"' + (s ? ' stroke="' + s + '" stroke-width="' + (sw || 0.04) + '"' : '') + (extra || '') + '/>'; }
+function kreis(x, y, r, f, s, sw, extra){ return '<circle cx="' + r2(x) + '" cy="' + r2(y) + '" r="' + r2(r) + '" fill="' + f + '"' + (s ? ' stroke="' + s + '" stroke-width="' + (sw || 0.04) + '"' : '') + (extra || '') + '/>'; }
+function linie(x1, y1, x2, y2, s, sw, extra){ return '<line x1="' + r2(x1) + '" y1="' + r2(y1) + '" x2="' + r2(x2) + '" y2="' + r2(y2) + '" stroke="' + s + '" stroke-width="' + (sw || 0.04) + '"' + (extra || '') + '/>'; }
+function txt(x, y, s, fs, f, extra){ return '<text x="' + r2(x) + '" y="' + r2(y) + '" font-size="' + r2(fs) + '" fill="' + f + '" text-anchor="middle" dominant-baseline="central" font-family="Atkinson Hyperlegible, Arial, sans-serif" font-weight="700"' + (extra || '') + '>' + esc(s) + '</text>'; }
+function teamVon(id){ return TEAMS.filter(function(t){ return t.id === id; })[0] || TEAMS[0]; }
+
+var GRUPPEN = [
+  {id:'kaesten', n:'Kästen & Sprung'}, {id:'matten', n:'Matten'}, {id:'turnen', n:'Bänke & Turngeräte'},
+  {id:'klein', n:'Kleingeräte'}, {id:'tore', n:'Tore & Netze'}, {id:'personen', n:'Personen'}, {id:'zeichnen', n:'Zeichnen'}
+];
+var K = {
+  kasten:{n:'Schwedenkasten', g:'kaesten', w:1.5, d:0.55, e:2, h:function(it){ return 0.12 + 0.17 * (it.teile || 5); },
+    svg:function(it){ return rect(-0.75, -0.275, 1.5, 0.55, HOLZ, HOLZ2, 0.04, ' rx="0.06"') + rect(-0.66, -0.2, 1.32, 0.4, LEDER, '#b8a37a', 0.03, ' rx="0.08"') + txt(0, 0, String(it.teile || 5), 0.26, '#6b5332'); }},
+  bock:{n:'Bock', g:'kaesten', w:0.6, d:0.38, e:2, h:function(){ return 1.05; },
+    svg:function(){ return linie(-0.32, -0.21, 0.32, 0.21, '#555', 0.04) + linie(-0.32, 0.21, 0.32, -0.21, '#555', 0.04) + rect(-0.3, -0.17, 0.6, 0.34, LEDER, '#8a6b3d', 0.04, ' rx="0.12"'); }},
+  sprungbrett:{n:'Sprungbrett', g:'kaesten', w:1.2, d:0.6, e:1, h:function(){ return 0.22; },
+    svg:function(){ return '<polygon points="-0.6,-0.3 0.6,-0.3 0.6,0.3 -0.6,0.3" fill="#d9c8a3" stroke="' + HOLZ2 + '" stroke-width="0.04"/>' + rect(-0.6, -0.3, 0.3, 0.6, '#3b5bdb') + '<path d="M-0.05 0 L0.35 0 M0.22 -0.12 L0.36 0 L0.22 0.12" stroke="#6b5332" stroke-width="0.05" fill="none"/>'; }},
+  minitramp:{n:'Minitrampolin', g:'kaesten', w:1.15, d:1.15, e:2, h:function(){ return 0.45; },
+    svg:function(){ return rect(-0.575, -0.575, 1.15, 1.15, '#1c7ed6', '#0b4f8a', 0.05, ' rx="0.12"') + rect(-0.4, -0.4, 0.8, 0.8, '#222', null, 0, ' rx="0.04"'); }},
+  turnmatte:{n:'Turnmatte', g:'matten', w:2, d:1, e:1, h:function(){ return 0.06; },
+    svg:function(){ return rect(-1, -0.5, 2, 1, MATTE, MATTE2, 0.05, ' rx="0.06"'); }},
+  weichmatte:{n:'Weichbodenmatte', g:'matten', w:3, d:2, e:1, h:function(){ return 0.4; },
+    svg:function(){ return rect(-1.5, -1, 3, 2, '#2c3e8c', '#8ea2e0', 0.06, ' rx="0.18"') + rect(-1.3, -0.8, 2.6, 1.6, 'none', '#4b63b8', 0.03, ' rx="0.12"'); }},
+  langbank:{n:'Langbank', g:'turnen', w:3.5, d:0.3, e:2, h:function(){ return 0.35; },
+    svg:function(){ return rect(-1.75, -0.15, 3.5, 0.3, '#d9a86c', HOLZ2, 0.04, ' rx="0.03"') + linie(-1.6, 0, 1.6, 0, '#b5834a', 0.02); }},
+  barren:{n:'Barren', g:'turnen', w:3, d:1.4, e:2, h:function(){ return 1.7; },
+    svg:function(){ return rect(-1.1, -0.7, 2.2, 1.4, '#adb5bd', '#495057', 0.04, ' rx="0.06" fill-opacity="0.55"') + rect(-1.5, -0.3, 3, 0.07, '#d9a86c', HOLZ2, 0.02) + rect(-1.5, 0.23, 3, 0.07, '#d9a86c', HOLZ2, 0.02); }},
+  reck:{n:'Reck', g:'turnen', w:2.4, d:1.8, e:2, h:function(){ return 2.4; },
+    svg:function(){ return linie(-1.05, 0, -1.05, -0.9, '#868e96', 0.02, ' stroke-dasharray="0.1 0.08"') + linie(-1.05, 0, -1.05, 0.9, '#868e96', 0.02, ' stroke-dasharray="0.1 0.08"') + linie(1.05, 0, 1.05, -0.9, '#868e96', 0.02, ' stroke-dasharray="0.1 0.08"') + linie(1.05, 0, 1.05, 0.9, '#868e96', 0.02, ' stroke-dasharray="0.1 0.08"') + linie(-1.2, 0, 1.2, 0, '#495057', 0.06) + kreis(-1.05, 0, 0.07, '#343a40') + kreis(1.05, 0, 0.07, '#343a40'); }},
+  balken:{n:'Schwebebalken', g:'turnen', w:5, d:0.5, e:2, h:function(){ return 1.25; },
+    svg:function(){ return rect(-2.1, -0.25, 0.25, 0.5, '#868e96') + rect(1.85, -0.25, 0.25, 0.5, '#868e96') + rect(-2.5, -0.05, 5, 0.1, '#d9a86c', HOLZ2, 0.02); }},
+  huetchen:{n:'Hütchen', g:'klein', w:0.25, d:0.25, e:2, h:function(){ return 0.25; },
+    svg:function(){ return rect(-0.125, -0.125, 0.25, 0.25, '#e8590c', null, 0, ' rx="0.03"') + kreis(0, 0, 0.09, '#ff922b', '#fff', 0.02); }},
+  pylone:{n:'Pylone (gross)', g:'klein', w:0.38, d:0.38, e:2, h:function(){ return 0.5; },
+    svg:function(){ return rect(-0.19, -0.19, 0.38, 0.38, '#d9480f', null, 0, ' rx="0.04"') + kreis(0, 0, 0.13, '#ff922b', '#fff', 0.03) + kreis(0, 0, 0.05, '#fff'); }},
+  teller:{n:'Markierungsteller', g:'klein', w:0.2, d:0.2, e:1, h:function(){ return 0.04; },
+    svg:function(it){ return kreis(0, 0, 0.1, it.farbe || '#fcc419', '#7a5c00', 0.02) + kreis(0, 0, 0.035, '#fff'); }},
+  reifen:{n:'Reifen', g:'klein', w:0.8, d:0.8, e:1, h:function(){ return 0.03; },
+    svg:function(it){ return kreis(0, 0, 0.38, 'none', it.farbe || '#e03131', 0.05); }},
+  stange:{n:'Slalomstange', g:'klein', w:0.35, d:0.35, e:2, h:function(){ return 1.7; },
+    svg:function(){ return kreis(0, 0, 0.17, '#343a40', '#868e96', 0.02) + kreis(0, 0, 0.05, '#e03131', '#fff', 0.02); }},
+  ball:{n:'Ball', g:'klein', w:0.24, d:0.24, e:3, h:function(it){ return it.sorte === 'medizinball' ? 0.3 : 0.22; },
+    svg:function(it){ var b = BAELLE[it.sorte] || BAELLE.volleyball; return kreis(0, 0, 0.12, b.f, b.f2, 0.03) + linie(-0.1, 0, 0.1, 0, b.f2, 0.02); }},
+  ballwagen:{n:'Ballwagen', g:'klein', w:0.9, d:0.6, e:2, h:function(){ return 0.95; },
+    svg:function(){ var s = rect(-0.45, -0.3, 0.9, 0.6, '#ced4da', '#495057', 0.04, ' rx="0.04"'); for(var i = 0; i < 3; i++) for(var j = 0; j < 2; j++) s += kreis(-0.28 + i * 0.28, -0.13 + j * 0.26, 0.11, ['#f8f9fa', '#e8590c', '#fab005'][(i + j) % 3], '#495057', 0.015); return s; }},
+  handballtor:{n:'Handballtor', g:'tore', w:3.1, d:1.0, e:2, h:function(){ return 2.0; },
+    svg:function(){ return '<path d="M-1.5 -0.5 L-1.5 0.5 L1.5 0.5 L1.5 -0.5" fill="#f1f3f5" fill-opacity="0.5" stroke="#adb5bd" stroke-width="0.03"/>' + rect(-1.55, -0.5, 3.1, 0.08, '#e03131', '#fff', 0.02) + rect(-1.55, -0.5, 0.08, 0.08, '#fff') + rect(1.47, -0.5, 0.08, 0.08, '#fff'); }},
+  unihockeytor:{n:'Unihockeytor', g:'tore', w:1.7, d:0.7, e:2, h:function(){ return 1.15; },
+    svg:function(){ return '<path d="M-0.8 -0.35 L-0.6 0.35 L0.6 0.35 L0.8 -0.35" fill="#f1f3f5" fill-opacity="0.5" stroke="#adb5bd" stroke-width="0.03"/>' + rect(-0.85, -0.35, 1.7, 0.07, '#e03131'); }},
+  kleintor:{n:'Kleintor', g:'tore', w:1.2, d:0.6, e:2, h:function(){ return 0.8; },
+    svg:function(){ return '<path d="M-0.6 -0.3 L-0.6 0.3 L0.6 0.3 L0.6 -0.3" fill="#f1f3f5" fill-opacity="0.5" stroke="#adb5bd" stroke-width="0.03"/>' + rect(-0.6, -0.3, 1.2, 0.06, '#1971c2'); }},
+  korbball:{n:'Korbballständer', g:'tore', w:0.7, d:0.7, e:2, h:function(){ return 3.0; },
+    svg:function(){ return kreis(0, 0, 0.33, '#495057', '#212529', 0.03) + kreis(0, 0, 0.2, 'none', '#f8f9fa', 0.04) + kreis(0, 0, 0.05, '#adb5bd'); }},
+  vbnetz:{n:'Volleyballnetz', g:'tore', w:10, d:0.25, e:2, h:function(it){ return it.hoehe || 2.24; },
+    svg:function(it){ return linie(-4.75, 0, 4.75, 0, '#222', 0.05) + linie(-4.5, 0, 4.5, 0, '#fff', 0.025, ' stroke-dasharray="0.12 0.08"') + kreis(-4.9, 0, 0.1, '#868e96', '#212529', 0.03) + kreis(4.9, 0, 0.1, '#868e96', '#212529', 0.03) + txt(0, -0.32, (it.hoehe || 2.24).toFixed(2) + ' m', 0.28, '#222'); }},
+  bmnetz:{n:'Badminton-/Kleinfeldnetz', g:'tore', w:6.8, d:0.2, e:2, h:function(it){ return it.hoehe || 1.55; },
+    svg:function(it){ return linie(-3.25, 0, 3.25, 0, '#222', 0.04) + linie(-3.1, 0, 3.1, 0, '#fff', 0.02, ' stroke-dasharray="0.1 0.07"') + kreis(-3.35, 0, 0.08, '#868e96', '#212529', 0.02) + kreis(3.35, 0, 0.08, '#868e96', '#212529', 0.02) + txt(0, -0.28, (it.hoehe || 1.55).toFixed(2) + ' m', 0.24, '#222'); }},
+  bande:{n:'Unihockeybande (2 m)', g:'tore', w:2, d:0.12, e:2, h:function(){ return 0.5; },
+    svg:function(){ return rect(-1, -0.06, 2, 0.12, '#f8f9fa', '#495057', 0.025); }},
+  spieler:{n:'Spieler:in', g:'personen', w:0.56, d:0.56, e:3, h:function(){ return 1.6; },
+    svg:function(it){ var t = teamVon(it.team); return '<path d="M-0.12 -0.24 L0 -0.4 L0.12 -0.24 Z" fill="' + t.farbe + '"/>' + kreis(0, 0, 0.28, t.farbe, '#fff', 0.05) + (it.nr ? txt(0, 0.01, String(it.nr), 0.3, t.text) : ''); }},
+  lehrer:{n:'Lehrperson', g:'personen', w:0.6, d:0.6, e:3, h:function(){ return 1.8; },
+    svg:function(){ return '<path d="M-0.12 -0.26 L0 -0.42 L0.12 -0.26 Z" fill="#212529"/>' + kreis(0, 0, 0.3, '#212529', '#fff', 0.05) + txt(0, 0.01, 'L', 0.34, '#fff'); }},
+  zone:{n:'Feld / Zone', g:'zeichnen', w:6, d:4, e:0, groesse:true, h:function(){ return 0.01; },
+    svg:function(it){ var f = it.farbe || ZONENFARBEN[0], w = it.w, d = it.d; return rect(-w / 2, -d / 2, w, d, f, f, 0.06, ' fill-opacity="0.28" stroke-dasharray="0.3 0.18"') + (it.text ? txt(0, 0, it.text, Math.min(0.7, Math.max(0.3, Math.min(w, d) / 5)), '#1c2033') : ''); }},
+  posten:{n:'Posten-Nummer', g:'zeichnen', w:0.9, d:0.9, e:5, h:function(){ return 1.2; },
+    svg:function(it){ return kreis(0, 0, 0.45, '#5FA829', '#fff', 0.06) + txt(0, 0.02, String(it.nr || 1), 0.5, '#fff'); }},
+  text:{n:'Text', g:'zeichnen', w:2, d:0.6, e:5, h:function(){ return 0.01; },
+    svg:function(it){ var fs = it.fs || 0.6; return txt(0, 0, it.text || 'Text', fs, it.farbe || '#1c2033', ' paint-order="stroke" stroke="#fff" stroke-width="' + r2(fs * 0.18) + '" stroke-linejoin="round"'); }},
+  laufweg:{n:'Laufweg', g:'zeichnen', pfeil:true, e:4, farbe:'#212529'},
+  ballweg:{n:'Ballweg', g:'zeichnen', pfeil:true, e:4, farbe:'#e8590c', strich:'0.3 0.2'},
+  dribbling:{n:'Dribbling', g:'zeichnen', pfeil:true, e:4, farbe:'#7048e8', welle:true}
+};
+function grundflaeche(it){
+  var k = K[it.t];
+  if(it.t === 'text'){ var fs = it.fs || 0.6; return {w:Math.max(0.6, String(it.text || 'Text').length * fs * 0.56), d:fs * 1.3}; }
+  if(k.groesse) return {w:it.w, d:it.d};
+  return {w:k.w, d:k.d};
+}
+
+/* ===================== Zustand ===================== */
+var S = {
+  ansicht:'T', linien:{vb:true, bb:false, hb:false, uh:false, bm:false}, fest:true, raster:true, druck:false,
+  items:[], titel:'', notizen:'', sel:[], modus:null, ansicht3d:false
+};
+var vb = null;                 // aktuelle viewBox {x,y,w,h}
+var verlauf = [], verlaufPos = -1;
+
+function datenJetzt(){ return {v:1, ansicht:S.ansicht, linien:S.linien, items:S.items, titel:S.titel, notizen:S.notizen}; }
+function datenLaden(d){
+  if(!d || !Array.isArray(d.items)) return false;
+  S.items = d.items.filter(function(it){ return it && K[it.t]; }).map(function(it){ return Object.assign({}, it, {id:it.id || neueId()}); });
+  if(d.ansicht && ANSICHTEN[d.ansicht]) S.ansicht = d.ansicht;
+  if(d.linien) S.linien = Object.assign({vb:false, bb:false, hb:false, uh:false, bm:false}, d.linien);
+  S.titel = d.titel || ''; S.notizen = d.notizen || ''; S.sel = [];
+  return true;
+}
+function speicherLesen(){ try{ return JSON.parse(lsGet(SPEICHER) || '{}') || {}; }catch(e){ return {}; } }
+function speicherSchreiben(sp){ if(!lsSet(SPEICHER, JSON.stringify(sp))) toast('Speichern im Browser hat nicht geklappt (Speicher voll?).'); }
+function autosave(){
+  var sp = speicherLesen(); sp.aktuell = datenJetzt();
+  sp.einst = {fest:S.fest, raster:S.raster, druck:S.druck};
+  speicherSchreiben(sp);
+}
+function merken(){
+  var snap = JSON.stringify({items:S.items, titel:S.titel, notizen:S.notizen});
+  if(verlauf[verlaufPos] === snap) return;
+  verlauf = verlauf.slice(0, verlaufPos + 1); verlauf.push(snap);
+  if(verlauf.length > 120) verlauf.shift();
+  verlaufPos = verlauf.length - 1;
+  autosave(); knoepfeVerlauf();
+}
+function zurueck(schritt){
+  var p = verlaufPos + schritt;
+  if(p < 0 || p >= verlauf.length) return;
+  verlaufPos = p;
+  var d = JSON.parse(verlauf[p]);
+  S.items = d.items; S.titel = d.titel; S.notizen = d.notizen;
+  S.sel = S.sel.filter(function(id){ return S.items.some(function(it){ return it.id === id; }); });
+  document.getElementById('titelIn').value = S.titel; document.getElementById('notizIn').value = S.notizen;
+  autosave(); allesZeichnen(); knoepfeVerlauf();
+}
+function knoepfeVerlauf(){
+  document.getElementById('undoBtn').disabled = verlaufPos <= 0;
+  document.getElementById('redoBtn').disabled = verlaufPos >= verlauf.length - 1;
+}
+
+/* ===================== Hallenboden (Linien, feste Einrichtungen) ===================== */
+function drittelMitte(i){ return (HALLE.x[i] + HALLE.x[i + 1]) / 2; }
+function bodenSvg(o){
+  // o = {druck, fest, linien, nurBoden}
+  var s = '', druck = o.druck;
+  var boden = druck ? '#ffffff' : '#86a9d6', wand = druck ? '#9aa0a6' : '#c9a36a';
+  var lc = function(id){ return druck ? '#b5bac2' : LINIEN.filter(function(l){ return l.id === id; })[0].farbe; };
+  var lw = 0.06;
+  if(!o.nurBoden) s += rect(-0.45, -0.45, HALLE.W + 0.9, HALLE.H + 0.9, wand);
+  s += rect(0, 0, HALLE.W, HALLE.H, boden);
+  var L = o.linien || {};
+  var i, cx;
+  // Unihockey (gelb) – grosses Feld 40 × 20 m, Torräume
+  if(L.uh){
+    var c = lc('uh');
+    s += rect(4.35, 3.85, 40.3, 20.3, 'none', c, lw, ' stroke-dasharray="0.5 0.3"');
+    [[4.5, 1], [44.5, -1]].forEach(function(e){
+      var x0 = e[0] + e[1] * 2.85, x1 = e[0] + e[1] * 6.85;
+      s += rect(Math.min(x0, x1), 11.5, 4, 5, 'none', c, lw);
+      var g0 = e[0] + e[1] * 3.5, g1 = e[0] + e[1] * 4.5;
+      s += rect(Math.min(g0, g1), 12.75, 1, 2.5, 'none', c, lw);
+      s += linie(g0, 13.2, g0, 14.8, c, lw * 1.6);
+    });
+    s += kreis(24.5, 14, 3, 'none', c, lw) + kreis(24.5, 14, 0.12, c);
+  }
+  // Handball (blau) – 40 × 20 m mit 6-m- und 9-m-Linie
+  if(L.hb){
+    var c2 = lc('hb');
+    s += rect(4.5, 4, 40, 20, 'none', c2, lw) + linie(24.5, 4, 24.5, 24, c2, lw);
+    [[4.5, 1], [44.5, -1]].forEach(function(e){
+      var x = e[0], k = e[1], sw = k > 0 ? 1 : 0;
+      s += '<path d="M' + x + ' 6.5 A6 6 0 0 ' + sw + ' ' + (x + k * 6) + ' 12.5 L' + (x + k * 6) + ' 15.5 A6 6 0 0 ' + sw + ' ' + x + ' 21.5" fill="none" stroke="' + c2 + '" stroke-width="' + lw + '"/>';
+      var dx = Math.sqrt(81 - 8.5 * 8.5);
+      s += '<path d="M' + r2(x + k * dx) + ' 4 A9 9 0 0 ' + sw + ' ' + (x + k * 9) + ' 12.5 L' + (x + k * 9) + ' 15.5 A9 9 0 0 ' + sw + ' ' + r2(x + k * dx) + ' 24" fill="none" stroke="' + c2 + '" stroke-width="' + lw + '" stroke-dasharray="0.3 0.3"/>';
+      s += linie(x + k * 7, 13.5, x + k * 7, 14.5, c2, lw) + linie(x - k * 0.0, 12.5, x, 15.5, c2, lw * 2);
+    });
+  }
+  for(i = 0; i < 3; i++){
+    cx = drittelMitte(i);
+    // Badminton (grün) – 4 Felder pro Drittel
+    if(L.bm){
+      var c3 = lc('bm');
+      [cx - 6.8, cx + 0.7].forEach(function(bx){
+        [0.4, 14.2].forEach(function(by){
+          s += rect(bx, by, 6.1, 13.4, 'none', c3, 0.04);
+          s += linie(bx + 0.46, by, bx + 0.46, by + 13.4, c3, 0.04) + linie(bx + 5.64, by, bx + 5.64, by + 13.4, c3, 0.04);
+          s += linie(bx, by + 6.7 - 1.98, bx + 6.1, by + 6.7 - 1.98, c3, 0.04) + linie(bx, by + 6.7 + 1.98, bx + 6.1, by + 6.7 + 1.98, c3, 0.04);
+          s += linie(bx, by + 0.76, bx + 6.1, by + 0.76, c3, 0.04) + linie(bx, by + 12.64, bx + 6.1, by + 12.64, c3, 0.04);
+          s += linie(bx + 3.05, by, bx + 3.05, by + 6.7 - 1.98, c3, 0.04) + linie(bx + 3.05, by + 6.7 + 1.98, bx + 3.05, by + 13.4, c3, 0.04);
+        });
+      });
+    }
+    // Basketball (rot) – Querfeld pro Drittel, Körbe an den Längswänden
+    if(L.bb){
+      var c4 = lc('bb');
+      s += rect(cx - 7.5, 0.5, 15, 27, 'none', c4, lw) + linie(cx - 7.5, 14, cx + 7.5, 14, c4, lw) + kreis(cx, 14, 1.8, 'none', c4, lw);
+      [[0.5, 1], [27.5, -1]].forEach(function(e){
+        var y = e[0], k = e[1], ky = y + k * 1.575, sw = k > 0 ? 0 : 1;
+        s += rect(cx - 2.45, Math.min(y, y + k * 5.8), 4.9, 5.8, 'none', c4, lw);
+        s += kreis(cx, y + k * 5.8, 1.8, 'none', c4, lw);
+        var dy = Math.sqrt(6.75 * 6.75 - 6.6 * 6.6);
+        s += '<path d="M' + r2(cx - 6.6) + ' ' + y + ' L' + r2(cx - 6.6) + ' ' + r2(ky + k * dy) + ' A6.75 6.75 0 0 ' + sw + ' ' + r2(cx + 6.6) + ' ' + r2(ky + k * dy) + ' L' + r2(cx + 6.6) + ' ' + y + '" fill="none" stroke="' + c4 + '" stroke-width="' + lw + '"/>';
+      });
+    }
+    // Volleyball (weiss) – 9 × 18 m pro Drittel, Netz quer bei 14 m
+    if(L.vb){
+      var c5 = druck ? '#9097a1' : lc('vb');
+      s += rect(cx - 4.5, 5, 9, 18, 'none', c5, lw * 1.3) + linie(cx - 4.5, 14, cx + 4.5, 14, c5, lw * 1.3) + linie(cx - 4.5, 11, cx + 4.5, 11, c5, lw) + linie(cx - 4.5, 17, cx + 4.5, 17, c5, lw);
+    }
+  }
+  // Trennvorhänge
+  [1, 2].forEach(function(j){ s += linie(HALLE.x[j], 0, HALLE.x[j], HALLE.H, druck ? '#ced4da' : 'rgba(40,50,70,.35)', 0.08, ' stroke-dasharray="0.6 0.4"'); });
+  if(o.fest) s += festSvg(druck);
+  return s;
+}
+// Feste Einrichtungen nach den Fotos: Sprossenwände an der Längswand oben, je ein Basketballkorb pro Drittel an beiden Längswänden.
+function festeTeile(){
+  var t = [];
+  for(var i = 0; i < 3; i++){
+    var cx = drittelMitte(i), x0 = HALLE.x[i];
+    [x0 + 1.2, cx + 2.4].forEach(function(start){ for(var k = 0; k < 4; k++) t.push({art:'sprosse', x:start + k * 1.0 + 0.5, y:0.08}); });
+    t.push({art:'korb', x:cx, y:0, k:1}); t.push({art:'korb', x:cx, y:HALLE.H, k:-1});
+  }
+  return t;
+}
+function festSvg(druck){
+  var s = '';
+  festeTeile().forEach(function(f){
+    if(f.art === 'sprosse'){
+      s += rect(f.x - 0.48, f.y - 0.08, 0.96, 0.16, druck ? '#ddd' : '#d9a86c', druck ? '#999' : HOLZ2, 0.02);
+      for(var k = -2; k <= 2; k++) s += linie(f.x + k * 0.19, f.y - 0.08, f.x + k * 0.19, f.y + 0.08, druck ? '#999' : HOLZ2, 0.015);
+    } else {
+      var by = f.y + f.k * 1.7;
+      s += linie(f.x, f.y, f.x, by, druck ? '#999' : '#495057', 0.06);
+      s += rect(f.x - 0.9, by - 0.04, 1.8, 0.08, '#fff', druck ? '#999' : '#343a40', 0.02);
+      s += kreis(f.x, by + f.k * 0.38, 0.23, 'none', druck ? '#999' : '#e8590c', 0.05);
+    }
+  });
+  return s;
+}
+function ausgrauen(){
+  var a = ANSICHTEN[S.ansicht], s = '';
+  var x0 = HALLE.x[a[0]], x1 = HALLE.x[a[1]];
+  if(x0 > 0) s += rect(-1, -1, x0 + 1, HALLE.H + 2, '#1c2033', null, 0, ' fill-opacity="0.45"') + linie(x0, 0, x0, HALLE.H, '#4a5160', 0.16);
+  if(x1 < HALLE.W) s += rect(x1, -1, HALLE.W - x1 + 1, HALLE.H + 2, '#1c2033', null, 0, ' fill-opacity="0.45"') + linie(x1, 0, x1, HALLE.H, '#4a5160', 0.16);
+  return s;
+}
+function bereich(){ var a = ANSICHTEN[S.ansicht]; return {x0:HALLE.x[a[0]], x1:HALLE.x[a[1]], y0:0, y1:HALLE.H}; }
+
+/* ===================== Zeichnen der Elemente ===================== */
+function pfeilPfad(it){
+  var cx = it.cx != null ? it.cx : (it.x1 + it.x2) / 2, cy = it.cy != null ? it.cy : (it.y1 + it.y2) / 2;
+  return {cx:cx, cy:cy};
+}
+function quadPunkt(it, t){
+  var c = pfeilPfad(it), u = 1 - t;
+  return {x:u * u * it.x1 + 2 * u * t * c.cx + t * t * it.x2, y:u * u * it.y1 + 2 * u * t * c.cy + t * t * it.y2};
+}
+function pfeilSvg(it, druck){
+  var k = K[it.t], c = pfeilPfad(it), farbe = it.farbe || k.farbe, d;
+  if(k.welle){
+    var pts = [], n = 60, laenge = 0, vorher = quadPunkt(it, 0);
+    for(var i = 1; i <= n; i++){ var p = quadPunkt(it, i / n); laenge += Math.hypot(p.x - vorher.x, p.y - vorher.y); vorher = p; }
+    var wellen = Math.max(2, Math.round(laenge / 0.7)), m = Math.max(40, wellen * 10);
+    for(var j = 0; j <= m; j++){
+      var t = j / m, q = quadPunkt(it, t), q2 = quadPunkt(it, Math.min(1, t + 0.001)), q1 = quadPunkt(it, Math.max(0, t - 0.001));
+      var tx = q2.x - q1.x, ty = q2.y - q1.y, tl = Math.hypot(tx, ty) || 1;
+      var amp = (t > 0.88 ? 0 : 0.18) * Math.sin(t * wellen * Math.PI * 2);
+      pts.push(r2(q.x - ty / tl * amp) + ' ' + r2(q.y + tx / tl * amp));
+    }
+    d = 'M' + pts.join(' L');
+  } else d = 'M' + r2(it.x1) + ' ' + r2(it.y1) + ' Q' + r2(c.cx) + ' ' + r2(c.cy) + ' ' + r2(it.x2) + ' ' + r2(it.y2);
+  var e = quadPunkt(it, 0.97), dx = it.x2 - e.x, dy = it.y2 - e.y, l = Math.hypot(dx, dy) || 1; dx /= l; dy /= l;
+  var sp = 0.42, br = 0.2, bx = it.x2 - dx * sp, by = it.y2 - dy * sp;
+  var kopf = '<polygon points="' + r2(it.x2) + ',' + r2(it.y2) + ' ' + r2(bx - dy * br) + ',' + r2(by + dx * br) + ' ' + r2(bx + dy * br) + ',' + r2(by - dx * br) + '" fill="' + farbe + '"/>';
+  return '<path d="' + d + '" fill="none" stroke="' + farbe + '" stroke-width="0.09" stroke-linecap="round"' + (k.strich ? ' stroke-dasharray="' + k.strich + '"' : '') + '/>' + kopf +
+    '<path d="M' + r2(it.x1) + ' ' + r2(it.y1) + ' Q' + r2(c.cx) + ' ' + r2(c.cy) + ' ' + r2(it.x2) + ' ' + r2(it.y2) + '" fill="none" stroke="transparent" stroke-width="0.6" class="treffer"/>';
+}
+function elementSvg(it, druck, mitId){
+  var k = K[it.t];
+  var idAttr = mitId ? ' data-id="' + it.id + '"' : '';
+  if(k.pfeil) return '<g' + idAttr + '>' + pfeilSvg(it, druck) + '</g>';
+  var g = grundflaeche(it);
+  return '<g' + idAttr + ' transform="translate(' + r2(it.x) + ' ' + r2(it.y) + ') rotate(' + r2(it.r || 0) + ')">' + k.svg(it) +
+    (mitId ? rect(-g.w / 2 - 0.08, -g.d / 2 - 0.08, g.w + 0.16, g.d + 0.16, 'transparent') : '') + '</g>';
+}
+function sortiert(){
+  return S.items.slice().sort(function(a, b){ return K[a.t].e - K[b.t].e; });
+}
+function itemsSvg(druck, mitId){ return sortiert().map(function(it){ return elementSvg(it, druck, mitId); }).join(''); }
+
+var plan = document.getElementById('plan');
+function bodenZeichnen(){
+  document.getElementById('boden').innerHTML = bodenSvg({druck:S.druck, fest:S.fest, linien:S.linien}) + ausgrauen();
+}
+function itemsZeichnen(){ document.getElementById('items').innerHTML = itemsSvg(S.druck, true); ueberZeichnen(); }
+function pxProMeter(){ var r = plan.getBoundingClientRect(); return Math.min(r.width / vb.w, r.height / vb.h) || 20; }
+function ueberZeichnen(){
+  var s = '', m = 1 / pxProMeter();
+  S.sel.forEach(function(id){
+    var it = itemVon(id); if(!it) return;
+    var k = K[it.t];
+    if(k.pfeil){
+      var c = pfeilPfad(it);
+      s += '<path d="M' + r2(it.x1) + ' ' + r2(it.y1) + ' L' + r2(c.cx) + ' ' + r2(c.cy) + ' L' + r2(it.x2) + ' ' + r2(it.y2) + '" fill="none" stroke="#5FA829" stroke-width="' + r2(1.5 * m) + '" stroke-dasharray="' + r2(4 * m) + ' ' + r2(3 * m) + '"/>';
+      if(S.sel.length === 1){
+        s += griff('p1', it.x1, it.y1, m) + griff('p2', it.x2, it.y2, m) + griff('pc', c.cx, c.cy, m, '#fff');
+      }
+      return;
+    }
+    var g = grundflaeche(it), w = g.w + 0.2, d = g.d + 0.2;
+    s += '<g transform="translate(' + r2(it.x) + ' ' + r2(it.y) + ') rotate(' + r2(it.r || 0) + ')">';
+    s += rect(-w / 2, -d / 2, w, d, 'none', '#5FA829', r2(2 * m), ' stroke-dasharray="' + r2(5 * m) + ' ' + r2(3 * m) + '"');
+    if(S.sel.length === 1){
+      var oy = -d / 2 - 22 * m;
+      s += linie(0, -d / 2, 0, oy, '#5FA829', r2(1.5 * m));
+      s += griff('rot', 0, oy, m, '#fff');
+      if(k.groesse) s += griff('res', w / 2 - 0.1, d / 2 - 0.1, m, '#5FA829', true);
+    }
+    s += '</g>';
+  });
+  if(zieh && zieh.art === 'rahmen'){
+    var x = Math.min(zieh.x0, zieh.x1), y = Math.min(zieh.y0, zieh.y1);
+    s += rect(x, y, Math.abs(zieh.x1 - zieh.x0), Math.abs(zieh.y1 - zieh.y0), 'rgba(95,168,41,.12)', '#5FA829', r2(1.5 * m));
+  }
+  document.getElementById('ueber').innerHTML = s;
+}
+function griff(h, x, y, m, f, eckig){
+  var r = 8 * m;
+  if(eckig) return '<rect data-h="' + h + '" x="' + r2(x - r) + '" y="' + r2(y - r) + '" width="' + r2(2 * r) + '" height="' + r2(2 * r) + '" fill="' + (f || '#5FA829') + '" stroke="#fff" stroke-width="' + r2(2 * m) + '" style="cursor:nwse-resize"/>';
+  return '<circle data-h="' + h + '" cx="' + r2(x) + '" cy="' + r2(y) + '" r="' + r2(r) + '" fill="' + (f || '#5FA829') + '" stroke="#5FA829" stroke-width="' + r2(2.5 * m) + '" style="cursor:' + (h === 'rot' ? 'grab' : 'move') + '"/>';
+}
+function vbSetzen(){ plan.setAttribute('viewBox', r2(vb.x) + ' ' + r2(vb.y) + ' ' + r2(vb.w) + ' ' + r2(vb.h)); ueberZeichnen(); }
+function einpassen(){
+  var b = bereich();
+  vb = {x:b.x0 - 1.2, y:-1.2, w:(b.x1 - b.x0) + 2.4, h:HALLE.H + 2.4};
+  plan.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+  vbSetzen();
+}
+function allesZeichnen(){
+  bodenZeichnen(); itemsZeichnen(); eigenschaftenZeichnen(); materialZeichnen();
+  if(S.ansicht3d) drei.neu();
+}
+function itemVon(id){ for(var i = 0; i < S.items.length; i++) if(S.items[i].id === id) return S.items[i]; return null; }
+
+/* ===================== Palette ===================== */
+function paletteIcon(t){
+  var k = K[t];
+  if(k.pfeil){
+    var it = {t:t, x1:-1.6, y1:0.5, x2:1.6, y2:-0.3, cx:0, cy:-0.9};
+    return '<svg viewBox="-2 -1.3 4 2.2">' + pfeilSvg(it).replace(/ class="treffer"/, '') + '</svg>';
+  }
+  var it2 = beispiel(t, 0, 0), g = grundflaeche(it2), gr = Math.max(g.w, g.d * 2.2, 0.7) * 1.15;
+  return '<svg viewBox="' + r2(-gr / 2) + ' ' + r2(-gr / 4.4) + ' ' + r2(gr) + ' ' + r2(gr / 2.2) + '">' + elementSvg(it2, false, false) + '</svg>';
+}
+function beispiel(t, x, y){
+  var it = {id:neueId(), t:t, x:x, y:y, r:0};
+  if(t === 'kasten') it.teile = 5;
+  if(t === 'spieler'){ it.team = S.letztesTeam || 'rot'; it.nr = naechsteNr(it.team); }
+  if(t === 'posten') it.nr = naechsterPosten();
+  if(t === 'zone'){ it.w = 6; it.d = 4; it.farbe = ZONENFARBEN[0]; it.text = ''; }
+  if(t === 'text'){ it.text = 'Text'; it.fs = 0.6; }
+  if(t === 'ball') it.sorte = S.letzterBall || 'volleyball';
+  if(t === 'vbnetz') it.hoehe = 2.24;
+  if(t === 'bmnetz') it.hoehe = 1.55;
+  if(t === 'reifen') it.farbe = '#e03131';
+  if(t === 'teller') it.farbe = '#fcc419';
+  return it;
+}
+function naechsteNr(team){
+  var nrn = S.items.filter(function(i){ return i.t === 'spieler' && i.team === team; }).map(function(i){ return +i.nr || 0; });
+  var n = 1; while(nrn.indexOf(n) >= 0) n++; return n;
+}
+function naechsterPosten(){
+  var nrn = S.items.filter(function(i){ return i.t === 'posten'; }).map(function(i){ return +i.nr || 0; });
+  var n = 1; while(nrn.indexOf(n) >= 0) n++; return n;
+}
+function paletteZeichnen(){
+  var h = '';
+  GRUPPEN.forEach(function(g){
+    h += '<div class="pg-titel">' + esc(g.n) + '</div><div class="pg">';
+    Object.keys(K).forEach(function(t){
+      if(K[t].g !== g.id) return;
+      h += '<div class="pi" data-t="' + t + '" title="' + esc(K[t].pfeil ? K[t].n + ': klicken, dann in der Halle ziehen' : K[t].n + ': anklicken oder in die Halle ziehen') + '">' + paletteIcon(t) + '<span>' + esc(K[t].n) + '</span></div>';
+    });
+    h += '</div>';
+  });
+  document.getElementById('palette').innerHTML = h;
+}
+
+/* ===================== Koordinaten & Ziehen ===================== */
+function svgPunkt(e){
+  var pt = plan.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY;
+  var p = pt.matrixTransform(plan.getScreenCTM().inverse());
+  return {x:p.x, y:p.y};
+}
+function rasten(v, e){ return (S.raster && !(e && e.altKey)) ? Math.round(v / 0.25) * 0.25 : r2(v); }
+var zieh = null, leertaste = false;
+
+function hinweis(t){ var h = document.getElementById('hinweis'); h.textContent = t || ''; h.hidden = !t; }
+function modusSetzen(t){
+  S.modus = t;
+  plan.classList.toggle('zeichnen', !!t);
+  document.querySelectorAll('.pi').forEach(function(p){ p.classList.toggle('an', p.getAttribute('data-t') === t); });
+  hinweis(t ? K[t].n + ': in der Halle vom Start zum Ziel ziehen · Esc beendet' : '');
+}
+function hinzufuegen(it){
+  S.items.push(it); S.sel = [it.id];
+  if(it.t === 'spieler') S.letztesTeam = it.team;
+  merken(); allesZeichnen();
+}
+
+// Palette: Klick = in die Mitte setzen, Ziehen = direkt an die Stelle.
+document.getElementById('palette').addEventListener('pointerdown', function(e){
+  var p = e.target.closest('.pi'); if(!p || S.ansicht3d) return;
+  e.preventDefault();
+  var t = p.getAttribute('data-t');
+  if(K[t].pfeil){ modusSetzen(S.modus === t ? null : t); return; }
+  zieh = {art:'neu', t:t, it:null, sx:e.clientX, sy:e.clientY};
+});
+window.addEventListener('pointermove', function(e){
+  if(!zieh) return;
+  if(zieh.art === 'neu'){
+    var r = plan.getBoundingClientRect();
+    var drin = e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom;
+    if(!drin && !zieh.it) return;
+    var p = svgPunkt(e);
+    if(!zieh.it){ zieh.it = beispiel(zieh.t, rasten(p.x, e), rasten(p.y, e)); S.items.push(zieh.it); S.sel = [zieh.it.id]; }
+    zieh.it.x = rasten(p.x, e); zieh.it.y = rasten(p.y, e);
+    itemsZeichnen();
+    return;
+  }
+  ziehenBewegen(e);
+});
+window.addEventListener('pointerup', function(e){
+  if(!zieh) return;
+  var z = zieh; zieh = null;
+  if(z.art === 'neu'){
+    if(z.it){
+      var r = plan.getBoundingClientRect();
+      if(e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom){
+        S.items = S.items.filter(function(i){ return i !== z.it; }); S.sel = [];
+      } else if(z.it.t === 'spieler') S.letztesTeam = z.it.team;
+      merken(); allesZeichnen();
+    } else if(Math.hypot(e.clientX - z.sx, e.clientY - z.sy) < 6){
+      var b = bereich();
+      var x = vb.x + vb.w / 2, y = vb.y + vb.h / 2;
+      x = Math.min(Math.max(x, b.x0 + 1), b.x1 - 1); y = Math.min(Math.max(y, 1), HALLE.H - 1);
+      // nicht genau aufeinander stapeln
+      var n = S.items.filter(function(i){ return Math.abs(i.x - x) < 0.6 && Math.abs(i.y - y) < 0.6; }).length;
+      hinzufuegen(beispiel(z.t, rasten(x + n * 0.7), rasten(y + n * 0.5)));
+    }
+    return;
+  }
+  ziehenEnde(z, e);
+});
+
+plan.addEventListener('pointerdown', function(e){
+  if(S.ansicht3d) return;
+  var p = svgPunkt(e);
+  if(e.button === 1 || leertaste){ e.preventDefault(); zieh = {art:'pan', sx:e.clientX, sy:e.clientY, vb0:Object.assign({}, vb)}; plan.classList.add('schieben'); return; }
+  if(e.button !== 0) return;
+  if(S.modus){
+    var it = {id:neueId(), t:S.modus, x1:r2(p.x), y1:r2(p.y), x2:r2(p.x), y2:r2(p.y)};
+    S.items.push(it); S.sel = [it.id];
+    zieh = {art:'pfeilNeu', it:it}; itemsZeichnen(); return;
+  }
+  var h = e.target.getAttribute && e.target.getAttribute('data-h');
+  if(h && S.sel.length === 1){
+    var sel = itemVon(S.sel[0]);
+    zieh = {art:h, it:sel, p0:p, start:JSON.stringify(sel)};
+    return;
+  }
+  var g = e.target.closest && e.target.closest('[data-id]');
+  if(g){
+    var id = g.getAttribute('data-id');
+    if(e.shiftKey){
+      S.sel = S.sel.indexOf(id) >= 0 ? S.sel.filter(function(x){ return x !== id; }) : S.sel.concat([id]);
+      itemsZeichnen(); eigenschaftenZeichnen(); return;
+    }
+    if(S.sel.indexOf(id) < 0) S.sel = [id];
+    if(e.altKey && !S.raster){ /* Alt = frei ziehen */ }
+    zieh = {art:'move', p0:p, start:S.sel.map(function(sid){ var it2 = itemVon(sid); return {it:it2, alt:JSON.parse(JSON.stringify(it2))}; }), bewegt:false};
+    itemsZeichnen(); eigenschaftenZeichnen();
+    return;
+  }
+  if(!e.shiftKey) S.sel = [];
+  zieh = {art:'rahmen', x0:p.x, y0:p.y, x1:p.x, y1:p.y, basis:S.sel.slice()};
+  itemsZeichnen(); eigenschaftenZeichnen();
+});
+function ziehenBewegen(e){
+  var z = zieh, p;
+  if(z.art === 'pan'){
+    var m = 1 / pxProMeter();
+    vb.x = z.vb0.x - (e.clientX - z.sx) * m; vb.y = z.vb0.y - (e.clientY - z.sy) * m; vbSetzen(); return;
+  }
+  p = svgPunkt(e);
+  if(z.art === 'pfeilNeu'){ z.it.x2 = r2(p.x); z.it.y2 = r2(p.y); itemsZeichnen(); return; }
+  if(z.art === 'rahmen'){
+    z.x1 = p.x; z.y1 = p.y;
+    var x0 = Math.min(z.x0, z.x1), x1 = Math.max(z.x0, z.x1), y0 = Math.min(z.y0, z.y1), y1 = Math.max(z.y0, z.y1);
+    var drin = S.items.filter(function(it){ var c = mitte(it); return c.x >= x0 && c.x <= x1 && c.y >= y0 && c.y <= y1; }).map(function(it){ return it.id; });
+    S.sel = z.basis.concat(drin.filter(function(id){ return z.basis.indexOf(id) < 0; }));
+    ueberZeichnen(); return;
+  }
+  if(z.art === 'move'){
+    var dx = p.x - z.p0.x, dy = p.y - z.p0.y;
+    if(!z.bewegt && Math.hypot(dx, dy) * pxProMeter() < 3) return;
+    z.bewegt = true;
+    var erstes = z.start[0];
+    // Raster am ersten gewählten Element ausrichten, alle anderen gleich weit verschieben
+    if(erstes && !K[erstes.it.t].pfeil){ dx = rasten(erstes.alt.x + dx, e) - erstes.alt.x; dy = rasten(erstes.alt.y + dy, e) - erstes.alt.y; }
+    z.start.forEach(function(s){
+      if(K[s.it.t].pfeil){
+        s.it.x1 = r2(s.alt.x1 + dx); s.it.y1 = r2(s.alt.y1 + dy); s.it.x2 = r2(s.alt.x2 + dx); s.it.y2 = r2(s.alt.y2 + dy);
+        if(s.alt.cx != null){ s.it.cx = r2(s.alt.cx + dx); s.it.cy = r2(s.alt.cy + dy); }
+      } else { s.it.x = r2(s.alt.x + dx); s.it.y = r2(s.alt.y + dy); }
+    });
+    itemsZeichnen(); return;
+  }
+  var it = z.it; if(!it) return;
+  if(z.art === 'rot'){
+    var w = Math.atan2(p.y - it.y, p.x - it.x) * 180 / Math.PI + 90;
+    if(!e.altKey) w = Math.round(w / 15) * 15;
+    it.r = ((Math.round(w) % 360) + 360) % 360; itemsZeichnen(); return;
+  }
+  if(z.art === 'res'){
+    var a = -(it.r || 0) * Math.PI / 180, lx = (p.x - it.x) * Math.cos(a) - (p.y - it.y) * Math.sin(a), ly = (p.x - it.x) * Math.sin(a) + (p.y - it.y) * Math.cos(a);
+    var alt = JSON.parse(z.start), nw = Math.max(0.5, rasten(lx + alt.w / 2, e)), nd = Math.max(0.5, rasten(ly + alt.d / 2, e));
+    // linke obere Ecke bleibt stehen
+    var cxl = -alt.w / 2 + nw / 2, cyl = -alt.d / 2 + nd / 2, b = (it.r || 0) * Math.PI / 180;
+    it.w = nw; it.d = nd; it.x = r2(alt.x + cxl * Math.cos(b) - cyl * Math.sin(b)); it.y = r2(alt.y + cxl * Math.sin(b) + cyl * Math.cos(b));
+    itemsZeichnen(); return;
+  }
+  if(z.art === 'p1'){ it.x1 = rasten(p.x, e); it.y1 = rasten(p.y, e); }
+  if(z.art === 'p2'){ it.x2 = rasten(p.x, e); it.y2 = rasten(p.y, e); }
+  if(z.art === 'pc'){ it.cx = r2(p.x); it.cy = r2(p.y); }
+  itemsZeichnen();
+}
+function ziehenEnde(z, e){
+  plan.classList.remove('schieben');
+  if(z.art === 'pan') return;
+  if(z.art === 'pfeilNeu'){
+    if(Math.hypot(z.it.x2 - z.it.x1, z.it.y2 - z.it.y1) < 0.4){ S.items = S.items.filter(function(i){ return i !== z.it; }); S.sel = []; allesZeichnen(); return; }
+    merken(); allesZeichnen(); return;
+  }
+  if(z.art === 'rahmen'){ ueberZeichnen(); eigenschaftenZeichnen(); return; }
+  if(z.art === 'move' && !z.bewegt) return;
+  merken(); allesZeichnen();
+}
+function mitte(it){ return K[it.t].pfeil ? quadPunkt(it, 0.5) : {x:it.x, y:it.y}; }
+
+// Zoomen mit Mausrad (um den Mauszeiger)
+plan.addEventListener('wheel', function(e){
+  if(S.ansicht3d) return;
+  e.preventDefault();
+  var p = svgPunkt(e), f = Math.exp(e.deltaY * (e.ctrlKey ? 0.01 : 0.0015));
+  zoomUm(p, f);
+}, {passive:false});
+function zoomUm(p, f){
+  var nw = Math.min(60, Math.max(3, vb.w * f)), k = nw / vb.w;
+  vb = {x:p.x - (p.x - vb.x) * k, y:p.y - (p.y - vb.y) * k, w:nw, h:vb.h * k}; vbSetzen();
+}
+document.getElementById('zoomPlus').addEventListener('click', function(){ zoomUm({x:vb.x + vb.w / 2, y:vb.y + vb.h / 2}, 0.75); });
+document.getElementById('zoomMinus').addEventListener('click', function(){ zoomUm({x:vb.x + vb.w / 2, y:vb.y + vb.h / 2}, 1 / 0.75); });
+document.getElementById('zoomFit').addEventListener('click', einpassen);
+window.addEventListener('resize', function(){ ueberZeichnen(); if(S.ansicht3d) drei.groesse(); });
+
+/* ===================== Tastatur ===================== */
+document.addEventListener('keydown', function(e){
+  var tag = (e.target.tagName || '').toLowerCase();
+  if(tag === 'input' || tag === 'textarea' || tag === 'select' || document.querySelector('.dlg-hg')) return;
+  var cmd = e.ctrlKey || e.metaKey;
+  if(e.key === ' '){ leertaste = true; plan.classList.add('schieben'); e.preventDefault(); return; }
+  if(cmd && e.key.toLowerCase() === 'z'){ e.preventDefault(); zurueck(e.shiftKey ? 1 : -1); return; }
+  if(cmd && e.key.toLowerCase() === 'y'){ e.preventDefault(); zurueck(1); return; }
+  if(e.key === 'Escape'){ modusSetzen(null); S.sel = []; itemsZeichnen(); eigenschaftenZeichnen(); return; }
+  if(!S.sel.length || S.ansicht3d) return;
+  if(e.key === 'Delete' || e.key === 'Backspace'){ e.preventDefault(); loeschen(); return; }
+  if(cmd && e.key.toLowerCase() === 'd'){ e.preventDefault(); kopieren(); return; }
+  if(e.key === 'r' || e.key === 'R'){ drehen(e.shiftKey ? -15 : 15); return; }
+  var schritt = e.shiftKey ? 1 : 0.1, dx = 0, dy = 0;
+  if(e.key === 'ArrowLeft') dx = -schritt; if(e.key === 'ArrowRight') dx = schritt;
+  if(e.key === 'ArrowUp') dy = -schritt; if(e.key === 'ArrowDown') dy = schritt;
+  if(dx || dy){ e.preventDefault(); verschieben(dx, dy); }
+});
+document.addEventListener('keyup', function(e){ if(e.key === ' '){ leertaste = false; plan.classList.remove('schieben'); } });
+function gewaehlte(){ return S.sel.map(itemVon).filter(Boolean); }
+function verschieben(dx, dy){
+  gewaehlte().forEach(function(it){
+    if(K[it.t].pfeil){ it.x1 = r2(it.x1 + dx); it.x2 = r2(it.x2 + dx); it.y1 = r2(it.y1 + dy); it.y2 = r2(it.y2 + dy); if(it.cx != null){ it.cx = r2(it.cx + dx); it.cy = r2(it.cy + dy); } }
+    else { it.x = r2(it.x + dx); it.y = r2(it.y + dy); }
+  });
+  merken(); itemsZeichnen();
+}
+function drehen(grad){
+  var its = gewaehlte();
+  if(its.length > 1){
+    // Gruppe um ihren Mittelpunkt drehen
+    var cx = 0, cy = 0; its.forEach(function(it){ var c = mitte(it); cx += c.x; cy += c.y; }); cx /= its.length; cy /= its.length;
+    var a = grad * Math.PI / 180, ca = Math.cos(a), sa = Math.sin(a);
+    var rot = function(x, y){ return {x:r2(cx + (x - cx) * ca - (y - cy) * sa), y:r2(cy + (x - cx) * sa + (y - cy) * ca)}; };
+    its.forEach(function(it){
+      if(K[it.t].pfeil){
+        var p1 = rot(it.x1, it.y1), p2 = rot(it.x2, it.y2); it.x1 = p1.x; it.y1 = p1.y; it.x2 = p2.x; it.y2 = p2.y;
+        if(it.cx != null){ var pc = rot(it.cx, it.cy); it.cx = pc.x; it.cy = pc.y; }
+      } else { var p = rot(it.x, it.y); it.x = p.x; it.y = p.y; it.r = (((it.r || 0) + grad) % 360 + 360) % 360; }
+    });
+  } else its.forEach(function(it){ if(!K[it.t].pfeil) it.r = (((it.r || 0) + grad) % 360 + 360) % 360; });
+  merken(); allesZeichnen();
+}
+function loeschen(){
+  S.items = S.items.filter(function(it){ return S.sel.indexOf(it.id) < 0; }); S.sel = [];
+  merken(); allesZeichnen();
+}
+function kopieren(){
+  var neu = gewaehlte().map(function(it){
+    var c = JSON.parse(JSON.stringify(it)); c.id = neueId();
+    if(K[c.t].pfeil){ c.x1 += 1; c.x2 += 1; c.y1 += 1; c.y2 += 1; if(c.cx != null){ c.cx += 1; c.cy += 1; } }
+    else { c.x = r2(c.x + 1); c.y = r2(c.y + 1); }
+    if(c.t === 'spieler') c.nr = naechsteNr(c.team);
+    if(c.t === 'posten') c.nr = naechsterPosten();
+    S.items.push(c); return c.id;
+  });
+  S.sel = neu; merken(); allesZeichnen();
+}
+
+/* ===================== Eigenschaften ===================== */
+function eigenschaftenZeichnen(){
+  var box = document.getElementById('eigenschaften'), its = gewaehlte(), h;
+  if(!its.length){
+    box.innerHTML = '<h3>🎯 Auswahl</h3><p class="leer">Nichts gewählt. Klicke ein Gerät in der Halle an.</p>';
+    return;
+  }
+  var knoepfe = '<div class="zeile" style="margin-top:10px">' +
+    (its.some(function(i){ return !K[i.t].pfeil; }) ? '<button class="btn klein" data-a="dl" type="button" title="Shift+R">⟲ 15°</button><button class="btn klein" data-a="dr" type="button" title="R">⟳ 15°</button><button class="btn klein" data-a="d90" type="button">↻ 90°</button>' : '') +
+    '<button class="btn klein" data-a="kopie" type="button" title="Ctrl/⌘+D">⧉ Kopie</button><button class="btn klein" data-a="weg" type="button" title="Entf" style="color:var(--bad)">🗑️</button></div>';
+  if(its.length > 1){
+    box.innerHTML = '<h3>🎯 ' + its.length + ' Elemente gewählt</h3><p class="leer">Gemeinsam ziehen, drehen, kopieren oder löschen.</p>' + knoepfe;
+  } else {
+    var it = its[0], k = K[it.t];
+    h = '<h3>🎯 ' + esc(k.n) + '</h3>';
+    if(it.t === 'spieler'){
+      h += '<label>Team</label><div class="zeile">' + TEAMS.map(function(t){ return '<button type="button" class="farbe' + (it.team === t.id ? ' an' : '') + '" data-team="' + t.id + '" style="background:' + t.farbe + '" title="' + t.id + '"></button>'; }).join('') + '</div>';
+      h += '<label for="eNr">Nummer (leer = ohne)</label><input class="feld" id="eNr" type="number" min="0" max="99" value="' + esc(it.nr || '') + '">';
+    }
+    if(it.t === 'posten') h += '<label for="eNr">Posten-Nummer</label><input class="feld" id="eNr" type="number" min="1" max="99" value="' + esc(it.nr || 1) + '">';
+    if(it.t === 'kasten') h += '<label for="eTeile">Kastenteile (Höhe)</label><select class="feld" id="eTeile">' + [1, 2, 3, 4, 5, 6, 7].map(function(n){ return '<option' + (n === (it.teile || 5) ? ' selected' : '') + '>' + n + '</option>'; }).join('') + '</select>';
+    if(it.t === 'vbnetz') h += '<label for="eHoehe">Netzhöhe</label><select class="feld" id="eHoehe">' + [[2.00, '2.00 m (Mittelstufe)'], [2.10, '2.10 m'], [2.15, '2.15 m'], [2.24, '2.24 m (Frauen / U17)'], [2.35, '2.35 m'], [2.43, '2.43 m (Männer)']].map(function(o){ return '<option value="' + o[0] + '"' + (Math.abs(o[0] - (it.hoehe || 2.24)) < 0.001 ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select>';
+    if(it.t === 'bmnetz') h += '<label for="eHoehe">Netzhöhe</label><select class="feld" id="eHoehe">' + [[1.55, '1.55 m (Badminton)'], [1.8, '1.80 m'], [2.0, '2.00 m (Kleinfeld-Volleyball)'], [2.1, '2.10 m'], [2.24, '2.24 m']].map(function(o){ return '<option value="' + o[0] + '"' + (Math.abs(o[0] - (it.hoehe || 1.55)) < 0.001 ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select>';
+    if(it.t === 'ball') h += '<label for="eSorte">Ball</label><select class="feld" id="eSorte">' + Object.keys(BAELLE).map(function(b){ return '<option value="' + b + '"' + (it.sorte === b ? ' selected' : '') + '>' + BAELLE[b].n + '</option>'; }).join('') + '</select>';
+    if(it.t === 'reifen' || it.t === 'teller') h += '<label>Farbe</label><div class="zeile">' + ['#e03131', '#1971c2', '#fcc419', '#2f9e44', '#f76707', '#f8f9fa'].map(function(f){ return '<button type="button" class="farbe' + (it.farbe === f ? ' an' : '') + '" data-farbe="' + f + '" style="background:' + f + '"></button>'; }).join('') + '</div>';
+    if(it.t === 'zone'){
+      h += '<label for="eText">Beschriftung</label><input class="feld" id="eText" maxlength="40" value="' + esc(it.text || '') + '" placeholder="z. B. Feld 1, Wartezone">';
+      h += '<label>Farbe</label><div class="zeile">' + ZONENFARBEN.map(function(f){ return '<button type="button" class="farbe' + (it.farbe === f ? ' an' : '') + '" data-farbe="' + f + '" style="background:' + f + '"></button>'; }).join('') + '</div>';
+      h += '<div class="zeile" style="margin-top:6px"><label style="margin:0">Breite <input class="feld" id="eW" type="number" step="0.5" min="0.5" max="49" value="' + it.w + '" style="width:70px"> m</label><label style="margin:0">Länge <input class="feld" id="eD" type="number" step="0.5" min="0.5" max="49" value="' + it.d + '" style="width:70px"> m</label></div>';
+    }
+    if(it.t === 'text'){
+      h += '<label for="eText">Text</label><input class="feld" id="eText" maxlength="60" value="' + esc(it.text || '') + '">';
+      h += '<label for="eFs">Grösse</label><select class="feld" id="eFs">' + [[0.4, 'klein'], [0.6, 'mittel'], [0.9, 'gross'], [1.4, 'sehr gross']].map(function(o){ return '<option value="' + o[0] + '"' + (o[0] === (it.fs || 0.6) ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select>';
+    }
+    if(k.pfeil) h += '<p class="leer">Weisse Mitte ziehen = Bogen, Enden ziehen = Start/Ziel.</p>';
+    else if(!k.groesse && it.t !== 'text') h += '<p class="leer">' + k.w + ' × ' + k.d + ' m' + (it.r ? ' · ' + it.r + '°' : '') + '</p>';
+    box.innerHTML = h + knoepfe;
+  }
+  box.querySelectorAll('[data-a]').forEach(function(b){
+    b.addEventListener('click', function(){
+      var a = b.getAttribute('data-a');
+      if(a === 'dl') drehen(-15); if(a === 'dr') drehen(15); if(a === 'd90') drehen(90);
+      if(a === 'kopie') kopieren(); if(a === 'weg') loeschen();
+    });
+  });
+  if(its.length !== 1) return;
+  var it1 = its[0];
+  function setzen(fn){ fn(it1); merken(); itemsZeichnen(); materialZeichnen(); if(S.ansicht3d) drei.neu(); }
+  box.querySelectorAll('[data-team]').forEach(function(b){ b.addEventListener('click', function(){ var t = b.getAttribute('data-team'); setzen(function(i){ i.team = t; S.letztesTeam = t; }); eigenschaftenZeichnen(); }); });
+  box.querySelectorAll('[data-farbe]').forEach(function(b){ b.addEventListener('click', function(){ var f = b.getAttribute('data-farbe'); setzen(function(i){ i.farbe = f; }); eigenschaftenZeichnen(); }); });
+  var bind = function(id, fn, ev){ var el = document.getElementById(id); if(el) el.addEventListener(ev || 'change', function(){ setzen(function(i){ fn(i, el.value); }); }); };
+  bind('eNr', function(i, v){ i.nr = v === '' ? '' : Math.max(0, Math.min(99, parseInt(v, 10) || 0)); }, 'input');
+  bind('eTeile', function(i, v){ i.teile = +v; });
+  bind('eHoehe', function(i, v){ i.hoehe = +v; });
+  bind('eSorte', function(i, v){ i.sorte = v; S.letzterBall = v; });
+  bind('eText', function(i, v){ i.text = v; }, 'input');
+  bind('eFs', function(i, v){ i.fs = +v; });
+  bind('eW', function(i, v){ i.w = Math.max(0.5, Math.min(49, +v || 1)); });
+  bind('eD', function(i, v){ i.d = Math.max(0.5, Math.min(49, +v || 1)); });
+}
+
+/* ===================== Materialliste ===================== */
+function materialDaten(){
+  var z = {}, personen = {}, lp = 0;
+  S.items.forEach(function(it){
+    var k = K[it.t];
+    if(k.pfeil || it.t === 'zone' || it.t === 'text' || it.t === 'posten') return;
+    if(it.t === 'spieler'){ personen[it.team] = (personen[it.team] || 0) + 1; return; }
+    if(it.t === 'lehrer'){ lp++; return; }
+    var name = k.n;
+    if(it.t === 'kasten') name = 'Schwedenkasten (' + (it.teile || 5) + ' Teile)';
+    if(it.t === 'ball') name = (BAELLE[it.sorte] || BAELLE.volleyball).n;
+    if(it.t === 'vbnetz' || it.t === 'bmnetz') name = k.n + ' (' + (it.hoehe || k.h(it)).toFixed(2) + ' m)';
+    z[name] = (z[name] || 0) + 1;
+  });
+  var posten = S.items.filter(function(it){ return it.t === 'posten'; }).length;
+  return {geraete:Object.keys(z).sort(function(a, b){ return a.localeCompare(b, 'de'); }).map(function(n){ return [n, z[n]]; }), personen:personen, lp:lp, posten:posten};
+}
+function materialZeichnen(){
+  var m = materialDaten(), h = '';
+  m.geraete.forEach(function(g){ h += '<li><span>' + esc(g[0]) + '</span><b>' + g[1] + '×</b></li>'; });
+  var pers = Object.keys(m.personen);
+  if(pers.length){
+    var total = pers.reduce(function(s, t){ return s + m.personen[t]; }, 0);
+    h += '<li><span>Schüler:innen (' + pers.map(function(t){ return m.personen[t] + ' ' + t; }).join(', ') + ')</span><b>' + total + '</b></li>';
+  }
+  if(m.posten) h += '<li><span>Posten</span><b>' + m.posten + '</b></li>';
+  document.getElementById('material').innerHTML = h || '<li class="leer">Noch keine Geräte in der Halle.</li>';
+}
+function leibchenText(m){
+  var teams = Object.keys(m.personen).filter(function(t){ return t !== 'weiss'; });
+  return teams.length > 1 ? 'Leibchen: ' + teams.map(function(t){ return m.personen[t] + ' ' + t; }).join(', ') : '';
+}
+
+/* ===================== Kopfleiste ===================== */
+function linienZeichnen(){
+  document.getElementById('linien').innerHTML = LINIEN.map(function(l){
+    return '<button type="button" class="chip' + (S.linien[l.id] ? '' : ' aus') + '" data-l="' + l.id + '" title="Linien ' + l.name + ' ein/aus"><i style="background:' + (l.id === 'vb' ? '#adb5bd' : l.farbe) + '"></i>' + l.name + '</button>';
+  }).join('');
+}
+document.getElementById('linien').addEventListener('click', function(e){
+  var b = e.target.closest('[data-l]'); if(!b) return;
+  var id = b.getAttribute('data-l'); S.linien[id] = !S.linien[id];
+  linienZeichnen(); bodenZeichnen(); autosave(); if(S.ansicht3d) drei.neu();
+});
+function schalter(id, feld){
+  var b = document.getElementById(id);
+  b.classList.toggle('aus', !S[feld]);
+  b.addEventListener('click', function(){ S[feld] = !S[feld]; b.classList.toggle('aus', !S[feld]); bodenZeichnen(); itemsZeichnen(); autosave(); if(S.ansicht3d) drei.neu(); });
+}
+document.getElementById('ansicht').addEventListener('change', function(){ S.ansicht = this.value; bodenZeichnen(); einpassen(); autosave(); if(S.ansicht3d) drei.neu(); });
+document.getElementById('undoBtn').addEventListener('click', function(){ zurueck(-1); });
+document.getElementById('redoBtn').addEventListener('click', function(){ zurueck(1); });
+document.getElementById('titelIn').addEventListener('input', function(){ S.titel = this.value; autosave(); });
+document.getElementById('titelIn').addEventListener('change', merken);
+document.getElementById('notizIn').addEventListener('input', function(){ S.notizen = this.value; autosave(); });
+document.getElementById('notizIn').addEventListener('change', merken);
+document.getElementById('neuBtn').addEventListener('click', function(){
+  bestaetigen('Neuer Aufbau', 'Alle Elemente aus der Halle entfernen? (Rückgängig mit ↶ möglich)', 'Leeren', function(){
+    S.items = []; S.sel = []; S.titel = ''; S.notizen = '';
+    document.getElementById('titelIn').value = ''; document.getElementById('notizIn').value = '';
+    merken(); allesZeichnen();
+  });
+});
+
+/* ===================== Aufbauten (Browser + Datei) ===================== */
+function dateiName(){ return (S.titel || 'Hallenplan').replace(/[^\wäöüÄÖÜ\- ]+/g, '').trim().replace(/\s+/g, '_') || 'Hallenplan'; }
+function herunterladen(blob, name){
+  var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click(); setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 1500);
+}
+document.getElementById('aufbautenBtn').addEventListener('click', aufbautenDialog);
+function aufbautenDialog(){
+  var sp = speicherLesen(), liste = sp.gespeichert || [];
+  var h = '<p class="leer">Aufbauten bleiben in diesem Browser gespeichert. Mit «Als Datei» kannst du einen Aufbau sichern oder einer Kollegin, einem Kollegen schicken.</p>';
+  h += '<div class="zeile" style="margin:10px 0"><input class="feld" id="aName" maxlength="80" style="flex:1;min-width:160px" placeholder="Name" value="' + esc(S.titel || '') + '"><button class="btn primaer" type="button" id="aSpeichern">💾 Speichern</button></div>';
+  h += '<ul class="liste">' + (liste.length ? liste.slice().sort(function(a, b){ return (b.datum || '').localeCompare(a.datum || ''); }).map(function(a){
+    return '<li><span><b>' + esc(a.name) + '</b><small>' + esc((a.datum || '').slice(0, 10).split('-').reverse().join('.')) + ' · ' + (a.data.items || []).length + ' Elemente</small></span>' +
+      '<button class="btn klein" type="button" data-oeffnen="' + esc(a.id) + '">Öffnen</button><button class="btn klein" type="button" data-weg="' + esc(a.id) + '" title="Löschen">🗑️</button></li>';
+  }).join('') : '<li class="leer">Noch nichts gespeichert.</li>') + '</ul>';
+  h += '<div class="zeile" style="margin-top:12px"><button class="btn" type="button" id="aExport">⬇️ Als Datei</button><button class="btn" type="button" id="aImport">⬆️ Datei öffnen</button><input type="file" id="aDatei" accept=".json,.hallenplan,application/json" hidden></div>';
+  var d = dialog('💾 Aufbauten', h);
+  var el = d.el;
+  el.querySelector('#aSpeichern').addEventListener('click', function(){
+    var name = el.querySelector('#aName').value.trim() || 'Aufbau ' + new Date().toLocaleDateString('de-CH');
+    var sp2 = speicherLesen(); sp2.gespeichert = sp2.gespeichert || [];
+    var vorhanden = sp2.gespeichert.filter(function(a){ return a.name === name; })[0];
+    var eintrag = {id:vorhanden ? vorhanden.id : neueId(), name:name, datum:new Date().toISOString(), data:datenJetzt()};
+    sp2.gespeichert = sp2.gespeichert.filter(function(a){ return a.name !== name; }).concat([eintrag]);
+    speicherSchreiben(sp2);
+    if(!S.titel){ S.titel = name; document.getElementById('titelIn').value = name; autosave(); }
+    d.zu(); toast('«' + name + '» gespeichert');
+  });
+  el.querySelectorAll('[data-oeffnen]').forEach(function(b){
+    b.addEventListener('click', function(){
+      var a = (speicherLesen().gespeichert || []).filter(function(x){ return x.id === b.getAttribute('data-oeffnen'); })[0];
+      if(!a) return;
+      datenLaden(JSON.parse(JSON.stringify(a.data))); d.zu(); nachLaden(); toast('«' + a.name + '» geöffnet');
+    });
+  });
+  el.querySelectorAll('[data-weg]').forEach(function(b){
+    b.addEventListener('click', function(){
+      var id = b.getAttribute('data-weg'), sp3 = speicherLesen();
+      var a = (sp3.gespeichert || []).filter(function(x){ return x.id === id; })[0];
+      d.zu();
+      bestaetigen('Aufbau löschen', '«' + (a ? a.name : '') + '» endgültig löschen?', 'Löschen', function(){
+        var sp4 = speicherLesen(); sp4.gespeichert = (sp4.gespeichert || []).filter(function(x){ return x.id !== id; }); speicherSchreiben(sp4); aufbautenDialog();
+      });
+    });
+  });
+  el.querySelector('#aExport').addEventListener('click', function(){
+    herunterladen(new Blob([JSON.stringify(Object.assign({art:'hallenplaner'}, datenJetzt()), null, 1)], {type:'application/json'}), dateiName() + '.hallenplan.json');
+  });
+  var datei = el.querySelector('#aDatei');
+  el.querySelector('#aImport').addEventListener('click', function(){ datei.click(); });
+  datei.addEventListener('change', function(){
+    var f = datei.files && datei.files[0]; if(!f) return;
+    f.text().then(function(t){
+      var dd = JSON.parse(t);
+      if(!datenLaden(dd)) throw new Error('kein Hallenplan');
+      d.zu(); nachLaden(); toast('Datei geöffnet');
+    }).catch(function(){ toast('Diese Datei ist kein Hallenplan.'); });
+  });
+}
+function nachLaden(){
+  document.getElementById('ansicht').value = S.ansicht;
+  document.getElementById('titelIn').value = S.titel; document.getElementById('notizIn').value = S.notizen;
+  linienZeichnen(); einpassen(); merken(); allesZeichnen();
+}
+
+/* ===================== Vorlagen ===================== */
+function P(t, x, y, extra){ var it = beispiel(t, x, y); return Object.assign(it, extra || {}); }
+function team(team, nr, x, y, r){ return P('spieler', x, y, {team:team, nr:nr, r:r || 0}); }
+function pf(t, x1, y1, x2, y2, cx, cy){ var it = {id:neueId(), t:t, x1:x1, y1:y1, x2:x2, y2:y2}; if(cx != null){ it.cx = cx; it.cy = cy; } return it; }
+var VORLAGEN = [
+  {n:'Volleyball 3:3 – drei Kleinfelder', u:'Einfachhalle · 16 Schüler:innen · Netz auf 2.00 m · Felder 6 × 7 m', bau:function(){
+    var cx = drittelMitte(0), it = [];
+    [4.6, 14, 23.4].forEach(function(y, f){
+      it.push(P('zone', cx, y, {w:6, d:8.6, farbe:ZONENFARBEN[[2, 0, 3][f]], text:''}));
+      it.push(P('bmnetz', cx, y, {hoehe:2.0}));
+      it.push(P('text', cx - 4.9, y, {text:'Feld ' + (f + 1), fs:0.5, r:270}));
+      [[-3, -4.3], [3, -4.3], [-3, 4.3], [3, 4.3]].forEach(function(e){ it.push(P('huetchen', cx + e[0], y + e[1])); });
+      var n = f === 2 ? 2 : 3;
+      for(var i = 0; i < n; i++){
+        it.push(team('rot', f * 3 + i + 1, cx - 2 + i * (4 / (n - 1 || 1)), y - (i % 2 ? 1.6 : 2.8), 180));
+        it.push(team('blau', f * 3 + i + 1, cx - 2 + i * (4 / (n - 1 || 1)), y + (i % 2 ? 1.6 : 2.8)));
+      }
+      it.push(P('ball', cx + 2.6, y - 3.6, {sorte:'volleyball'}));
+    });
+    it.push(P('lehrer', cx + 7, 14, {r:270}));
+    it.push(P('ballwagen', HALLE.x[1] - 1, 1.2));
+    return {ansicht:'E1', linien:{vb:false, bb:false, hb:false, uh:false, bm:false}, titel:'Volleyball 3:3 – Kleinfelder', notizen:'Felder 1–2: 3 gegen 3, Feld 3: 2 gegen 2.\nNetz bzw. Leine auf 2.00 m. Gewinnerteam steigt ein Feld auf.', items:it};
+  }},
+  {n:'Zirkeltraining – 8 Posten', u:'Doppelhalle · Posten im Kreis · Wechsel im Uhrzeigersinn', bau:function(){
+    var it = [], mx = HALLE.x[1], my = 14;
+    var posten = [
+      [-11, -8, function(x, y){ return [P('langbank', x, y), P('text', x, y + 1, {text:'Bankspringen', fs:0.45})]; }],
+      [-3.5, -9, function(x, y){ return [P('kasten', x, y, {teile:3}), P('turnmatte', x + 1.9, y, {r:0}), P('text', x + 0.6, y + 1.1, {text:'Aufsprung', fs:0.45})]; }],
+      [3.5, -9, function(x, y){ return [P('huetchen', x - 2, y), P('huetchen', x - 1, y + 0.6), P('huetchen', x, y), P('huetchen', x + 1, y + 0.6), P('huetchen', x + 2, y), P('text', x, y + 1.5, {text:'Slalom', fs:0.45})]; }],
+      [11, -8, function(x, y){ return [P('reifen', x - 1.2, y), P('reifen', x - 0.4, y + 0.5), P('reifen', x + 0.4, y), P('reifen', x + 1.2, y + 0.5), P('text', x, y + 1.5, {text:'Reifenhüpfen', fs:0.45})]; }],
+      [11, 8, function(x, y){ return [P('minitramp', x - 1, y), P('weichmatte', x + 1.4, y, {r:90}), P('text', x, y - 2, {text:'Minitramp', fs:0.45})]; }],
+      [3.5, 9, function(x, y){ return [P('turnmatte', x, y), P('turnmatte', x, y - 1.1), P('text', x, y + 1, {text:'Rumpfkraft', fs:0.45})]; }],
+      [-3.5, 9, function(x, y){ return [P('ball', x - 0.6, y, {sorte:'medizinball'}), P('ball', x + 0.6, y, {sorte:'medizinball'}), P('text', x, y + 1, {text:'Medizinball', fs:0.45})]; }],
+      [-11, 8, function(x, y){ return [P('stange', x - 1.5, y), P('stange', x + 1.5, y), P('text', x, y + 1, {text:'Seilspringen', fs:0.45})]; }]
+    ];
+    posten.forEach(function(p, i){
+      var x = mx + p[0], y = my + p[1];
+      it = it.concat(p[2](x, y));
+      it.push(P('posten', x + (p[0] < 0 ? -2.6 : 2.6), y + (p[1] < 0 ? -2 : 2), {nr:i + 1}));
+    });
+    it.push(pf('laufweg', mx - 6, my - 4, mx + 6, my - 4, mx, my - 6));
+    it.push(pf('laufweg', mx + 6, my + 4, mx - 6, my + 4, mx, my + 6));
+    it.push(P('lehrer', mx, my));
+    it.push(P('text', mx, my + 1.2, {text:'40 s Arbeit · 20 s Wechsel', fs:0.5}));
+    return {ansicht:'D12', linien:{vb:false, bb:false, hb:false, uh:false, bm:false}, titel:'Zirkeltraining – 8 Posten', notizen:'Zweiergruppen, je Posten 40 s Arbeit, 20 s Wechsel. 2 Runden.', items:it};
+  }},
+  {n:'Brennball', u:'Einfachhalle · Freimale an den Ecken · Brennmal in der Mitte', bau:function(){
+    var cx = drittelMitte(0), it = [];
+    it.push(P('zone', cx, 25.5, {w:5, d:3, farbe:ZONENFARBEN[3], text:'Schlagzone'}));
+    it.push(P('weichmatte', cx - 5.6, 21, {r:90}), P('weichmatte', cx - 5.6, 7), P('weichmatte', cx + 5.6, 7), P('weichmatte', cx + 5.6, 21, {r:90}));
+    it.push(P('kasten', cx, 14, {teile:2}), P('reifen', cx, 14, {farbe:'#e03131'}));
+    it.push(P('text', cx, 15.3, {text:'Brennmal', fs:0.5}));
+    it.push(pf('laufweg', cx - 1.5, 25, cx - 5.4, 22.5, cx - 4, 25.5), pf('laufweg', cx - 5.8, 19.2, cx - 5.6, 8.8, cx - 7, 14), pf('laufweg', cx - 4, 6.5, cx + 4, 6.5, cx, 4.5), pf('laufweg', cx + 5.8, 8.8, cx + 5.6, 19.2, cx + 7, 14), pf('laufweg', cx + 5.4, 22.5, cx + 1.5, 25, cx + 4, 25.5));
+    for(var i = 0; i < 8; i++) it.push(team('blau', i + 1, cx - 5 + (i % 4) * 3.3, 10 + Math.floor(i / 4) * 7));
+    for(var j = 0; j < 4; j++) it.push(team('rot', j + 1, cx - 1.8 + j * 1.2, 27.2, 180));
+    it.push(P('ball', cx + 0.3, 24.8, {sorte:'softball'}));
+    it.push(P('lehrer', cx + 7.3, 26));
+    return {ansicht:'E1', linien:{vb:false, bb:false, hb:false, uh:false, bm:false}, titel:'Brennball', notizen:'Schlagteam (rot) wirft oder schlägt aus der Schlagzone ins Feld und läuft von Mal zu Mal. Feldteam (blau) bringt den Ball ins Brennmal: Wer nicht auf einer Matte steht, ist verbrannt.', items:it};
+  }},
+  {n:'Volleyball-Prüfung + Fussball', u:'Doppelhalle · links Prüffeld 9 × 18 m · rechts Fussball mit Kleintoren', bau:function(){
+    var c1 = drittelMitte(0), c2 = drittelMitte(1), it = [];
+    it.push(P('vbnetz', c1, 14, {hoehe:2.24}));
+    it.push(P('zone', c1, 26, {w:9, d:2.6, farbe:ZONENFARBEN[0], text:'Wartende / Technik-Check'}));
+    for(var i = 0; i < 3; i++){ it.push(team('rot', i + 1, c1 - 3 + i * 3, 10.5, 180)); it.push(team('blau', i + 1, c1 - 3 + i * 3, 17.5)); }
+    it.push(P('lehrer', c1 + 6.6, 14, {r:270}), P('text', c1 + 6.6, 15.2, {text:'Beurteilung', fs:0.45}));
+    it.push(P('ballwagen', c1 - 6.6, 26));
+    it.push(P('kleintor', c2, 1, {r:180}), P('kleintor', c2, 27));
+    it.push(P('zone', c2, 14, {w:14, d:24, farbe:ZONENFARBEN[3], text:''}));
+    for(var j = 0; j < 4; j++){ it.push(team('gelb', j + 1, c2 - 4.5 + j * 3, 9)); it.push(team('gruen', j + 1, c2 - 4.5 + j * 3, 19)); }
+    it.push(P('ball', c2, 14, {sorte:'fussball'}));
+    it.push(P('text', c2, 2.6, {text:'Fussball (selbständig)', fs:0.5}));
+    return {ansicht:'D12', linien:{vb:true, bb:false, hb:false, uh:false, bm:false}, titel:'Volleyball-Prüfung + Fussball', notizen:'Halbklasse A: Prüfung im Volleyballfeld (Technik-Check + Spiel). Halbklasse B: Fussball nebenan, danach Wechsel.', items:it};
+  }}
+];
+document.getElementById('vorlagenBtn').addEventListener('click', function(){
+  var h = '<p class="leer">Eine Vorlage ersetzt den aktuellen Aufbau (Rückgängig mit ↶). Danach kannst du alles anpassen.</p><ul class="liste">' +
+    VORLAGEN.map(function(v, i){ return '<li><span><b>' + esc(v.n) + '</b><small>' + esc(v.u) + '</small></span><button class="btn klein primaer" type="button" data-v="' + i + '">Übernehmen</button></li>'; }).join('') + '</ul>';
+  var d = dialog('📋 Vorlagen', h);
+  d.el.querySelectorAll('[data-v]').forEach(function(b){
+    b.addEventListener('click', function(){ datenLaden(VORLAGEN[+b.getAttribute('data-v')].bau()); d.zu(); nachLaden(); });
+  });
+});
+
+/* ===================== Drucken & Bild ===================== */
+function planSvgString(druck){
+  var b = bereich(), x = b.x0 - 0.8, w = (b.x1 - b.x0) + 1.6;
+  return '<svg xmlns="' + NS + '" viewBox="' + r2(x) + ' -0.8 ' + r2(w) + ' ' + (HALLE.H + 1.6) + '" width="' + Math.round(w * 40) + '" height="' + Math.round((HALLE.H + 1.6) * 40) + '">' +
+    '<rect x="' + r2(x) + '" y="-0.8" width="' + r2(w) + '" height="' + (HALLE.H + 1.6) + '" fill="#fff"/>' +
+    bodenSvg({druck:druck, fest:S.fest, linien:S.linien}) + itemsSvg(druck, false) + '</svg>';
+}
+function druckVorbereiten(){
+  var m = materialDaten(), a = document.getElementById('ansicht');
+  var h = '<h1>' + esc(S.titel || 'Hallenplan') + '</h1><div class="unter">' + esc(a.options[a.selectedIndex].text) + ' · Dreifachhalle Altnau</div>';
+  h += planSvgString(true);
+  h += '<div class="spalten"><div><h2>Material</h2><ul>' + (m.geraete.length ? m.geraete.map(function(g){ return '<li>' + g[1] + '× ' + esc(g[0]) + '</li>'; }).join('') : '<li>–</li>') + '</ul>' +
+    (leibchenText(m) ? '<p>' + esc(leibchenText(m)) + '</p>' : '') + '</div>';
+  if(S.notizen) h += '<div><h2>Notizen</h2><div class="notiz">' + esc(S.notizen) + '</div></div>';
+  h += '</div>';
+  document.getElementById('druck').innerHTML = h;
+}
+window.addEventListener('beforeprint', druckVorbereiten);
+document.getElementById('druckenBtn').addEventListener('click', function(){ druckVorbereiten(); window.print(); });
+function svgZuPng(svg, breite, fertig){
+  var img = new Image();
+  img.onload = function(){
+    var c = document.createElement('canvas'), k = breite / img.width;
+    c.width = breite; c.height = Math.round(img.height * k);
+    var ctx = c.getContext('2d'); ctx.drawImage(img, 0, 0, c.width, c.height);
+    fertig(c);
+  };
+  img.onerror = function(){ toast('Bild konnte nicht erzeugt werden.'); };
+  img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+}
+document.getElementById('pngBtn').addEventListener('click', function(){
+  svgZuPng(planSvgString(S.druck), 2400, function(c){ c.toBlob(function(b){ herunterladen(b, dateiName() + '.png'); }); });
+});
+
+/* ===================== Umschalten 2D / 3D ===================== */
+document.getElementById('zweiBtn').addEventListener('click', function(){ ansicht3d(false); });
+document.getElementById('dreiBtn').addEventListener('click', function(){ ansicht3d(true); });
+function ansicht3d(an){
+  S.ansicht3d = an;
+  document.getElementById('zweiBtn').classList.toggle('an', !an);
+  document.getElementById('dreiBtn').classList.toggle('an', an);
+  document.getElementById('drei').classList.toggle('an', an);
+  document.getElementById('zoomLeiste').style.display = an ? 'none' : '';
+  modusSetzen(null);
+  if(an) drei.start(); else drei.stopp();
+}
+
+/* ===================== 3D-Ansicht (three.js, selbst gehostet) ===================== */
+var drei = (function(){
+  var T = null, Orbit = null, renderer = null, scene = null, kamera = null, ctrl = null, laeuft = false, wurzel = null, bodenTex = null, laden = null;
+  var box = document.getElementById('drei');
+  function bibliothek(){
+    if(!laden) laden = Promise.all([import('../assets/vendor/three-0.160.0.module.min.js'), import('../assets/vendor/three-0.160.0-OrbitControls.js')]).then(function(m){ T = m[0]; Orbit = m[1].OrbitControls; });
+    return laden;
+  }
+  function start(){
+    hinweis('3D wird geladen …');
+    bibliothek().then(function(){
+      hinweis('');
+      if(!S.ansicht3d) return;
+      if(!renderer){
+        renderer = new T.WebGLRenderer({antialias:true, preserveDrawingBuffer:true});
+        renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+        renderer.shadowMap.enabled = true; renderer.shadowMap.type = T.PCFSoftShadowMap;
+        renderer.outputColorSpace = T.SRGBColorSpace;
+        box.insertBefore(renderer.domElement, box.firstChild);
+        scene = new T.Scene(); scene.background = new T.Color('#cfd6df');
+        kamera = new T.PerspectiveCamera(45, 1, 0.1, 400);
+        ctrl = new Orbit(kamera, renderer.domElement);
+        ctrl.enableDamping = true; ctrl.maxPolarAngle = Math.PI / 2 - 0.03; ctrl.minDistance = 2; ctrl.maxDistance = 140;
+        var hemi = new T.HemisphereLight(0xffffff, 0x8899aa, 1.25); scene.add(hemi);
+        var sonne = new T.DirectionalLight(0xffffff, 1.6); sonne.position.set(-20, 40, -14); sonne.castShadow = true;
+        sonne.shadow.mapSize.set(2048, 2048); var sc = sonne.shadow.camera; sc.left = -30; sc.right = 30; sc.top = 30; sc.bottom = -30; sc.near = 1; sc.far = 120;
+        sonne.shadow.bias = -0.0005;
+        scene.add(sonne); scene.add(sonne.target);
+        drei.sonne = sonne;
+      }
+      groesse(); neu(); kameraSetzen('schraeg');
+      if(!laeuft){ laeuft = true; schleife(); }
+    }).catch(function(err){ console.error(err); hinweis(''); toast('3D konnte nicht geladen werden.'); ansicht3d(false); });
+  }
+  function stopp(){ laeuft = false; }
+  function schleife(){ if(!laeuft) return; requestAnimationFrame(schleife); ctrl.update(); renderer.render(scene, kamera); }
+  function groesse(){
+    if(!renderer) return;
+    var r = box.getBoundingClientRect(); if(!r.width || !r.height) return;
+    renderer.setSize(r.width, r.height, false); kamera.aspect = r.width / r.height; kamera.updateProjectionMatrix();
+  }
+  function kameraSetzen(art){
+    if(!kamera) return;
+    var b = bereich(), cx = (b.x0 + b.x1) / 2, w = b.x1 - b.x0;
+    var mx = cx - HALLE.W / 2, mz = HALLE.H / 2 - HALLE.H / 2;
+    ctrl.target.set(mx, 0, mz);
+    var gr = Math.max(w, HALLE.H);
+    if(art === 'oben') kamera.position.set(mx, gr * 1.25, mz + 0.01);
+    else if(art === 'auge') kamera.position.set(mx - w / 2 + 1.5, 1.65, mz + HALLE.H / 2 - 1.5);
+    else kamera.position.set(mx + w * 0.15, gr * 0.62, mz + HALLE.H * 0.95 + gr * 0.2);
+    if(art === 'auge') ctrl.target.set(mx + w / 4, 1.2, mz - 2);
+    ctrl.update();
+  }
+  // Plan-Koordinaten (m, Ursprung oben links) -> Welt (Mitte der Halle)
+  function wx(x){ return x - HALLE.W / 2; }
+  function wz(y){ return y - HALLE.H / 2; }
+  function mat(farbe, extra){ return new T.MeshStandardMaterial(Object.assign({color:farbe, roughness:0.75, metalness:0.05}, extra || {})); }
+  function kiste(w, h, d, farbe, x, y, z, extra){ var m = new T.Mesh(new T.BoxGeometry(w, h, d), farbe.isMaterial ? farbe : mat(farbe, extra)); m.position.set(x || 0, y || 0, z || 0); m.castShadow = true; m.receiveShadow = true; return m; }
+  function rohr(r, l, farbe, extra){ var m = new T.Mesh(new T.CylinderGeometry(r, r, l, 14), farbe.isMaterial ? farbe : mat(farbe, extra)); m.castShadow = true; return m; }
+  function stange(x1, y1, z1, x2, y2, z2, r, farbe){
+    var a = new T.Vector3(x1, y1, z1), b = new T.Vector3(x2, y2, z2), l = a.distanceTo(b), m = rohr(r, l, farbe, {metalness:0.5, roughness:0.4});
+    m.position.copy(a).add(b).multiplyScalar(0.5); m.quaternion.setFromUnitVectors(new T.Vector3(0, 1, 0), b.clone().sub(a).normalize()); return m;
+  }
+  function etikett(text, hoehe, farbe, hg){
+    var c = document.createElement('canvas'), ctx = c.getContext('2d'), fs = 64;
+    ctx.font = '700 ' + fs + 'px Atkinson Hyperlegible, Arial, sans-serif';
+    var w = Math.ceil(ctx.measureText(text).width) + 40; c.width = w; c.height = fs + 30;
+    ctx.font = '700 ' + fs + 'px Atkinson Hyperlegible, Arial, sans-serif';
+    if(hg){ ctx.fillStyle = hg; ctx.beginPath(); if(ctx.roundRect) ctx.roundRect(0, 0, w, c.height, 22); else ctx.rect(0, 0, w, c.height); ctx.fill(); }
+    ctx.fillStyle = farbe || '#1c2033'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(text, w / 2, c.height / 2 + 3);
+    var tex = new T.CanvasTexture(c); tex.colorSpace = T.SRGBColorSpace;
+    var sp = new T.Sprite(new T.SpriteMaterial({map:tex, depthTest:false, transparent:true}));
+    sp.scale.set(hoehe * w / c.height, hoehe, 1); sp.renderOrder = 10; return sp;
+  }
+  function netzMat(){ return new T.MeshStandardMaterial({color:0x222222, transparent:true, opacity:0.35, side:T.DoubleSide, roughness:1}); }
+  function weissNetz(){ return new T.MeshStandardMaterial({color:0xffffff, transparent:true, opacity:0.4, side:T.DoubleSide, roughness:1}); }
+
+  // ---------- Modelle (lokal: x = Länge w, z = Tiefe d, y = oben; Mitte der Grundfläche im Ursprung) ----------
+  var M = {
+    kasten:function(it){
+      var g = new T.Group(), n = it.teile || 5, hh = 0.17;
+      for(var i = 0; i < n; i++){
+        var s = 1 + (n - 1 - i) * 0.025;
+        g.add(kiste(1.4 * s, hh - 0.01, 0.5 * s, i % 2 ? '#c99a5f' : '#bd8c52', 0, i * hh + hh / 2));
+      }
+      g.add(kiste(1.36, 0.12, 0.46, LEDER, 0, n * hh + 0.06));
+      return g;
+    },
+    bock:function(){
+      var g = new T.Group(); g.add(kiste(0.6, 0.18, 0.34, LEDER, 0, 0.96));
+      [[-0.22, -0.12], [0.22, -0.12], [-0.22, 0.12], [0.22, 0.12]].forEach(function(p){ g.add(stange(p[0] * 0.5, 0.9, p[1] * 0.5, p[0] * 1.3, 0, p[1] * 1.5, 0.025, '#555')); });
+      return g;
+    },
+    sprungbrett:function(){
+      var g = new T.Group(), b = kiste(1.2, 0.05, 0.6, '#d9c8a3', 0, 0.12); b.rotation.z = 0.16; g.add(b);
+      g.add(kiste(0.3, 0.06, 0.6, '#3b5bdb', -0.48, 0.06)); return g;
+    },
+    minitramp:function(){
+      var g = new T.Group(), f = kiste(1.1, 0.08, 1.1, '#1c7ed6', 0, 0.42); f.rotation.z = 0.2; g.add(f);
+      var bed = kiste(0.78, 0.02, 0.78, '#222', 0, 0.47); bed.rotation.z = 0.2; g.add(bed);
+      [[-0.45, -0.45], [0.45, -0.45], [-0.45, 0.45], [0.45, 0.45]].forEach(function(p){ g.add(stange(p[0], 0, p[1], p[0], p[0] > 0 ? 0.55 : 0.3, p[1], 0.025, '#868e96')); });
+      return g;
+    },
+    turnmatte:function(){ return kiste(2, 0.06, 1, MATTE, 0, 0.03); },
+    weichmatte:function(){ var g = new T.Group(); g.add(kiste(3, 0.4, 2, '#2c3e8c', 0, 0.2)); g.add(kiste(2.9, 0.01, 1.9, '#3d55b0', 0, 0.405)); return g; },
+    langbank:function(){
+      var g = new T.Group(); g.add(kiste(3.5, 0.04, 0.3, '#d9a86c', 0, 0.33));
+      g.add(kiste(3.2, 0.03, 0.1, '#b5834a', 0, 0.03));
+      [-1.4, 0, 1.4].forEach(function(x){ g.add(kiste(0.05, 0.31, 0.26, '#b5834a', x, 0.155)); });
+      return g;
+    },
+    barren:function(){
+      var g = new T.Group(); g.add(kiste(2.2, 0.06, 1.4, '#868e96', 0, 0.03));
+      [-0.27, 0.27].forEach(function(z){
+        var h = rohr(0.025, 3, '#d9a86c'); h.rotation.z = Math.PI / 2; h.position.set(0, 1.65, z); g.add(h);
+        [-0.9, 0.9].forEach(function(x){ g.add(stange(x, 0.06, z * 1.6, x, 1.62, z, 0.03, '#adb5bd')); });
+      });
+      return g;
+    },
+    reck:function(){
+      var g = new T.Group(), h = rohr(0.014, 2.4, '#ced4da'); h.rotation.z = Math.PI / 2; h.position.set(0, 2.4, 0); h.material.metalness = 0.8; g.add(h);
+      [-1.05, 1.05].forEach(function(x){ g.add(stange(x, 0, 0, x, 2.45, 0, 0.03, '#868e96')); g.add(stange(x, 2.3, 0, x, 0, -0.9, 0.006, '#495057')); g.add(stange(x, 2.3, 0, x, 0, 0.9, 0.006, '#495057')); });
+      return g;
+    },
+    balken:function(){
+      var g = new T.Group(); g.add(kiste(5, 0.16, 0.1, '#d9a86c', 0, 1.17));
+      [-1.95, 1.95].forEach(function(x){ g.add(kiste(0.1, 1.1, 0.1, '#868e96', x, 0.55)); g.add(kiste(0.25, 0.05, 0.5, '#868e96', x, 0.025)); });
+      return g;
+    },
+    huetchen:function(){ var g = new T.Group(), k = new T.Mesh(new T.ConeGeometry(0.09, 0.25, 18), mat('#ff7a1a')); k.position.y = 0.135; k.castShadow = true; g.add(k); g.add(kiste(0.22, 0.02, 0.22, '#e8590c', 0, 0.01)); return g; },
+    pylone:function(){ var g = new T.Group(), k = new T.Mesh(new T.ConeGeometry(0.13, 0.48, 20), mat('#ff6b00')); k.position.y = 0.26; k.castShadow = true; g.add(k); var r = new T.Mesh(new T.CylinderGeometry(0.075, 0.095, 0.08, 20), mat('#ffffff')); r.position.y = 0.3; g.add(r); g.add(kiste(0.36, 0.03, 0.36, '#d9480f', 0, 0.015)); return g; },
+    teller:function(it){ var m = new T.Mesh(new T.CylinderGeometry(0.05, 0.1, 0.04, 20), mat(it.farbe || '#fcc419')); m.position.y = 0.02; return m; },
+    reifen:function(it){ var m = new T.Mesh(new T.TorusGeometry(0.38, 0.015, 8, 48), mat(it.farbe || '#e03131')); m.rotation.x = Math.PI / 2; m.position.y = 0.016; return m; },
+    stange:function(){
+      var g = new T.Group(), b = new T.Mesh(new T.CylinderGeometry(0.17, 0.17, 0.04, 20), mat('#343a40')); b.position.y = 0.02; g.add(b);
+      for(var i = 0; i < 6; i++){ var s = rohr(0.014, 0.28, i % 2 ? '#ffffff' : '#e03131'); s.position.y = 0.04 + 0.14 + i * 0.28; g.add(s); }
+      return g;
+    },
+    ball:function(it){
+      var b = BAELLE[it.sorte] || BAELLE.volleyball, r = it.sorte === 'medizinball' ? 0.15 : 0.11;
+      var m = new T.Mesh(new T.SphereGeometry(r, 24, 16), mat(b.f, {roughness:0.6})); m.position.y = r; m.castShadow = true; return m;
+    },
+    ballwagen:function(){
+      var g = new T.Group(); g.add(kiste(0.9, 0.04, 0.6, '#adb5bd', 0, 0.12, 0, {metalness:0.6}));
+      [[-0.45, -0.3], [0.45, -0.3], [-0.45, 0.3], [0.45, 0.3]].forEach(function(p){ g.add(stange(p[0], 0.1, p[1], p[0], 0.95, p[1], 0.012, '#ced4da')); });
+      var farben = ['#f8f9fa', '#e8590c', '#fab005', '#1971c2'];
+      for(var i = 0; i < 12; i++){ var b = new T.Mesh(new T.SphereGeometry(0.11, 16, 12), mat(farben[i % 4])); b.position.set(-0.3 + (i % 4) * 0.2, 0.26 + Math.floor(i / 8) * 0.2, -0.12 + (Math.floor(i / 4) % 2) * 0.24); g.add(b); }
+      return g;
+    },
+    handballtor:function(){ return tor(3, 2, 1.0, '#e03131'); },
+    unihockeytor:function(){ return tor(1.6, 1.15, 0.65, '#e03131'); },
+    kleintor:function(){ return tor(1.2, 0.8, 0.6, '#1971c2'); },
+    korbball:function(){
+      var g = new T.Group(), f = new T.Mesh(new T.CylinderGeometry(0.33, 0.33, 0.08, 24), mat('#343a40')); f.position.y = 0.04; g.add(f);
+      g.add(stange(0, 0.08, 0, 0, 2.9, 0, 0.035, '#868e96'));
+      var ring = new T.Mesh(new T.TorusGeometry(0.2, 0.012, 8, 32), mat('#e8590c', {metalness:0.4})); ring.rotation.x = Math.PI / 2; ring.position.set(0, 3.0, 0); g.add(ring);
+      var korb = new T.Mesh(new T.CylinderGeometry(0.2, 0.16, 0.35, 16, 1, true), weissNetz()); korb.position.set(0, 2.82, 0); g.add(korb);
+      return g;
+    },
+    vbnetz:function(it){ return netz(9.5, it.hoehe || 2.24, 1.0, 4.9); },
+    bmnetz:function(it){ return netz(6.1, it.hoehe || 1.55, (it.hoehe || 1.55) > 1.7 ? 0.9 : 0.76, 3.35); },
+    bande:function(){ return kiste(2, 0.5, 0.03, '#f8f9fa', 0, 0.25); },
+    spieler:function(it){ return figur(teamVon(it.team).farbe, it.nr ? String(it.nr) : '', teamVon(it.team).text, 1.0); },
+    lehrer:function(){ return figur('#212529', 'L', '#fff', 1.1); },
+    zone:function(it){
+      var g = new T.Group(), f = it.farbe || ZONENFARBEN[0];
+      var p = new T.Mesh(new T.PlaneGeometry(it.w, it.d), new T.MeshBasicMaterial({color:f, transparent:true, opacity:0.35, depthWrite:false}));
+      p.rotation.x = -Math.PI / 2; p.position.y = 0.012; g.add(p);
+      if(it.text){ var e = etikett(it.text, 0.5, '#1c2033', 'rgba(255,255,255,.85)'); e.position.y = 0.5; g.add(e); }
+      return g;
+    },
+    posten:function(it){
+      var g = new T.Group(); g.add(stange(0, 0, 0, 0, 1.2, 0, 0.02, '#868e96'));
+      var f = new T.Mesh(new T.CylinderGeometry(0.18, 0.18, 0.03, 20), mat('#495057')); f.position.y = 0.015; g.add(f);
+      var e = etikett(String(it.nr || 1), 0.5, '#ffffff', '#5FA829'); e.position.y = 1.45; g.add(e); return g;
+    },
+    text:function(it){ var e = etikett(it.text || 'Text', Math.max(0.35, (it.fs || 0.6) * 0.9), it.farbe || '#1c2033', 'rgba(255,255,255,.8)'); e.position.y = 0.6; return e; }
+  };
+  function tor(b, h, t, farbe){
+    var g = new T.Group(), r = 0.04, z0 = -t / 2;
+    g.add(stange(-b / 2, 0, z0, -b / 2, h, z0, r, farbe)); g.add(stange(b / 2, 0, z0, b / 2, h, z0, r, farbe)); g.add(stange(-b / 2, h, z0, b / 2, h, z0, r, farbe));
+    g.add(stange(-b / 2, 0, z0, -b / 2, 0, t / 2, 0.02, '#adb5bd')); g.add(stange(b / 2, 0, z0, b / 2, 0, t / 2, 0.02, '#adb5bd')); g.add(stange(-b / 2, 0, t / 2, b / 2, 0, t / 2, 0.02, '#adb5bd'));
+    var hinten = new T.Mesh(new T.PlaneGeometry(b, Math.hypot(h, t)), weissNetz()); hinten.position.set(0, h / 2, 0); hinten.rotation.x = -Math.atan2(t, h); g.add(hinten);
+    [-1, 1].forEach(function(s){
+      var sh = new T.Shape(); sh.moveTo(z0, 0); sh.lineTo(z0, h); sh.lineTo(t / 2, 0); sh.lineTo(z0, 0);
+      var m = new T.Mesh(new T.ShapeGeometry(sh), weissNetz()); m.rotation.y = -Math.PI / 2; m.position.x = s * b / 2; g.add(m);
+    });
+    return g;
+  }
+  function netz(breite, oberkante, hoehe, pfosten){
+    var g = new T.Group();
+    [-pfosten, pfosten].forEach(function(x){ g.add(stange(x, 0, 0, x, oberkante + 0.08, 0, 0.04, '#ced4da')); var f = new T.Mesh(new T.CylinderGeometry(0.15, 0.15, 0.03, 18), mat('#495057')); f.position.set(x, 0.015, 0); g.add(f); });
+    var n = new T.Mesh(new T.PlaneGeometry(breite, hoehe), netzMat()); n.position.set(0, oberkante - hoehe / 2, 0); g.add(n);
+    g.add(kiste(breite, 0.07, 0.01, '#ffffff', 0, oberkante - 0.035));
+    g.add(kiste(breite, 0.05, 0.01, '#ffffff', 0, oberkante - hoehe + 0.025));
+    g.add(stange(-pfosten, oberkante - 0.02, 0, pfosten, oberkante - 0.02, 0, 0.004, '#222'));
+    return g;
+  }
+  function figur(farbe, nr, textfarbe, gross){
+    var g = new T.Group(), s = gross || 1;
+    var beine = kiste(0.26 * s, 0.75 * s, 0.16 * s, '#343a40', 0, 0.375 * s); g.add(beine);
+    var koerper = new T.Mesh(new T.CylinderGeometry(0.17 * s, 0.2 * s, 0.6 * s, 18), mat(farbe)); koerper.position.y = 1.05 * s; koerper.castShadow = true; g.add(koerper);
+    var kopf = new T.Mesh(new T.SphereGeometry(0.12 * s, 18, 14), mat('#f1c27d')); kopf.position.y = 1.5 * s; kopf.castShadow = true; g.add(kopf);
+    // Blickrichtung: kleine Nase (im Grundriss die Spitze oben = -y)
+    var nase = new T.Mesh(new T.SphereGeometry(0.03 * s, 8, 6), mat('#e0a96d')); nase.position.set(0, 1.5 * s, -0.12 * s); g.add(nase);
+    if(nr){ var e = etikett(nr, 0.32, textfarbe === '#fff' ? '#fff' : '#222', farbe); e.position.y = 1.9 * s; g.add(e); }
+    return g;
+  }
+  function pfeil3d(it){
+    var k = K[it.t], c = pfeilPfad(it), farbe = it.farbe || k.farbe, g = new T.Group();
+    var pts = [];
+    for(var i = 0; i <= 40; i++){ var p = quadPunkt(it, i / 40 * 0.96); pts.push(new T.Vector3(wx(p.x), 0.05, wz(p.y))); }
+    var m = mat(farbe, {roughness:0.5});
+    if(k.strich){
+      for(var j = 0; j < pts.length - 1; j += 2){ g.add(new T.Mesh(new T.TubeGeometry(new T.LineCurve3(pts[j], pts[j + 1]), 1, 0.045, 6), m)); }
+    } else if(k.welle){
+      var wpts = [], n = 80, len = 0, alt = quadPunkt(it, 0);
+      for(var q = 1; q <= 40; q++){ var qq = quadPunkt(it, q / 40); len += Math.hypot(qq.x - alt.x, qq.y - alt.y); alt = qq; }
+      var wellen = Math.max(2, Math.round(len / 0.7));
+      for(var a = 0; a <= n; a++){
+        var t = a / n * 0.96, p0 = quadPunkt(it, t), p1 = quadPunkt(it, Math.min(1, t + 0.002)), dx = p1.x - p0.x, dy = p1.y - p0.y, l = Math.hypot(dx, dy) || 1;
+        var amp = (t > 0.85 ? 0 : 0.18) * Math.sin(t * wellen * Math.PI * 2);
+        wpts.push(new T.Vector3(wx(p0.x - dy / l * amp), 0.05, wz(p0.y + dx / l * amp)));
+      }
+      g.add(new T.Mesh(new T.TubeGeometry(new T.CatmullRomCurve3(wpts), 160, 0.045, 6), m));
+    } else g.add(new T.Mesh(new T.TubeGeometry(new T.CatmullRomCurve3(pts), 60, 0.045, 6), m));
+    var e = quadPunkt(it, 0.96), kopf = new T.Mesh(new T.ConeGeometry(0.17, 0.42, 14), m);
+    kopf.position.set(wx(it.x2), 0.05, wz(it.y2));
+    var dir = new T.Vector3(it.x2 - e.x, 0, it.y2 - e.y).normalize();
+    kopf.quaternion.setFromUnitVectors(new T.Vector3(0, 1, 0), dir);
+    kopf.position.sub(dir.clone().multiplyScalar(0.21));
+    g.add(kopf);
+    return g;
+  }
+  function wandTextur(){
+    var c = document.createElement('canvas'); c.width = 512; c.height = 512; var ctx = c.getContext('2d');
+    ctx.fillStyle = '#b9bab6'; ctx.fillRect(0, 0, 512, 512);
+    var holzH = 512 * (2.8 / HALLE.wandH);
+    ctx.fillStyle = '#d6ad6c'; ctx.fillRect(0, 512 - holzH, 512, holzH);
+    ctx.strokeStyle = '#b88c4c'; ctx.lineWidth = 3;
+    for(var x = 0; x <= 512; x += 64){ ctx.beginPath(); ctx.moveTo(x, 512 - holzH); ctx.lineTo(x, 512); ctx.stroke(); }
+    ctx.beginPath(); ctx.moveTo(0, 512 - holzH / 2); ctx.lineTo(512, 512 - holzH / 2); ctx.stroke();
+    // Fensterband oben (wie auf den Fotos)
+    ctx.fillStyle = '#6f7d8c';
+    for(var f = 8; f < 512; f += 128){ ctx.fillRect(f, 40, 112, 120); }
+    ctx.strokeStyle = '#9aa3ad'; ctx.lineWidth = 4;
+    for(var f2 = 8; f2 < 512; f2 += 128){ for(var s = 1; s < 4; s++){ ctx.beginPath(); ctx.moveTo(f2 + s * 28, 40); ctx.lineTo(f2 + s * 28, 160); ctx.stroke(); } }
+    var t = new T.CanvasTexture(c); t.colorSpace = T.SRGBColorSpace; t.wrapS = T.RepeatWrapping; return t;
+  }
+  function raumBauen(g){
+    var b = bereich(), w = b.x1 - b.x0, cx = wx((b.x0 + b.x1) / 2), hh = HALLE.wandH;
+    // Boden mit Linien als Textur
+    var bodenMat = new T.MeshStandardMaterial({color:S.druck ? '#ffffff' : '#ffffff', roughness:0.55});
+    var boden = new T.Mesh(new T.PlaneGeometry(w, HALLE.H), bodenMat); boden.rotation.x = -Math.PI / 2; boden.position.set(cx, 0, 0); boden.receiveShadow = true; g.add(boden);
+    var svg = '<svg xmlns="' + NS + '" viewBox="' + r2(b.x0) + ' 0 ' + r2(w) + ' ' + HALLE.H + '" width="' + Math.round(w * 48) + '" height="' + Math.round(HALLE.H * 48) + '">' + bodenSvg({druck:S.druck, fest:false, linien:S.linien, nurBoden:true}) + '</svg>';
+    svgZuPng(svg, Math.min(4096, Math.round(w * 48)), function(c){
+      var tex = new T.CanvasTexture(c); tex.colorSpace = T.SRGBColorSpace; tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+      if(bodenTex) bodenTex.dispose(); bodenTex = tex; bodenMat.map = tex; bodenMat.needsUpdate = true;
+    });
+    // Wände: Innenseite sichtbar (BackSide) -> die Wände zur Kamera hin verschwinden, man schaut wie in ein Puppenhaus
+    var tex = wandTextur();
+    function wand(laenge, x, z, ry, vorhang){
+      var m = vorhang ? new T.MeshStandardMaterial({color:'#5b6170', roughness:0.95, side:T.BackSide, transparent:true, opacity:0.92})
+        : new T.MeshStandardMaterial({map:tex.clone(), roughness:0.85, side:T.BackSide});
+      if(!vorhang){ m.map.needsUpdate = true; m.map.repeat.set(laenge / 8, 1); }
+      var p = new T.Mesh(new T.PlaneGeometry(laenge, hh), m); p.position.set(x, hh / 2, z); p.rotation.y = ry; p.receiveShadow = true; g.add(p);
+    }
+    wand(w, cx, -HALLE.H / 2, Math.PI, false);
+    wand(w, cx, HALLE.H / 2, 0, false);
+    wand(HALLE.H, wx(b.x0), 0, -Math.PI / 2, b.x0 > 0);
+    wand(HALLE.H, wx(b.x1), 0, Math.PI / 2, b.x1 < HALLE.W);
+    // offene Trennvorhänge innerhalb der Ansicht: oben aufgerollt
+    [1, 2].forEach(function(j){
+      var x = HALLE.x[j]; if(x <= b.x0 + 0.01 || x >= b.x1 - 0.01) return;
+      var r = rohr(0.12, HALLE.H, '#5b6170'); r.castShadow = false; r.rotation.x = Math.PI / 2; r.position.set(wx(x), hh - 0.3, 0); g.add(r);
+    });
+    if(S.fest) festBauen(g, b);
+  }
+  function festBauen(g, b){
+    festeTeile().forEach(function(f){
+      if(f.x < b.x0 || f.x > b.x1) return;
+      if(f.art === 'sprosse'){
+        var s = new T.Group(), x = wx(f.x), z = wz(f.y);
+        [-0.46, 0.46].forEach(function(dx){ s.add(kiste(0.06, 2.6, 0.08, '#c99a5f', x + dx, 1.3, z)); });
+        for(var k = 0; k < 16; k++){ var r = rohr(0.017, 0.92, '#d9a86c'); r.rotation.z = Math.PI / 2; r.position.set(x, 0.15 + k * 0.155, z); s.add(r); }
+        g.add(s);
+      } else {
+        var by = f.y + f.k * 1.7, z0 = wz(f.y), z1 = wz(by), hk = 3.05;
+        var brett = kiste(1.8, 1.05, 0.04, '#ffffff', wx(f.x), hk + 0.45, z1); g.add(brett);
+        g.add(kiste(0.59, 0.45, 0.045, '#222', wx(f.x), hk + 0.25, z1 + f.k * 0.002));
+        g.add(kiste(0.55, 0.41, 0.05, '#ffffff', wx(f.x), hk + 0.25, z1 + f.k * 0.004));
+        g.add(stange(wx(f.x), hk + 0.6, z0, wx(f.x), hk + 0.6, z1, 0.05, '#2b5fb4'));
+        g.add(stange(wx(f.x), hk + 1.5, z0, wx(f.x), hk + 0.8, z1, 0.03, '#2b5fb4'));
+        var ring = new T.Mesh(new T.TorusGeometry(0.23, 0.01, 8, 32), mat('#e8590c', {metalness:0.4})); ring.rotation.x = Math.PI / 2; ring.position.set(wx(f.x), hk, z1 + f.k * 0.38); g.add(ring);
+        var nz = new T.Mesh(new T.CylinderGeometry(0.23, 0.16, 0.4, 16, 1, true), weissNetz()); nz.position.set(wx(f.x), hk - 0.2, z1 + f.k * 0.38); g.add(nz);
+      }
+    });
+  }
+  function neu(){
+    if(!scene) return;
+    if(wurzel){ scene.remove(wurzel); wurzel.traverse(function(o){ if(o.geometry) o.geometry.dispose(); if(o.material){ (Array.isArray(o.material) ? o.material : [o.material]).forEach(function(m){ if(m.map && m.map !== bodenTex) m.map.dispose(); m.dispose(); }); } }); }
+    wurzel = new T.Group(); scene.add(wurzel);
+    raumBauen(wurzel);
+    var b = bereich();
+    S.items.forEach(function(it){
+      var k = K[it.t];
+      if(k.pfeil){ wurzel.add(pfeil3d(it)); return; }
+      if(it.x < b.x0 - 1 || it.x > b.x1 + 1) return;
+      var bau = M[it.t]; if(!bau) return;
+      var o = bau(it);
+      o.position.x += wx(it.x); o.position.z += wz(it.y);
+      if(it.t !== 'text') o.rotation.y = -(it.r || 0) * Math.PI / 180;
+      o.traverse(function(c){ if(c.isMesh && it.t !== 'zone'){ c.castShadow = true; c.receiveShadow = true; } });
+      wurzel.add(o);
+    });
+    if(drei.sonne){ var cx = wx((b.x0 + b.x1) / 2); drei.sonne.position.set(cx - 15, 40, -14); drei.sonne.target.position.set(cx, 0, 0); }
+  }
+  box.querySelectorAll('[data-kam]').forEach(function(btn){ btn.addEventListener('click', function(){ kameraSetzen(btn.getAttribute('data-kam')); }); });
+  document.getElementById('dreiPng').addEventListener('click', function(){
+    if(!renderer) return;
+    renderer.render(scene, kamera);
+    renderer.domElement.toBlob(function(bl){ herunterladen(bl, dateiName() + '_3D.png'); });
+  });
+  return {start:start, stopp:stopp, neu:neu, groesse:groesse};
+})();
+
+/* ===================== Start ===================== */
+(function(){
+  var sp = speicherLesen();
+  if(sp.einst){ S.fest = sp.einst.fest !== false; S.raster = sp.einst.raster !== false; S.druck = !!sp.einst.druck; }
+  if(sp.aktuell) datenLaden(sp.aktuell);
+  document.getElementById('ansicht').value = S.ansicht;
+  document.getElementById('titelIn').value = S.titel; document.getElementById('notizIn').value = S.notizen;
+  paletteZeichnen(); linienZeichnen();
+  schalter('festBtn', 'fest'); schalter('rasterBtn', 'raster'); schalter('druckBtn', 'druck');
+  einpassen();
+  merken();
+  allesZeichnen();
+  if(!S.items.length) hinweis('Tipp: Links ein Gerät anklicken oder in die Halle ziehen – oder oben eine 📋 Vorlage wählen.');
+  setTimeout(function(){ if(!S.modus) hinweis(''); }, 6000);
+})();
+</script>
+</body>
+</html>

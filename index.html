@@ -3694,10 +3694,10 @@ function fehlerMelden(quelle, err, zusatz){
    frischem Token neu starten; gemeldet wird erst, wenn es dann wieder scheitert. */
 var listenerNeustart = {};
 function listenerFehler(name, err, stop, start){
-  if(err && err.code === 'permission-denied' && !listenerNeustart[name] && auth.currentUser){
-    listenerNeustart[name] = 1;
+  if(err && err.code === 'permission-denied' && (listenerNeustart[name] || 0) < 2 && auth.currentUser){
+    var versuch = listenerNeustart[name] = (listenerNeustart[name] || 0) + 1;
     stop();
-    var nochmal = function(){ setTimeout(function(){ if(state.user && state.profile) start(); }, 2000); };
+    var nochmal = function(){ setTimeout(function(){ if(state.user && state.profile) start(); }, versuch === 1 ? 2000 : 15000); };
     auth.currentUser.getIdToken(true).then(nochmal, nochmal);
     return;
   }
@@ -8693,6 +8693,15 @@ async function authGeaendert(user){
     render();
     return;
   }
+  // Gespeicherte Anmeldung (Tab neu geöffnet): Das mitgebrachte Token kann älter sein
+  // und von Firestore noch nicht anerkannt werden - dann lehnt es ALLES ab
+  // (22.10.2026, Vanja E3b: Links, Neuigkeiten, Klassenliste, Ämtliplan … alle
+  // 2 s nach dem Laden «permission-denied»). Darum ein älteres Token vor dem
+  // ersten Lesen erneuern.
+  try{
+    var tr = await user.getIdTokenResult();
+    if(Date.now() - new Date(tr.issuedAtTime).getTime() > 10 * 60 * 1000) await user.getIdToken(true);
+  }catch(e){ /* offline: weiter mit dem Zwischenspeicher */ }
   try{
     // Server nicht erreichbar oder Datenbank-Limit erreicht: das eigene Profil
     // aus dem Zwischenspeicher nehmen, statt ewig bei «Lädt …» zu hängen.
@@ -10640,6 +10649,7 @@ function renderHome(){
   html += '<button class="btn btn-ghost btn-sm" id="toolsBtn" type="button" title="PDFs und Bilder komprimieren, zusammenführen, Seiten bearbeiten">🧰 Tools</button>';
   html += '<button class="btn btn-ghost btn-sm" id="anordnenBtn" type="button" title="Kacheln und Symbole verschieben (oder lange auf eine Kachel drücken) – nochmals klicken beendet das Anordnen">✏️ Anordnen</button>';
   html += '<button class="btn btn-ghost btn-sm anordnen-widgets" id="anordnenWidgetsBtn" type="button" title="Ausgeblendetes zurückholen">🧩 Widgets</button>';
+  if(istJan()) html += '<button class="btn btn-ghost btn-sm" id="fehlerKopierBtn" type="button" title="Alle gemeldeten Fehler kopieren" aria-label="Fehler kopieren">🐞</button>';
   html += '</div>';
   html += '<div id="aemtliBanner"></div>';
   html += '<div id="stpJetzt"></div>';
@@ -10678,6 +10688,8 @@ function renderHome(){
   document.getElementById('toolsBtn').addEventListener('click', function(){ state.route = {name:'tools'}; render(); });
   document.getElementById('anordnenBtn').addEventListener('click', function(){ wackelnUmschalten(); });
   document.getElementById('anordnenWidgetsBtn').addEventListener('click', openWidgetDrawer);
+  var fkb = document.getElementById('fehlerKopierBtn');
+  if(fkb) fkb.addEventListener('click', function(){ fehlerSchnellKopieren(fkb); });
   initKachelSort();
   renderStpJetzt();
   renderHomeworkWidget();
@@ -10963,7 +10975,7 @@ function lmvzMerge(){
   var v = state.lmvzV;
   state.folders = state.folders.filter(function(f){ return !f.virtual; });
   state.resources = state.resources.filter(function(r){ return !r.virtual; }).concat(tippVirtuell(state.route.subject))
-    .concat(mtVirtuell(state.route.subject)).concat(kkVirtuell(state.route.subject)).concat(kzmVirtuell(state.route.subject)).concat(svaVirtuell(state.route.subject)).concat(schachVirtuell(state.route.subject)).concat(jassenVirtuell(state.route.subject)).concat(raetselVirtuell(state.route.subject));
+    .concat(mtVirtuell(state.route.subject)).concat(kkVirtuell(state.route.subject)).concat(kzmVirtuell(state.route.subject)).concat(svaVirtuell(state.route.subject)).concat(schachVirtuell(state.route.subject)).concat(jassenVirtuell(state.route.subject)).concat(raetselVirtuell(state.route.subject)).concat(hallenplanerVirtuell(state.route.subject));
   if(state.route.subject !== LMVZ_SUBJECT) return;
   var sv = sikoreVirtuell();
   state.folders = state.folders.concat(sv.folders);
@@ -11395,6 +11407,55 @@ function openSettings(){
    also einige hundert Dokumente): pro Klasse, wie viele in den letzten 7 Tagen
    geübt haben (streaks/{uid}.days), und pro Lehrperson der belegte Speicher
    (resourceContent.ownerUid/bytes, wie «💾 Mein Speicher»). */
+/* 🐞 Fehlerprotokoll (nur Jan): gleiche Meldungen zusammengefasst, neueste zuerst;
+   Text zum Einfügen im Chat. Gebraucht von den Einstellungen und vom 🐞-Knopf neben «Anordnen». */
+function fehlerGruppieren(snap){
+  var gruppen = {}, reihenfolge = [];
+  snap.forEach(function(d){
+    var x = d.data(), g = gruppen[x.msg];
+    if(!g){ g = gruppen[x.msg] = {msg:x.msg, ids:[], wer:{}, letzt:0, stack:x.stack || '', quellen:{}, seiten:{}, infos:{}, test:0, ua:x.ua || ''}; reihenfolge.push(x.msg); }
+    g.ids.push(d.id);
+    g.wer[(x.name || '?') + (x.klasse ? ' (' + x.klasse + ')' : '')] = 1;
+    var ms = pruefMs(x.am) || 0;
+    if(ms >= g.letzt){ g.letzt = ms; g.stack = x.stack || g.stack; g.ua = x.ua || g.ua; }
+    if(x.quelle) g.quellen[x.quelle] = 1;
+    if(x.seite) g.seiten[x.seite] = 1;
+    if(x.info) g.infos[x.info] = 1;
+    if(x.test) g.test++;
+  });
+  return reihenfolge.map(function(k){ return gruppen[k]; }).sort(function(a, b){ return b.letzt - a.letzt; });
+}
+function fehlerKopierText(snap, liste){
+  return 'Fehler aus der Library (' + snap.size + ' Meldungen, ' + liste.length + ' verschiedene), kopiert ' + rmZeit(Date.now()) + '\n\n' +
+    liste.map(function(g, i){
+      return '#' + (i + 1) + ' (' + g.ids.length + '×, zuletzt ' + rmZeit(g.letzt) + (g.test === g.ids.length ? ', nur Testseite' : '') + ')\n' +
+        g.msg + '\n' +
+        'Wer: ' + Object.keys(g.wer).join(', ') + '\n' +
+        'Quelle: ' + Object.keys(g.quellen).join('/') + (Object.keys(g.seiten).length ? ' · Seite: ' + Object.keys(g.seiten).join(', ') : '') + '\n' +
+        (Object.keys(g.infos).length ? 'Info: ' + Object.keys(g.infos).join('\n      ') + '\n' : '') +
+        'Stack:\n' + (g.stack || '(kein Stack)') + '\n' +
+        'Browser: ' + (g.ua || '?');
+    }).join('\n\n----------\n\n');
+}
+function textKopieren(text, ok){
+  var alt = function(){
+    var ta = document.createElement('textarea');
+    ta.value = text; ta.setAttribute('readonly', ''); ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    try{ document.execCommand('copy'); ok(); }catch(e){ toast('Kopieren hat nicht geklappt.'); }
+    ta.remove();
+  };
+  if(navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(ok, alt);
+  else alt();
+}
+function fehlerSchnellKopieren(knopf){
+  knopf.disabled = true;
+  getDocs(collection(db, 'fehlerLog')).then(function(snap){
+    knopf.disabled = false;
+    if(snap.empty){ toast('Keine Fehler gemeldet. 🎉'); return; }
+    textKopieren(fehlerKopierText(snap, fehlerGruppieren(snap)), function(){ toast('Alle ' + snap.size + ' Fehler kopiert.'); });
+  }, function(err){ knopf.disabled = false; console.error(err); toast('Fehler konnten nicht geladen werden.'); });
+}
 function istJan(){ return !!(state.profile && state.profile.role === 'teacher' && !isLeitung() && state.profile.username === 'helfenberger'); }
 function darfSchulStatistik(){ return isLeitung() || istJan(); }
 
@@ -11693,20 +11754,7 @@ function openRueckmeldungen(reiter){
     ladeFehler();
     getDocs(collection(db, 'fehlerLog')).then(function(snap){
       if(!document.getElementById('rmInhalt')) return;
-      var gruppen = {}, reihenfolge = [];
-      snap.forEach(function(d){
-        var x = d.data(), g = gruppen[x.msg];
-        if(!g){ g = gruppen[x.msg] = {msg:x.msg, ids:[], wer:{}, letzt:0, stack:x.stack || '', quellen:{}, seiten:{}, infos:{}, test:0, ua:x.ua || ''}; reihenfolge.push(x.msg); }
-        g.ids.push(d.id);
-        g.wer[(x.name || '?') + (x.klasse ? ' (' + x.klasse + ')' : '')] = 1;
-        var ms = pruefMs(x.am) || 0;
-        if(ms >= g.letzt){ g.letzt = ms; g.stack = x.stack || g.stack; g.ua = x.ua || g.ua; }
-        if(x.quelle) g.quellen[x.quelle] = 1;
-        if(x.seite) g.seiten[x.seite] = 1;
-        if(x.info) g.infos[x.info] = 1;
-        if(x.test) g.test++;
-      });
-      var liste = reihenfolge.map(function(k){ return gruppen[k]; }).sort(function(a, b){ return b.letzt - a.letzt; });
+      var liste = fehlerGruppieren(snap);
       box.innerHTML = '<p class="pr-hinweis">Fehler, die in den Browsern aufgetreten sind (höchstens 5 pro Seitenaufruf, gleiche nur einmal). Behoben? Einfach löschen.</p>'+
         (liste.length ? '<div class="settings-actions" style="margin-bottom:8px;"><button type="button" class="btn btn-primary btn-sm" id="flKopie">📋 Alle kopieren</button> <button type="button" class="btn btn-danger btn-sm" id="flAlle">Alle '+snap.size+' löschen</button></div>' : '')+
         '<div class="settings-list rm-liste">'+(liste.length ? liste.map(function(g, i){
@@ -11735,16 +11783,7 @@ function openRueckmeldungen(reiter){
       // 📋 Alles als Text (zum Einfügen im Chat mit Claude), inkl. Details.
       var kopie = document.getElementById('flKopie');
       if(kopie) kopie.addEventListener('click', function(){
-        var text = 'Fehler aus der Library (' + snap.size + ' Meldungen, ' + liste.length + ' verschiedene), kopiert ' + rmZeit(Date.now()) + '\n\n' +
-          liste.map(function(g, i){
-            return '#' + (i + 1) + ' (' + g.ids.length + '×, zuletzt ' + rmZeit(g.letzt) + (g.test === g.ids.length ? ', nur Testseite' : '') + ')\n' +
-              g.msg + '\n' +
-              'Wer: ' + Object.keys(g.wer).join(', ') + '\n' +
-              'Quelle: ' + Object.keys(g.quellen).join('/') + (Object.keys(g.seiten).length ? ' · Seite: ' + Object.keys(g.seiten).join(', ') : '') + '\n' +
-              (Object.keys(g.infos).length ? 'Info: ' + Object.keys(g.infos).join('\n      ') + '\n' : '') +
-              'Stack:\n' + (g.stack || '(kein Stack)') + '\n' +
-              'Browser: ' + (g.ua || '?');
-          }).join('\n\n----------\n\n');
+        var text = fehlerKopierText(snap, liste);
         var ok = function(){ toast('Alle Fehler kopiert.'); };
         var altKopie = function(){
           var ta = document.createElement('textarea');
@@ -13684,6 +13723,15 @@ function raetselVirtuell(subject){
   if(subject !== 'raetsel-logik') return [];
   return [{id:RAETSEL_ID, subject:'raetsel-logik', folderId:null, order:-2000, virtual:true, schach:true, statisch:'raetsel/raetsel.html',
     title:'🧩 Sudoku, Logikrätsel und Kreuzworträtsel', meta:'Sudoku von 4×4 bis Profi · Wer sitzt wo? · Wahrheit oder Lüge? · Codeschloss · Kreuzworträtsel in drei Stufen · im Unterricht gesperrt, die Lehrperson kann freischalten'}];
+}
+/* 🏟️ HALLENPLANER – Werkzeug im Fach Sport (nur Lehrperson): statische Seite hallenplaner/ im Link-Viewer (iframe src).
+   Grundriss der Dreifachhalle Altnau, Geräte-Baukasten, Materialliste, Druck, 3D (three.js aus assets/vendor). Kein Firestore:
+   Aufbauten liegen im Browser (localStorage hallenplaner_v1) und lassen sich als Datei weitergeben. */
+var HALLENPLANER_VERSION = 1;   // nach jeder Änderung an hallenplaner/index.html erhöhen (Browser-Cache)
+function hallenplanerVirtuell(subject){
+  if(subject !== 'sport' || !(state.profile && state.profile.role === 'teacher')) return [];
+  return [{id:'hallenplaner', subject:'sport', folderId:null, order:-2000, virtual:true, werkzeug:true, linkUrl:'hallenplaner/?v='+HALLENPLANER_VERSION, linkLabel:'Werkzeug',
+    title:'🏟️ Hallenplaner – Aufbauten in der Dreifachhalle', meta:'Geräte, Personen und Laufwege per Ziehen · Einfach-, Doppel- oder Dreifachhalle · Linien pro Sportart · Materialliste · Drucken · 3D-Ansicht · Vorlagen'}];
 }
 function svaDatum(t){
   var wt = ['So','Mo','Di','Mi','Do','Fr','Sa'], a = new Date(t.d+'T12:00:00');
@@ -22998,6 +23046,7 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-10-22-hallenplaner', datum:'2026-10-22', fuer:'lehrer', text:'🏟️ Neu im Fach Sport: der Hallenplaner. Geräte, Personen und Laufwege in die Dreifachhalle ziehen (Einfach-, Doppel- oder ganze Halle), Linien pro Sportart ein- und ausblenden, Materialliste, Drucken und eine 3D-Ansicht. Mit Vorlagen (Volleyball 3:3, Zirkeltraining, Brennball, Prüfung + Fussball). Nur für Lehrpersonen sichtbar.'},
   {id:'2026-10-22-trivia-40', datum:'2026-10-22', fuer:'lehrer', text:'🎲 Die 50 Trivia-Quizze haben jetzt je 40 Fragen. Beim Starten wählst du 10 oder 20 Fragen – die Library merkt sich pro Klasse, welche schon gekommen sind, und zieht zuerst die neuen. Erst wenn alle 40 dran waren, beginnt es von vorne. Das gilt für jedes Klassen-Quiz mit mehr als 10 Fragen; «Alle Fragen» spielt wie bisher alles in der gespeicherten Reihenfolge.'},
   {id:'2026-10-22-listener-neustart', datum:'2026-10-22', fuer:'alle', text:'🔧 Klassen-Quiz, Umfrage und Spiele: Klappt die Verbindung direkt nach dem Öffnen nicht, versucht es die Library jetzt von selbst nochmals.'},
   {id:'2026-10-22-lernphase-fenster', datum:'2026-10-22', fuer:'alle', text:'📚 Lernphase: Wenn du eine Übung im «🪟 Neuen Fenster» machst, zählt das jetzt auch als «in der Library» – du leuchtest bei der Lehrperson nicht mehr rot.'},
