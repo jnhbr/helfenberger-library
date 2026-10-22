@@ -334,7 +334,7 @@ var K = {
     svg:function(){ return rect(-1.5, -1, 3, 2, '#2c3e8c', '#8ea2e0', 0.06, ' rx="0.18"') + rect(-1.3, -0.8, 2.6, 1.6, 'none', '#4b63b8', 0.03, ' rx="0.12"'); }},
   langbank:{n:'Langbank', g:'turnen', kopf:true, w:3.5, d:0.3, e:2, h:function(it){ return it && it.kopf ? 0.3 : 0.35; },
     svg:function(it){
-      if(it.an){ var p = banklaenge(it.an.h); return rect(-p / 2, -0.15, p, 0.3, '#d9a86c', HOLZ2, 0.04, ' rx="0.03"') + rect(-p / 2, -0.17, 0.14, 0.34, '#e03131', '#fff', 0.02) + '<path d="M' + r2(-p / 2 + 0.5) + ' 0 L' + r2(p / 2 - 0.3) + ' 0 M' + r2(p / 2 - 0.5) + ' -0.09 L' + r2(p / 2 - 0.3) + ' 0 L' + r2(p / 2 - 0.5) + ' 0.09" stroke="#8a5a2b" stroke-width="0.04" fill="none"/>' + txt(0, 0.34, it.an.h.toFixed(1) + ' m', 0.2, '#6b5332'); }
+      if(it.an){ var p = banklaenge(it.an.h); return rect(-p / 2, -0.15, p, 0.3, it.kopf ? '#c4915a' : '#d9a86c', HOLZ2, 0.04, ' rx="0.03"') + (it.kopf ? linie(-p / 2 + 0.2, -0.07, p / 2 - 0.1, -0.07, '#8a5a2b', 0.03) + linie(-p / 2 + 0.2, 0.07, p / 2 - 0.1, 0.07, '#8a5a2b', 0.03) : '') + rect(-p / 2, -0.17, 0.14, 0.34, '#e03131', '#fff', 0.02) + '<path d="M' + r2(-p / 2 + 0.5) + ' 0 L' + r2(p / 2 - 0.3) + ' 0 M' + r2(p / 2 - 0.5) + ' -0.09 L' + r2(p / 2 - 0.3) + ' 0 L' + r2(p / 2 - 0.5) + ' 0.09" stroke="#8a5a2b" stroke-width="0.04" fill="none"/>' + txt(0, 0.34, it.an.h.toFixed(1) + ' m', 0.2, '#6b5332'); }
       return rect(-1.75, -0.15, 3.5, 0.3, '#d9a86c', HOLZ2, 0.04, ' rx="0.03"') + linie(-1.6, 0, 1.6, 0, '#b5834a', 0.02); }},
   barren:{n:'Barren', g:'turnen', w:3, d:1.4, e:2, h:function(){ return 1.7; },
     svg:function(){ return rect(-1.1, -0.7, 2.2, 1.4, '#adb5bd', '#495057', 0.04, ' rx="0.06" fill-opacity="0.55"') + rect(-1.5, -0.3, 3, 0.07, '#d9a86c', HOLZ2, 0.02) + rect(-1.5, 0.23, 3, 0.07, '#d9a86c', HOLZ2, 0.02); }},
@@ -589,10 +589,9 @@ function festeTeile(){
     if(k % 2 === 0) t.push({art:'sprosse', x:Math.min(Math.max(x, SPR_B / 2), HALLE.W - SPR_B / 2), w:SPR_B});
     else t.push({art:'tor', x:x, w:TOR_B});
   }
-  [0, 3, 6].forEach(function(kk){ t.push({art:'korb', x:Math.min(Math.max(kk * P6, SPR_B / 2), HALLE.W - SPR_B / 2), wand:'o'}); });
   for(i = 0; i < 3; i++){
     var c = drittelMitte(i);
-    t.push({art:'glas', x:c - 5.6, w:2.8}, {art:'glas', x:c - 2.4, w:2.8}, {art:'korbtafel', x:c + 3.4, w:3.0, wand:'u'});
+    t.push({art:'korb', x:c, wand:'o'}, {art:'glas', x:c - 6.2, w:2.8}, {art:'glas', x:c - 3.2, w:2.8}, {art:'korbtafel', x:c, w:3.0, wand:'u'});
     var rz = i === 0 ? 6 : i === 1 ? 5 : 0, rab = i === 0 ? 2.6 : 3;
     for(var rk = 0; rk < rz; rk++) t.push({art:'ringe', x:c + (rk - (rz - 1) / 2) * rab, y:12.6, key:'r' + (i + 1) + '-' + (rk + 1)});
   }
@@ -802,7 +801,7 @@ function bankEinhaengen(it, h){
   var best = null;
   sprossenFelder().forEach(function(f){ if(!best || Math.abs(f.x - it.x) < Math.abs(best.x - it.x)) best = f; });
   if(!best) return false;
-  it.an = {h:h}; it.r = 90; delete it.kopf;
+  it.an = {h:h}; it.r = 90;
   it.x = r2(Math.min(Math.max(it.x, best.x - best.w / 2 + 0.2), best.x + best.w / 2 - 0.2));
   it.y = r2(0.16 + banklaenge(h) / 2);
   return true;
@@ -1394,7 +1393,7 @@ function eigenschaftenZeichnen(){
       if(a === 'dl') drehen(-15); if(a === 'dr') drehen(15); if(a === 'd90') drehen(90);
       if(a === 'kopie') kopieren(); if(a === 'weg') loeschen();
       if(a === 'gruppe') gruppieren(); if(a === 'trennen') gruppeLoesen(); if(a === 'kombi') kombiSpeichern();
-      if(a === 'kopf'){ var g1 = gewaehlte()[0]; if(g1){ g1.kopf = !g1.kopf; if(g1.kopf) delete g1.an; merken(); allesZeichnen(); } }
+      if(a === 'kopf'){ var g1 = gewaehlte()[0]; if(g1){ g1.kopf = !g1.kopf; merken(); allesZeichnen(); } }
       if(a === 'gerade' || a === 'bogen' || a === 'kreis') pfeilForm(a);
     });
   });
@@ -2155,8 +2154,10 @@ var drei = (function(){
       if(it.an){
         // in die Sprossenwand eingehängt: hohes Ende (−x) an der Wand, tiefes Ende am Boden
         var gs = new T.Group(), bb = new T.Group(), hh = it.an.h, th = Math.asin(Math.min(0.99, hh / BANK_L));
-        bb.add(kiste(BANK_L, 0.04, 0.3, '#d9a86c', 0, 0.02)); bb.add(kiste(BANK_L, 0.03, 0.1, '#b5834a', 0, -0.03));
-        bb.add(kiste(0.08, 0.1, 0.34, '#e03131', -BANK_L / 2 + 0.04, 0.05));
+        var bi = new T.Group(); bi.add(kiste(BANK_L, 0.04, 0.3, '#d9a86c', 0, 0.02)); bi.add(kiste(BANK_L, 0.03, 0.1, '#b5834a', 0, -0.03));
+        bi.add(kiste(0.08, 0.1, 0.34, '#e03131', -BANK_L / 2 + 0.04, 0.05));
+        if(it.kopf) bi.rotation.x = Math.PI;   // auf den Kopf gestellt eingehängt
+        bb.add(bi);
         bb.position.y = hh / 2 + 0.03; bb.rotation.z = -th; gs.add(bb); return gs;
       }
       var g = new T.Group(); g.add(kiste(3.5, 0.04, 0.3, '#d9a86c', 0, 0.33));
