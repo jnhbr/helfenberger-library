@@ -3642,7 +3642,8 @@ if(EMULATOR) connectFirestoreEmulator(db, '127.0.0.1', 8080);
    und Browser-Erweiterungen werden ignoriert. Geschrieben wird direkt mit
    fsSetDoc (ohne Klassen-/Schulleitungs-Wrapper) und ohne selbst zu loggen. */
 var FEHLER_MAX = 5, fehlerGesendet = 0, fehlerGesehen = {};
-var FEHLER_IGNORIEREN = /ResizeObserver loop|^Script error\.?$|Load failed|Failed to fetch|NetworkError|network-request-failed|unavailable|offline|AbortError|aborted|QuotaExceeded|abgebrochen|extension:\/\/|Could not reach Cloud Firestore/i;
+// NotAllowedError / «denied»: Mikrofon oder Mitteilungen von der Person selbst abgelehnt.
+var FEHLER_IGNORIEREN = /NotAllowedError|Permission dismissed|(^|\s)denied$|ResizeObserver loop|^Script error\.?$|Load failed|Failed to fetch|NetworkError|network-request-failed|unavailable|offline|AbortError|aborted|QuotaExceeded|abgebrochen|extension:\/\/|Could not reach Cloud Firestore/i;
 var konsoleFehler = console.error.bind(console);
 function fehlerText(x){
   if(!x) return '';
@@ -3661,16 +3662,46 @@ function fehlerMelden(quelle, err, zusatz){
     if(fehlerGesehen[sig]) return;
     fehlerGesehen[sig] = 1;
     fehlerGesendet++;
-    var p = null, seite = '';
-    try{ p = state.profile; seite = state.route && state.route.name || ''; }catch(e){}
-    fsSetDoc(doc(collection(db, 'fehlerLog')), {
-      msg:msg, stack:stack, quelle:quelle, uid:u.uid,
-      name:String(p && (p.displayName || p.username) || u.email || '').slice(0, 80),
-      klasse:String(p && p.klasse || ''), rolle:String(p && p.role || ''),
-      ua:String(navigator.userAgent || '').slice(0, 300), seite:String(seite).slice(0, 60),
-      test:/-test\//.test(location.pathname), am:serverTimestamp()
-    }).catch(function(){});
+    var p = null, seite = '', ansicht = '', als = false;
+    try{ p = state.profile; seite = state.route && state.route.name || ''; ansicht = state.klasse || ''; als = alsSchueler(); }catch(e){}
+    // info: womit die Anfrage lief (Rechte im Anmelde-Token, angezeigte Klasse,
+    // Schüleransicht, Sekunden seit Seitenaufruf) — bei «permission-denied»
+    // sieht man so, ob das Konto die Rechte (noch) nicht hatte.
+    var info = 'Ansicht ' + (ansicht || '-') + (als ? ' (Schüleransicht)' : '') +
+      ' · ' + Math.round(performance.now() / 1000) + ' s nach Laden' + (document.hidden ? ' · Tab im Hintergrund' : '');
+    function senden(){
+      fsSetDoc(doc(collection(db, 'fehlerLog')), {
+        msg:msg, stack:stack, quelle:quelle, uid:u.uid,
+        name:String(p && (p.displayName || p.username) || u.email || '').slice(0, 80),
+        klasse:String(p && p.klasse || ''), rolle:String(p && p.role || ''),
+        ua:String(navigator.userAgent || '').slice(0, 300), seite:String(seite).slice(0, 60),
+        test:/-test\//.test(location.pathname), info:info.slice(0, 300), am:serverTimestamp()
+      }).catch(function(){});
+    }
+    // Token aus dem Zwischenspeicher (kein Netz): welche Rechte hatte die Anmeldung?
+    u.getIdTokenResult().then(function(t){
+      var c = t.claims || {};
+      info += ' · Token: ' + (c.teacher ? 'Lehrperson' : c.leitung ? 'Leitung' : 'ohne Lehrer-Recht') + ', Klasse ' + (c.klasse || '-') +
+        ', angemeldet ' + (c.auth_time ? Math.round(Date.now() / 1000 - c.auth_time) + ' s' : '?') + ' zuvor';
+    }, function(){ info += ' · Token nicht lesbar'; }).then(senden, senden);
   }catch(e){}
+}
+/* Live-Listener (Quiz, Umfrage, Spiele, Wortwolke, Lernphase): Am 21.10.2026 lehnte
+   Firestore bei einer Lehrperson direkt nach dem Laden ALLE gleichzeitig ab — samt dem
+   eigenen Einführungs-Status, den jede angemeldete Person lesen darf. Die Anmeldung war
+   für Firestore also kurz nicht bereit. Ein abgelehnter Listener bleibt sonst bis zum
+   Neuladen tot (kein Quiz-Banner). Darum einmal pro Listener und Seitenaufruf mit
+   frischem Token neu starten; gemeldet wird erst, wenn es dann wieder scheitert. */
+var listenerNeustart = {};
+function listenerFehler(name, err, stop, start){
+  if(err && err.code === 'permission-denied' && !listenerNeustart[name] && auth.currentUser){
+    listenerNeustart[name] = 1;
+    stop();
+    var nochmal = function(){ setTimeout(function(){ if(state.user && state.profile) start(); }, 2000); };
+    auth.currentUser.getIdToken(true).then(nochmal, nochmal);
+    return;
+  }
+  console.error(name, err);
 }
 window.addEventListener('error', function(e){
   if(e && e.error) fehlerMelden('error', e.error);
@@ -11665,18 +11696,19 @@ function openRueckmeldungen(reiter){
       var gruppen = {}, reihenfolge = [];
       snap.forEach(function(d){
         var x = d.data(), g = gruppen[x.msg];
-        if(!g){ g = gruppen[x.msg] = {msg:x.msg, ids:[], wer:{}, letzt:0, stack:x.stack || '', quellen:{}, seiten:{}, test:0, ua:x.ua || ''}; reihenfolge.push(x.msg); }
+        if(!g){ g = gruppen[x.msg] = {msg:x.msg, ids:[], wer:{}, letzt:0, stack:x.stack || '', quellen:{}, seiten:{}, infos:{}, test:0, ua:x.ua || ''}; reihenfolge.push(x.msg); }
         g.ids.push(d.id);
         g.wer[(x.name || '?') + (x.klasse ? ' (' + x.klasse + ')' : '')] = 1;
         var ms = pruefMs(x.am) || 0;
         if(ms >= g.letzt){ g.letzt = ms; g.stack = x.stack || g.stack; g.ua = x.ua || g.ua; }
         if(x.quelle) g.quellen[x.quelle] = 1;
         if(x.seite) g.seiten[x.seite] = 1;
+        if(x.info) g.infos[x.info] = 1;
         if(x.test) g.test++;
       });
       var liste = reihenfolge.map(function(k){ return gruppen[k]; }).sort(function(a, b){ return b.letzt - a.letzt; });
       box.innerHTML = '<p class="pr-hinweis">Fehler, die in den Browsern aufgetreten sind (höchstens 5 pro Seitenaufruf, gleiche nur einmal). Behoben? Einfach löschen.</p>'+
-        (liste.length ? '<div class="settings-actions" style="margin-bottom:8px;"><button type="button" class="btn btn-danger btn-sm" id="flAlle">Alle '+snap.size+' löschen</button></div>' : '')+
+        (liste.length ? '<div class="settings-actions" style="margin-bottom:8px;"><button type="button" class="btn btn-primary btn-sm" id="flKopie">📋 Alle kopieren</button> <button type="button" class="btn btn-danger btn-sm" id="flAlle">Alle '+snap.size+' löschen</button></div>' : '')+
         '<div class="settings-list rm-liste">'+(liste.length ? liste.map(function(g, i){
           return '<div class="rm-eintrag"><div class="rm-kopf"><span class="rm-tag">'+g.ids.length+'×</span>'+
             (g.test === g.ids.length ? '<span class="rm-tag">🧪 nur Testseite</span>' : '')+
@@ -11684,7 +11716,7 @@ function openRueckmeldungen(reiter){
             '<div class="rm-text rm-code">'+esc(g.msg)+'</div>'+
             '<small class="rm-wer">'+esc(Object.keys(g.wer).slice(0, 12).join(', '))+(Object.keys(g.wer).length > 12 ? ' …' : '')+
             ' · '+esc(Object.keys(g.quellen).join('/'))+(Object.keys(g.seiten).length ? ' · Seite: '+esc(Object.keys(g.seiten).join(', ')) : '')+'</small>'+
-            '<details><summary>Details</summary><pre class="rm-stack">'+esc(g.stack || '(kein Stack)')+'\n\n'+esc(g.ua)+'</pre></details>'+
+            '<details><summary>Details</summary><pre class="rm-stack">'+(Object.keys(g.infos).length ? esc(Object.keys(g.infos).join('\n'))+'\n\n' : '')+esc(g.stack || '(kein Stack)')+'\n\n'+esc(g.ua)+'</pre></details>'+
             '<div class="rm-fuss"><button type="button" class="btn btn-ghost btn-sm" data-flweg="'+i+'">🗑 Löschen</button></div></div>';
         }).join('') : '<div class="empty-state" style="padding:10px;">Keine Fehler gemeldet. 🎉</div>')+'</div>';
       function weg(ids, knopf){
@@ -11699,6 +11731,30 @@ function openRueckmeldungen(reiter){
       }
       box.querySelectorAll('[data-flweg]').forEach(function(b){
         b.addEventListener('click', function(){ weg(liste[+b.getAttribute('data-flweg')].ids, b); });
+      });
+      // 📋 Alles als Text (zum Einfügen im Chat mit Claude), inkl. Details.
+      var kopie = document.getElementById('flKopie');
+      if(kopie) kopie.addEventListener('click', function(){
+        var text = 'Fehler aus der Library (' + snap.size + ' Meldungen, ' + liste.length + ' verschiedene), kopiert ' + rmZeit(Date.now()) + '\n\n' +
+          liste.map(function(g, i){
+            return '#' + (i + 1) + ' (' + g.ids.length + '×, zuletzt ' + rmZeit(g.letzt) + (g.test === g.ids.length ? ', nur Testseite' : '') + ')\n' +
+              g.msg + '\n' +
+              'Wer: ' + Object.keys(g.wer).join(', ') + '\n' +
+              'Quelle: ' + Object.keys(g.quellen).join('/') + (Object.keys(g.seiten).length ? ' · Seite: ' + Object.keys(g.seiten).join(', ') : '') + '\n' +
+              (Object.keys(g.infos).length ? 'Info: ' + Object.keys(g.infos).join('\n      ') + '\n' : '') +
+              'Stack:\n' + (g.stack || '(kein Stack)') + '\n' +
+              'Browser: ' + (g.ua || '?');
+          }).join('\n\n----------\n\n');
+        var ok = function(){ toast('Alle Fehler kopiert.'); };
+        var altKopie = function(){
+          var ta = document.createElement('textarea');
+          ta.value = text; ta.setAttribute('readonly', ''); ta.style.position = 'fixed'; ta.style.opacity = '0';
+          document.body.appendChild(ta); ta.select();
+          try{ document.execCommand('copy'); ok(); }catch(e){ toast('Kopieren hat nicht geklappt.'); }
+          ta.remove();
+        };
+        if(navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(ok, altKopie);
+        else altKopie();
       });
       var alle = document.getElementById('flAlle');
       if(alle) alle.addEventListener('click', function(){
@@ -16997,6 +17053,7 @@ function libFensterOeffnen(r, src){
     catch(e){ console.error(e); try{ w.close(); }catch(e2){} toast('Das Fenster konnte nicht geöffnet werden.'); return; }
   }
   try{ w.focus(); }catch(e){}
+  libFensterLphHoeren(w);
   if(isPseudoFsActive()) exitPseudoFullscreen();
   var f = {win:w, rid:r.id, uebung:src.html != null, tracked:{}, lastWritten:null, lastWriteAt:0, writeTimer:null, sek:0, tickAt:Date.now()};
   libFensterListe[r.id] = f;
@@ -17012,6 +17069,15 @@ function libFensterOeffnen(r, src){
     libFensterPlatzhalter(r.id);
   }
 }
+// Lernphase: Fokuswechsel im Fenster sofort melden (nach document.write, das
+// vorher angehängte Listener wieder entfernt; fremder Origin → geht nicht).
+function libFensterLphHoeren(w){
+  try{
+    w.addEventListener('focus', function(){ lphWechsel(); });
+    w.addEventListener('blur', function(){ lphBlur(); });
+    w.document.addEventListener('visibilitychange', function(){ lphWechsel(); });
+  }catch(e){}
+}
 // Fenster schliessen (oder wurde geschlossen): letzter Stand + Lernzeit sichern.
 function libFensterZu(rid){
   var f = libFensterListe[rid];
@@ -17020,6 +17086,7 @@ function libFensterZu(rid){
   if(f.uebung){ clearTimeout(f.writeTimer); libFensterSpeichern(f); libFensterZeit(f); }
   try{ if(f.win && !f.win.closed) f.win.close(); }catch(e){}
   if(!Object.keys(libFensterListe).length){ clearInterval(libFensterTakt); libFensterTakt = null; }
+  if(lph.aktiv) lphWechsel();
   // Steht die Library gerade auf dieser Übung: Viewer neu laden (zeigt den Stand aus dem Fenster).
   if(f.uebung && libFensterDarf() && state.route.name === 'resource' && state.route.resource && state.route.resource.id === rid) render();
 }
@@ -17076,6 +17143,7 @@ function libFensterTick(){
     if(sichtbar) f.sek += dt;
     if(f.sek >= TIME_FLUSH_MS / 1000) libFensterZeit(f);
   });
+  if(lph.aktiv) lphWechsel();   // meldet nur, wenn sich «drin» geändert hat
 }
 window.addEventListener('pagehide', function(){
   Object.keys(libFensterListe).forEach(function(rid){
@@ -21631,7 +21699,7 @@ function startQuizWatcher(){
     quizLive.session = snap.exists() ? snap.data() : null;
     updateQuizBanner();
     if(state.route.name === 'quizplay') renderQuizPlay();
-  }, function(err){ console.error('Quiz-Listener', err); });
+  }, function(err){ listenerFehler('Quiz-Listener', err, stopQuizWatcher, startQuizWatcher); });
 }
 function stopQuizWatcher(){
   if(quizLive.unsub){ quizLive.unsub(); quizLive.unsub = null; }
@@ -21873,19 +21941,85 @@ function openQuizImport(ablage){
 function quizStartDialog(quiz){
   if(quizLive.overlay){ toast('Es läuft schon ein Quiz.'); return; }
   var std = +lsGet(LIB_PREFIX + 'quiz_teams') || 0, n = (quiz.questions || []).length;
+  var runden = [10, 20].filter(function(x){ return x < n; }), gestellt = null;
   var h = '<h3>🎮 '+esc(quiz.title)+'</h3><p class="pr-hinweis">'+n+' Frage'+(n === 1 ? '' : 'n')+'. In Teams steht am Beamer nur der Team-Stand – die eigenen Punkte sieht jede:r nur auf dem eigenen Gerät.</p>';
   h += '<label class="modal-label">Wer spielt?</label><select id="qzTeams" class="modal-input"><option value="0">Jede:r für sich (Rangliste mit Namen)</option>';
   [2, 3, 4, 5, 6].forEach(function(t){ h += '<option value="'+t+'"'+(t === std ? ' selected' : '')+'>'+t+' Teams – zufällig verteilt, es zählt der Team-Durchschnitt</option>'; });
-  h += '</select><div class="modal-actions"><button class="btn btn-ghost btn-sm" id="modalCancel" type="button">Abbrechen</button>'+
+  h += '</select>';
+  if(runden.length){
+    h += '<label class="modal-label">Wie viele Fragen?</label><select id="qzRunde" class="modal-input">';
+    runden.forEach(function(r){ h += '<option value="'+r+'"'+(n > 20 && r === 20 ? ' selected' : '')+'>'+r+' Fragen – zuerst die, die diese Klasse noch nicht hatte</option>'; });
+    h += '<option value="0"'+(n > 20 ? '' : ' selected')+'>Alle '+n+' Fragen in der gespeicherten Reihenfolge</option></select>'+
+      '<p class="pr-hinweis" id="qzRundeInfo"></p>';
+  }
+  h += '<div class="modal-actions"><button class="btn btn-ghost btn-sm" id="modalCancel" type="button">Abbrechen</button>'+
     '<button class="btn btn-primary btn-sm" id="qzGo" type="button">▶︎ Quiz starten</button></div>';
   openModal(h);
+  if(runden.length){
+    quizGestelltLaden().then(function(g){
+      gestellt = g;
+      var info = document.getElementById('qzRundeInfo');
+      if(!info) return;
+      var offen = quizOffeneFragen(quiz, g).length;
+      info.textContent = offen === n ? 'Diese Klasse hatte noch keine Frage aus diesem Quiz.'
+        : offen ? 'Noch '+offen+' von '+n+' Fragen hatte diese Klasse noch nicht. Sind alle gekommen, beginnt es von vorne.'
+        : 'Diese Klasse hatte schon alle '+n+' Fragen – es beginnt wieder von vorne.';
+    });
+  }
   document.getElementById('modalCancel').addEventListener('click', closeModal);
   document.getElementById('qzGo').addEventListener('click', function(){
     var t = +document.getElementById('qzTeams').value || 0;
+    var r = runden.length ? +document.getElementById('qzRunde').value || 0 : 0;
     lsSet(LIB_PREFIX + 'quiz_teams', String(t));
     closeModal();
-    startQuizSession(quiz, t);
+    if(!r){ startQuizSession(quiz, t); return; }
+    (gestellt ? Promise.resolve(gestellt) : quizGestelltLaden()).then(function(g){
+      startQuizSession(quizRundeZiehen(quiz, g, r), t);
+    });
   });
+}
+/* 🔁 Fragen-Rotation (21.10.2026): Wird nur ein Teil eines Quiz gespielt (10 oder 20
+   von z. B. 40 Trivia-Fragen), merkt sich die Library pro Seite (Klasse), welche Fragen
+   schon gekommen sind – klassen/{k}/appMeta/quizGestellt = {<quizId>: [Fragen-Schlüssel]}.
+   Gezogen wird zuerst aus den noch nie gestellten; erst wenn alle dran waren, beginnt es
+   von vorne. Bewusst NICHT im Quiz-Dokument, damit das Spiegeln der Quizze es nie anfasst.
+   Als gestellt zählt eine Frage erst, wenn sie am Beamer wirklich gezeigt wurde. */
+function quizGestelltRef(){ return kdoc('appMeta', 'quizGestellt'); }
+function quizGestelltLaden(){
+  return getDoc(quizGestelltRef()).then(function(snap){ return snap.exists() ? snap.data() : {}; })
+    .catch(function(err){ console.error(err); return {}; });
+}
+function quizFrageKey(f){
+  var t = String((f && f.q) || '').trim().toLowerCase(), h = 5381;
+  for(var i = 0; i < t.length; i++) h = ((h * 33) ^ t.charCodeAt(i)) >>> 0;
+  return h.toString(36);
+}
+function quizOffeneFragen(quiz, g){
+  var schon = (g && Array.isArray(g[quiz.id])) ? g[quiz.id] : [];
+  return (quiz.questions || []).filter(function(f){ return schon.indexOf(quizFrageKey(f)) < 0; });
+}
+function quizRundeZiehen(quiz, g, anzahl){
+  var mischen = function(a){ a = a.slice(); for(var i = a.length - 1; i > 0; i--){ var j = Math.floor(Math.random() * (i + 1)), x = a[i]; a[i] = a[j]; a[j] = x; } return a; };
+  var alle = quiz.questions || [], offen = mischen(quizOffeneFragen(quiz, g));
+  var runde = offen.slice(0, anzahl), neuerDurchgang = runde.length < anzahl;
+  // Reicht der Rest nicht mehr: Rest spielen, dann aus dem neuen Durchgang auffüllen.
+  // Nur die Auffüll-Fragen zählen dann schon für den neuen Durchgang.
+  var markieren = neuerDurchgang ? [] : runde.map(quizFrageKey);
+  if(neuerDurchgang){
+    var rest = mischen(alle.filter(function(f){ return runde.indexOf(f) < 0; })).slice(0, anzahl - runde.length);
+    markieren = rest.map(quizFrageKey);
+    runde = mischen(runde.concat(rest));
+  }
+  return Object.assign({}, quiz, {questions:runde, rotation:{neu:neuerDurchgang, markieren:markieren}});
+}
+// Am Beamer gezeigt → für diese Klasse als gestellt merken (bzw. neuen Durchgang beginnen).
+function quizGestelltMerken(quiz, f){
+  var rot = quiz.rotation, k = quizFrageKey(f);
+  if(!rot || !quiz.id || rot.markieren.indexOf(k) < 0) return;
+  var patch = {};
+  if(rot.neu){ rot.neu = false; patch[quiz.id] = [k]; }
+  else patch[quiz.id] = arrayUnion(k);
+  setDoc(quizGestelltRef(), patch, {merge:true}).catch(function(err){ console.error(err); });
 }
 // Stand pro Team: Durchschnitt der Punkte seiner Mitglieder.
 function quizTeamStand(s, players){
@@ -22204,7 +22338,8 @@ function quizNextStep(quiz){
     question: { text: q.q, answers: q.a },
     sec: q.sec || 25, startedAt: Date.now(), stopped:false, stopLeft:0,
     correctIndex: -1, stats: [], updatedAt: serverTimestamp()
-  }, {merge:true}).catch(function(err){ console.error(err); toast('Frage konnte nicht gestartet werden.'); });
+  }, {merge:true}).then(function(){ quizGestelltMerken(quiz, q); })
+    .catch(function(err){ console.error(err); toast('Frage konnte nicht gestartet werden.'); });
 }
 
 // Zeit anhalten, wenn die Sekunden nicht reichen: der Countdown friert überall
@@ -22863,6 +22998,10 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-10-22-trivia-40', datum:'2026-10-22', fuer:'lehrer', text:'🎲 Die 50 Trivia-Quizze haben jetzt je 40 Fragen. Beim Starten wählst du 10 oder 20 Fragen – die Library merkt sich pro Klasse, welche schon gekommen sind, und zieht zuerst die neuen. Erst wenn alle 40 dran waren, beginnt es von vorne. Das gilt für jedes Klassen-Quiz mit mehr als 10 Fragen; «Alle Fragen» spielt wie bisher alles in der gespeicherten Reihenfolge.'},
+  {id:'2026-10-22-listener-neustart', datum:'2026-10-22', fuer:'alle', text:'🔧 Klassen-Quiz, Umfrage und Spiele: Klappt die Verbindung direkt nach dem Öffnen nicht, versucht es die Library jetzt von selbst nochmals.'},
+  {id:'2026-10-22-lernphase-fenster', datum:'2026-10-22', fuer:'alle', text:'📚 Lernphase: Wenn du eine Übung im «🪟 Neuen Fenster» machst, zählt das jetzt auch als «in der Library» – du leuchtest bei der Lehrperson nicht mehr rot.'},
+  {id:'2026-10-22-fehler-kopieren', datum:'2026-10-22', fuer:'lehrer', text:'🐞 Fehlerliste (nur Jan): «📋 Alle kopieren» kopiert alle Fehler samt Details auf einmal.'},
   {id:'2026-10-21-druck-ohne-leiste', datum:'2026-10-21', fuer:'lehrer', text:'🖨️ Earlybird-Liste und gedruckte Prüfungen: Die gelbe Leiste mit «Drucken / Als PDF sichern» erscheint nicht mehr auf dem Ausdruck.'},
   {id:'2026-10-21-earlybird-leerzeilen', datum:'2026-10-21', fuer:'lehrer', text:'🐦 Earlybird: Die gedruckte Liste hat unten 3 leere Zeilen – für alle, die jemand einzutragen vergessen hat.'},
   {id:'2026-10-21-earlybird-kacheln', datum:'2026-10-21', fuer:'lehrer', text:'🐦 Earlybird: Eintragen geht jetzt mit denselben Namens-Kacheln wie bei der Abgabe-Checkliste – antippen, und sie wird grün mit Haken.'},
@@ -23249,7 +23388,8 @@ var EINFUEHRUNG_ALTE_KLASSEN = ['G3b', 'G3a', 'E1c'];
 var HILFE_URL = 'hilfe.html';
 function einfuehrungRef(){ return doc(db, 'progress', state.user.uid, 'einstellungen', 'einfuehrung'); }
 function einfuehrungPruefen(){
-  if(!state.profile || !state.user || isLeitung() || EINFUEHRUNG_ALTE_KLASSEN.indexOf(state.profile.klasse) >= 0) return;
+  // 🎒 Schüleransicht: den Status der Schüler:in darf die Lehrperson nicht lesen (firestore.rules).
+  if(!state.profile || !state.user || isLeitung() || alsSchueler() || EINFUEHRUNG_ALTE_KLASSEN.indexOf(state.profile.klasse) >= 0) return;
   getDoc(einfuehrungRef()).then(function(snap){
     if(snap.exists() || !state.user) return;
     // Nicht über einen offenen Dialog oder eine Übung legen — dann eben beim nächsten Mal.
@@ -23873,7 +24013,7 @@ function startUmfrageWatcher(){
     updateUmfrageBanner();
     if(umfrage.voteOpen) paintUmfrageVote();
     if(umfrage.overlay) paintUmfrageHost();
-  }, function(err){ console.error('Umfrage-Listener', err); });
+  }, function(err){ listenerFehler('Umfrage-Listener', err, stopUmfrageWatcher, startUmfrageWatcher); });
 }
 function stopUmfrageWatcher(){
   if(umfrage.unsub){ umfrage.unsub(); umfrage.unsub = null; }
@@ -24360,7 +24500,7 @@ function startMioWatcher(){
     mioAuto();
     if(mio.voteOpen) paintMioVote();
     if(mio.overlay) paintMioHost();
-  }, function(err){ console.error('Millionär-Listener', err); });
+  }, function(err){ listenerFehler('Millionär-Listener', err, stopMioWatcher, startMioWatcher); });
 }
 function stopMioWatcher(){
   if(mio.unsub){ mio.unsub(); mio.unsub = null; }
@@ -25566,7 +25706,7 @@ function startLspWatcher(){
     lspAuto();
     if(lsp.offen) lspPaintS();
     if(lsp.overlay) lspPaintHost();
-  }, function(err){ console.error('Spiel-Listener', err); });
+  }, function(err){ listenerFehler('Spiel-Listener', err, stopLspWatcher, startLspWatcher); });
 }
 function stopLspWatcher(){
   if(lsp.unsub){ lsp.unsub(); lsp.unsub = null; }
@@ -27411,7 +27551,7 @@ function startWolkeWatcher(){
     // Tippen unter den Fingern weggerissen.
     if(wolke.voteOpen && (!wolke.session || !wolke.session.aktiv || !prev || prev.startedAt !== wolke.session.startedAt)) paintWolkeVote();
     if(wolke.overlay) paintWolkeHost();
-  }, function(err){ console.error('Wortwolken-Listener', err); });
+  }, function(err){ listenerFehler('Wortwolken-Listener', err, stopWolkeWatcher, startWolkeWatcher); });
 }
 function stopWolkeWatcher(){
   if(wolke.unsub){ wolke.unsub(); wolke.unsub = null; }
@@ -32779,13 +32919,28 @@ function stopLernphaseWatcher(){
 
 /* ---------- Schüler:in: Lebenszeichen ---------- */
 
-function lphImFenster(){ return document.visibilityState === 'visible' && document.hasFocus(); }
+// 🪟 Übung im eigenen Fenster (libFensterListe) zählt auch als «in der Library»,
+// solange dieses Fenster den Fokus hat. Fremde Seiten (anderer Origin) lassen
+// sich nicht abfragen und zählen darum nicht.
+function lphBibFokus(){ return document.visibilityState === 'visible' && document.hasFocus(); }
+function lphFensterFokus(){
+  for(var rid in libFensterListe){
+    var f = libFensterVon(rid);
+    try{ if(f && f.win.document.visibilityState === 'visible' && f.win.document.hasFocus()) return f; }catch(e){}
+  }
+  return null;
+}
+function lphImFenster(){ return lphBibFokus() || !!lphFensterFokus(); }
 function lphAmOrt(){
   var n = lph.aktiv && lph.aktiv.nurUebung;
   if(!n || !n.id) return true;
   return state.route && state.route.name === 'resource' && state.route.resource && state.route.resource.id === n.id;
 }
-function lphIstDrin(){ return lphImFenster() && lphAmOrt(); }
+function lphIstDrin(){
+  if(lphBibFokus()) return lphAmOrt();
+  var f = lphFensterFokus(), n = lph.aktiv && lph.aktiv.nurUebung;
+  return !!f && (!n || !n.id || String(f.rid) === String(n.id));
+}
 function lphMelden(heartbeat, erzwungenRaus){
   if(!lph.aktiv || !state.user || alsSchueler()) return;
   var drin = erzwungenRaus ? false : lphIstDrin();
@@ -32938,7 +33093,7 @@ function lphLehrerWatch(){
       }, function(err){ console.error('Lernphase: Präsenz', err); });
     }
     lphPaint();
-  }, function(err){ console.error('Lernphase', err); });
+  }, function(err){ listenerFehler('Lernphase', err, stopLernphaseWatcher, startLernphaseWatcher); });
 }
 
 function lphErledigt(uid){ return ((lph.phase && lph.phase.erledigt) || {})[uid] || 0; }
