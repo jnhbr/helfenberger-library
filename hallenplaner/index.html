@@ -149,6 +149,7 @@
     <div class="gruppe">
       <button class="chip" id="festBtn" type="button" title="Sprossenwände und Basketballkörbe zeigen">🪜 Feste Einrichtungen</button>
       <button class="chip" id="rasterBtn" type="button" title="Beim Ziehen auf 25 cm einrasten (Alt-Taste: frei)">▦ Raster</button>
+      <button class="chip" id="magnetBtn" type="button" title="Geräte rasten Kante an Kante an anderen Geräten und an den Wänden ein (Alt-Taste: frei)">🧲 Magnet</button>
       <button class="chip" id="druckBtn" type="button" title="Weisser Boden und graue Linien – spart Tinte">🖨️ Druckfarben</button>
     </div>
     <span class="trenn"></span>
@@ -197,6 +198,7 @@
         <textarea class="feld" id="notizIn" rows="3" placeholder="Ablauf, Regeln, Gruppen …"></textarea>
       </div>
       <div class="karte" id="eigenschaften"></div>
+      <div class="karte" id="ebenenKarte"></div>
       <div class="karte">
         <h3>📦 Materialliste</h3>
         <ul class="mat" id="material"></ul>
@@ -206,6 +208,9 @@
         <ul class="tipps">
           <li>Gerät links anklicken oder in die Halle ziehen.</li>
           <li>Ziehen = verschieben, runder Griff = drehen.</li>
+          <li>Gerät auf ein anderes ziehen (z. B. Matte auf Kasten) = aufeinander. Bank an die Sprossenwand ziehen = einhängen.</li>
+          <li>Mehrere wählen, dann 🔗 Gruppieren (Ctrl/⌘+G): bewegt sich gemeinsam.</li>
+          <li>Linien und Pfeile: Doppelklick setzt einen Biegepunkt – so entstehen beliebige Bögen.</li>
           <li>Shift + Klick oder Rahmen ziehen = mehrere wählen.</li>
           <li>R / Shift+R drehen · Entf löschen · Ctrl/⌘+D kopieren · Pfeiltasten schieben.</li>
           <li>Leertaste + Ziehen oder mittlere Maustaste = Halle verschieben, Mausrad = zoomen.</li>
@@ -225,13 +230,22 @@ var SPEICHER = 'hallenplaner_v1';
 // Dreifachhalle Altnau: 49 × 28 m (Normmass), drei Drittel mit Trennvorhängen.
 var HALLE = {W:49, H:28, wandH:7, x:[0, 49/3, 98/3, 49]};
 var ANSICHTEN = {E1:[0,1], E2:[1,2], E3:[2,3], D12:[0,2], D23:[1,3], T:[0,3]};
+// Linienfarben nach den Fotos der Halle geschätzt (Handball rot mit gestricheltem 9-m-Bogen, Basketball schwarz …);
+// pro Sportart mit «🎨 Farben» änderbar.
 var LINIEN = [
-  {id:'vb', name:'Volleyball', farbe:'#ffffff'},
-  {id:'bb', name:'Basketball', farbe:'#e03131'},
-  {id:'hb', name:'Handball', farbe:'#1c3f94'},
+  {id:'vb', name:'Volleyball', farbe:'#1c6ed5'},
+  {id:'bb', name:'Basketball', farbe:'#141414'},
+  {id:'hb', name:'Handball', farbe:'#e03131'},
   {id:'uh', name:'Unihockey', farbe:'#f5c400'},
-  {id:'bm', name:'Badminton', farbe:'#2f9e44'}
+  {id:'bm', name:'Badminton', farbe:'#ffffff'}
 ];
+function lfarbe(id){ return (S.lfarbe && S.lfarbe[id]) || LINIEN.filter(function(l){ return l.id === id; })[0].farbe; }
+// Feste Einrichtungen der Halle: Ebenen einzeln ein-/ausblendbar.
+var EBENEN = [
+  {id:'spr', n:'Sprossenwände'}, {id:'tueren', n:'Türen & Tore (mit Freihalte-Zone)'}, {id:'korb', n:'Basketballkörbe'},
+  {id:'ringe', n:'Ringe, Taue & Kletterstangen'}, {id:'vorhang', n:'Trennvorhänge (Stoff)'}
+];
+var SPR_B = 4.2, TOR_B = 3.2;
 var TEAMS = [
   {id:'rot', farbe:'#e03131', text:'#fff'}, {id:'blau', farbe:'#1971c2', text:'#fff'},
   {id:'gelb', farbe:'#fcc419', text:'#222'}, {id:'gruen', farbe:'#2f9e44', text:'#fff'},
@@ -302,7 +316,9 @@ var K = {
   weichmatte:{n:'Weichbodenmatte', g:'matten', w:3, d:2, e:1, h:function(){ return 0.4; },
     svg:function(){ return rect(-1.5, -1, 3, 2, '#2c3e8c', '#8ea2e0', 0.06, ' rx="0.18"') + rect(-1.3, -0.8, 2.6, 1.6, 'none', '#4b63b8', 0.03, ' rx="0.12"'); }},
   langbank:{n:'Langbank', g:'turnen', w:3.5, d:0.3, e:2, h:function(){ return 0.35; },
-    svg:function(){ return rect(-1.75, -0.15, 3.5, 0.3, '#d9a86c', HOLZ2, 0.04, ' rx="0.03"') + linie(-1.6, 0, 1.6, 0, '#b5834a', 0.02); }},
+    svg:function(it){
+      if(it.an){ var p = banklaenge(it.an.h); return rect(-p / 2, -0.15, p, 0.3, '#d9a86c', HOLZ2, 0.04, ' rx="0.03"') + rect(-p / 2, -0.17, 0.14, 0.34, '#e03131', '#fff', 0.02) + '<path d="M' + r2(-p / 2 + 0.5) + ' 0 L' + r2(p / 2 - 0.3) + ' 0 M' + r2(p / 2 - 0.5) + ' -0.09 L' + r2(p / 2 - 0.3) + ' 0 L' + r2(p / 2 - 0.5) + ' 0.09" stroke="#8a5a2b" stroke-width="0.04" fill="none"/>' + txt(0, 0.34, it.an.h.toFixed(1) + ' m', 0.2, '#6b5332'); }
+      return rect(-1.75, -0.15, 3.5, 0.3, '#d9a86c', HOLZ2, 0.04, ' rx="0.03"') + linie(-1.6, 0, 1.6, 0, '#b5834a', 0.02); }},
   barren:{n:'Barren', g:'turnen', w:3, d:1.4, e:2, h:function(){ return 1.7; },
     svg:function(){ return rect(-1.1, -0.7, 2.2, 1.4, '#adb5bd', '#495057', 0.04, ' rx="0.06" fill-opacity="0.55"') + rect(-1.5, -0.3, 3, 0.07, '#d9a86c', HOLZ2, 0.02) + rect(-1.5, 0.23, 3, 0.07, '#d9a86c', HOLZ2, 0.02); }},
   reck:{n:'Reck', g:'turnen', w:2.4, d:1.8, e:2, h:function(){ return 2.4; },
@@ -348,11 +364,18 @@ var K = {
   text:{n:'Text', g:'zeichnen', w:2, d:0.6, e:5, h:function(){ return 0.01; },
     svg:function(it){ var fs = it.fs || 0.6; return txt(0, 0, it.text || 'Text', fs, it.farbe || '#1c2033', ' paint-order="stroke" stroke="#fff" stroke-width="' + r2(fs * 0.18) + '" stroke-linejoin="round"'); }},
   laufweg:{n:'Laufweg', g:'zeichnen', pfeil:true, e:4, farbe:'#212529'},
+  linie:{n:'Linie (ohne Spitze)', g:'zeichnen', pfeil:true, e:4, farbe:'#495057', ende:'keine'},
   ballweg:{n:'Ballweg', g:'zeichnen', pfeil:true, e:4, farbe:'#e8590c', strich:'0.3 0.2'},
   dribbling:{n:'Dribbling', g:'zeichnen', pfeil:true, e:4, farbe:'#7048e8', welle:true}
 };
+var BANK_L = 3.5;
+function banklaenge(h){ return Math.sqrt(BANK_L * BANK_L - h * h); }   // Grundriss-Länge einer in die Sprossenwand eingehängten Bank
+// Kombinieren: «Träger» können andere Geräte tragen (aufeinander stapeln), «Auflage» können aufgelegt werden.
+var TRAEGER = {kasten:1, bock:1, turnmatte:1, weichmatte:1, langbank:1, minitramp:1, sprungbrett:1};
+var AUFLAGE = {kasten:1, bock:1, turnmatte:1, weichmatte:1, langbank:1, minitramp:1, sprungbrett:1, huetchen:1, pylone:1, teller:1, reifen:1, stange:1, ball:1};
 function grundflaeche(it){
   var k = K[it.t];
+  if(it.t === 'langbank' && it.an) return {w:banklaenge(it.an.h), d:k.d};
   if(it.t === 'text'){ var fs = it.fs || 0.6; return {w:Math.max(0.6, String(it.text || 'Text').length * fs * 0.56), d:fs * 1.3}; }
   if(k.groesse) return {w:it.w, d:it.d};
   return {w:k.w, d:k.d};
@@ -360,7 +383,8 @@ function grundflaeche(it){
 
 /* ===================== Zustand ===================== */
 var S = {
-  ansicht:'T', linien:{vb:true, bb:false, hb:false, uh:false, bm:false}, fest:true, raster:true, druck:false,
+  ansicht:'T', linien:{vb:true, bb:false, hb:false, uh:false, bm:false}, fest:true, raster:true, magnet:true, druck:false,
+  ebenen:{spr:true, tueren:true, korb:true, ringe:true, vorhang:true}, lfarbe:{},
   items:[], titel:'', notizen:'', sel:[], modus:null, ansicht3d:false
 };
 var vb = null;                 // aktuelle viewBox {x,y,w,h}
@@ -379,7 +403,7 @@ function speicherLesen(){ try{ return JSON.parse(lsGet(SPEICHER) || '{}') || {};
 function speicherSchreiben(sp){ if(!lsSet(SPEICHER, JSON.stringify(sp))) toast('Speichern im Browser hat nicht geklappt (Speicher voll?).'); }
 function autosave(){
   var sp = speicherLesen(); sp.aktuell = datenJetzt();
-  sp.einst = {fest:S.fest, raster:S.raster, druck:S.druck};
+  sp.einst = {fest:S.fest, raster:S.raster, magnet:S.magnet, druck:S.druck, ebenen:S.ebenen, lfarbe:S.lfarbe};
   speicherSchreiben(sp);
 }
 function merken(){
@@ -410,10 +434,10 @@ function drittelMitte(i){ return (HALLE.x[i] + HALLE.x[i + 1]) / 2; }
 function bodenSvg(o){
   // o = {druck, fest, linien, nurBoden}
   var s = '', druck = o.druck;
-  var boden = druck ? '#ffffff' : '#86a9d6', wand = druck ? '#9aa0a6' : '#c9a36a';
-  var lc = function(id){ return druck ? '#b5bac2' : LINIEN.filter(function(l){ return l.id === id; })[0].farbe; };
+  var boden = druck ? '#ffffff' : '#7f9fc4', wand = druck ? '#c4c9cf' : '#b9b3a6';
+  var lc = function(id){ return druck ? '#b5bac2' : lfarbe(id); };
   var lw = 0.06;
-  if(!o.nurBoden) s += rect(-0.45, -0.45, HALLE.W + 0.9, HALLE.H + 0.9, wand);
+  if(!o.nurBoden) s += rect(-0.5, -0.5, HALLE.W + 1, HALLE.H + 1, wand);
   s += rect(0, 0, HALLE.W, HALLE.H, boden);
   var L = o.linien || {};
   var i, cx;
@@ -472,44 +496,113 @@ function bodenSvg(o){
     // Volleyball (weiss) – 9 × 18 m pro Drittel, Netz quer bei 14 m
     if(L.vb){
       var c5 = druck ? '#9097a1' : lc('vb');
+      // (Volleyball: 9 × 18 m, 3-m-Linien je Seite)
       s += rect(cx - 4.5, 5, 9, 18, 'none', c5, lw * 1.3) + linie(cx - 4.5, 14, cx + 4.5, 14, c5, lw * 1.3) + linie(cx - 4.5, 11, cx + 4.5, 11, c5, lw) + linie(cx - 4.5, 17, cx + 4.5, 17, c5, lw);
     }
   }
-  // Trennvorhänge
-  [1, 2].forEach(function(j){ s += linie(HALLE.x[j], 0, HALLE.x[j], HALLE.H, druck ? '#ced4da' : 'rgba(40,50,70,.35)', 0.08, ' stroke-dasharray="0.6 0.4"'); });
   if(o.fest) s += festSvg(druck);
+  if(!o.nurBoden) s += vorhangSvg(druck);
   return s;
 }
-// Feste Einrichtungen nach den Fotos: Sprossenwände an der Längswand oben, je ein Basketballkorb pro Drittel an beiden Längswänden.
+/* Feste Einrichtungen (nach den Fotos, Positionen geschätzt – bei Bedarf hier anpassen):
+   Fensterseite oben (y = 0): Sprossenwand – Geräteraum-Tor – Sprossenwand – … im Abstand von 49/6 m, Basketballkörbe über der 1., 4. und 7. Position;
+   Galerieseite unten (y = 28): Glastüren und Korbtafeln; Kopfwand links: Anzeigetafel, Taue, Kletterstangen, Wandkörbe;
+   Kopfwand rechts: Ausgang; Ringe an einer Deckenschiene nahe der Fensterseite. */
 function festeTeile(){
-  var t = [];
-  for(var i = 0; i < 3; i++){
-    var cx = drittelMitte(i), x0 = HALLE.x[i];
-    [x0 + 1.2, cx + 2.4].forEach(function(start){ for(var k = 0; k < 4; k++) t.push({art:'sprosse', x:start + k * 1.0 + 0.5, y:0.08}); });
-    t.push({art:'korb', x:cx, y:0, k:1}); t.push({art:'korb', x:cx, y:HALLE.H, k:-1});
+  var t = [], P6 = HALLE.W / 6, k, i;
+  for(k = 0; k <= 6; k++){
+    var x = k * P6;
+    if(k % 2 === 0) t.push({art:'sprosse', x:Math.min(Math.max(x, SPR_B / 2), HALLE.W - SPR_B / 2), w:SPR_B});
+    else t.push({art:'tor', x:x, w:TOR_B});
   }
+  [0, 3, 6].forEach(function(kk){ t.push({art:'korb', x:Math.min(Math.max(kk * P6, SPR_B / 2), HALLE.W - SPR_B / 2), wand:'o'}); });
+  for(i = 0; i < 3; i++){
+    var c = drittelMitte(i);
+    t.push({art:'glas', x:c - 5.6, w:2.8}, {art:'glas', x:c - 2.4, w:2.8}, {art:'korbtafel', x:c + 3.4, w:3.0, wand:'u'});
+    t.push({art:'ringe', x:c - 2.6, y:1.6}, {art:'ringe', x:c + 2.6, y:1.6});
+  }
+  t.push({art:'schiene', y:1.6});
+  t.push({art:'tafel', y:14}, {art:'stangen', y:4.5, n:6}, {art:'taue', y:12, n:3});
+  [6.5, 10, 18, 22].forEach(function(y){ t.push({art:'wandkorb', y:y}); });
+  t.push({art:'tuer', y:24, w:2.0});
   return t;
 }
+function sprossenFelder(){ return festeTeile().filter(function(f){ return f.art === 'sprosse'; }); }
+function festSichtbar(f, b){
+  if(f.art === 'tuer') return b.x1 >= HALLE.W;
+  if(f.x == null) return f.art === 'schiene' ? true : b.x0 <= 0;
+  return f.x >= b.x0 - 1 && f.x <= b.x1 + 1;
+}
 function festSvg(druck){
-  var s = '';
+  var E = S.ebenen, s = '', H = HALLE.H, W = HALLE.W, b = bereich();
+  var holz = druck ? '#e3e5e8' : '#d9a86c', holzR = druck ? '#9aa0a6' : HOLZ2, dunkel = druck ? '#868e96' : '#2f3340';
+  var glas = druck ? '#e9ecef' : '#a9dcf2', glasR = druck ? '#9aa0a6' : '#3a8fb7', gruen = druck ? '#ced4da' : '#51cf66';
+  var frei = druck ? '#868e96' : '#f08c00', grau = druck ? '#999' : '#495057', blau = druck ? '#868e96' : '#2b5fb4';
+  function zone(x, y, w, d){ return rect(x, y, w, d, 'none', frei, 0.04, ' stroke-dasharray="0.25 0.2"'); }
+  function drehTxt(x, y, grad, t, fs, f){ return '<g transform="translate(' + r2(x) + ' ' + r2(y) + ') rotate(' + grad + ')">' + txt(0, 0, t, fs, f) + '</g>'; }
+  function korb(x, wy, kk){
+    var by = wy + kk * 1.2;
+    return linie(x, wy, x, by, grau, 0.06) + rect(x - 0.9, by - 0.04, 1.8, 0.08, '#fff', druck ? '#999' : '#343a40', 0.02) + kreis(x, by + kk * 0.38, 0.23, 'none', druck ? '#999' : '#e8590c', 0.05);
+  }
   festeTeile().forEach(function(f){
-    if(f.art === 'sprosse'){
-      s += rect(f.x - 0.48, f.y - 0.08, 0.96, 0.16, druck ? '#ddd' : '#d9a86c', druck ? '#999' : HOLZ2, 0.02);
-      for(var k = -2; k <= 2; k++) s += linie(f.x + k * 0.19, f.y - 0.08, f.x + k * 0.19, f.y + 0.08, druck ? '#999' : HOLZ2, 0.015);
-    } else {
-      var by = f.y + f.k * 1.7;
-      s += linie(f.x, f.y, f.x, by, druck ? '#999' : '#495057', 0.06);
-      s += rect(f.x - 0.9, by - 0.04, 1.8, 0.08, '#fff', druck ? '#999' : '#343a40', 0.02);
-      s += kreis(f.x, by + f.k * 0.38, 0.23, 'none', druck ? '#999' : '#e8590c', 0.05);
+    if(!festSichtbar(f, b)) return;
+    var a = f.art, i;
+    if(a === 'sprosse' && E.spr){
+      s += rect(f.x - f.w / 2, -0.5, f.w, 0.5, holz, holzR, 0.03) + txt(f.x, -0.25, 'Sprossenwand', 0.3, druck ? '#555' : '#5a3a14');
+      s += rect(f.x - f.w / 2, 0, f.w, 0.16, holz, holzR, 0.02);
+      for(i = 1; i < 20; i++) s += linie(f.x - f.w / 2 + i * f.w / 20, 0, f.x - f.w / 2 + i * f.w / 20, 0.16, holzR, 0.015);
+    } else if(a === 'tor' && E.tueren){
+      s += rect(f.x - f.w / 2, -0.5, f.w, 0.5, dunkel, null, 0) + txt(f.x, -0.25, 'Geräteraum', 0.3, '#fff') + zone(f.x - f.w / 2, 0, f.w, 1.3);
+    } else if(a === 'glas' && E.tueren){
+      s += rect(f.x - f.w / 2, H, f.w, 0.5, glas, glasR, 0.03) + linie(f.x, H, f.x, H + 0.5, glasR, 0.04) + txt(f.x, H + 0.27, 'Glastür', 0.3, druck ? '#555' : '#0b4f6c') + zone(f.x - f.w / 2, H - 1, f.w, 1);
+    } else if(a === 'tuer' && E.tueren){
+      s += rect(W, f.y - f.w / 2, 0.5, f.w, gruen, null, 0) + drehTxt(W + 0.27, f.y, 90, 'Ausgang', 0.3, druck ? '#555' : '#1b5e20') + zone(W - 1, f.y - f.w / 2, 1, f.w);
+    } else if(a === 'korb' && E.korb){
+      s += korb(f.x, 0, 1);
+    } else if(a === 'korbtafel'){
+      if(E.korb) s += rect(f.x - f.w / 2, H, f.w, 0.5, holz, holzR, 0.03) + korb(f.x, H, -1);
+    } else if(a === 'wandkorb' && E.korb){
+      s += linie(0, f.y, 0.6, f.y, grau, 0.05) + rect(0.56, f.y - 0.45, 0.08, 0.9, '#fff', druck ? '#999' : '#343a40', 0.02) + kreis(0.98, f.y, 0.2, 'none', druck ? '#999' : '#e8590c', 0.045);
+    } else if(a === 'tafel' && E.korb){
+      s += rect(-0.5, f.y - 1.5, 0.5, 3, druck ? '#868e96' : '#1a1d24', null, 0) + drehTxt(-0.25, f.y, -90, 'Anzeige', 0.28, '#fff');
+    } else if(a === 'stangen' && E.ringe){
+      for(i = 0; i < f.n; i++) s += kreis(0.3, f.y + (i - (f.n - 1) / 2) * 0.4, 0.07, blau, '#fff', 0.015);
+      s += drehTxt(-0.25, f.y, -90, 'Kletterstangen', 0.28, druck ? '#555' : '#1f3f94');
+    } else if(a === 'taue' && E.ringe){
+      for(i = 0; i < f.n; i++) s += kreis(0.3, f.y + (i - (f.n - 1) / 2) * 0.45, 0.09, druck ? '#ced4da' : '#c8a46a', druck ? '#868e96' : '#7a5c00', 0.02);
+      s += drehTxt(-0.25, f.y, -90, 'Taue', 0.28, druck ? '#555' : '#6b5332');
+    } else if(a === 'schiene' && E.ringe){
+      s += linie(Math.max(0, b.x0), f.y, Math.min(W, b.x1), f.y, blau, 0.05, ' stroke-dasharray="0.4 0.25" stroke-opacity="0.55"');
+    } else if(a === 'ringe' && E.ringe){
+      s += kreis(f.x - 0.28, f.y, 0.13, 'none', druck ? '#868e96' : '#e8590c', 0.045) + kreis(f.x + 0.28, f.y, 0.13, 'none', druck ? '#868e96' : '#e8590c', 0.045);
     }
+  });
+  return s;
+}
+// Trennvorhänge: zwischen den gewählten Dritteln hochgezogen (gestrichelt), am Rand der Ansicht geschlossen (Stoff, nicht anspielen!)
+function vorhangSvg(druck){
+  if(!S.ebenen.vorhang) return '';
+  var b = bereich(), s = '', halo = ' paint-order="stroke" stroke="#fff" stroke-width="0.14" stroke-linejoin="round"';
+  [1, 2].forEach(function(j){
+    var x = HALLE.x[j], zu = (x === b.x0 || x === b.x1);
+    if(!zu){
+      s += linie(x, 0, x, HALLE.H, druck ? '#adb5bd' : 'rgba(75,63,120,.6)', 0.07, ' stroke-dasharray="0.5 0.45"');
+      s += '<g transform="translate(' + r2(x) + ' 22.5) rotate(-90)">' + txt(0, 0, 'Vorhang hochgezogen (Stoff)', 0.32, druck ? '#555' : '#4b3f78', halo) + '</g>';
+      return;
+    }
+    var pts = [];
+    for(var y = 0; y <= HALLE.H + 0.001; y += 0.5) pts.push(r2(x + ((y / 0.5) % 2 ? 0.14 : -0.14)) + ',' + r2(y));
+    s += rect(x - 0.22, 0, 0.44, HALLE.H, druck ? '#dee2e6' : '#9d90c4', null, 0, ' fill-opacity="0.6"');
+    s += '<polyline points="' + pts.join(' ') + '" fill="none" stroke="' + (druck ? '#868e96' : '#4b3f78') + '" stroke-width="0.05"/>';
+    s += '<g transform="translate(' + r2(x) + ' 14) rotate(-90)">' + txt(0, 0, 'TRENNVORHANG – Stoff, nicht anspielen', 0.36, druck ? '#333' : '#3b2f66', halo) + '</g>';
   });
   return s;
 }
 function ausgrauen(){
   var a = ANSICHTEN[S.ansicht], s = '';
   var x0 = HALLE.x[a[0]], x1 = HALLE.x[a[1]];
-  if(x0 > 0) s += rect(-1, -1, x0 + 1, HALLE.H + 2, '#1c2033', null, 0, ' fill-opacity="0.45"') + linie(x0, 0, x0, HALLE.H, '#4a5160', 0.16);
-  if(x1 < HALLE.W) s += rect(x1, -1, HALLE.W - x1 + 1, HALLE.H + 2, '#1c2033', null, 0, ' fill-opacity="0.45"') + linie(x1, 0, x1, HALLE.H, '#4a5160', 0.16);
+  if(x0 > 0) s += rect(-1, -1, x0 + 1 - 0.22, HALLE.H + 2, '#1c2033', null, 0, ' fill-opacity="0.45"');
+  if(x1 < HALLE.W) s += rect(x1 + 0.22, -1, HALLE.W - x1 + 1 - 0.22, HALLE.H + 2, '#1c2033', null, 0, ' fill-opacity="0.45"');
   return s;
 }
 function bereich(){ var a = ANSICHTEN[S.ansicht]; return {x0:HALLE.x[a[0]], x1:HALLE.x[a[1]], y0:0, y1:HALLE.H}; }
@@ -520,6 +613,14 @@ function pfeilPfad(it){
   return {cx:cx, cy:cy};
 }
 function quadPunkt(it, t){
+  if(it.pts && it.pts.length){
+    // beliebig viele Biegepunkte: weiche Kurve (Catmull-Rom) durch Start, alle Punkte und Ziel
+    var P = [{x:it.x1, y:it.y1}].concat(it.pts, [{x:it.x2, y:it.y2}]), n = P.length - 1;
+    var s = Math.min(n - 1e-9, Math.max(0, t * n)), i = Math.floor(s), w = s - i;
+    var p0 = P[Math.max(0, i - 1)], p1 = P[i], p2 = P[i + 1], p3 = P[Math.min(n, i + 2)];
+    var f = function(a, b, c, d){ return 0.5 * ((2 * b) + (-a + c) * w + (2 * a - 5 * b + 4 * c - d) * w * w + (-a + 3 * b - 3 * c + d) * w * w * w); };
+    return {x:f(p0.x, p1.x, p2.x, p3.x), y:f(p0.y, p1.y, p2.y, p3.y)};
+  }
   var c = pfeilPfad(it), u = 1 - t;
   return {x:u * u * it.x1 + 2 * u * t * c.cx + t * t * it.x2, y:u * u * it.y1 + 2 * u * t * c.cy + t * t * it.y2};
 }
@@ -536,23 +637,159 @@ function pfeilSvg(it, druck){
       pts.push(r2(q.x - ty / tl * amp) + ' ' + r2(q.y + tx / tl * amp));
     }
     d = 'M' + pts.join(' L');
-  } else d = 'M' + r2(it.x1) + ' ' + r2(it.y1) + ' Q' + r2(c.cx) + ' ' + r2(c.cy) + ' ' + r2(it.x2) + ' ' + r2(it.y2);
-  var e = quadPunkt(it, 0.97), dx = it.x2 - e.x, dy = it.y2 - e.y, l = Math.hypot(dx, dy) || 1; dx /= l; dy /= l;
-  var sp = 0.42, br = 0.2, bx = it.x2 - dx * sp, by = it.y2 - dy * sp;
-  var kopf = '<polygon points="' + r2(it.x2) + ',' + r2(it.y2) + ' ' + r2(bx - dy * br) + ',' + r2(by + dx * br) + ' ' + r2(bx + dy * br) + ',' + r2(by - dx * br) + '" fill="' + farbe + '"/>';
-  return '<path d="' + d + '" fill="none" stroke="' + farbe + '" stroke-width="0.09" stroke-linecap="round"' + (k.strich ? ' stroke-dasharray="' + k.strich + '"' : '') + '/>' + kopf +
-    '<path d="M' + r2(it.x1) + ' ' + r2(it.y1) + ' Q' + r2(c.cx) + ' ' + r2(c.cy) + ' ' + r2(it.x2) + ' ' + r2(it.y2) + '" fill="none" stroke="transparent" stroke-width="0.6" class="treffer"/>';
+  } else d = bahnPfad(it);
+  var ende = it.ende || k.ende || 'pfeil';
+  function spitze(px, py, qx, qy){
+    var dx = px - qx, dy = py - qy, l = Math.hypot(dx, dy) || 1; dx /= l; dy /= l;
+    var sp = 0.42, br = 0.2, bx = px - dx * sp, by = py - dy * sp;
+    return '<polygon points="' + r2(px) + ',' + r2(py) + ' ' + r2(bx - dy * br) + ',' + r2(by + dx * br) + ' ' + r2(bx + dy * br) + ',' + r2(by - dx * br) + '" fill="' + farbe + '"/>';
+  }
+  var kopf = '';
+  if(ende !== 'keine'){ var e = quadPunkt(it, 0.97); kopf += spitze(it.x2, it.y2, e.x, e.y); }
+  if(ende === 'beide'){ var e0 = quadPunkt(it, 0.03); kopf += spitze(it.x1, it.y1, e0.x, e0.y); }
+  return '<path d="' + d + '" fill="none" stroke="' + farbe + '" stroke-width="0.09" stroke-linecap="round" stroke-linejoin="round"' + (k.strich ? ' stroke-dasharray="' + k.strich + '"' : '') + '/>' + kopf +
+    '<path d="' + bahnPfad(it) + '" fill="none" stroke="transparent" stroke-width="0.6" class="treffer"/>';
+}
+// glatte Bahn als SVG-Pfad (mit Biegepunkten: abgetastet, sonst quadratischer Bogen)
+function bahnPfad(it){
+  if(it.pts && it.pts.length){
+    var pts = [], n = 24 * (it.pts.length + 1);
+    for(var i = 0; i <= n; i++){ var p = quadPunkt(it, i / n); pts.push(r2(p.x) + ' ' + r2(p.y)); }
+    return 'M' + pts.join(' L');
+  }
+  var c = pfeilPfad(it);
+  return 'M' + r2(it.x1) + ' ' + r2(it.y1) + ' Q' + r2(c.cx) + ' ' + r2(c.cy) + ' ' + r2(it.x2) + ' ' + r2(it.y2);
 }
 function elementSvg(it, druck, mitId){
   var k = K[it.t];
   var idAttr = mitId ? ' data-id="' + it.id + '"' : '';
   if(k.pfeil) return '<g' + idAttr + '>' + pfeilSvg(it, druck) + '</g>';
   var g = grundflaeche(it);
-  return '<g' + idAttr + ' transform="translate(' + r2(it.x) + ' ' + r2(it.y) + ') rotate(' + r2(it.r || 0) + ')">' + k.svg(it) +
+  var schatten = it.base ? rect(-g.w / 2 + 0.05, -g.d / 2 + 0.08, g.w, g.d, '#000', null, 0, ' fill-opacity="0.28" rx="0.06"') : '';
+  return '<g' + idAttr + ' transform="translate(' + r2(it.x) + ' ' + r2(it.y) + ') rotate(' + r2(it.r || 0) + ')">' + schatten + k.svg(it) +
     (mitId ? rect(-g.w / 2 - 0.08, -g.d / 2 - 0.08, g.w + 0.16, g.d + 0.16, 'transparent') : '') + '</g>';
 }
 function sortiert(){
-  return S.items.slice().sort(function(a, b){ return K[a.t].e - K[b.t].e; });
+  var key = function(it){ var e = K[it.t].e; return e >= 3 ? e * 100 : stapelTiefe(it) * 10 + e; };
+  return S.items.map(function(it, i){ return {it:it, k:key(it), i:i}; }).sort(function(a, b){ return a.k - b.k || a.i - b.i; }).map(function(o){ return o.it; });
+}
+
+/* ===================== Kombinieren: stapeln, einhängen, gruppieren ===================== */
+function topHoehe(it){ return K[it.t].h(it); }
+function elev(it, n){ n = n || 0; if(!it.base || n > 6) return 0; var b = itemVon(it.base); return b ? elev(b, n + 1) + topHoehe(b) : 0; }
+function stapelTiefe(it){ var n = 0, c = it; while(c && c.base && n < 8){ c = itemVon(c.base); if(c) n++; } return n; }
+function istNachfahre(c, it){ var n = 0; while(c && n++ < 10){ if(c.id === it.id) return true; c = c.base ? itemVon(c.base) : null; } return false; }
+function punktInItem(c, x, y){
+  var g = grundflaeche(c), a = -(c.r || 0) * Math.PI / 180, dx = x - c.x, dy = y - c.y;
+  var lx = dx * Math.cos(a) - dy * Math.sin(a), ly = dx * Math.sin(a) + dy * Math.cos(a);
+  return Math.abs(lx) <= g.w / 2 && Math.abs(ly) <= g.d / 2;
+}
+function findeBase(it, ausser){
+  var best = null, bz = -1;
+  S.items.forEach(function(c){
+    if(c.id === it.id || !TRAEGER[c.t] || c.an || ausser.indexOf(c.id) >= 0 || istNachfahre(c, it)) return;
+    if(!punktInItem(c, it.x, it.y)) return;
+    var z = elev(c) + topHoehe(c); if(z > bz){ bz = z; best = c; }
+  });
+  return best;
+}
+// alles, was mit einem Gerät mitwandert: Gruppe + darauf liegende Geräte (rekursiv); das angeklickte Gerät steht vorne
+function huelleVon(id){
+  var set = [id], i = 0;
+  while(i < set.length){
+    var c = itemVon(set[i++]); if(!c) continue;
+    S.items.forEach(function(o){
+      if(set.indexOf(o.id) >= 0) return;
+      if(o.base === c.id || (c.gid && o.gid === c.gid)) set.push(o.id);
+    });
+  }
+  return set;
+}
+function huelle(ids){ var r = []; ids.forEach(function(id){ huelleVon(id).forEach(function(x){ if(r.indexOf(x) < 0) r.push(x); }); }); return r; }
+// Sprossenwand: nächstgelegenes Feld zu x; Bank dort einhängen (Sprosse auf Höhe h)
+function bankEinhaengen(it, h){
+  var best = null;
+  sprossenFelder().forEach(function(f){ if(!best || Math.abs(f.x - it.x) < Math.abs(best.x - it.x)) best = f; });
+  if(!best) return false;
+  it.an = {h:h}; it.r = 90;
+  it.x = r2(Math.min(Math.max(it.x, best.x - best.w / 2 + 0.2), best.x + best.w / 2 - 0.2));
+  it.y = r2(0.16 + banklaenge(h) / 2);
+  return true;
+}
+function bankNaheWand(it){
+  if(it.t !== 'langbank') return false;
+  var g = grundflaeche({t:'langbank'}), r = (it.r || 0) * Math.PI / 180, halb = g.w / 2 * Math.abs(Math.sin(r));
+  if(Math.abs(Math.sin(r)) < 0.7 || it.y - halb > 1.2) return false;
+  return sprossenFelder().some(function(f){ return Math.abs(it.x - f.x) <= f.w / 2 + 0.3; });
+}
+// nach dem Ablegen: stapeln bzw. einhängen bzw. lösen
+function nachAblegen(ids){
+  var meldung = '';
+  ids.forEach(function(id){
+    var it = itemVon(id); if(!it || K[it.t].pfeil) return;
+    if(it.base && ids.indexOf(it.base) >= 0) return;
+    if(it.t === 'langbank'){
+      if(bankNaheWand(it)){ bankEinhaengen(it, it.an ? it.an.h : 1.0); delete it.base; meldung = 'Bank in die Sprossenwand eingehängt (Sprosse auf ' + it.an.h.toFixed(1) + ' m) – Höhe rechts änderbar'; return; }
+      delete it.an;
+    }
+    if(AUFLAGE[it.t]){
+      var b = findeBase(it, ids);
+      if(b){ if(it.base !== b.id) meldung = K[it.t].n + ' liegt jetzt auf: ' + K[b.t].n; it.base = b.id; }
+      else delete it.base;
+    }
+  });
+  S.items.forEach(function(it){ if(it.base && !itemVon(it.base)) delete it.base; });
+  if(meldung) toast(meldung);
+}
+// Magnet: Kanten (und Mitten) rasten an anderen Geräten und an den Hallenwänden ein
+var fuehrung = [];
+function magnet(z, dx, dy){
+  var ref = z.start[z.refIdx || 0], leer = {dx:dx, dy:dy, guides:[]};
+  if(!ref || K[ref.it.t].pfeil || K[ref.it.t].e < 1 || K[ref.it.t].e > 2) return leer;
+  var a = ref.alt, g = grundflaeche(a), rr = (((a.r || 0) % 180) + 180) % 180;
+  if(rr !== 0 && rr !== 90) return leer;
+  var hw = (rr === 0 ? g.w : g.d) / 2, hd = (rr === 0 ? g.d : g.w) / 2;
+  var mx = a.x + dx, my = a.y + dy, thr = Math.min(0.35, Math.max(0.1, 8 / pxProMeter()));
+  var bx = {d:Infinity}, by = {d:Infinity}, W = HALLE.W, H = HALLE.H;
+  var kanten = z.hind.concat([{x0:-1, x1:0, y0:-1, y1:H + 1}, {x0:W, x1:W + 1, y0:-1, y1:H + 1}, {x0:-1, x1:W + 1, y0:-1, y1:0}, {x0:-1, x1:W + 1, y0:H, y1:H + 1}]);
+  kanten.forEach(function(o){
+    if(my - hd < o.y1 + 0.6 && my + hd > o.y0 - 0.6){
+      [[mx - hw, o.x1], [mx + hw, o.x0], [mx - hw, o.x0], [mx + hw, o.x1], [mx, (o.x0 + o.x1) / 2]].forEach(function(p, i){
+        var d = p[1] - p[0]; if(Math.abs(d) < Math.abs(bx.d) && Math.abs(d) <= (i === 4 ? 0.12 : thr)) bx = {d:d, lin:p[1], o:o};
+      });
+    }
+    if(mx - hw < o.x1 + 0.6 && mx + hw > o.x0 - 0.6){
+      [[my - hd, o.y1], [my + hd, o.y0], [my - hd, o.y0], [my + hd, o.y1], [my, (o.y0 + o.y1) / 2]].forEach(function(p, i){
+        var d = p[1] - p[0]; if(Math.abs(d) < Math.abs(by.d) && Math.abs(d) <= (i === 4 ? 0.12 : thr)) by = {d:d, lin:p[1], o:o};
+      });
+    }
+  });
+  var guides = [];
+  if(bx.d !== Infinity){ dx += bx.d; mx += bx.d; }
+  if(by.d !== Infinity){ dy += by.d; my += by.d; }
+  if(bx.d !== Infinity) guides.push({x1:bx.lin, y1:Math.min(my - hd, Math.max(bx.o.y0, -0.5)), x2:bx.lin, y2:Math.max(my + hd, Math.min(bx.o.y1, H + 0.5))});
+  if(by.d !== Infinity) guides.push({x1:Math.min(mx - hw, Math.max(by.o.x0, -0.5)), y1:by.lin, x2:Math.max(mx + hw, Math.min(by.o.x1, W + 0.5)), y2:by.lin});
+  return {dx:dx, dy:dy, guides:guides};
+}
+function hindernisse(ids){
+  var r = [];
+  S.items.forEach(function(it){
+    var k = K[it.t]; if(k.pfeil || k.e < 1 || k.e > 2 || ids.indexOf(it.id) >= 0) return;
+    var g = grundflaeche(it), rr = (((it.r || 0) % 180) + 180) % 180;
+    if(rr !== 0 && rr !== 90) return;
+    var hw = (rr === 0 ? g.w : g.d) / 2, hd = (rr === 0 ? g.d : g.w) / 2;
+    r.push({x0:it.x - hw, x1:it.x + hw, y0:it.y - hd, y1:it.y + hd});
+  });
+  return r;
+}
+function gruppieren(){
+  if(S.sel.length < 2) return;
+  var gid = 'g' + neueId(); S.sel.forEach(function(id){ var it = itemVon(id); if(it) it.gid = gid; });
+  merken(); allesZeichnen(); toast('Gruppe gebildet – bewegt sich jetzt gemeinsam');
+}
+function gruppeLoesen(){
+  var n = 0; S.sel.forEach(function(id){ var it = itemVon(id); if(it && it.gid){ delete it.gid; n++; } });
+  if(n){ merken(); allesZeichnen(); toast('Gruppe gelöst'); }
 }
 function itemsSvg(druck, mitId){ return sortiert().map(function(it){ return elementSvg(it, druck, mitId); }).join(''); }
 
@@ -568,10 +805,13 @@ function ueberZeichnen(){
     var it = itemVon(id); if(!it) return;
     var k = K[it.t];
     if(k.pfeil){
-      var c = pfeilPfad(it);
-      s += '<path d="M' + r2(it.x1) + ' ' + r2(it.y1) + ' L' + r2(c.cx) + ' ' + r2(c.cy) + ' L' + r2(it.x2) + ' ' + r2(it.y2) + '" fill="none" stroke="#5FA829" stroke-width="' + r2(1.5 * m) + '" stroke-dasharray="' + r2(4 * m) + ' ' + r2(3 * m) + '"/>';
+      var c = pfeilPfad(it), hat = it.pts && it.pts.length;
+      var stuetz = hat ? [it.x1 + ' ' + it.y1].concat(it.pts.map(function(q){ return q.x + ' ' + q.y; }), [it.x2 + ' ' + it.y2]).join(' L') : r2(it.x1) + ' ' + r2(it.y1) + ' L' + r2(c.cx) + ' ' + r2(c.cy) + ' L' + r2(it.x2) + ' ' + r2(it.y2);
+      s += '<path d="M' + stuetz + '" fill="none" stroke="#5FA829" stroke-width="' + r2(1.5 * m) + '" stroke-dasharray="' + r2(4 * m) + ' ' + r2(3 * m) + '"/>';
       if(S.sel.length === 1){
-        s += griff('p1', it.x1, it.y1, m) + griff('p2', it.x2, it.y2, m) + griff('pc', c.cx, c.cy, m, '#fff');
+        s += griff('p1', it.x1, it.y1, m) + griff('p2', it.x2, it.y2, m);
+        if(hat) it.pts.forEach(function(q, i){ s += griff('w' + i, q.x, q.y, m, '#fff'); });
+        else s += griff('pc', c.cx, c.cy, m, '#fff');
       }
       return;
     }
@@ -586,6 +826,23 @@ function ueberZeichnen(){
     }
     s += '</g>';
   });
+  // Gruppen: violetter Rahmen um alles, was zusammengehört
+  var gruppen = {};
+  S.items.forEach(function(it){ if(it.gid) (gruppen[it.gid] = gruppen[it.gid] || []).push(it); });
+  Object.keys(gruppen).forEach(function(gid){
+    var mem = gruppen[gid]; if(mem.length < 2) return;
+    var x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    mem.forEach(function(it){
+      if(K[it.t].pfeil){ [[it.x1, it.y1], [it.x2, it.y2]].forEach(function(q){ x0 = Math.min(x0, q[0]); x1 = Math.max(x1, q[0]); y0 = Math.min(y0, q[1]); y1 = Math.max(y1, q[1]); }); return; }
+      var g = grundflaeche(it), a = (it.r || 0) * Math.PI / 180, ca = Math.cos(a), sa = Math.sin(a);
+      [[-1, -1], [1, -1], [1, 1], [-1, 1]].forEach(function(q){
+        var lx = q[0] * g.w / 2, ly = q[1] * g.d / 2, px = it.x + lx * ca - ly * sa, py = it.y + lx * sa + ly * ca;
+        x0 = Math.min(x0, px); x1 = Math.max(x1, px); y0 = Math.min(y0, py); y1 = Math.max(y1, py);
+      });
+    });
+    s += rect(x0 - 0.15, y0 - 0.15, x1 - x0 + 0.3, y1 - y0 + 0.3, 'none', '#7048e8', r2(1.5 * m), ' stroke-dasharray="' + r2(2 * m) + ' ' + r2(3 * m) + '" rx="' + r2(4 * m) + '"');
+  });
+  fuehrung.forEach(function(l){ s += linie(l.x1, l.y1, l.x2, l.y2, '#ff3d7f', r2(1.8 * m)); });
   if(zieh && zieh.art === 'rahmen'){
     var x = Math.min(zieh.x0, zieh.x1), y = Math.min(zieh.y0, zieh.y1);
     s += rect(x, y, Math.abs(zieh.x1 - zieh.x0), Math.abs(zieh.y1 - zieh.y0), 'rgba(95,168,41,.12)', '#5FA829', r2(1.5 * m));
@@ -707,7 +964,7 @@ window.addEventListener('pointerup', function(e){
       var r = plan.getBoundingClientRect();
       if(e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom){
         S.items = S.items.filter(function(i){ return i !== z.it; }); S.sel = [];
-      } else if(z.it.t === 'spieler') S.letztesTeam = z.it.team;
+      } else { if(z.it.t === 'spieler') S.letztesTeam = z.it.team; nachAblegen([z.it.id]); }
       merken(); allesZeichnen();
     } else if(Math.hypot(e.clientX - z.sx, e.clientY - z.sy) < 6){
       var b = bereich();
@@ -741,13 +998,15 @@ plan.addEventListener('pointerdown', function(e){
   var g = e.target.closest && e.target.closest('[data-id]');
   if(g){
     var id = g.getAttribute('data-id');
+    // ein Klick wählt auch alles, was mitwandert (Gruppe, daraufliegende Geräte)
     if(e.shiftKey){
-      S.sel = S.sel.indexOf(id) >= 0 ? S.sel.filter(function(x){ return x !== id; }) : S.sel.concat([id]);
+      var tei = huelleVon(id), schon = S.sel.indexOf(id) >= 0;
+      S.sel = schon ? S.sel.filter(function(x){ return tei.indexOf(x) < 0; }) : S.sel.concat(tei.filter(function(x){ return S.sel.indexOf(x) < 0; }));
       itemsZeichnen(); eigenschaftenZeichnen(); return;
     }
-    if(S.sel.indexOf(id) < 0) S.sel = [id];
-    if(e.altKey && !S.raster){ /* Alt = frei ziehen */ }
-    zieh = {art:'move', p0:p, start:S.sel.map(function(sid){ var it2 = itemVon(sid); return {it:it2, alt:JSON.parse(JSON.stringify(it2))}; }), bewegt:false};
+    if(S.sel.indexOf(id) < 0) S.sel = huelleVon(id);
+    zieh = {art:'move', p0:p, start:S.sel.slice().sort(function(a, b){ return (b === id) - (a === id); }).map(function(sid){ var it2 = itemVon(sid); return {it:it2, alt:JSON.parse(JSON.stringify(it2))}; }), refIdx:0, bewegt:false};
+    zieh.hind = hindernisse(S.sel);
     itemsZeichnen(); eigenschaftenZeichnen();
     return;
   }
@@ -774,13 +1033,17 @@ function ziehenBewegen(e){
     var dx = p.x - z.p0.x, dy = p.y - z.p0.y;
     if(!z.bewegt && Math.hypot(dx, dy) * pxProMeter() < 3) return;
     z.bewegt = true;
-    var erstes = z.start[0];
-    // Raster am ersten gewählten Element ausrichten, alle anderen gleich weit verschieben
+    var erstes = z.start[z.refIdx || 0];
+    // Raster am angeklickten Element ausrichten, alle anderen gleich weit verschieben
     if(erstes && !K[erstes.it.t].pfeil){ dx = rasten(erstes.alt.x + dx, e) - erstes.alt.x; dy = rasten(erstes.alt.y + dy, e) - erstes.alt.y; }
+    // Magnet: Kanten rasten an Geräten und Wänden ein (Alt = frei)
+    fuehrung = [];
+    if(S.magnet && !e.altKey){ var mg = magnet(z, dx, dy); dx = mg.dx; dy = mg.dy; fuehrung = mg.guides; }
     z.start.forEach(function(s){
       if(K[s.it.t].pfeil){
         s.it.x1 = r2(s.alt.x1 + dx); s.it.y1 = r2(s.alt.y1 + dy); s.it.x2 = r2(s.alt.x2 + dx); s.it.y2 = r2(s.alt.y2 + dy);
         if(s.alt.cx != null){ s.it.cx = r2(s.alt.cx + dx); s.it.cy = r2(s.alt.cy + dy); }
+        if(s.alt.pts) s.it.pts = s.alt.pts.map(function(q){ return {x:r2(q.x + dx), y:r2(q.y + dy)}; });
       } else { s.it.x = r2(s.alt.x + dx); s.it.y = r2(s.alt.y + dy); }
     });
     itemsZeichnen(); return;
@@ -799,6 +1062,8 @@ function ziehenBewegen(e){
     it.w = nw; it.d = nd; it.x = r2(alt.x + cxl * Math.cos(b) - cyl * Math.sin(b)); it.y = r2(alt.y + cxl * Math.sin(b) + cyl * Math.cos(b));
     itemsZeichnen(); return;
   }
+  var wm = /^w(\d+)$/.exec(z.art);
+  if(wm && it.pts && it.pts[+wm[1]]){ it.pts[+wm[1]] = {x:r2(p.x), y:r2(p.y)}; itemsZeichnen(); return; }
   if(z.art === 'p1'){ it.x1 = rasten(p.x, e); it.y1 = rasten(p.y, e); }
   if(z.art === 'p2'){ it.x2 = rasten(p.x, e); it.y2 = rasten(p.y, e); }
   if(z.art === 'pc'){ it.cx = r2(p.x); it.cy = r2(p.y); }
@@ -811,10 +1076,31 @@ function ziehenEnde(z, e){
     if(Math.hypot(z.it.x2 - z.it.x1, z.it.y2 - z.it.y1) < 0.4){ S.items = S.items.filter(function(i){ return i !== z.it; }); S.sel = []; allesZeichnen(); return; }
     merken(); allesZeichnen(); return;
   }
-  if(z.art === 'rahmen'){ ueberZeichnen(); eigenschaftenZeichnen(); return; }
-  if(z.art === 'move' && !z.bewegt) return;
+  if(z.art === 'rahmen'){ S.sel = huelle(S.sel); itemsZeichnen(); eigenschaftenZeichnen(); return; }
+  if(z.art === 'move' && !z.bewegt){ fuehrung = []; return; }
+  fuehrung = [];
+  if(z.art === 'move') nachAblegen(S.sel.slice());
   merken(); allesZeichnen();
 }
+// Doppelklick: auf eine Linie = Biegepunkt setzen, auf einen Biegepunkt = entfernen
+plan.addEventListener('dblclick', function(e){
+  if(S.ansicht3d || S.sel.length !== 1) return;
+  var it = itemVon(S.sel[0]); if(!it || !K[it.t].pfeil) return;
+  var h = e.target.getAttribute && e.target.getAttribute('data-h'), wm = h && /^w(\d+)$/.exec(h);
+  if(wm){
+    it.pts.splice(+wm[1], 1);
+    if(!it.pts.length){ var mp = quadPunkt(it, 0.5); delete it.pts; it.cx = r2(mp.x); it.cy = r2(mp.y); }
+  } else {
+    var g = e.target.closest && e.target.closest('[data-id]');
+    if(!g || g.getAttribute('data-id') !== it.id) return;
+    var p = svgPunkt(e), best = 0, bd = Infinity, i;
+    for(i = 0; i <= 100; i++){ var q = quadPunkt(it, i / 100), d = Math.hypot(q.x - p.x, q.y - p.y); if(d < bd){ bd = d; best = i / 100; } }
+    var alt = it.pts || [], n = alt.length + 1, idx = 0;
+    while(idx < alt.length && (idx + 1) / n < best) idx++;
+    var neu = alt.slice(); neu.splice(idx, 0, {x:r2(p.x), y:r2(p.y)}); it.pts = neu;
+  }
+  merken(); itemsZeichnen(); eigenschaftenZeichnen();
+});
 function mitte(it){ return K[it.t].pfeil ? quadPunkt(it, 0.5) : {x:it.x, y:it.y}; }
 
 // Zoomen mit Mausrad (um den Mauszeiger)
@@ -845,6 +1131,7 @@ document.addEventListener('keydown', function(e){
   if(!S.sel.length || S.ansicht3d) return;
   if(e.key === 'Delete' || e.key === 'Backspace'){ e.preventDefault(); loeschen(); return; }
   if(cmd && e.key.toLowerCase() === 'd'){ e.preventDefault(); kopieren(); return; }
+  if(cmd && e.key.toLowerCase() === 'g'){ e.preventDefault(); if(e.shiftKey) gruppeLoesen(); else gruppieren(); return; }
   if(e.key === 'r' || e.key === 'R'){ drehen(e.shiftKey ? -15 : 15); return; }
   var schritt = e.shiftKey ? 1 : 0.1, dx = 0, dy = 0;
   if(e.key === 'ArrowLeft') dx = -schritt; if(e.key === 'ArrowRight') dx = schritt;
@@ -855,10 +1142,14 @@ document.addEventListener('keyup', function(e){ if(e.key === ' '){ leertaste = f
 function gewaehlte(){ return S.sel.map(itemVon).filter(Boolean); }
 function verschieben(dx, dy){
   gewaehlte().forEach(function(it){
-    if(K[it.t].pfeil){ it.x1 = r2(it.x1 + dx); it.x2 = r2(it.x2 + dx); it.y1 = r2(it.y1 + dy); it.y2 = r2(it.y2 + dy); if(it.cx != null){ it.cx = r2(it.cx + dx); it.cy = r2(it.cy + dy); } }
+    if(K[it.t].pfeil){
+      it.x1 = r2(it.x1 + dx); it.x2 = r2(it.x2 + dx); it.y1 = r2(it.y1 + dy); it.y2 = r2(it.y2 + dy); if(it.cx != null){ it.cx = r2(it.cx + dx); it.cy = r2(it.cy + dy); }
+      if(it.pts) it.pts = it.pts.map(function(q){ return {x:r2(q.x + dx), y:r2(q.y + dy)}; });
+    }
     else { it.x = r2(it.x + dx); it.y = r2(it.y + dy); }
   });
-  merken(); itemsZeichnen();
+  nachAblegen(S.sel.slice());
+  merken(); itemsZeichnen(); eigenschaftenZeichnen();
 }
 function drehen(grad){
   var its = gewaehlte();
@@ -871,6 +1162,7 @@ function drehen(grad){
       if(K[it.t].pfeil){
         var p1 = rot(it.x1, it.y1), p2 = rot(it.x2, it.y2); it.x1 = p1.x; it.y1 = p1.y; it.x2 = p2.x; it.y2 = p2.y;
         if(it.cx != null){ var pc = rot(it.cx, it.cy); it.cx = pc.x; it.cy = pc.y; }
+        if(it.pts) it.pts = it.pts.map(function(q){ return rot(q.x, q.y); });
       } else { var p = rot(it.x, it.y); it.x = p.x; it.y = p.y; it.r = (((it.r || 0) + grad) % 360 + 360) % 360; }
     });
   } else its.forEach(function(it){ if(!K[it.t].pfeil) it.r = (((it.r || 0) + grad) % 360 + 360) % 360; });
@@ -878,18 +1170,25 @@ function drehen(grad){
 }
 function loeschen(){
   S.items = S.items.filter(function(it){ return S.sel.indexOf(it.id) < 0; }); S.sel = [];
+  S.items.forEach(function(it){ if(it.base && !itemVon(it.base)) delete it.base; });   // was darauf lag, liegt wieder am Boden
   merken(); allesZeichnen();
 }
 function kopieren(){
+  var idMap = {}, gMap = {};
   var neu = gewaehlte().map(function(it){
-    var c = JSON.parse(JSON.stringify(it)); c.id = neueId();
-    if(K[c.t].pfeil){ c.x1 += 1; c.x2 += 1; c.y1 += 1; c.y2 += 1; if(c.cx != null){ c.cx += 1; c.cy += 1; } }
+    var c = JSON.parse(JSON.stringify(it)); c.id = neueId(); idMap[it.id] = c.id;
+    if(c.gid){ gMap[c.gid] = gMap[c.gid] || 'g' + neueId(); c.gid = gMap[c.gid]; }
+    if(K[c.t].pfeil){
+      c.x1 += 1; c.x2 += 1; c.y1 += 1; c.y2 += 1; if(c.cx != null){ c.cx += 1; c.cy += 1; }
+      if(c.pts) c.pts = c.pts.map(function(q){ return {x:q.x + 1, y:q.y + 1}; });
+    }
     else { c.x = r2(c.x + 1); c.y = r2(c.y + 1); }
     if(c.t === 'spieler') c.nr = naechsteNr(c.team);
     if(c.t === 'posten') c.nr = naechsterPosten();
-    S.items.push(c); return c.id;
+    S.items.push(c); return c;
   });
-  S.sel = neu; merken(); allesZeichnen();
+  neu.forEach(function(c){ if(c.base) { if(idMap[c.base]) c.base = idMap[c.base]; else delete c.base; } });
+  S.sel = neu.map(function(c){ return c.id; }); merken(); allesZeichnen();
 }
 
 /* ===================== Eigenschaften ===================== */
@@ -902,11 +1201,27 @@ function eigenschaftenZeichnen(){
   var knoepfe = '<div class="zeile" style="margin-top:10px">' +
     (its.some(function(i){ return !K[i.t].pfeil; }) ? '<button class="btn klein" data-a="dl" type="button" title="Shift+R">⟲ 15°</button><button class="btn klein" data-a="dr" type="button" title="R">⟳ 15°</button><button class="btn klein" data-a="d90" type="button">↻ 90°</button>' : '') +
     '<button class="btn klein" data-a="kopie" type="button" title="Ctrl/⌘+D">⧉ Kopie</button><button class="btn klein" data-a="weg" type="button" title="Entf" style="color:var(--bad)">🗑️</button></div>';
+  var hatGruppe = its.some(function(i){ return i.gid; });
   if(its.length > 1){
-    box.innerHTML = '<h3>🎯 ' + its.length + ' Elemente gewählt</h3><p class="leer">Gemeinsam ziehen, drehen, kopieren oder löschen.</p>' + knoepfe;
+    box.innerHTML = '<h3>🎯 ' + its.length + ' Elemente gewählt</h3><p class="leer">Gemeinsam ziehen, drehen, kopieren oder löschen.</p>' + knoepfe +
+      '<div class="zeile" style="margin-top:6px"><button class="btn klein" data-a="gruppe" type="button" title="Ctrl/⌘+G">🔗 Gruppieren</button>' + (hatGruppe ? '<button class="btn klein" data-a="trennen" type="button" title="Ctrl/⌘+Shift+G">Gruppe lösen</button>' : '') + '</div>';
   } else {
     var it = its[0], k = K[it.t];
     h = '<h3>🎯 ' + esc(k.n) + '</h3>';
+    if(it.base && itemVon(it.base)){
+      var bs = itemVon(it.base);
+      h += '<p class="leer">⬆️ Liegt auf: ' + esc(K[bs.t].n) + ' · Höhe ' + elev(it).toFixed(2) + ' m</p>';
+    }
+    var traegt = S.items.filter(function(o){ return o.base === it.id; });
+    if(traegt.length) h += '<p class="leer">Trägt: ' + traegt.map(function(o){ return esc(K[o.t].n); }).join(', ') + '</p>';
+    if(it.gid) h += '<p class="leer">🔗 Teil einer Gruppe</p>';
+    if(it.t === 'langbank'){
+      h += '<label for="eHaken">In Sprossenwand einhängen (Sprosse auf …)</label><select class="feld" id="eHaken">' + [[0, 'nicht eingehängt'], [0.5, '0.5 m'], [1.0, '1.0 m'], [1.5, '1.5 m'], [2.0, '2.0 m']].map(function(o){ return '<option value="' + o[0] + '"' + ((it.an ? it.an.h : 0) === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select>';
+    }
+    if(k.pfeil){
+      h += '<label for="eEnde">Linienende</label><select class="feld" id="eEnde">' + [['pfeil', 'Pfeilspitze am Ziel'], ['beide', 'Pfeilspitzen an beiden Enden'], ['keine', 'ohne Spitze (Linie)']].map(function(o){ return '<option value="' + o[0] + '"' + ((it.ende || k.ende || 'pfeil') === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select>';
+      h += '<div class="zeile" style="margin-top:6px"><button class="btn klein" data-a="gerade" type="button">╱ Gerade</button><button class="btn klein" data-a="bogen" type="button">⌒ Bogen</button><button class="btn klein" data-a="kreis" type="button">◯ Kreis</button></div>';
+    }
     if(it.t === 'spieler'){
       h += '<label>Team</label><div class="zeile">' + TEAMS.map(function(t){ return '<button type="button" class="farbe' + (it.team === t.id ? ' an' : '') + '" data-team="' + t.id + '" style="background:' + t.farbe + '" title="' + t.id + '"></button>'; }).join('') + '</div>';
       h += '<label for="eNr">Nummer (leer = ohne)</label><input class="feld" id="eNr" type="number" min="0" max="99" value="' + esc(it.nr || '') + '">';
@@ -926,7 +1241,7 @@ function eigenschaftenZeichnen(){
       h += '<label for="eText">Text</label><input class="feld" id="eText" maxlength="60" value="' + esc(it.text || '') + '">';
       h += '<label for="eFs">Grösse</label><select class="feld" id="eFs">' + [[0.4, 'klein'], [0.6, 'mittel'], [0.9, 'gross'], [1.4, 'sehr gross']].map(function(o){ return '<option value="' + o[0] + '"' + (o[0] === (it.fs || 0.6) ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select>';
     }
-    if(k.pfeil) h += '<p class="leer">Weisse Mitte ziehen = Bogen, Enden ziehen = Start/Ziel.</p>';
+    if(k.pfeil) h += '<p class="leer">Weisse Punkte ziehen = biegen, Enden ziehen = Start/Ziel. <b>Doppelklick</b> auf die Linie = weiteren Biegepunkt setzen, Doppelklick auf einen Punkt = entfernen.</p>';
     else if(!k.groesse && it.t !== 'text') h += '<p class="leer">' + k.w + ' × ' + k.d + ' m' + (it.r ? ' · ' + it.r + '°' : '') + '</p>';
     box.innerHTML = h + knoepfe;
   }
@@ -935,6 +1250,8 @@ function eigenschaftenZeichnen(){
       var a = b.getAttribute('data-a');
       if(a === 'dl') drehen(-15); if(a === 'dr') drehen(15); if(a === 'd90') drehen(90);
       if(a === 'kopie') kopieren(); if(a === 'weg') loeschen();
+      if(a === 'gruppe') gruppieren(); if(a === 'trennen') gruppeLoesen();
+      if(a === 'gerade' || a === 'bogen' || a === 'kreis') pfeilForm(a);
     });
   });
   if(its.length !== 1) return;
@@ -943,6 +1260,14 @@ function eigenschaftenZeichnen(){
   box.querySelectorAll('[data-team]').forEach(function(b){ b.addEventListener('click', function(){ var t = b.getAttribute('data-team'); setzen(function(i){ i.team = t; S.letztesTeam = t; }); eigenschaftenZeichnen(); }); });
   box.querySelectorAll('[data-farbe]').forEach(function(b){ b.addEventListener('click', function(){ var f = b.getAttribute('data-farbe'); setzen(function(i){ i.farbe = f; }); eigenschaftenZeichnen(); }); });
   var bind = function(id, fn, ev){ var el = document.getElementById(id); if(el) el.addEventListener(ev || 'change', function(){ setzen(function(i){ fn(i, el.value); }); }); };
+  bind('eEnde', function(i, v){ i.ende = v; });
+  var hk = document.getElementById('eHaken');
+  if(hk) hk.addEventListener('change', function(){
+    var v = +hk.value;
+    if(!v){ delete it1.an; toast('Bank ausgehängt'); }
+    else bankEinhaengen(it1, v);
+    merken(); allesZeichnen();
+  });
   bind('eNr', function(i, v){ i.nr = v === '' ? '' : Math.max(0, Math.min(99, parseInt(v, 10) || 0)); }, 'input');
   bind('eTeile', function(i, v){ i.teile = +v; });
   bind('eHoehe', function(i, v){ i.hoehe = +v; });
@@ -951,6 +1276,22 @@ function eigenschaftenZeichnen(){
   bind('eFs', function(i, v){ i.fs = +v; });
   bind('eW', function(i, v){ i.w = Math.max(0.5, Math.min(49, +v || 1)); });
   bind('eD', function(i, v){ i.d = Math.max(0.5, Math.min(49, +v || 1)); });
+}
+
+// Linie in Form bringen: gerade, Bogen (3 Punkte) oder Kreis (geschlossen aus Start/Ziel als Durchmesser)
+function pfeilForm(art){
+  var it = gewaehlte()[0]; if(!it || !K[it.t].pfeil) return;
+  var mx = (it.x1 + it.x2) / 2, my = (it.y1 + it.y2) / 2, dx = it.x2 - it.x1, dy = it.y2 - it.y1, l = Math.hypot(dx, dy) || 1;
+  delete it.pts; delete it.cx; delete it.cy;
+  if(art === 'bogen'){ it.cx = r2(mx - dy / l * l * 0.35); it.cy = r2(my + dx / l * l * 0.35); }
+  if(art === 'kreis'){
+    // Start und Ziel liegen an der gleichen Stelle, der Durchmesser ist die bisherige Länge
+    var r = l / 2, a0 = Math.atan2(it.y1 - my, it.x1 - mx), pts = [];
+    for(var i = 1; i < 8; i++){ var a = a0 + i * Math.PI * 2 / 8; pts.push({x:r2(mx + r * Math.cos(a)), y:r2(my + r * Math.sin(a))}); }
+    it.pts = pts; it.x2 = it.x1; it.y2 = it.y1;
+    it.x2 = r2(mx + r * Math.cos(a0 + 0.001)); it.y2 = r2(my + r * Math.sin(a0 + 0.001));
+  }
+  merken(); itemsZeichnen(); eigenschaftenZeichnen();
 }
 
 /* ===================== Materialliste ===================== */
@@ -989,14 +1330,47 @@ function leibchenText(m){
 /* ===================== Kopfleiste ===================== */
 function linienZeichnen(){
   document.getElementById('linien').innerHTML = LINIEN.map(function(l){
-    return '<button type="button" class="chip' + (S.linien[l.id] ? '' : ' aus') + '" data-l="' + l.id + '" title="Linien ' + l.name + ' ein/aus"><i style="background:' + (l.id === 'vb' ? '#adb5bd' : l.farbe) + '"></i>' + l.name + '</button>';
-  }).join('');
+    return '<button type="button" class="chip' + (S.linien[l.id] ? '' : ' aus') + '" data-l="' + l.id + '" title="Linien ' + l.name + ' ein/aus"><i style="background:' + lfarbe(l.id) + ';box-shadow:0 0 0 1px rgba(0,0,0,.35)"></i>' + l.name + '</button>';
+  }).join('') + '<button type="button" class="chip" data-lalle="1" title="Alle Linien zeigen">alle</button><button type="button" class="chip" data-lalle="0" title="Alle Linien ausblenden">keine</button><button type="button" class="chip" id="lfarbBtn" title="Linienfarben pro Sportart einstellen">🎨 Farben</button>';
 }
 document.getElementById('linien').addEventListener('click', function(e){
+  var al = e.target.closest('[data-lalle]');
+  if(al){ LINIEN.forEach(function(l){ S.linien[l.id] = al.getAttribute('data-lalle') === '1'; }); linienZeichnen(); bodenZeichnen(); autosave(); if(S.ansicht3d) drei.neu(); return; }
+  if(e.target.closest('#lfarbBtn')){ linienFarbDialog(); return; }
   var b = e.target.closest('[data-l]'); if(!b) return;
   var id = b.getAttribute('data-l'); S.linien[id] = !S.linien[id];
   linienZeichnen(); bodenZeichnen(); autosave(); if(S.ansicht3d) drei.neu();
 });
+function linienFarbDialog(){
+  var h = '<p class="leer">Welche Farbe hat welche Sportart in eurer Halle? Die Linien im Plan richten sich danach.</p><ul class="liste">' +
+    LINIEN.map(function(l){ return '<li><span><b>' + esc(l.name) + '</b></span><input type="color" data-lf="' + l.id + '" value="' + lfarbe(l.id) + '"></li>'; }).join('') + '</ul>';
+  var d = dialog('🎨 Linienfarben', h, [{t:'Zurücksetzen', fn:function(){ S.lfarbe = {}; linienZeichnen(); bodenZeichnen(); autosave(); if(S.ansicht3d) drei.neu(); }}, {t:'Fertig', primaer:true}]);
+  d.el.querySelectorAll('[data-lf]').forEach(function(inp){
+    inp.addEventListener('input', function(){ S.lfarbe[inp.getAttribute('data-lf')] = inp.value; S.linien[inp.getAttribute('data-lf')] = true; linienZeichnen(); bodenZeichnen(); autosave(); if(S.ansicht3d) drei.neu(); });
+  });
+}
+// Ebenen der festen Einrichtungen + Legende
+function ebenenZeichnen(){
+  var sw = function(inh){ return '<svg viewBox="0 0 26 12" width="26" height="12" style="flex:none">' + inh + '</svg>'; };
+  var leg = [
+    [sw('<rect x="1" y="2" width="24" height="8" fill="#d9a86c" stroke="#8a5a2b"/>'), 'Sprossenwand'],
+    [sw('<rect x="1" y="2" width="24" height="8" fill="#2f3340"/><rect x="1" y="10" width="24" height="2" fill="none" stroke="#f08c00" stroke-dasharray="2 1.5"/>'), 'Geräteraum-Tor (gestrichelt: Zugang freihalten)'],
+    [sw('<rect x="1" y="2" width="24" height="8" fill="#a9dcf2" stroke="#3a8fb7"/><line x1="13" y1="2" x2="13" y2="10" stroke="#3a8fb7"/>'), 'Glastür'],
+    [sw('<rect x="1" y="1" width="24" height="10" fill="#9d90c4" fill-opacity=".6"/><polyline points="1,3 5,9 9,3 13,9 17,3 21,9 25,3" fill="none" stroke="#4b3f78"/>'), 'Trennvorhang = Stoff, nicht anspielen'],
+    [sw('<line x1="1" y1="6" x2="25" y2="6" stroke="#4b3f78" stroke-dasharray="3 2.5"/>'), 'Vorhang hochgezogen'],
+    [sw('<circle cx="7" cy="6" r="3.3" fill="none" stroke="#e8590c" stroke-width="1.4"/><circle cx="17" cy="6" r="3.3" fill="none" stroke="#e8590c" stroke-width="1.4"/>'), 'Ringe (Deckenschiene)'],
+    [sw('<circle cx="5" cy="6" r="2" fill="#2b5fb4"/><circle cx="11" cy="6" r="2" fill="#2b5fb4"/><circle cx="19" cy="6" r="2.4" fill="#c8a46a" stroke="#7a5c00"/>'), 'Kletterstangen · Taue'],
+    [sw('<rect x="3" y="4" width="20" height="2" fill="#fff" stroke="#343a40" stroke-width=".6"/><circle cx="13" cy="9" r="2.4" fill="none" stroke="#e8590c" stroke-width="1.2"/>'), 'Basketballkorb']
+  ];
+  document.getElementById('ebenenKarte').innerHTML = '<h3>🧭 Halle &amp; Ebenen</h3>' +
+    EBENEN.map(function(e){ return '<label style="display:flex;gap:7px;align-items:center;margin:4px 0;font-size:13px;color:var(--text)"><input type="checkbox" data-eb="' + e.id + '"' + (S.ebenen[e.id] ? ' checked' : '') + '>' + esc(e.n) + '</label>'; }).join('') +
+    '<div class="pg-titel" style="margin-top:10px">Legende</div>' +
+    leg.map(function(l){ return '<div style="display:flex;gap:7px;align-items:center;font-size:12px;margin:3px 0">' + l[0] + '<span>' + esc(l[1]) + '</span></div>'; }).join('') +
+    '<p class="leer" style="margin-top:8px">Lage der festen Einrichtungen nach den Fotos geschätzt.</p>';
+  document.querySelectorAll('#ebenenKarte [data-eb]').forEach(function(c){
+    c.addEventListener('change', function(){ S.ebenen[c.getAttribute('data-eb')] = c.checked; bodenZeichnen(); autosave(); if(S.ansicht3d) drei.neu(); });
+  });
+}
 function schalter(id, feld){
   var b = document.getElementById(id);
   b.classList.toggle('aus', !S[feld]);
@@ -1317,7 +1691,14 @@ var drei = (function(){
     },
     turnmatte:function(){ return kiste(2, 0.06, 1, MATTE, 0, 0.03); },
     weichmatte:function(){ var g = new T.Group(); g.add(kiste(3, 0.4, 2, '#2c3e8c', 0, 0.2)); g.add(kiste(2.9, 0.01, 1.9, '#3d55b0', 0, 0.405)); return g; },
-    langbank:function(){
+    langbank:function(it){
+      if(it.an){
+        // in die Sprossenwand eingehängt: hohes Ende (−x) an der Wand, tiefes Ende am Boden
+        var gs = new T.Group(), bb = new T.Group(), hh = it.an.h, th = Math.asin(Math.min(0.99, hh / BANK_L));
+        bb.add(kiste(BANK_L, 0.04, 0.3, '#d9a86c', 0, 0.02)); bb.add(kiste(BANK_L, 0.03, 0.1, '#b5834a', 0, -0.03));
+        bb.add(kiste(0.08, 0.1, 0.34, '#e03131', -BANK_L / 2 + 0.04, 0.05));
+        bb.position.y = hh / 2 + 0.03; bb.rotation.z = -th; gs.add(bb); return gs;
+      }
       var g = new T.Group(); g.add(kiste(3.5, 0.04, 0.3, '#d9a86c', 0, 0.33));
       g.add(kiste(3.2, 0.03, 0.1, '#b5834a', 0, 0.03));
       [-1.4, 0, 1.4].forEach(function(x){ g.add(kiste(0.05, 0.31, 0.26, '#b5834a', x, 0.155)); });
@@ -1474,7 +1855,7 @@ var drei = (function(){
     // Wände: Innenseite sichtbar (BackSide) -> die Wände zur Kamera hin verschwinden, man schaut wie in ein Puppenhaus
     var tex = wandTextur();
     function wand(laenge, x, z, ry, vorhang){
-      var m = vorhang ? new T.MeshStandardMaterial({color:'#5b6170', roughness:0.95, side:T.BackSide, transparent:true, opacity:0.92})
+      var m = vorhang ? new T.MeshStandardMaterial({color:'#8e80b8', roughness:0.95, side:T.BackSide, transparent:true, opacity:0.92})
         : new T.MeshStandardMaterial({map:tex.clone(), roughness:0.85, side:T.BackSide});
       if(!vorhang){ m.map.needsUpdate = true; m.map.repeat.set(laenge / 8, 1); }
       var p = new T.Mesh(new T.PlaneGeometry(laenge, hh), m); p.position.set(x, hh / 2, z); p.rotation.y = ry; p.receiveShadow = true; g.add(p);
@@ -1483,6 +1864,12 @@ var drei = (function(){
     wand(w, cx, HALLE.H / 2, 0, false);
     wand(HALLE.H, wx(b.x0), 0, -Math.PI / 2, b.x0 > 0);
     wand(HALLE.H, wx(b.x1), 0, Math.PI / 2, b.x1 < HALLE.W);
+    if(S.ebenen.vorhang){
+      [[b.x0 > 0, b.x0, 0.06], [b.x1 < HALLE.W, b.x1, -0.06]].forEach(function(v){
+        if(!v[0]) return;
+        var e = etikett('Trennvorhang – Stoff', 0.6, '#fff', 'rgba(75,63,120,.92)'); e.position.set(wx(v[1]) + v[2], 2.6, 0); g.add(e);
+      });
+    }
     // offene Trennvorhänge innerhalb der Ansicht: oben aufgerollt
     [1, 2].forEach(function(j){
       var x = HALLE.x[j]; if(x <= b.x0 + 0.01 || x >= b.x1 - 0.01) return;
@@ -1491,22 +1878,62 @@ var drei = (function(){
     if(S.fest) festBauen(g, b);
   }
   function festBauen(g, b){
+    var E = S.ebenen, hh = HALLE.wandH, zo = wz(0) + 0.03, zu = wz(HALLE.H) - 0.03, x0w = wx(0);
+    function flaeche(w, h, farbe, x, y, z, ry, opa){
+      var m = new T.Mesh(new T.PlaneGeometry(w, h), new T.MeshStandardMaterial({color:farbe, roughness:0.7, side:T.DoubleSide, transparent:opa != null, opacity:opa == null ? 1 : opa}));
+      m.position.set(x, y, z); m.rotation.y = ry || 0; return m;
+    }
+    function korb3d(x, wy, k){
+      var by = wy + k * 1.2, z0 = wz(wy), z1 = wz(by), hk = 3.05;
+      g.add(kiste(1.8, 1.05, 0.04, '#ffffff', wx(x), hk + 0.45, z1));
+      g.add(kiste(0.59, 0.45, 0.045, '#222', wx(x), hk + 0.25, z1 + k * 0.002));
+      g.add(kiste(0.55, 0.41, 0.05, '#ffffff', wx(x), hk + 0.25, z1 + k * 0.004));
+      g.add(stange(wx(x), hk + 0.6, z0, wx(x), hk + 0.6, z1, 0.05, '#2b5fb4'));
+      g.add(stange(wx(x), hk + 1.5, z0, wx(x), hk + 0.8, z1, 0.03, '#2b5fb4'));
+      var ring = new T.Mesh(new T.TorusGeometry(0.23, 0.01, 8, 32), mat('#e8590c', {metalness:0.4})); ring.rotation.x = Math.PI / 2; ring.position.set(wx(x), hk, z1 + k * 0.38); g.add(ring);
+      var nz = new T.Mesh(new T.CylinderGeometry(0.23, 0.16, 0.4, 16, 1, true), weissNetz()); nz.position.set(wx(x), hk - 0.2, z1 + k * 0.38); g.add(nz);
+    }
     festeTeile().forEach(function(f){
-      if(f.x < b.x0 || f.x > b.x1) return;
-      if(f.art === 'sprosse'){
-        var s = new T.Group(), x = wx(f.x), z = wz(f.y);
-        [-0.46, 0.46].forEach(function(dx){ s.add(kiste(0.06, 2.6, 0.08, '#c99a5f', x + dx, 1.3, z)); });
-        for(var k = 0; k < 16; k++){ var r = rohr(0.017, 0.92, '#d9a86c'); r.rotation.z = Math.PI / 2; r.position.set(x, 0.15 + k * 0.155, z); s.add(r); }
-        g.add(s);
-      } else {
-        var by = f.y + f.k * 1.7, z0 = wz(f.y), z1 = wz(by), hk = 3.05;
-        var brett = kiste(1.8, 1.05, 0.04, '#ffffff', wx(f.x), hk + 0.45, z1); g.add(brett);
-        g.add(kiste(0.59, 0.45, 0.045, '#222', wx(f.x), hk + 0.25, z1 + f.k * 0.002));
-        g.add(kiste(0.55, 0.41, 0.05, '#ffffff', wx(f.x), hk + 0.25, z1 + f.k * 0.004));
-        g.add(stange(wx(f.x), hk + 0.6, z0, wx(f.x), hk + 0.6, z1, 0.05, '#2b5fb4'));
-        g.add(stange(wx(f.x), hk + 1.5, z0, wx(f.x), hk + 0.8, z1, 0.03, '#2b5fb4'));
-        var ring = new T.Mesh(new T.TorusGeometry(0.23, 0.01, 8, 32), mat('#e8590c', {metalness:0.4})); ring.rotation.x = Math.PI / 2; ring.position.set(wx(f.x), hk, z1 + f.k * 0.38); g.add(ring);
-        var nz = new T.Mesh(new T.CylinderGeometry(0.23, 0.16, 0.4, 16, 1, true), weissNetz()); nz.position.set(wx(f.x), hk - 0.2, z1 + f.k * 0.38); g.add(nz);
+      if(!festSichtbar(f, b)) return;
+      var a = f.art, i, x;
+      if(a === 'sprosse' && E.spr){
+        x = wx(f.x);
+        for(i = 0; i <= 4; i++) g.add(kiste(0.06, 2.6, 0.08, '#c99a5f', x - f.w / 2 + i * f.w / 4, 1.3, zo));
+        for(i = 0; i < 4; i++) for(var k = 0; k < 16; k++){ var r = rohr(0.017, f.w / 4 - 0.08, '#d9a86c'); r.rotation.z = Math.PI / 2; r.position.set(x - f.w / 2 + (i + 0.5) * f.w / 4, 0.15 + k * 0.155, zo); g.add(r); }
+      } else if(a === 'tor' && E.tueren){
+        x = wx(f.x);
+        g.add(flaeche(f.w, 2.4, '#1c1f27', x, 1.2, zo));
+        g.add(kiste(f.w + 0.2, 0.12, 0.1, '#c99a5f', x, 2.46, zo)); g.add(kiste(0.1, 2.4, 0.1, '#c99a5f', x - f.w / 2 - 0.05, 1.2, zo)); g.add(kiste(0.1, 2.4, 0.1, '#c99a5f', x + f.w / 2 + 0.05, 1.2, zo));
+      } else if(a === 'glas' && E.tueren){
+        x = wx(f.x);
+        g.add(flaeche(f.w, 2.6, '#9fd3ea', x, 1.3, zu, 0, 0.45));
+        [-f.w / 2, 0, f.w / 2].forEach(function(dx){ g.add(kiste(0.06, 2.6, 0.06, '#6b7785', x + dx, 1.3, zu)); });
+        g.add(kiste(f.w, 0.06, 0.06, '#6b7785', x, 2.6, zu)); g.add(kiste(f.w, 0.06, 0.06, '#6b7785', x, 1.0, zu));
+      } else if(a === 'korb' && E.korb){
+        korb3d(f.x, 0, 1);
+      } else if(a === 'korbtafel'){
+        g.add(flaeche(f.w, 2.4, '#d6ad6c', wx(f.x), 1.2, zu));
+        if(E.korb) korb3d(f.x, HALLE.H, -1);
+      } else if(a === 'wandkorb' && E.korb){
+        var z = wz(f.y);
+        g.add(kiste(0.04, 0.6, 0.9, '#ffffff', x0w + 0.62, 2.9, z)); g.add(stange(x0w, 2.7, z, x0w + 0.6, 2.7, z, 0.025, '#2b5fb4'));
+        var rg = new T.Mesh(new T.TorusGeometry(0.2, 0.01, 8, 28), mat('#e8590c', {metalness:0.4})); rg.rotation.x = Math.PI / 2; rg.position.set(x0w + 0.98, 2.7, z); g.add(rg);
+        var nzz = new T.Mesh(new T.CylinderGeometry(0.2, 0.14, 0.35, 14, 1, true), weissNetz()); nzz.position.set(x0w + 0.98, 2.52, z); g.add(nzz);
+      } else if(a === 'tafel' && E.korb){
+        g.add(kiste(0.1, 1.1, 3, '#1a1d24', x0w + 0.06, 5.0, wz(f.y)));
+      } else if(a === 'stangen' && E.ringe){
+        for(i = 0; i < f.n; i++){ g.add(stange(x0w + 0.3, 0, wz(f.y + (i - (f.n - 1) / 2) * 0.4), x0w + 0.3, hh - 0.4, wz(f.y + (i - (f.n - 1) / 2) * 0.4), 0.035, '#2b5fb4')); }
+      } else if(a === 'taue' && E.ringe){
+        for(i = 0; i < f.n; i++){ var zt = wz(f.y + (i - (f.n - 1) / 2) * 0.45); g.add(stange(x0w + 0.3, 0.4, zt, x0w + 0.3, hh - 0.4, zt, 0.03, '#c8a46a')); }
+      } else if(a === 'schiene' && E.ringe){
+        g.add(stange(wx(Math.max(0, b.x0)), hh - 0.35, wz(f.y), wx(Math.min(HALLE.W, b.x1)), hh - 0.35, wz(f.y), 0.05, '#2b5fb4'));
+      } else if(a === 'ringe' && E.ringe){
+        [-0.28, 0.28].forEach(function(dx){
+          g.add(stange(wx(f.x + dx), hh - 0.35, wz(f.y), wx(f.x + dx), 4.1, wz(f.y), 0.008, '#555'));
+          var rr = new T.Mesh(new T.TorusGeometry(0.09, 0.012, 8, 24), mat('#c8955a')); rr.position.set(wx(f.x + dx), 4.0, wz(f.y)); g.add(rr);
+        });
+      } else if(a === 'tuer' && E.tueren){
+        g.add(flaeche(f.w, 2.3, '#8fd19e', wx(HALLE.W) - 0.03, 1.15, wz(f.y), -Math.PI / 2));
       }
     });
   }
@@ -1522,7 +1949,7 @@ var drei = (function(){
       if(it.x < b.x0 - 1 || it.x > b.x1 + 1) return;
       var bau = M[it.t]; if(!bau) return;
       var o = bau(it);
-      o.position.x += wx(it.x); o.position.z += wz(it.y);
+      o.position.x += wx(it.x); o.position.z += wz(it.y); o.position.y += elev(it);
       if(it.t !== 'text') o.rotation.y = -(it.r || 0) * Math.PI / 180;
       o.traverse(function(c){ if(c.isMesh && it.t !== 'zone'){ c.castShadow = true; c.receiveShadow = true; } });
       wurzel.add(o);
@@ -1541,12 +1968,16 @@ var drei = (function(){
 /* ===================== Start ===================== */
 (function(){
   var sp = speicherLesen();
-  if(sp.einst){ S.fest = sp.einst.fest !== false; S.raster = sp.einst.raster !== false; S.druck = !!sp.einst.druck; }
+  if(sp.einst){
+    S.fest = sp.einst.fest !== false; S.raster = sp.einst.raster !== false; S.magnet = sp.einst.magnet !== false; S.druck = !!sp.einst.druck;
+    S.ebenen = Object.assign(S.ebenen, sp.einst.ebenen || {}); S.lfarbe = sp.einst.lfarbe || {};
+  }
   if(sp.aktuell) datenLaden(sp.aktuell);
   document.getElementById('ansicht').value = S.ansicht;
   document.getElementById('titelIn').value = S.titel; document.getElementById('notizIn').value = S.notizen;
   paletteZeichnen(); linienZeichnen();
-  schalter('festBtn', 'fest'); schalter('rasterBtn', 'raster'); schalter('druckBtn', 'druck');
+  schalter('festBtn', 'fest'); schalter('rasterBtn', 'raster'); schalter('magnetBtn', 'magnet'); schalter('druckBtn', 'druck');
+  ebenenZeichnen();
   einpassen();
   merken();
   allesZeichnen();
