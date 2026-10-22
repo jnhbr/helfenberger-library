@@ -197,9 +197,10 @@
           <button class="btn" type="button" data-kam="schraeg">📐 Schräg</button>
           <button class="btn" type="button" data-kam="oben">⬇️ Von oben</button>
           <button class="btn" type="button" data-kam="auge">👀 Augenhöhe</button>
+          <button class="btn" type="button" id="dreiSchieben" title="Drücken und ziehen verschiebt die ganze Ansicht (z. B. von Halle 1 zu Halle 2); mit zwei Fingern zoomen">✋ Verschieben</button>
           <button class="btn" type="button" id="dreiPng">🖼️ Bild</button>
         </div>
-        <div class="drei-info">Gerät anklicken = wählen, ziehen = verschieben (R = drehen, Entf = löschen, Geräte links hineinziehen) · leere Fläche ziehen = Ansicht drehen · Rad = zoomen · Rechtsklick = Ansicht verschieben</div>
+        <div class="drei-info">Gerät anklicken = wählen, ziehen = verschieben (R = drehen, Entf = löschen, Geräte links hineinziehen) · leere Fläche ziehen = Ansicht drehen · «✋ Verschieben» = Ansicht mit Ziehen verschieben · Rad = zoomen · Rechtsklick = Ansicht verschieben</div>
       </div>
     </div>
     <div class="seite" id="seite">
@@ -1958,7 +1959,7 @@ var drei = (function(){
         scene = new T.Scene(); scene.background = new T.Color('#cfd6df');
         kamera = new T.PerspectiveCamera(45, 1, 0.1, 400);
         ctrl = new Orbit(kamera, renderer.domElement);
-        ctrl.enableDamping = true; ctrl.maxPolarAngle = Math.PI / 2 - 0.03; ctrl.minDistance = 2; ctrl.maxDistance = 140;
+        ctrl.screenSpacePanning = false; ctrl.enableDamping = true; ctrl.maxPolarAngle = Math.PI / 2 - 0.03; ctrl.minDistance = 2; ctrl.maxDistance = 140;
         var hemi = new T.HemisphereLight(0xffffff, 0x8899aa, 1.25); scene.add(hemi);
         var sonne = new T.DirectionalLight(0xffffff, 1.6); sonne.position.set(-20, 40, -14); sonne.castShadow = true;
         sonne.shadow.mapSize.set(2048, 2048); var sc = sonne.shadow.camera; sc.left = -30; sc.right = 30; sc.top = 30; sc.bottom = -30; sc.near = 1; sc.far = 120;
@@ -1990,6 +1991,7 @@ var drei = (function(){
   function eingabe(){
     renderer.domElement.addEventListener('pointerdown', function(e){
       if(e.button !== 0 || zieh) return;
+      if(schieben){ leer3 = null; return; }
       var id = trefferId(e);
       leer3 = id ? null : {x:e.clientX, y:e.clientY};
       if(!id) return;
@@ -2392,6 +2394,11 @@ var drei = (function(){
     auswahl();
     if(drei.sonne){ var cx = wx((b.x0 + b.x1) / 2); drei.sonne.position.set(cx - 15, 40, -14); drei.sonne.target.position.set(cx, 0, 0); }
   }
+  var schieben = false;
+  document.getElementById('dreiSchieben').addEventListener('click', function(){
+    schieben = !schieben; this.classList.toggle('an', schieben);
+    if(ctrl){ ctrl.mouseButtons.LEFT = schieben ? T.MOUSE.PAN : T.MOUSE.ROTATE; ctrl.mouseButtons.RIGHT = schieben ? T.MOUSE.ROTATE : T.MOUSE.PAN; ctrl.touches.ONE = schieben ? T.TOUCH.PAN : T.TOUCH.ROTATE; }
+  });
   box.querySelectorAll('[data-kam]').forEach(function(btn){ btn.addEventListener('click', function(){ kameraSetzen(btn.getAttribute('data-kam')); }); });
   document.getElementById('dreiPng').addEventListener('click', function(){
     if(!renderer) return;
