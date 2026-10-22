@@ -2108,7 +2108,7 @@ var drei = (function(){
     var a = new T.Vector3(x1, y1, z1), b = new T.Vector3(x2, y2, z2), l = a.distanceTo(b), m = rohr(r, l, farbe, {metalness:0.5, roughness:0.4});
     m.position.copy(a).add(b).multiplyScalar(0.5); m.quaternion.setFromUnitVectors(new T.Vector3(0, 1, 0), b.clone().sub(a).normalize()); return m;
   }
-  function etikett(text, hoehe, farbe, hg){
+  function etikett(text, hoehe, farbe, hg, fest){
     var c = document.createElement('canvas'), ctx = c.getContext('2d'), fs = 64;
     ctx.font = '700 ' + fs + 'px Atkinson Hyperlegible, Arial, sans-serif';
     var w = Math.ceil(ctx.measureText(text).width) + 40; c.width = w; c.height = fs + 30;
@@ -2116,6 +2116,10 @@ var drei = (function(){
     if(hg){ ctx.fillStyle = hg; ctx.beginPath(); if(ctx.roundRect) ctx.roundRect(0, 0, w, c.height, 22); else ctx.rect(0, 0, w, c.height); ctx.fill(); }
     ctx.fillStyle = farbe || '#1c2033'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(text, w / 2, c.height / 2 + 3);
     var tex = new T.CanvasTexture(c); tex.colorSpace = T.SRGBColorSpace;
+    if(fest){   // fest an der Wand angebracht: Fläche statt Schild, das sich zur Kamera dreht
+      var fl = new T.Mesh(new T.PlaneGeometry(hoehe * w / c.height, hoehe), new T.MeshBasicMaterial({map:tex, transparent:true, side:T.DoubleSide, depthWrite:false}));
+      fl.rotation.y = fest; return fl;
+    }
     var sp = new T.Sprite(new T.SpriteMaterial({map:tex, depthTest:false, transparent:true}));
     sp.scale.set(hoehe * w / c.height, hoehe, 1); sp.renderOrder = 10; return sp;
   }
@@ -2343,9 +2347,9 @@ var drei = (function(){
     wand(HALLE.H, wx(b.x0), 0, -Math.PI / 2, b.x0 > 0);
     wand(HALLE.H, wx(b.x1), 0, Math.PI / 2, b.x1 < HALLE.W);
     if(S.ebenen.vorhang){
-      [[b.x0 > 0, b.x0, 0.06], [b.x1 < HALLE.W, b.x1, -0.06]].forEach(function(v){
+      [[b.x0 > 0, b.x0, 0.06, Math.PI / 2], [b.x1 < HALLE.W, b.x1, -0.06, -Math.PI / 2]].forEach(function(v){
         if(!v[0]) return;
-        var e = etikett('Trennvorhang – Stoff', 0.6, '#fff', 'rgba(75,63,120,.92)'); e.position.set(wx(v[1]) + v[2], 2.6, 0); g.add(e);
+        var e = etikett('Trennvorhang – Stoff', 0.3, '#fff', 'rgba(75,63,120,.92)', v[3]); e.position.set(wx(v[1]) + v[2], 2.4, 0); g.add(e);
       });
     }
     // offene Trennvorhänge innerhalb der Ansicht: oben aufgerollt
