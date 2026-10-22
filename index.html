@@ -4840,6 +4840,21 @@ function mitQuelleName(q){
   }
   return q;
 }
+// Brücke für den Hallenplaner (Fach Sport, gleiche Origin im iframe): liefert die Namenslisten der Lehrperson –
+// die aktuelle «Wer macht mit?»-Auswahl und jede eigene 👥 Gruppe. Nur Namen, nichts wird gespeichert.
+window.hallenplanerBruecke = {
+  listen: function(){
+    var out = [];
+    return mitRoster(null, false).then(function(r){ out.push({id:'auswahl', name:'Wer macht mit? (' + mitKurz() + ')', namen:r.map(function(x){ return x.displayName; })}); })
+      .catch(function(err){ console.error('Hallenplaner-Brücke: Auswahl', err); })
+      .then(function(){ return mitGruppenLaden(); })
+      .then(function(gr){
+        return Promise.all((gr || []).map(function(g){
+          return mitQuelleLaden('g:' + g.id).then(function(l){ out.push({id:'g:' + g.id, name:'👥 ' + g.name, namen:l.map(function(x){ return x.displayName; }).sort(function(a, b){ return a.localeCompare(b, 'de'); })}); }).catch(function(){});
+        }));
+      }).then(function(){ return out; });
+  }
+};
 function mitKurz(){
   var w = mitWahl();
   var t = w.quellen.map(mitQuelleName).join(' + ') || 'niemand';
@@ -13727,7 +13742,7 @@ function raetselVirtuell(subject){
 /* 🏟️ HALLENPLANER – Werkzeug im Fach Sport (nur Lehrperson): statische Seite hallenplaner/ im Link-Viewer (iframe src).
    Grundriss der Dreifachhalle Altnau, Geräte-Baukasten, Materialliste, Druck, 3D (three.js aus assets/vendor). Kein Firestore:
    Aufbauten liegen im Browser (localStorage hallenplaner_v1) und lassen sich als Datei weitergeben. */
-var HALLENPLANER_VERSION = 2;   // nach jeder Änderung an hallenplaner/index.html erhöhen (Browser-Cache)
+var HALLENPLANER_VERSION = 3;   // nach jeder Änderung an hallenplaner/index.html erhöhen (Browser-Cache)
 function hallenplanerVirtuell(subject){
   if(subject !== 'sport' || !(state.profile && state.profile.role === 'teacher')) return [];
   return [{id:'hallenplaner', subject:'sport', folderId:null, order:-2000, virtual:true, werkzeug:true, linkUrl:'hallenplaner/?v='+HALLENPLANER_VERSION, linkLabel:'Werkzeug',
@@ -23046,6 +23061,7 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-10-22-hallenplaner-3', datum:'2026-10-22', fuer:'lehrer', text:'🏟️ Hallenplaner: Bodenlinien nach den Fotos der Halle (Sportart aus der Farbe abgeleitet), Reck- und Kletterstangen, Geräte auf den Kopf stellen, 3D-Ansicht direkt bearbeiten, Ablauf in Phasen mit Abspielen und Druck, Massband, eigene Geräte merken, Ringe heruntergelassen mit Fallzone – und Klassen laden (eigene Listen oder Library-Gruppen), Teams bilden und Namen im Plan zeigen.'},
   {id:'2026-10-22-hallenplaner-2', datum:'2026-10-22', fuer:'lehrer', text:'🏟️ Hallenplaner: Türen, Tore, Sprossenwände, Ringe, Stangen und Taue sind eingezeichnet, Trennvorhänge als Stoff markiert. Bodenlinien pro Sportart ein-/ausblenden, Geräte aufeinander stapeln, Bänke in die Sprossenwand einhängen, Gruppen bilden und Linien mit Biegepunkten zu Bögen formen.'},
   {id:'2026-10-22-hallenplaner', datum:'2026-10-22', fuer:'lehrer', text:'🏟️ Neu im Fach Sport: der Hallenplaner. Geräte, Personen und Laufwege in die Dreifachhalle ziehen (Einfach-, Doppel- oder ganze Halle), Linien pro Sportart ein- und ausblenden, Materialliste, Drucken und eine 3D-Ansicht. Mit Vorlagen (Volleyball 3:3, Zirkeltraining, Brennball, Prüfung + Fussball). Nur für Lehrpersonen sichtbar.'},
   {id:'2026-10-22-trivia-40', datum:'2026-10-22', fuer:'lehrer', text:'🎲 Die 50 Trivia-Quizze haben jetzt je 40 Fragen. Beim Starten wählst du 10 oder 20 Fragen – die Library merkt sich pro Klasse, welche schon gekommen sind, und zieht zuerst die neuen. Erst wenn alle 40 dran waren, beginnt es von vorne. Das gilt für jedes Klassen-Quiz mit mehr als 10 Fragen; «Alle Fragen» spielt wie bisher alles in der gespeicherten Reihenfolge.'},

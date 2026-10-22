@@ -38,7 +38,7 @@
   html,body{height:100%;margin:0;}
   body{background:var(--bg);color:var(--text);font-family:'Atkinson Hyperlegible',-apple-system,BlinkMacSystemFont,sans-serif;font-size:14px;overflow:hidden;}
   button,input,select,textarea{font:inherit;color:inherit;}
-  .app{display:grid;grid-template-rows:auto 1fr;height:100vh;}
+  .app{display:grid;grid-template-rows:auto auto 1fr;height:100vh;}
   /* Kopfleiste */
   .kopf{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:8px 12px;background:var(--surface);border-bottom:1px solid var(--border);}
   .titel{font-family:Montserrat,sans-serif;font-weight:800;font-size:17px;color:var(--sport-ink);margin-right:6px;white-space:nowrap;}
@@ -53,6 +53,14 @@
   select.feld,input.feld,textarea.feld{border:1px solid var(--border);background:var(--surface);border-radius:10px;padding:5px 8px;}
   .chip{display:inline-flex;align-items:center;gap:5px;padding:4px 9px;border-radius:999px;border:1px solid var(--border);background:var(--surface);font-size:12px;font-weight:700;cursor:pointer;}
   .chip i{width:12px;height:4px;border-radius:2px;display:inline-block;}
+  .chip.an{background:var(--sport);border-color:var(--sport);color:#fff;}
+  .phasen{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:5px 12px;background:var(--surface-2);border-bottom:1px solid var(--border);font-size:13px;}
+  .phasenInfo{position:absolute;right:10px;top:10px;max-width:42%;background:rgba(255,255,255,.92);color:#1c2033;padding:7px 12px;border-radius:12px;font-size:13px;pointer-events:none;box-shadow:var(--shadow);}
+  .phasenInfo[hidden]{display:none;}
+  .pi{position:relative;}
+  .kz{flex-direction:row!important;display:inline-flex;padding:3px 8px!important;margin:2px;border-left:6px solid var(--c,#999);font-size:12.5px;width:auto;}
+  .kz span{pointer-events:none;}
+  .pi .kx{position:absolute;top:1px;right:5px;font-size:11px;color:var(--text-muted);cursor:pointer;}
   .chip.aus{opacity:.45;}
   .chip.aus i{background:var(--border)!important;}
   /* Hauptbereich */
@@ -120,6 +128,8 @@
     html,body{height:auto;overflow:visible;background:#fff;color:#000;}
     .app,.dlg-hg,.toast{display:none!important;}
     #druck{display:block;font-family:'Atkinson Hyperlegible',sans-serif;}
+    #druck section{break-after:page;}
+    #druck section:last-child{break-after:auto;}
     #druck h1{font-family:Montserrat,sans-serif;font-size:20px;margin:0 0 2px;}
     #druck .unter{font-size:12px;color:#444;margin-bottom:8px;}
     #druck svg{width:100%;height:auto;max-height:118mm;display:block;}
@@ -168,6 +178,7 @@
       <button class="btn" id="neuBtn" type="button">🗑️ Neu</button>
     </div>
   </div>
+  <div class="phasen" id="phasen"></div>
   <div class="haupt">
     <div class="palette" id="palette"></div>
     <div class="flaeche" id="flaeche">
@@ -175,6 +186,7 @@
         <g id="boden"></g><g id="items"></g><g id="ueber"></g>
       </svg>
       <div class="hinweis" id="hinweis" hidden></div>
+      <div class="phasenInfo" id="phasenInfo" hidden></div>
       <div class="zoom" id="zoomLeiste">
         <button type="button" id="zoomPlus" title="Hineinzoomen">＋</button>
         <button type="button" id="zoomMinus" title="Herauszoomen">－</button>
@@ -187,7 +199,7 @@
           <button class="btn" type="button" data-kam="auge">👀 Augenhöhe</button>
           <button class="btn" type="button" id="dreiPng">🖼️ Bild</button>
         </div>
-        <div class="drei-info">Ziehen = drehen · Rad / zwei Finger = zoomen · Rechtsklick = verschieben · bearbeitet wird im Grundriss</div>
+        <div class="drei-info">Gerät anklicken = wählen, ziehen = verschieben (R = drehen, Entf = löschen, Geräte links hineinziehen) · leere Fläche ziehen = Ansicht drehen · Rad = zoomen · Rechtsklick = Ansicht verschieben</div>
       </div>
     </div>
     <div class="seite" id="seite">
@@ -198,6 +210,7 @@
         <textarea class="feld" id="notizIn" rows="3" placeholder="Ablauf, Regeln, Gruppen …"></textarea>
       </div>
       <div class="karte" id="eigenschaften"></div>
+      <div class="karte" id="klasseKarte"></div>
       <div class="karte" id="ebenenKarte"></div>
       <div class="karte">
         <h3>📦 Materialliste</h3>
@@ -230,20 +243,23 @@ var SPEICHER = 'hallenplaner_v1';
 // Dreifachhalle Altnau: 49 × 28 m (Normmass), drei Drittel mit Trennvorhängen.
 var HALLE = {W:49, H:28, wandH:7, x:[0, 49/3, 98/3, 49]};
 var ANSICHTEN = {E1:[0,1], E2:[1,2], E3:[2,3], D12:[0,2], D23:[1,3], T:[0,3]};
-// Linienfarben nach den Fotos der Halle geschätzt (Handball rot mit gestricheltem 9-m-Bogen, Basketball schwarz …);
-// pro Sportart mit «🎨 Farben» änderbar.
+// Linienfarben der Halle Altnau, die Sportart ist aus den Fotos abgeleitet:
+// gelb mit gestrichelten 3-m-Linien = Volleyball · blau mit Zone (4.9 × 5.8 m) = Basketball · rot mit 6-m-Bogen und gestricheltem 9-m-Bogen = Handball ·
+// weiss mit Torraum und Torwartraum = Unihockey · schwarz mit Mittelkreis (r 3 m) und Strafraum-Bögen = Fussball · dünn olivgrün, vier Felder pro Drittel = Badminton.
+// Lage der Linien in der Halle ist aus den Fotos geschätzt (nicht ausgemessen); pro Sportart mit «🎨 Farben» änderbar.
 var LINIEN = [
-  {id:'vb', name:'Volleyball', farbe:'#1c6ed5'},
-  {id:'bb', name:'Basketball', farbe:'#141414'},
+  {id:'vb', name:'Volleyball', farbe:'#f2c200'},
+  {id:'bb', name:'Basketball', farbe:'#2f6fd6'},
   {id:'hb', name:'Handball', farbe:'#e03131'},
-  {id:'uh', name:'Unihockey', farbe:'#f5c400'},
-  {id:'bm', name:'Badminton', farbe:'#ffffff'}
+  {id:'uh', name:'Unihockey', farbe:'#ffffff'},
+  {id:'bm', name:'Badminton', farbe:'#9ab33a'},
+  {id:'fb', name:'Fussball', farbe:'#141414'}
 ];
 function lfarbe(id){ return (S.lfarbe && S.lfarbe[id]) || LINIEN.filter(function(l){ return l.id === id; })[0].farbe; }
 // Feste Einrichtungen der Halle: Ebenen einzeln ein-/ausblendbar.
 var EBENEN = [
   {id:'spr', n:'Sprossenwände'}, {id:'tueren', n:'Türen & Tore (mit Freihalte-Zone)'}, {id:'korb', n:'Basketballkörbe'},
-  {id:'ringe', n:'Ringe, Taue & Kletterstangen'}, {id:'vorhang', n:'Trennvorhänge (Stoff)'}
+  {id:'ringe', n:'Ringe, Taue, Kletter- & Reckstangen'}, {id:'runter', n:'Ringe heruntergelassen (zeigt Fallzone)'}, {id:'vorhang', n:'Trennvorhänge (Stoff)'}
 ];
 var SPR_B = 4.2, TOR_B = 3.2;
 var TEAMS = [
@@ -303,11 +319,11 @@ var GRUPPEN = [
   {id:'klein', n:'Kleingeräte'}, {id:'tore', n:'Tore & Netze'}, {id:'personen', n:'Personen'}, {id:'zeichnen', n:'Zeichnen'}
 ];
 var K = {
-  kasten:{n:'Schwedenkasten', g:'kaesten', w:1.5, d:0.55, e:2, h:function(it){ return 0.12 + 0.17 * (it.teile || 5); },
+  kasten:{n:'Schwedenkasten', g:'kaesten', kopf:true, w:1.5, d:0.55, e:2, h:function(it){ return 0.12 + 0.17 * (it.teile || 5); },
     svg:function(it){ return rect(-0.75, -0.275, 1.5, 0.55, HOLZ, HOLZ2, 0.04, ' rx="0.06"') + rect(-0.66, -0.2, 1.32, 0.4, LEDER, '#b8a37a', 0.03, ' rx="0.08"') + txt(0, 0, String(it.teile || 5), 0.26, '#6b5332'); }},
   bock:{n:'Bock', g:'kaesten', w:0.6, d:0.38, e:2, h:function(){ return 1.05; },
     svg:function(){ return linie(-0.32, -0.21, 0.32, 0.21, '#555', 0.04) + linie(-0.32, 0.21, 0.32, -0.21, '#555', 0.04) + rect(-0.3, -0.17, 0.6, 0.34, LEDER, '#8a6b3d', 0.04, ' rx="0.12"'); }},
-  sprungbrett:{n:'Sprungbrett', g:'kaesten', w:1.2, d:0.6, e:1, h:function(){ return 0.22; },
+  sprungbrett:{n:'Sprungbrett', g:'kaesten', kopf:true, w:1.2, d:0.6, e:1, h:function(){ return 0.22; },
     svg:function(){ return '<polygon points="-0.6,-0.3 0.6,-0.3 0.6,0.3 -0.6,0.3" fill="#d9c8a3" stroke="' + HOLZ2 + '" stroke-width="0.04"/>' + rect(-0.6, -0.3, 0.3, 0.6, '#3b5bdb') + '<path d="M-0.05 0 L0.35 0 M0.22 -0.12 L0.36 0 L0.22 0.12" stroke="#6b5332" stroke-width="0.05" fill="none"/>'; }},
   minitramp:{n:'Minitrampolin', g:'kaesten', w:1.15, d:1.15, e:2, h:function(){ return 0.45; },
     svg:function(){ return rect(-0.575, -0.575, 1.15, 1.15, '#1c7ed6', '#0b4f8a', 0.05, ' rx="0.12"') + rect(-0.4, -0.4, 0.8, 0.8, '#222', null, 0, ' rx="0.04"'); }},
@@ -315,7 +331,7 @@ var K = {
     svg:function(){ return rect(-1, -0.5, 2, 1, MATTE, MATTE2, 0.05, ' rx="0.06"'); }},
   weichmatte:{n:'Weichbodenmatte', g:'matten', w:3, d:2, e:1, h:function(){ return 0.4; },
     svg:function(){ return rect(-1.5, -1, 3, 2, '#2c3e8c', '#8ea2e0', 0.06, ' rx="0.18"') + rect(-1.3, -0.8, 2.6, 1.6, 'none', '#4b63b8', 0.03, ' rx="0.12"'); }},
-  langbank:{n:'Langbank', g:'turnen', w:3.5, d:0.3, e:2, h:function(){ return 0.35; },
+  langbank:{n:'Langbank', g:'turnen', kopf:true, w:3.5, d:0.3, e:2, h:function(it){ return it && it.kopf ? 0.3 : 0.35; },
     svg:function(it){
       if(it.an){ var p = banklaenge(it.an.h); return rect(-p / 2, -0.15, p, 0.3, '#d9a86c', HOLZ2, 0.04, ' rx="0.03"') + rect(-p / 2, -0.17, 0.14, 0.34, '#e03131', '#fff', 0.02) + '<path d="M' + r2(-p / 2 + 0.5) + ' 0 L' + r2(p / 2 - 0.3) + ' 0 M' + r2(p / 2 - 0.5) + ' -0.09 L' + r2(p / 2 - 0.3) + ' 0 L' + r2(p / 2 - 0.5) + ' 0.09" stroke="#8a5a2b" stroke-width="0.04" fill="none"/>' + txt(0, 0.34, it.an.h.toFixed(1) + ' m', 0.2, '#6b5332'); }
       return rect(-1.75, -0.15, 3.5, 0.3, '#d9a86c', HOLZ2, 0.04, ' rx="0.03"') + linie(-1.6, 0, 1.6, 0, '#b5834a', 0.02); }},
@@ -354,7 +370,10 @@ var K = {
   bande:{n:'Unihockeybande (2 m)', g:'tore', w:2, d:0.12, e:2, h:function(){ return 0.5; },
     svg:function(){ return rect(-1, -0.06, 2, 0.12, '#f8f9fa', '#495057', 0.025); }},
   spieler:{n:'Spieler:in', g:'personen', w:0.56, d:0.56, e:3, h:function(){ return 1.6; },
-    svg:function(it){ var t = teamVon(it.team); return '<path d="M-0.12 -0.24 L0 -0.4 L0.12 -0.24 Z" fill="' + t.farbe + '"/>' + kreis(0, 0, 0.28, t.farbe, '#fff', 0.05) + (it.nr ? txt(0, 0.01, String(it.nr), 0.3, t.text) : ''); }},
+    svg:function(it){
+      var t = teamVon(it.team);
+      var nm = (S.namen && it.name) ? '<g transform="rotate(' + r2(-(it.r || 0)) + ')">' + txt(0, 0.55, it.name, 0.3, '#1c2033', ' paint-order="stroke" stroke="#fff" stroke-width="0.11" stroke-linejoin="round"') + '</g>' : '';
+      return '<path d="M-0.12 -0.24 L0 -0.4 L0.12 -0.24 Z" fill="' + t.farbe + '"/>' + kreis(0, 0, 0.28, t.farbe, '#fff', 0.05) + (it.nr ? txt(0, 0.01, String(it.nr), 0.3, t.text) : '') + nm; }},
   lehrer:{n:'Lehrperson', g:'personen', w:0.6, d:0.6, e:3, h:function(){ return 1.8; },
     svg:function(){ return '<path d="M-0.12 -0.26 L0 -0.42 L0.12 -0.26 Z" fill="#212529"/>' + kreis(0, 0, 0.3, '#212529', '#fff', 0.05) + txt(0, 0.01, 'L', 0.34, '#fff'); }},
   zone:{n:'Feld / Zone', g:'zeichnen', w:6, d:4, e:0, groesse:true, h:function(){ return 0.01; },
@@ -364,6 +383,7 @@ var K = {
   text:{n:'Text', g:'zeichnen', w:2, d:0.6, e:5, h:function(){ return 0.01; },
     svg:function(it){ var fs = it.fs || 0.6; return txt(0, 0, it.text || 'Text', fs, it.farbe || '#1c2033', ' paint-order="stroke" stroke="#fff" stroke-width="' + r2(fs * 0.18) + '" stroke-linejoin="round"'); }},
   laufweg:{n:'Laufweg', g:'zeichnen', pfeil:true, e:4, farbe:'#212529'},
+  mass:{n:'Massband', g:'zeichnen', pfeil:true, e:5, farbe:'#d6336c', ende:'beide', mass:true},
   linie:{n:'Linie (ohne Spitze)', g:'zeichnen', pfeil:true, e:4, farbe:'#495057', ende:'keine'},
   ballweg:{n:'Ballweg', g:'zeichnen', pfeil:true, e:4, farbe:'#e8590c', strich:'0.3 0.2'},
   dribbling:{n:'Dribbling', g:'zeichnen', pfeil:true, e:4, farbe:'#7048e8', welle:true}
@@ -383,27 +403,29 @@ function grundflaeche(it){
 
 /* ===================== Zustand ===================== */
 var S = {
-  ansicht:'T', linien:{vb:true, bb:false, hb:false, uh:false, bm:false}, fest:true, raster:true, magnet:true, druck:false,
-  ebenen:{spr:true, tueren:true, korb:true, ringe:true, vorhang:true}, lfarbe:{},
+  klasse:null, namen:true, ansicht:'T', linien:{vb:true, bb:false, hb:false, uh:false, bm:false, fb:false}, fest:true, raster:true, magnet:true, druck:false,
+  ebenen:{spr:true, tueren:true, korb:true, ringe:true, vorhang:true, runter:false}, lfarbe:{}, phasen:[], phase:0,
   items:[], titel:'', notizen:'', sel:[], modus:null, ansicht3d:false
 };
 var vb = null;                 // aktuelle viewBox {x,y,w,h}
 var verlauf = [], verlaufPos = -1;
 
-function datenJetzt(){ return {v:1, ansicht:S.ansicht, linien:S.linien, items:S.items, titel:S.titel, notizen:S.notizen}; }
+function datenJetzt(){ phasenSichern(); return {v:1, ansicht:S.ansicht, linien:S.linien, items:S.items, titel:S.titel, notizen:S.notizen, phasen:S.phasen, phase:S.phase}; }
 function datenLaden(d){
   if(!d || !Array.isArray(d.items)) return false;
   S.items = d.items.filter(function(it){ return it && K[it.t]; }).map(function(it){ return Object.assign({}, it, {id:it.id || neueId()}); });
   if(d.ansicht && ANSICHTEN[d.ansicht]) S.ansicht = d.ansicht;
-  if(d.linien) S.linien = Object.assign({vb:false, bb:false, hb:false, uh:false, bm:false}, d.linien);
+  if(d.linien) S.linien = Object.assign({vb:false, bb:false, hb:false, uh:false, bm:false, fb:false}, d.linien);
   S.titel = d.titel || ''; S.notizen = d.notizen || ''; S.sel = [];
+  S.phasen = Array.isArray(d.phasen) && d.phasen.length > 1 ? d.phasen.filter(function(ph){ return ph && Array.isArray(ph.items); }).map(function(ph){ return {name:String(ph.name || 'Phase'), text:String(ph.text || ''), items:ph.items}; }) : [];
+  S.phase = S.phasen.length ? Math.min(Math.max(0, +d.phase || 0), S.phasen.length - 1) : 0;
   return true;
 }
 function speicherLesen(){ try{ return JSON.parse(lsGet(SPEICHER) || '{}') || {}; }catch(e){ return {}; } }
 function speicherSchreiben(sp){ if(!lsSet(SPEICHER, JSON.stringify(sp))) toast('Speichern im Browser hat nicht geklappt (Speicher voll?).'); }
 function autosave(){
   var sp = speicherLesen(); sp.aktuell = datenJetzt();
-  sp.einst = {fest:S.fest, raster:S.raster, magnet:S.magnet, druck:S.druck, ebenen:S.ebenen, lfarbe:S.lfarbe};
+  sp.einst = {fest:S.fest, raster:S.raster, magnet:S.magnet, druck:S.druck, ebenen:S.ebenen, lfarbe:S.lfarbe, klasse:S.klasse, namen:S.namen};
   speicherSchreiben(sp);
 }
 function merken(){
@@ -444,7 +466,7 @@ function bodenSvg(o){
   // Unihockey (gelb) – grosses Feld 40 × 20 m, Torräume
   if(L.uh){
     var c = lc('uh');
-    s += rect(4.35, 3.85, 40.3, 20.3, 'none', c, lw, ' stroke-dasharray="0.5 0.3"');
+    s += rect(4.35, 3.85, 40.3, 20.3, 'none', c, lw * 1.3);
     [[4.5, 1], [44.5, -1]].forEach(function(e){
       var x0 = e[0] + e[1] * 2.85, x1 = e[0] + e[1] * 6.85;
       s += rect(Math.min(x0, x1), 11.5, 4, 5, 'none', c, lw);
@@ -465,6 +487,12 @@ function bodenSvg(o){
       s += '<path d="M' + r2(x + k * dx) + ' 4 A9 9 0 0 ' + sw + ' ' + (x + k * 9) + ' 12.5 L' + (x + k * 9) + ' 15.5 A9 9 0 0 ' + sw + ' ' + r2(x + k * dx) + ' 24" fill="none" stroke="' + c2 + '" stroke-width="' + lw + '" stroke-dasharray="0.3 0.3"/>';
       s += linie(x + k * 7, 13.5, x + k * 7, 14.5, c2, lw) + linie(x - k * 0.0, 12.5, x, 15.5, c2, lw * 2);
     });
+  }
+  // Fussball (schwarz) – 40 × 20 m, Mittelkreis r 3 m, Strafraum-Bögen r 6 m
+  if(L.fb){
+    var c6 = lc('fb');
+    s += rect(4.5, 4, 40, 20, 'none', c6, lw) + linie(24.5, 4, 24.5, 24, c6, lw) + kreis(24.5, 14, 3, 'none', c6, lw) + kreis(24.5, 14, 0.12, c6);
+    s += '<path d="M4.5 8 A6 6 0 0 1 4.5 20" fill="none" stroke="' + c6 + '" stroke-width="' + lw + '"/><path d="M44.5 8 A6 6 0 0 0 44.5 20" fill="none" stroke="' + c6 + '" stroke-width="' + lw + '"/>';
   }
   for(i = 0; i < 3; i++){
     cx = drittelMitte(i);
@@ -497,7 +525,7 @@ function bodenSvg(o){
     if(L.vb){
       var c5 = druck ? '#9097a1' : lc('vb');
       // (Volleyball: 9 × 18 m, 3-m-Linien je Seite)
-      s += rect(cx - 4.5, 5, 9, 18, 'none', c5, lw * 1.3) + linie(cx - 4.5, 14, cx + 4.5, 14, c5, lw * 1.3) + linie(cx - 4.5, 11, cx + 4.5, 11, c5, lw) + linie(cx - 4.5, 17, cx + 4.5, 17, c5, lw);
+      s += rect(cx - 4.5, 5, 9, 18, 'none', c5, lw * 1.3) + linie(cx - 4.5, 14, cx + 4.5, 14, c5, lw * 1.3) + linie(cx - 4.5, 11, cx + 4.5, 11, c5, lw, ' stroke-dasharray="0.45 0.3"') + linie(cx - 4.5, 17, cx + 4.5, 17, c5, lw, ' stroke-dasharray="0.45 0.3"');
     }
   }
   if(o.fest) s += festSvg(druck);
@@ -522,8 +550,8 @@ function festeTeile(){
     t.push({art:'ringe', x:c - 2.6, y:1.6}, {art:'ringe', x:c + 2.6, y:1.6});
   }
   t.push({art:'schiene', y:1.6});
-  t.push({art:'tafel', y:14}, {art:'stangen', y:4.5, n:6}, {art:'taue', y:12, n:3});
-  [6.5, 10, 18, 22].forEach(function(y){ t.push({art:'wandkorb', y:y}); });
+  t.push({art:'tafel', y:14}, {art:'reck', y:4.2, n:6}, {art:'kletter', y:8.4, n:2}, {art:'taue', y:12.6, n:3});
+  [10.5, 16.5, 20, 24.5].forEach(function(y){ t.push({art:'wandkorb', y:y}); });
   t.push({art:'tuer', y:24, w:2.0});
   return t;
 }
@@ -565,8 +593,13 @@ function festSvg(druck){
       s += linie(0, f.y, 0.6, f.y, grau, 0.05) + rect(0.56, f.y - 0.45, 0.08, 0.9, '#fff', druck ? '#999' : '#343a40', 0.02) + kreis(0.98, f.y, 0.2, 'none', druck ? '#999' : '#e8590c', 0.045);
     } else if(a === 'tafel' && E.korb){
       s += rect(-0.5, f.y - 1.5, 0.5, 3, druck ? '#868e96' : '#1a1d24', null, 0) + drehTxt(-0.25, f.y, -90, 'Anzeige', 0.28, '#fff');
-    } else if(a === 'stangen' && E.ringe){
-      for(i = 0; i < f.n; i++) s += kreis(0.3, f.y + (i - (f.n - 1) / 2) * 0.4, 0.07, blau, '#fff', 0.015);
+    } else if(a === 'reck' && E.ringe){
+      // Wand-Reckstangen: an der Wandhalterung eingehängt, im Plan als Stangen, die von der Wand abstehen
+      s += rect(0, f.y - 1.3, 0.12, 2.6, blau, null, 0);
+      for(i = 0; i < f.n; i++){ var ry = f.y + (i - (f.n - 1) / 2) * 0.42; s += linie(0.1, ry, 1.0, ry, blau, 0.07) + kreis(1.0, ry, 0.06, blau, '#fff', 0.015); }
+      s += drehTxt(-0.25, f.y, -90, 'Reckstangen', 0.28, druck ? '#555' : '#1f3f94');
+    } else if(a === 'kletter' && E.ringe){
+      for(i = 0; i < f.n; i++) s += kreis(0.35, f.y + (i - (f.n - 1) / 2) * 0.55, 0.1, blau, '#fff', 0.02);
       s += drehTxt(-0.25, f.y, -90, 'Kletterstangen', 0.28, druck ? '#555' : '#1f3f94');
     } else if(a === 'taue' && E.ringe){
       for(i = 0; i < f.n; i++) s += kreis(0.3, f.y + (i - (f.n - 1) / 2) * 0.45, 0.09, druck ? '#ced4da' : '#c8a46a', druck ? '#868e96' : '#7a5c00', 0.02);
@@ -574,7 +607,8 @@ function festSvg(druck){
     } else if(a === 'schiene' && E.ringe){
       s += linie(Math.max(0, b.x0), f.y, Math.min(W, b.x1), f.y, blau, 0.05, ' stroke-dasharray="0.4 0.25" stroke-opacity="0.55"');
     } else if(a === 'ringe' && E.ringe){
-      s += kreis(f.x - 0.28, f.y, 0.13, 'none', druck ? '#868e96' : '#e8590c', 0.045) + kreis(f.x + 0.28, f.y, 0.13, 'none', druck ? '#868e96' : '#e8590c', 0.045);
+      if(E.runter) s += kreis(f.x, f.y, 1.3, druck ? '#ced4da' : '#e8590c', druck ? '#868e96' : '#e8590c', 0.04, ' fill-opacity="0.16" stroke-dasharray="0.3 0.2"');
+      s += kreis(f.x - 0.28, f.y, E.runter ? 0.17 : 0.13, 'none', druck ? '#868e96' : '#e8590c', E.runter ? 0.07 : 0.045) + kreis(f.x + 0.28, f.y, E.runter ? 0.17 : 0.13, 'none', druck ? '#868e96' : '#e8590c', E.runter ? 0.07 : 0.045);
     }
   });
   return s;
@@ -647,7 +681,14 @@ function pfeilSvg(it, druck){
   var kopf = '';
   if(ende !== 'keine'){ var e = quadPunkt(it, 0.97); kopf += spitze(it.x2, it.y2, e.x, e.y); }
   if(ende === 'beide'){ var e0 = quadPunkt(it, 0.03); kopf += spitze(it.x1, it.y1, e0.x, e0.y); }
-  return '<path d="' + d + '" fill="none" stroke="' + farbe + '" stroke-width="0.09" stroke-linecap="round" stroke-linejoin="round"' + (k.strich ? ' stroke-dasharray="' + k.strich + '"' : '') + '/>' + kopf +
+  var mlabel = '';
+  if(k.mass){
+    var ml = 0, mv = quadPunkt(it, 0);
+    for(var mi = 1; mi <= 40; mi++){ var mq = quadPunkt(it, mi / 40); ml += Math.hypot(mq.x - mv.x, mq.y - mv.y); mv = mq; }
+    var mm = quadPunkt(it, 0.5);
+    mlabel = rect(mm.x - 0.8, mm.y - 0.26, 1.6, 0.52, '#fff', farbe, 0.03, ' rx="0.12"') + txt(mm.x, mm.y, ml.toFixed(2).replace('.', ',') + ' m', 0.36, farbe);
+  }
+  return '<path d="' + d + '" fill="none" stroke="' + farbe + '" stroke-width="' + (k.mass ? 0.05 : 0.09) + '" stroke-linecap="round" stroke-linejoin="round"' + (k.strich ? ' stroke-dasharray="' + k.strich + '"' : '') + '/>' + kopf + mlabel +
     '<path d="' + bahnPfad(it) + '" fill="none" stroke="transparent" stroke-width="0.6" class="treffer"/>';
 }
 // glatte Bahn als SVG-Pfad (mit Biegepunkten: abgetastet, sonst quadratischer Bogen)
@@ -665,8 +706,9 @@ function elementSvg(it, druck, mitId){
   var idAttr = mitId ? ' data-id="' + it.id + '"' : '';
   if(k.pfeil) return '<g' + idAttr + '>' + pfeilSvg(it, druck) + '</g>';
   var g = grundflaeche(it);
+  var kopfMarke = it.kopf ? '<g fill="none" stroke="#fff" stroke-width="0.05" stroke-opacity="0.9"><rect x="' + r2(-g.w / 2 + 0.06) + '" y="' + r2(-g.d / 2 + 0.06) + '" width="' + r2(g.w - 0.12) + '" height="' + r2(g.d - 0.12) + '" stroke-dasharray="0.12 0.1"/></g><rect x="' + r2(-g.w / 2) + '" y="' + r2(-g.d / 2) + '" width="' + r2(g.w) + '" height="' + r2(g.d) + '" fill="#5c3d1e" fill-opacity="0.38"/>' + txt(g.w > 1 ? -g.w / 2 + 0.3 : 0, 0, '🙃', Math.min(0.42, g.d * 0.85), '#fff') : '';
   var schatten = it.base ? rect(-g.w / 2 + 0.05, -g.d / 2 + 0.08, g.w, g.d, '#000', null, 0, ' fill-opacity="0.28" rx="0.06"') : '';
-  return '<g' + idAttr + ' transform="translate(' + r2(it.x) + ' ' + r2(it.y) + ') rotate(' + r2(it.r || 0) + ')">' + schatten + k.svg(it) +
+  return '<g' + idAttr + ' transform="translate(' + r2(it.x) + ' ' + r2(it.y) + ') rotate(' + r2(it.r || 0) + ')">' + schatten + k.svg(it) + kopfMarke +
     (mitId ? rect(-g.w / 2 - 0.08, -g.d / 2 - 0.08, g.w + 0.16, g.d + 0.16, 'transparent') : '') + '</g>';
 }
 function sortiert(){
@@ -797,7 +839,7 @@ var plan = document.getElementById('plan');
 function bodenZeichnen(){
   document.getElementById('boden').innerHTML = bodenSvg({druck:S.druck, fest:S.fest, linien:S.linien}) + ausgrauen();
 }
-function itemsZeichnen(){ document.getElementById('items').innerHTML = itemsSvg(S.druck, true); ueberZeichnen(); }
+function itemsZeichnen(){ document.getElementById('items').innerHTML = itemsSvg(S.druck, true); ueberZeichnen(); if(S.ansicht3d && drei.positionen) drei.positionen(); }
 function pxProMeter(){ var r = plan.getBoundingClientRect(); return Math.min(r.width / vb.w, r.height / vb.h) || 20; }
 function ueberZeichnen(){
   var s = '', m = 1 / pxProMeter();
@@ -909,11 +951,22 @@ function paletteZeichnen(){
     });
     h += '</div>';
   });
+  var kb = kombisLesen();
+  if(kb.length){
+    h += '<div class="pg-titel">⭐ Meine Geräte</div><div class="pg">';
+    kb.forEach(function(k){ h += '<div class="pi" data-k="' + esc(k.id) + '" title="' + esc(k.name) + ': anklicken oder in die Halle ziehen">' + kombiIcon(k) + '<span>' + esc(k.name) + '</span><b class="kx" data-kdel="' + esc(k.id) + '" title="Löschen">✕</b></div>'; });
+    h += '</div>';
+  }
   document.getElementById('palette').innerHTML = h;
 }
 
 /* ===================== Koordinaten & Ziehen ===================== */
+var letzterPunkt3 = null;
 function svgPunkt(e){
+  if(S.ansicht3d){   // 3D: Punkt auf dem Hallenboden unter dem Mauszeiger
+    var q = drei.bodenPunkt(e); if(q) letzterPunkt3 = q;
+    return letzterPunkt3 || {x:HALLE.W / 2, y:HALLE.H / 2};
+  }
   var pt = plan.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY;
   var p = pt.matrixTransform(plan.getScreenCTM().inverse());
   return {x:p.x, y:p.y};
@@ -935,21 +988,46 @@ function hinzufuegen(it){
 }
 
 // Palette: Klick = in die Mitte setzen, Ziehen = direkt an die Stelle.
-document.getElementById('palette').addEventListener('pointerdown', function(e){
-  var p = e.target.closest('.pi'); if(!p || S.ansicht3d) return;
+function paletteDown(e){
+  var kd = e.target.closest('[data-kdel]');
+  if(kd){
+    e.preventDefault(); var kid = kd.getAttribute('data-kdel');
+    bestaetigen('Eigenes Gerät löschen', 'Dieses gemerkte Gerät aus der Palette entfernen?', 'Löschen', function(){ var sp = speicherLesen(); sp.kombis = (sp.kombis || []).filter(function(k){ return k.id !== kid; }); speicherSchreiben(sp); paletteZeichnen(); });
+    return;
+  }
+  var p = e.target.closest('.pi'); if(!p) return;
   e.preventDefault();
+  if(p.hasAttribute('data-k')){ zieh = {art:'neuK', k:p.getAttribute('data-k'), sx:e.clientX, sy:e.clientY}; return; }
   var t = p.getAttribute('data-t');
   if(K[t].pfeil){ modusSetzen(S.modus === t ? null : t); return; }
-  zieh = {art:'neu', t:t, it:null, sx:e.clientX, sy:e.clientY};
-});
+  zieh = {art:'neu', t:t, it:null, sx:e.clientX, sy:e.clientY, extra:p.hasAttribute('data-name') ? {name:p.getAttribute('data-name'), team:p.getAttribute('data-team') || ''} : null};
+}
+function applyExtra(it, ex){
+  if(!ex) return;
+  if(ex.name) it.name = ex.name;
+  if(ex.team){ it.team = ex.team; it.nr = naechsteNr(ex.team); S.letztesTeam = ex.team; }
+}
+document.getElementById('palette').addEventListener('pointerdown', paletteDown);
+document.getElementById('klasseKarte').addEventListener('pointerdown', paletteDown);
 window.addEventListener('pointermove', function(e){
   if(!zieh) return;
+  if(zieh.art === 'neuK'){
+    var rk = plan.getBoundingClientRect();
+    if(e.clientX < rk.left || e.clientX > rk.right || e.clientY < rk.top || e.clientY > rk.bottom) return;
+    var kk = kombisLesen().filter(function(k){ return k.id === zieh.k; })[0];
+    if(!kk){ zieh = null; return; }
+    var pk = svgPunkt(e), ids = kombiEinsetzen(kk, rasten(pk.x, e), rasten(pk.y, e));
+    zieh = {art:'move', p0:pk, start:ids.map(function(id){ var it2 = itemVon(id); return {it:it2, alt:JSON.parse(JSON.stringify(it2))}; }), refIdx:0, bewegt:true};
+    zieh.hind = hindernisse(ids);
+    if(S.ansicht3d) drei.neu();
+    itemsZeichnen(); eigenschaftenZeichnen(); return;
+  }
   if(zieh.art === 'neu'){
     var r = plan.getBoundingClientRect();
     var drin = e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom;
     if(!drin && !zieh.it) return;
     var p = svgPunkt(e);
-    if(!zieh.it){ zieh.it = beispiel(zieh.t, rasten(p.x, e), rasten(p.y, e)); S.items.push(zieh.it); S.sel = [zieh.it.id]; }
+    if(!zieh.it){ zieh.it = beispiel(zieh.t, rasten(p.x, e), rasten(p.y, e)); applyExtra(zieh.it, zieh.extra); S.items.push(zieh.it); S.sel = [zieh.it.id]; if(S.ansicht3d) drei.neu(); }
     zieh.it.x = rasten(p.x, e); zieh.it.y = rasten(p.y, e);
     itemsZeichnen();
     return;
@@ -959,6 +1037,13 @@ window.addEventListener('pointermove', function(e){
 window.addEventListener('pointerup', function(e){
   if(!zieh) return;
   var z = zieh; zieh = null;
+  if(z.art === 'neuK'){
+    if(Math.hypot(e.clientX - z.sx, e.clientY - z.sy) < 6){
+      var kk2 = kombisLesen().filter(function(k){ return k.id === z.k; })[0];
+      if(kk2){ var b2 = bereich(); kombiEinsetzen(kk2, rasten(Math.min(Math.max(vb.x + vb.w / 2, b2.x0 + 1), b2.x1 - 1), e), rasten(vb.y + vb.h / 2, e)); merken(); allesZeichnen(); }
+    }
+    return;
+  }
   if(z.art === 'neu'){
     if(z.it){
       var r = plan.getBoundingClientRect();
@@ -972,7 +1057,7 @@ window.addEventListener('pointerup', function(e){
       x = Math.min(Math.max(x, b.x0 + 1), b.x1 - 1); y = Math.min(Math.max(y, 1), HALLE.H - 1);
       // nicht genau aufeinander stapeln
       var n = S.items.filter(function(i){ return Math.abs(i.x - x) < 0.6 && Math.abs(i.y - y) < 0.6; }).length;
-      hinzufuegen(beispiel(z.t, rasten(x + n * 0.7), rasten(y + n * 0.5)));
+      var it0 = beispiel(z.t, rasten(x + n * 0.7), rasten(y + n * 0.5)); applyExtra(it0, z.extra); hinzufuegen(it0);
     }
     return;
   }
@@ -1128,7 +1213,7 @@ document.addEventListener('keydown', function(e){
   if(cmd && e.key.toLowerCase() === 'z'){ e.preventDefault(); zurueck(e.shiftKey ? 1 : -1); return; }
   if(cmd && e.key.toLowerCase() === 'y'){ e.preventDefault(); zurueck(1); return; }
   if(e.key === 'Escape'){ modusSetzen(null); S.sel = []; itemsZeichnen(); eigenschaftenZeichnen(); return; }
-  if(!S.sel.length || S.ansicht3d) return;
+  if(!S.sel.length) return;
   if(e.key === 'Delete' || e.key === 'Backspace'){ e.preventDefault(); loeschen(); return; }
   if(cmd && e.key.toLowerCase() === 'd'){ e.preventDefault(); kopieren(); return; }
   if(cmd && e.key.toLowerCase() === 'g'){ e.preventDefault(); if(e.shiftKey) gruppeLoesen(); else gruppieren(); return; }
@@ -1200,7 +1285,7 @@ function eigenschaftenZeichnen(){
   }
   var knoepfe = '<div class="zeile" style="margin-top:10px">' +
     (its.some(function(i){ return !K[i.t].pfeil; }) ? '<button class="btn klein" data-a="dl" type="button" title="Shift+R">⟲ 15°</button><button class="btn klein" data-a="dr" type="button" title="R">⟳ 15°</button><button class="btn klein" data-a="d90" type="button">↻ 90°</button>' : '') +
-    '<button class="btn klein" data-a="kopie" type="button" title="Ctrl/⌘+D">⧉ Kopie</button><button class="btn klein" data-a="weg" type="button" title="Entf" style="color:var(--bad)">🗑️</button></div>';
+    '<button class="btn klein" data-a="kopie" type="button" title="Ctrl/⌘+D">⧉ Kopie</button><button class="btn klein" data-a="kombi" type="button" title="Auswahl als eigenes Gerät in der Palette merken">⭐ Merken</button><button class="btn klein" data-a="weg" type="button" title="Entf" style="color:var(--bad)">🗑️</button></div>';
   var hatGruppe = its.some(function(i){ return i.gid; });
   if(its.length > 1){
     box.innerHTML = '<h3>🎯 ' + its.length + ' Elemente gewählt</h3><p class="leer">Gemeinsam ziehen, drehen, kopieren oder löschen.</p>' + knoepfe +
@@ -1215,6 +1300,7 @@ function eigenschaftenZeichnen(){
     var traegt = S.items.filter(function(o){ return o.base === it.id; });
     if(traegt.length) h += '<p class="leer">Trägt: ' + traegt.map(function(o){ return esc(K[o.t].n); }).join(', ') + '</p>';
     if(it.gid) h += '<p class="leer">🔗 Teil einer Gruppe</p>';
+    if(k.kopf) h += '<div class="zeile" style="margin-top:8px"><button class="btn klein' + (it.kopf ? ' an' : '') + '" data-a="kopf" type="button" title="Gerät umdrehen, z. B. Bank als Balancierbalken">🙃 Auf den Kopf gestellt</button></div>';
     if(it.t === 'langbank'){
       h += '<label for="eHaken">In Sprossenwand einhängen (Sprosse auf …)</label><select class="feld" id="eHaken">' + [[0, 'nicht eingehängt'], [0.5, '0.5 m'], [1.0, '1.0 m'], [1.5, '1.5 m'], [2.0, '2.0 m']].map(function(o){ return '<option value="' + o[0] + '"' + ((it.an ? it.an.h : 0) === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select>';
     }
@@ -1224,6 +1310,7 @@ function eigenschaftenZeichnen(){
     }
     if(it.t === 'spieler'){
       h += '<label>Team</label><div class="zeile">' + TEAMS.map(function(t){ return '<button type="button" class="farbe' + (it.team === t.id ? ' an' : '') + '" data-team="' + t.id + '" style="background:' + t.farbe + '" title="' + t.id + '"></button>'; }).join('') + '</div>';
+      h += '<label for="eName">Name (erscheint im Plan, wenn «Namen zeigen» an ist)</label><input class="feld" id="eName" maxlength="30" value="' + esc(it.name || '') + '">';
       h += '<label for="eNr">Nummer (leer = ohne)</label><input class="feld" id="eNr" type="number" min="0" max="99" value="' + esc(it.nr || '') + '">';
     }
     if(it.t === 'posten') h += '<label for="eNr">Posten-Nummer</label><input class="feld" id="eNr" type="number" min="1" max="99" value="' + esc(it.nr || 1) + '">';
@@ -1250,7 +1337,8 @@ function eigenschaftenZeichnen(){
       var a = b.getAttribute('data-a');
       if(a === 'dl') drehen(-15); if(a === 'dr') drehen(15); if(a === 'd90') drehen(90);
       if(a === 'kopie') kopieren(); if(a === 'weg') loeschen();
-      if(a === 'gruppe') gruppieren(); if(a === 'trennen') gruppeLoesen();
+      if(a === 'gruppe') gruppieren(); if(a === 'trennen') gruppeLoesen(); if(a === 'kombi') kombiSpeichern();
+      if(a === 'kopf'){ var g1 = gewaehlte()[0]; if(g1){ g1.kopf = !g1.kopf; if(g1.kopf) delete g1.an; merken(); allesZeichnen(); } }
       if(a === 'gerade' || a === 'bogen' || a === 'kreis') pfeilForm(a);
     });
   });
@@ -1261,6 +1349,7 @@ function eigenschaftenZeichnen(){
   box.querySelectorAll('[data-farbe]').forEach(function(b){ b.addEventListener('click', function(){ var f = b.getAttribute('data-farbe'); setzen(function(i){ i.farbe = f; }); eigenschaftenZeichnen(); }); });
   var bind = function(id, fn, ev){ var el = document.getElementById(id); if(el) el.addEventListener(ev || 'change', function(){ setzen(function(i){ fn(i, el.value); }); }); };
   bind('eEnde', function(i, v){ i.ende = v; });
+  bind('eName', function(i, v){ i.name = v; }, 'input');
   var hk = document.getElementById('eHaken');
   if(hk) hk.addEventListener('change', function(){
     var v = +hk.value;
@@ -1327,6 +1416,197 @@ function leibchenText(m){
   return teams.length > 1 ? 'Leibchen: ' + teams.map(function(t){ return m.personen[t] + ' ' + t; }).join(', ') : '';
 }
 
+/* ===================== Ablauf in Phasen ===================== */
+var abspiel = null;
+function phasenSichern(){ if(S.phasen.length && S.phasen[S.phase]) S.phasen[S.phase].items = JSON.parse(JSON.stringify(S.items)); }
+function phaseWechseln(i){
+  if(i === S.phase || !S.phasen[i]) return;
+  phasenSichern(); S.phase = i; S.items = JSON.parse(JSON.stringify(S.phasen[i].items)); S.sel = [];
+  verlauf = []; verlaufPos = -1; merken(); allesZeichnen(); phasenZeichnen();
+}
+function phaseNeu(){
+  if(!S.phasen.length){ S.phasen = [{name:'Phase 1', text:'', items:JSON.parse(JSON.stringify(S.items))}]; S.phase = 0; }
+  phasenSichern();
+  S.phasen.splice(S.phase + 1, 0, {name:'Phase ' + (S.phasen.length + 1), text:'', items:JSON.parse(JSON.stringify(S.items))});
+  var ziel = S.phase + 1; S.phase = S.phase;   // Wechsel unten
+  S.phase = ziel - 1; phaseWechseln(ziel);
+}
+function phaseLoeschen(){
+  S.phasen.splice(S.phase, 1);
+  if(S.phasen.length < 2){ if(S.phasen[0]) S.items = JSON.parse(JSON.stringify(S.phasen[0].items)); S.phasen = []; S.phase = 0; }
+  else { S.phase = Math.min(S.phase, S.phasen.length - 1); S.items = JSON.parse(JSON.stringify(S.phasen[S.phase].items)); }
+  S.sel = []; verlauf = []; verlaufPos = -1; merken(); allesZeichnen(); phasenZeichnen();
+}
+function phasenZeichnen(){
+  var el = document.getElementById('phasen'), info = document.getElementById('phasenInfo');
+  if(!S.phasen.length){
+    el.innerHTML = '<span class="leer">Ablauf:</span><button class="chip" data-p="neu" type="button" title="Mehrere Aufbauten hintereinander, z. B. Aufwärmen → Hauptteil → Spiel">➕ Phasen anlegen</button>';
+    info.hidden = true; return;
+  }
+  el.innerHTML = '<span class="leer">Ablauf:</span>' + S.phasen.map(function(ph, i){ return '<button class="chip' + (i === S.phase ? ' an' : '') + '" data-p="' + i + '" type="button">' + (i + 1) + ' · ' + esc(ph.name) + '</button>'; }).join('') +
+    '<button class="chip" data-p="neu" type="button" title="Neue Phase als Kopie der aktuellen">➕ Phase</button><button class="chip" data-p="edit" type="button" title="Name und Beschreibung der Phase">✏️</button>' +
+    '<button class="chip' + (abspiel ? ' an' : '') + '" data-p="play" type="button" title="Phasen nacheinander abspielen">' + (abspiel ? '⏸ Stopp' : '▶ Abspielen') + '</button><button class="chip" data-p="weg" type="button" title="Diese Phase löschen">🗑️</button>';
+  var cur = S.phasen[S.phase];
+  info.hidden = false; info.innerHTML = '<b>' + esc(cur.name) + '</b>' + (cur.text ? '<br>' + esc(cur.text) : '');
+}
+document.getElementById('phasen').addEventListener('click', function(e){
+  var b = e.target.closest('[data-p]'); if(!b) return;
+  var v = b.getAttribute('data-p');
+  if(v === 'neu') phaseNeu();
+  else if(v === 'play'){
+    if(abspiel){ clearInterval(abspiel); abspiel = null; } else abspiel = setInterval(function(){ phaseWechseln((S.phase + 1) % S.phasen.length); }, 3500);
+    phasenZeichnen();
+  }
+  else if(v === 'edit'){
+    var cur = S.phasen[S.phase];
+    dialog('✏️ Phase', '<label>Name</label><input class="feld" id="phName" maxlength="40" value="' + esc(cur.name) + '" style="width:100%"><label style="display:block;margin-top:8px">Beschreibung (erscheint im Plan und auf dem Ausdruck)</label><textarea class="feld" id="phText" rows="3" style="width:100%">' + esc(cur.text) + '</textarea>', [{t:'Abbrechen'}, {t:'Speichern', primaer:true, fn:function(hg){
+      cur.name = hg.querySelector('#phName').value.trim() || cur.name; cur.text = hg.querySelector('#phText').value; phasenZeichnen(); autosave();
+    }}]);
+  }
+  else if(v === 'weg') bestaetigen('Phase löschen', '«' + S.phasen[S.phase].name + '» wirklich löschen?', 'Löschen', function(){ phaseLoeschen(); });
+  else phaseWechseln(+v);
+});
+
+/* ===================== Eigene Geräte (gespeicherte Kombinationen) ===================== */
+function kombisLesen(){ return speicherLesen().kombis || []; }
+function kombiSpeichern(){
+  var its = gewaehlte(); if(!its.length) return;
+  var ref = its.filter(function(i){ return !K[i.t].pfeil; })[0] || its[0];
+  var ox = ref.x != null ? ref.x : ref.x1, oy = ref.y != null ? ref.y : ref.y1;
+  dialog('⭐ Als eigenes Gerät merken', '<p class="leer">' + its.length + ' Element' + (its.length > 1 ? 'e' : '') + ' (mit Stapeln und Gruppen) erscheinen danach links unter «Meine Geräte».</p><input class="feld" id="kName" maxlength="40" placeholder="z. B. Kasten mit Matte" style="width:100%">', [{t:'Abbrechen'}, {t:'Speichern', primaer:true, fn:function(hg){
+    var name = hg.querySelector('#kName').value.trim();
+    if(!name){ toast('Bitte einen Namen eingeben.'); return false; }
+    var ids = its.map(function(i){ return i.id; });
+    var items = its.map(function(it){
+      var c = JSON.parse(JSON.stringify(it)); delete c.id;
+      var sh = function(v, o){ return r2(v - o); };
+      if(K[c.t].pfeil){ c.x1 = sh(c.x1, ox); c.x2 = sh(c.x2, ox); c.y1 = sh(c.y1, oy); c.y2 = sh(c.y2, oy); if(c.cx != null){ c.cx = sh(c.cx, ox); c.cy = sh(c.cy, oy); } if(c.pts) c.pts = c.pts.map(function(q){ return {x:sh(q.x, ox), y:sh(q.y, oy)}; }); }
+      else { c.x = sh(c.x, ox); c.y = sh(c.y, oy); }
+      if(c.base){ var bi = ids.indexOf(c.base); if(bi >= 0) c.bi = bi; delete c.base; }
+      return c;
+    });
+    var sp = speicherLesen(); sp.kombis = (sp.kombis || []).concat([{id:neueId(), name:name, items:items}]);
+    speicherSchreiben(sp); paletteZeichnen(); toast('«' + name + '» gemerkt – links unter «Meine Geräte»');
+  }}]);
+}
+function kombiEinsetzen(k, x, y){
+  var gm = {}, neu = k.items.map(function(c0){
+    var c = JSON.parse(JSON.stringify(c0)); c.id = neueId();
+    if(K[c.t].pfeil){ c.x1 = r2(c.x1 + x); c.x2 = r2(c.x2 + x); c.y1 = r2(c.y1 + y); c.y2 = r2(c.y2 + y); if(c.cx != null){ c.cx = r2(c.cx + x); c.cy = r2(c.cy + y); } if(c.pts) c.pts = c.pts.map(function(q){ return {x:r2(q.x + x), y:r2(q.y + y)}; }); }
+    else { c.x = r2(c.x + x); c.y = r2(c.y + y); }
+    if(c.gid){ gm[c.gid] = gm[c.gid] || 'g' + neueId(); c.gid = gm[c.gid]; }
+    return c;
+  });
+  neu.forEach(function(c){ if(c.bi != null){ c.base = neu[c.bi].id; delete c.bi; } });
+  neu.forEach(function(c){ S.items.push(c); });
+  S.sel = neu.map(function(c){ return c.id; });
+  return S.sel.slice();
+}
+function kombiIcon(k){
+  var x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity, s = '';
+  k.items.slice().sort(function(a, b){ return (K[a.t].e + (a.bi != null ? 10 : 0)) - (K[b.t].e + (b.bi != null ? 10 : 0)); }).forEach(function(c){
+    var g = K[c.t].pfeil ? {w:0.1, d:0.1} : grundflaeche(c), cx = c.x != null ? c.x : (c.x1 + c.x2) / 2, cy = c.y != null ? c.y : (c.y1 + c.y2) / 2, m = Math.max(g.w, g.d) / 2 + 0.1;
+    x0 = Math.min(x0, cx - m); x1 = Math.max(x1, cx + m); y0 = Math.min(y0, cy - m); y1 = Math.max(y1, cy + m);
+    s += elementSvg(c, false, false);
+  });
+  var w = Math.max(x1 - x0, 0.7), h = Math.max(y1 - y0, 0.35);
+  return '<svg viewBox="' + r2(x0 - 0.1) + ' ' + r2(y0 - 0.1) + ' ' + r2(w + 0.2) + ' ' + r2(h + 0.2) + '">' + s + '</svg>';
+}
+
+/* ===================== Klasse, Teams, Namen ===================== */
+var TEAMNAMEN = {rot:'Rot', blau:'Blau', gelb:'Gelb', gruen:'Grün', orange:'Orange', weiss:'Weiss'};
+function bruecke(){
+  try{ if(window.parent && window.parent !== window && window.parent.hallenplanerBruecke) return window.parent.hallenplanerBruecke; }catch(e){}
+  try{ if(window.opener && window.opener.hallenplanerBruecke) return window.opener.hallenplanerBruecke; }catch(e){}
+  return null;
+}
+function listenLesen(){ return speicherLesen().listen || []; }
+function klasseSetzen(name, namen){
+  var gleich = {};
+  S.klasse = {name:name, schueler:namen.map(function(n){ var alt = S.klasse && S.klasse.name === name ? S.klasse.schueler.filter(function(x){ return x.n === n; })[0] : null; return {n:n, team:alt ? alt.team : null}; })};
+  autosave(); klasseZeichnen();
+}
+function klasseZeichnen(){
+  var box = document.getElementById('klasseKarte'), k = S.klasse;
+  var h = '<h3>👥 Klasse &amp; Teams</h3>';
+  h += '<div class="zeile"><button class="btn klein" data-k="liste" type="button">📋 Liste wählen / erstellen</button></div>';
+  if(!k || !k.schueler.length){
+    box.innerHTML = h + '<p class="leer" style="margin-top:8px">Noch keine Klasse geladen. Eigene Liste eintippen oder (wenn der Hallenplaner in der Library läuft) eine Gruppe aus der Library laden.</p>';
+  } else {
+    h += '<p class="leer" style="margin:8px 0 4px"><b>' + esc(k.name) + '</b> · ' + k.schueler.length + ' Schüler:innen · Name anklicken oder in die Halle ziehen</p>';
+    h += '<label style="display:flex;gap:7px;align-items:center;margin:4px 0;font-size:13px;color:var(--text)"><input type="checkbox" id="kNamen"' + (S.namen ? ' checked' : '') + '>Namen im Plan zeigen</label>';
+    h += '<div class="zeile" style="margin:6px 0"><button class="btn klein" data-k="teams" type="button">🎲 Teams bilden</button><button class="btn klein" data-k="alle" type="button" title="Alle als Spieler in die Halle setzen">Alle in die Halle</button></div>';
+    h += '<div style="max-height:200px;overflow:auto">' + k.schueler.map(function(sch){
+      var t = sch.team ? teamVon(sch.team) : null;
+      return '<div class="pi kz" data-t="spieler" data-name="' + esc(sch.n) + '" data-team="' + esc(sch.team || '') + '" style="--c:' + (t ? t.farbe : '#adb5bd') + '"><span>' + esc(sch.n) + '</span></div>';
+    }).join('') + '</div>';
+    box.innerHTML = h;
+    box.querySelector('#kNamen').addEventListener('change', function(){ S.namen = this.checked; autosave(); itemsZeichnen(); if(S.ansicht3d) drei.neu(); });
+  }
+  if(!k || !k.schueler.length) box.innerHTML = box.innerHTML;
+  box.querySelectorAll('[data-k]').forEach(function(b){
+    b.addEventListener('click', function(){
+      var a = b.getAttribute('data-k');
+      if(a === 'liste') listenDialog(); if(a === 'teams') teamsDialog(); if(a === 'alle') alleSetzen();
+    });
+  });
+}
+function listenDialog(){
+  var eigene = listenLesen(), br = bruecke();
+  var h = '<p class="leer">Namen bleiben nur in diesem Browser. Auf dem Plan siehst du sie, wenn «Namen im Plan zeigen» an ist.</p>';
+  h += '<div class="pg-titel">Meine Listen</div><ul class="liste" id="lEigene">' + (eigene.length ? eigene.map(function(l){ return '<li><span><b>' + esc(l.name) + '</b><small>' + l.namen.length + ' Namen</small></span><button class="btn klein primaer" type="button" data-lade="' + esc(l.id) + '">Laden</button><button class="btn klein" type="button" data-lweg="' + esc(l.id) + '" title="Liste löschen">🗑️</button></li>'; }).join('') : '<li class="leer">Noch keine eigene Liste.</li>') + '</ul>';
+  h += '<div class="pg-titel">Aus der Library</div>' + (br ? '<ul class="liste" id="lLib"><li class="leer">Wird geladen …</li></ul>' : '<p class="leer">Nur verfügbar, wenn der Hallenplaner innerhalb der Library geöffnet ist (Gruppen aus «Wer macht mit?»).</p>');
+  h += '<div class="pg-titel">Neue Liste</div><input class="feld" id="lName" maxlength="40" placeholder="Name der Liste, z. B. Sport 2. Sek" style="width:100%"><textarea class="feld" id="lNamen" rows="6" style="width:100%;margin-top:6px" placeholder="Ein Name pro Zeile (oder durch Komma getrennt)"></textarea>';
+  var d = dialog('👥 Klasse laden', h, [{t:'Schliessen'}, {t:'Speichern & laden', primaer:true, fn:function(hg){
+    var name = hg.querySelector('#lName').value.trim(), namen = hg.querySelector('#lNamen').value.split(/[\n,;]+/).map(function(x){ return x.trim(); }).filter(Boolean);
+    if(!name || !namen.length){ toast('Name der Liste und mindestens ein Name nötig.'); return false; }
+    var sp = speicherLesen(); sp.listen = (sp.listen || []).filter(function(l){ return l.name !== name; }).concat([{id:neueId(), name:name, namen:namen}]); speicherSchreiben(sp);
+    klasseSetzen(name, namen); toast('«' + name + '» geladen');
+  }}]);
+  d.el.querySelectorAll('[data-lade]').forEach(function(b){ b.addEventListener('click', function(){ var l = listenLesen().filter(function(x){ return x.id === b.getAttribute('data-lade'); })[0]; if(l){ klasseSetzen(l.name, l.namen); d.zu(); } }); });
+  d.el.querySelectorAll('[data-lweg]').forEach(function(b){ b.addEventListener('click', function(){ var sp = speicherLesen(); sp.listen = (sp.listen || []).filter(function(x){ return x.id !== b.getAttribute('data-lweg'); }); speicherSchreiben(sp); d.zu(); listenDialog(); }); });
+  if(br){
+    br.listen().then(function(liste){
+      var ul = d.el.querySelector('#lLib'); if(!ul) return;
+      ul.innerHTML = liste.length ? liste.map(function(l, i){ return '<li><span><b>' + esc(l.name) + '</b><small>' + l.namen.length + ' Namen</small></span><button class="btn klein primaer" type="button" data-lib="' + i + '">Laden</button></li>'; }).join('') : '<li class="leer">Keine Gruppen gefunden.</li>';
+      ul.querySelectorAll('[data-lib]').forEach(function(b){ b.addEventListener('click', function(){ var l = liste[+b.getAttribute('data-lib')]; klasseSetzen(l.name.replace(/^👥\s*/, ''), l.namen); d.zu(); toast('«' + l.name + '» geladen'); }); });
+    }).catch(function(){ var ul = d.el.querySelector('#lLib'); if(ul) ul.innerHTML = '<li class="leer">Library-Gruppen konnten nicht gelesen werden.</li>'; });
+  }
+}
+function mischen(a){ a = a.slice(); for(var i = a.length - 1; i > 0; i--){ var j = Math.floor(Math.random() * (i + 1)), t = a[i]; a[i] = a[j]; a[j] = t; } return a; }
+function teamsDialog(){
+  var h = '<label>Anzahl Teams</label><select class="feld" id="tAnz">' + [2, 3, 4, 5, 6].map(function(n){ return '<option' + (n === 4 ? ' selected' : '') + '>' + n + '</option>'; }).join('') + '</select>' +
+    '<label style="display:block;margin-top:8px">Verteilung</label><select class="feld" id="tArt"><option value="zufall">zufällig gemischt</option><option value="abc">nach Alphabet abwechselnd</option><option value="block">nach Liste in Blöcken</option></select>' +
+    '<label style="display:flex;gap:7px;align-items:center;margin-top:10px;color:var(--text)"><input type="checkbox" id="tPlatz" checked>Gleich in die Halle setzen (jedes Team in eine Zone)</label>';
+  dialog('🎲 Teams bilden', h, [{t:'Abbrechen'}, {t:'Teams bilden', primaer:true, fn:function(hg){
+    var n = +hg.querySelector('#tAnz').value, art = hg.querySelector('#tArt').value, ids = TEAMS.slice(0, n).map(function(t){ return t.id; });
+    var sch = S.klasse.schueler.slice();
+    if(art === 'zufall') sch = mischen(sch); else if(art === 'abc') sch.sort(function(a, b){ return a.n.localeCompare(b.n, 'de'); });
+    sch.forEach(function(x, i){ x.team = art === 'block' ? ids[Math.min(n - 1, Math.floor(i * n / sch.length))] : ids[i % n]; });
+    autosave(); klasseZeichnen();
+    if(hg.querySelector('#tPlatz').checked) alleSetzen(); else toast('Teams gebildet – Namen anklicken oder «Alle in die Halle»');
+  }}]);
+}
+// Alle Schüler:innen als Spieler in die Halle: pro Team ein Block mit Zone
+function alleSetzen(){
+  var k = S.klasse; if(!k || !k.schueler.length) return;
+  var b = bereich(), teams = {}, ohne = [];
+  k.schueler.forEach(function(x){ if(x.team){ (teams[x.team] = teams[x.team] || []).push(x); } else ohne.push(x); });
+  var ids = Object.keys(teams);
+  if(ohne.length) ids.push('');
+  if(!ids.length) return;
+  var breite = (b.x1 - b.x0 - 3) / ids.length, neu = [];
+  ids.forEach(function(tid, ti){
+    var liste = tid ? teams[tid] : ohne, cols = Math.min(4, Math.max(2, Math.ceil(Math.sqrt(liste.length)))), rows = Math.ceil(liste.length / cols);
+    var cx = b.x0 + 1.5 + breite * (ti + 0.5), cy = HALLE.H / 2, w = cols * 1.5 + 1, d = rows * 1.5 + 1.8;
+    if(tid) neu.push(P('zone', cx, cy, {w:w, d:d, farbe:teamVon(tid).farbe, text:'Team ' + TEAMNAMEN[tid]}));
+    liste.forEach(function(x, i){
+      neu.push(P('spieler', r2(cx - (cols - 1) * 0.75 + (i % cols) * 1.5), r2(cy - (rows - 1) * 0.75 + Math.floor(i / cols) * 1.5 + 0.3), {team:tid || 'weiss', nr:i + 1, name:x.n}));
+    });
+  });
+  S.items = S.items.concat(neu); S.sel = []; merken(); allesZeichnen(); toast(k.schueler.length + ' Schüler:innen in die Halle gesetzt');
+}
+
 /* ===================== Kopfleiste ===================== */
 function linienZeichnen(){
   document.getElementById('linien').innerHTML = LINIEN.map(function(l){
@@ -1359,7 +1639,7 @@ function ebenenZeichnen(){
     [sw('<rect x="1" y="1" width="24" height="10" fill="#9d90c4" fill-opacity=".6"/><polyline points="1,3 5,9 9,3 13,9 17,3 21,9 25,3" fill="none" stroke="#4b3f78"/>'), 'Trennvorhang = Stoff, nicht anspielen'],
     [sw('<line x1="1" y1="6" x2="25" y2="6" stroke="#4b3f78" stroke-dasharray="3 2.5"/>'), 'Vorhang hochgezogen'],
     [sw('<circle cx="7" cy="6" r="3.3" fill="none" stroke="#e8590c" stroke-width="1.4"/><circle cx="17" cy="6" r="3.3" fill="none" stroke="#e8590c" stroke-width="1.4"/>'), 'Ringe (Deckenschiene)'],
-    [sw('<circle cx="5" cy="6" r="2" fill="#2b5fb4"/><circle cx="11" cy="6" r="2" fill="#2b5fb4"/><circle cx="19" cy="6" r="2.4" fill="#c8a46a" stroke="#7a5c00"/>'), 'Kletterstangen · Taue'],
+    [sw('<line x1="2" y1="3" x2="12" y2="3" stroke="#2b5fb4" stroke-width="2"/><line x1="2" y1="7" x2="12" y2="7" stroke="#2b5fb4" stroke-width="2"/><circle cx="17" cy="6" r="2.4" fill="#2b5fb4"/><circle cx="23" cy="6" r="2.4" fill="#c8a46a" stroke="#7a5c00"/>'), 'Reckstangen · Kletterstangen · Taue'],
     [sw('<rect x="3" y="4" width="20" height="2" fill="#fff" stroke="#343a40" stroke-width=".6"/><circle cx="13" cy="9" r="2.4" fill="none" stroke="#e8590c" stroke-width="1.2"/>'), 'Basketballkorb']
   ];
   document.getElementById('ebenenKarte').innerHTML = '<h3>🧭 Halle &amp; Ebenen</h3>' +
@@ -1385,7 +1665,7 @@ document.getElementById('notizIn').addEventListener('input', function(){ S.notiz
 document.getElementById('notizIn').addEventListener('change', merken);
 document.getElementById('neuBtn').addEventListener('click', function(){
   bestaetigen('Neuer Aufbau', 'Alle Elemente aus der Halle entfernen? (Rückgängig mit ↶ möglich)', 'Leeren', function(){
-    S.items = []; S.sel = []; S.titel = ''; S.notizen = '';
+    S.items = []; S.sel = []; S.titel = ''; S.notizen = ''; S.phasen = []; S.phase = 0; phasenZeichnen();
     document.getElementById('titelIn').value = ''; document.getElementById('notizIn').value = '';
     merken(); allesZeichnen();
   });
@@ -1453,7 +1733,7 @@ function aufbautenDialog(){
 function nachLaden(){
   document.getElementById('ansicht').value = S.ansicht;
   document.getElementById('titelIn').value = S.titel; document.getElementById('notizIn').value = S.notizen;
-  linienZeichnen(); einpassen(); merken(); allesZeichnen();
+  linienZeichnen(); einpassen(); merken(); allesZeichnen(); phasenZeichnen();
 }
 
 /* ===================== Vorlagen ===================== */
@@ -1547,13 +1827,21 @@ function planSvgString(druck){
     bodenSvg({druck:druck, fest:S.fest, linien:S.linien}) + itemsSvg(druck, false) + '</svg>';
 }
 function druckVorbereiten(){
-  var m = materialDaten(), a = document.getElementById('ansicht');
-  var h = '<h1>' + esc(S.titel || 'Hallenplan') + '</h1><div class="unter">' + esc(a.options[a.selectedIndex].text) + ' · Dreifachhalle Altnau</div>';
-  h += planSvgString(true);
-  h += '<div class="spalten"><div><h2>Material</h2><ul>' + (m.geraete.length ? m.geraete.map(function(g){ return '<li>' + g[1] + '× ' + esc(g[0]) + '</li>'; }).join('') : '<li>–</li>') + '</ul>' +
-    (leibchenText(m) ? '<p>' + esc(leibchenText(m)) + '</p>' : '') + '</div>';
-  if(S.notizen) h += '<div><h2>Notizen</h2><div class="notiz">' + esc(S.notizen) + '</div></div>';
-  h += '</div>';
+  phasenSichern();
+  var a = document.getElementById('ansicht'), orig = S.items;
+  var teile = S.phasen.length > 1 ? S.phasen : [{name:'', text:'', items:S.items}];
+  var h = '';
+  teile.forEach(function(ph, i){
+    S.items = ph.items;
+    var m = materialDaten();
+    h += '<section><h1>' + esc(S.titel || 'Hallenplan') + (ph.name && teile.length > 1 ? ' – ' + esc(ph.name) + ' <small>(' + (i + 1) + '/' + teile.length + ')</small>' : '') + '</h1><div class="unter">' + esc(a.options[a.selectedIndex].text) + ' · Dreifachhalle Altnau' + (ph.text ? ' · ' + esc(ph.text) : '') + '</div>';
+    h += planSvgString(true);
+    h += '<div class="spalten"><div><h2>Material</h2><ul>' + (m.geraete.length ? m.geraete.map(function(g){ return '<li>' + g[1] + '× ' + esc(g[0]) + '</li>'; }).join('') : '<li>–</li>') + '</ul>' +
+      (leibchenText(m) ? '<p>' + esc(leibchenText(m)) + '</p>' : '') + '</div>';
+    if(S.notizen && i === 0) h += '<div><h2>Notizen</h2><div class="notiz">' + esc(S.notizen) + '</div></div>';
+    h += '</div></section>';
+  });
+  S.items = orig;
   document.getElementById('druck').innerHTML = h;
 }
 window.addEventListener('beforeprint', druckVorbereiten);
@@ -1615,10 +1903,71 @@ var drei = (function(){
         sonne.shadow.bias = -0.0005;
         scene.add(sonne); scene.add(sonne.target);
         drei.sonne = sonne;
+        eingabe();
       }
       groesse(); neu(); kameraSetzen('schraeg');
       if(!laeuft){ laeuft = true; schleife(); }
     }).catch(function(err){ console.error(err); hinweis(''); toast('3D konnte nicht geladen werden.'); ansicht3d(false); });
+  }
+  var kartei = {}, auswahlGrp = null, ray = null, leer3 = null;
+  function ndc(e){ var r = renderer.domElement.getBoundingClientRect(); return new T.Vector2((e.clientX - r.left) / r.width * 2 - 1, -((e.clientY - r.top) / r.height * 2 - 1)); }
+  function strahl(e){ if(!ray) ray = new T.Raycaster(); ray.setFromCamera(ndc(e), kamera); return ray; }
+  function trefferId(e){
+    if(!wurzel) return null;
+    var hits = strahl(e).intersectObjects(wurzel.children, true);
+    for(var i = 0; i < hits.length; i++){ var o = hits[i].object; while(o){ if(o.userData && o.userData.itemId) return o.userData.itemId; o = o.parent; } }
+    return null;
+  }
+  function bodenPunkt(e){
+    if(!kamera || !renderer) return null;
+    var p = new T.Vector3();
+    if(!strahl(e).ray.intersectPlane(new T.Plane(new T.Vector3(0, 1, 0), 0), p)) return null;
+    return {x:p.x + HALLE.W / 2, y:p.z + HALLE.H / 2};
+  }
+  // Geräte im 3D-Modell anklicken, ziehen, drehen (R), löschen (Entf) – dieselbe Logik wie im Grundriss
+  function eingabe(){
+    renderer.domElement.addEventListener('pointerdown', function(e){
+      if(e.button !== 0 || zieh) return;
+      var id = trefferId(e);
+      leer3 = id ? null : {x:e.clientX, y:e.clientY};
+      if(!id) return;
+      e.stopImmediatePropagation(); ctrl.enabled = false;
+      if(e.shiftKey){
+        var tei = huelleVon(id), schon = S.sel.indexOf(id) >= 0;
+        S.sel = schon ? S.sel.filter(function(x){ return tei.indexOf(x) < 0; }) : S.sel.concat(tei.filter(function(x){ return S.sel.indexOf(x) < 0; }));
+        itemsZeichnen(); eigenschaftenZeichnen(); return;
+      }
+      if(S.sel.indexOf(id) < 0) S.sel = huelleVon(id);
+      var p = bodenPunkt(e) || {x:HALLE.W / 2, y:HALLE.H / 2}; letzterPunkt3 = p;
+      zieh = {art:'move', p0:p, start:S.sel.slice().sort(function(a, b){ return (b === id) - (a === id); }).map(function(sid){ var it2 = itemVon(sid); return {it:it2, alt:JSON.parse(JSON.stringify(it2))}; }), refIdx:0, bewegt:false};
+      zieh.hind = hindernisse(S.sel);
+      itemsZeichnen(); eigenschaftenZeichnen();
+    }, true);
+    window.addEventListener('pointerup', function(e){
+      if(ctrl) ctrl.enabled = true;
+      if(leer3 && S.ansicht3d && Math.hypot(e.clientX - leer3.x, e.clientY - leer3.y) < 5 && S.sel.length){ S.sel = []; itemsZeichnen(); eigenschaftenZeichnen(); }
+      leer3 = null;
+    });
+  }
+  function auswahl(){
+    if(!scene) return;
+    if(auswahlGrp){ scene.remove(auswahlGrp); auswahlGrp = null; }
+    auswahlGrp = new T.Group();
+    S.sel.forEach(function(id){
+      var o = kartei[id]; if(!o) return;
+      var b = new T.Box3().setFromObject(o); if(b.isEmpty()) return;
+      auswahlGrp.add(new T.Box3Helper(b, 0xff3d7f));
+    });
+    scene.add(auswahlGrp);
+  }
+  // beim Ziehen nur die Positionen nachführen (kein Neuaufbau)
+  function positionen(){
+    if(!scene) return;
+    S.items.forEach(function(it){
+      var o = kartei[it.id]; if(!o || K[it.t].pfeil || !o.userData.off) return;
+      o.position.set(wx(it.x) + o.userData.off.x, elev(it) + o.userData.off.y, wz(it.y) + o.userData.off.z);
+    });
+    auswahl();
   }
   function stopp(){ laeuft = false; }
   function schleife(){ if(!laeuft) return; requestAnimationFrame(schleife); ctrl.update(); renderer.render(scene, kamera); }
@@ -1755,7 +2104,11 @@ var drei = (function(){
     vbnetz:function(it){ return netz(9.5, it.hoehe || 2.24, 1.0, 4.9); },
     bmnetz:function(it){ return netz(6.1, it.hoehe || 1.55, (it.hoehe || 1.55) > 1.7 ? 0.9 : 0.76, 3.35); },
     bande:function(){ return kiste(2, 0.5, 0.03, '#f8f9fa', 0, 0.25); },
-    spieler:function(it){ return figur(teamVon(it.team).farbe, it.nr ? String(it.nr) : '', teamVon(it.team).text, 1.0); },
+    spieler:function(it){
+      var g = figur(teamVon(it.team).farbe, it.nr ? String(it.nr) : '', teamVon(it.team).text, 1.0);
+      if(S.namen && it.name){ var en = etikett(it.name, 0.3, '#1c2033', 'rgba(255,255,255,.88)'); en.position.y = 2.4; g.add(en); }
+      return g;
+    },
     lehrer:function(){ return figur('#212529', 'L', '#fff', 1.1); },
     zone:function(it){
       var g = new T.Group(), f = it.farbe || ZONENFARBEN[0];
@@ -1921,16 +2274,20 @@ var drei = (function(){
         var nzz = new T.Mesh(new T.CylinderGeometry(0.2, 0.14, 0.35, 14, 1, true), weissNetz()); nzz.position.set(x0w + 0.98, 2.52, z); g.add(nzz);
       } else if(a === 'tafel' && E.korb){
         g.add(kiste(0.1, 1.1, 3, '#1a1d24', x0w + 0.06, 5.0, wz(f.y)));
-      } else if(a === 'stangen' && E.ringe){
-        for(i = 0; i < f.n; i++){ g.add(stange(x0w + 0.3, 0, wz(f.y + (i - (f.n - 1) / 2) * 0.4), x0w + 0.3, hh - 0.4, wz(f.y + (i - (f.n - 1) / 2) * 0.4), 0.035, '#2b5fb4')); }
+      } else if(a === 'reck' && E.ringe){
+        g.add(kiste(0.1, 0.12, 2.6, '#2b5fb4', x0w + 0.06, 3.5, wz(f.y)));
+        for(i = 0; i < f.n; i++){ var zr = wz(f.y + (i - (f.n - 1) / 2) * 0.42); g.add(stange(x0w + 0.12, 3.45, zr, x0w + 1.0, 0.05, zr, 0.03, '#2b5fb4')); }
+      } else if(a === 'kletter' && E.ringe){
+        for(i = 0; i < f.n; i++){ var zk = wz(f.y + (i - (f.n - 1) / 2) * 0.55); g.add(stange(x0w + 0.35, 0, zk, x0w + 0.35, hh - 0.4, zk, 0.05, '#2b5fb4')); }
       } else if(a === 'taue' && E.ringe){
         for(i = 0; i < f.n; i++){ var zt = wz(f.y + (i - (f.n - 1) / 2) * 0.45); g.add(stange(x0w + 0.3, 0.4, zt, x0w + 0.3, hh - 0.4, zt, 0.03, '#c8a46a')); }
       } else if(a === 'schiene' && E.ringe){
         g.add(stange(wx(Math.max(0, b.x0)), hh - 0.35, wz(f.y), wx(Math.min(HALLE.W, b.x1)), hh - 0.35, wz(f.y), 0.05, '#2b5fb4'));
       } else if(a === 'ringe' && E.ringe){
         [-0.28, 0.28].forEach(function(dx){
-          g.add(stange(wx(f.x + dx), hh - 0.35, wz(f.y), wx(f.x + dx), 4.1, wz(f.y), 0.008, '#555'));
-          var rr = new T.Mesh(new T.TorusGeometry(0.09, 0.012, 8, 24), mat('#c8955a')); rr.position.set(wx(f.x + dx), 4.0, wz(f.y)); g.add(rr);
+          var rh = E.runter ? 2.4 : 4.0;
+          g.add(stange(wx(f.x + dx), hh - 0.35, wz(f.y), wx(f.x + dx), rh + 0.1, wz(f.y), 0.008, '#555'));
+          var rr = new T.Mesh(new T.TorusGeometry(0.09, 0.012, 8, 24), mat('#c8955a')); rr.position.set(wx(f.x + dx), rh, wz(f.y)); g.add(rr);
         });
       } else if(a === 'tuer' && E.tueren){
         g.add(flaeche(f.w, 2.3, '#8fd19e', wx(HALLE.W) - 0.03, 1.15, wz(f.y), -Math.PI / 2));
@@ -1940,20 +2297,25 @@ var drei = (function(){
   function neu(){
     if(!scene) return;
     if(wurzel){ scene.remove(wurzel); wurzel.traverse(function(o){ if(o.geometry) o.geometry.dispose(); if(o.material){ (Array.isArray(o.material) ? o.material : [o.material]).forEach(function(m){ if(m.map && m.map !== bodenTex) m.map.dispose(); m.dispose(); }); } }); }
-    wurzel = new T.Group(); scene.add(wurzel);
+    wurzel = new T.Group(); scene.add(wurzel); kartei = {};
     raumBauen(wurzel);
     var b = bereich();
     S.items.forEach(function(it){
       var k = K[it.t];
-      if(k.pfeil){ wurzel.add(pfeil3d(it)); return; }
+      if(k.mass) return;
+      if(k.pfeil){ var pg = pfeil3d(it); pg.userData.itemId = it.id; kartei[it.id] = pg; wurzel.add(pg); return; }
       if(it.x < b.x0 - 1 || it.x > b.x1 + 1) return;
       var bau = M[it.t]; if(!bau) return;
       var o = bau(it);
+      o.userData.itemId = it.id; kartei[it.id] = o;
+      if(it.kopf && K[it.t].kopf){ var gk = new T.Group(); o.rotation.x = Math.PI; o.position.y = topHoehe(it); gk.add(o); o = gk; }
       o.position.x += wx(it.x); o.position.z += wz(it.y); o.position.y += elev(it);
       if(it.t !== 'text') o.rotation.y = -(it.r || 0) * Math.PI / 180;
+      o.userData.off = {x:o.position.x - wx(it.x), y:o.position.y - elev(it), z:o.position.z - wz(it.y)};
       o.traverse(function(c){ if(c.isMesh && it.t !== 'zone'){ c.castShadow = true; c.receiveShadow = true; } });
       wurzel.add(o);
     });
+    auswahl();
     if(drei.sonne){ var cx = wx((b.x0 + b.x1) / 2); drei.sonne.position.set(cx - 15, 40, -14); drei.sonne.target.position.set(cx, 0, 0); }
   }
   box.querySelectorAll('[data-kam]').forEach(function(btn){ btn.addEventListener('click', function(){ kameraSetzen(btn.getAttribute('data-kam')); }); });
@@ -1962,7 +2324,7 @@ var drei = (function(){
     renderer.render(scene, kamera);
     renderer.domElement.toBlob(function(bl){ herunterladen(bl, dateiName() + '_3D.png'); });
   });
-  return {start:start, stopp:stopp, neu:neu, groesse:groesse};
+  return {start:start, stopp:stopp, neu:neu, groesse:groesse, positionen:positionen, bodenPunkt:bodenPunkt};
 })();
 
 /* ===================== Start ===================== */
@@ -1970,12 +2332,12 @@ var drei = (function(){
   var sp = speicherLesen();
   if(sp.einst){
     S.fest = sp.einst.fest !== false; S.raster = sp.einst.raster !== false; S.magnet = sp.einst.magnet !== false; S.druck = !!sp.einst.druck;
-    S.ebenen = Object.assign(S.ebenen, sp.einst.ebenen || {}); S.lfarbe = sp.einst.lfarbe || {};
+    S.ebenen = Object.assign(S.ebenen, sp.einst.ebenen || {}); S.lfarbe = sp.einst.lfarbe || {}; S.klasse = sp.einst.klasse || null; S.namen = sp.einst.namen !== false;
   }
   if(sp.aktuell) datenLaden(sp.aktuell);
   document.getElementById('ansicht').value = S.ansicht;
   document.getElementById('titelIn').value = S.titel; document.getElementById('notizIn').value = S.notizen;
-  paletteZeichnen(); linienZeichnen();
+  paletteZeichnen(); linienZeichnen(); phasenZeichnen(); klasseZeichnen();
   schalter('festBtn', 'fest'); schalter('rasterBtn', 'raster'); schalter('magnetBtn', 'magnet'); schalter('druckBtn', 'druck');
   ebenenZeichnen();
   einpassen();
