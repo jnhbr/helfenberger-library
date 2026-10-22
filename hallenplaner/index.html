@@ -414,18 +414,19 @@ function grundflaeche(it){
 /* ===================== Zustand ===================== */
 var S = {
   klasse:null, namen:true, ansicht:'T', linien:{vb:true, bb:false, hb:false, uh:false, bm:false, fb:false}, fest:true, raster:true, magnet:true, druck:false,
-  ebenen:{spr:true, tueren:true, korb:true, ringe:true, vorhang:true, runter:false}, lfarbe:{}, phasen:[], phase:0,
+  ebenen:{spr:true, tueren:true, korb:true, ringe:true, vorhang:true, runter:false}, lfarbe:{}, lmodus:'gross', phasen:[], phase:0,
   items:[], titel:'', notizen:'', sel:[], modus:null, ansicht3d:false
 };
 var vb = null;                 // aktuelle viewBox {x,y,w,h}
 var verlauf = [], verlaufPos = -1;
 
-function datenJetzt(){ phasenSichern(); return {v:1, ansicht:S.ansicht, linien:S.linien, items:S.items, titel:S.titel, notizen:S.notizen, phasen:S.phasen, phase:S.phase}; }
+function datenJetzt(){ phasenSichern(); return {v:1, ansicht:S.ansicht, lmodus:S.lmodus, linien:S.linien, items:S.items, titel:S.titel, notizen:S.notizen, phasen:S.phasen, phase:S.phase}; }
 function datenLaden(d){
   if(!d || !Array.isArray(d.items)) return false;
   S.items = d.items.filter(function(it){ return it && K[it.t]; }).map(function(it){ return Object.assign({}, it, {id:it.id || neueId()}); });
   if(d.ansicht && ANSICHTEN[d.ansicht]) S.ansicht = d.ansicht;
   if(d.linien) S.linien = Object.assign({vb:false, bb:false, hb:false, uh:false, bm:false, fb:false}, d.linien);
+  S.lmodus = d.lmodus === 'klein' ? 'klein' : 'gross';
   S.titel = d.titel || ''; S.notizen = d.notizen || ''; S.sel = [];
   S.phasen = Array.isArray(d.phasen) && d.phasen.length > 1 ? d.phasen.filter(function(ph){ return ph && Array.isArray(ph.items); }).map(function(ph){ return {name:String(ph.name || 'Phase'), text:String(ph.text || ''), items:ph.items}; }) : [];
   S.phase = S.phasen.length ? Math.min(Math.max(0, +d.phase || 0), S.phasen.length - 1) : 0;
@@ -474,7 +475,8 @@ function bodenSvg(o){
   var L = o.linien || {};
   var i, cx;
   // Unihockey (gelb) – grosses Feld 40 × 20 m, Torräume
-  if(L.uh){
+  var klein = S.lmodus === 'klein';
+  if(L.uh && !klein){
     var c = lc('uh');
     s += rect(4.35, 3.85, 40.3, 20.3, 'none', c, lw * 1.3);
     [[4.5, 1], [44.5, -1]].forEach(function(e){
@@ -487,7 +489,7 @@ function bodenSvg(o){
     s += kreis(24.5, 14, 3, 'none', c, lw) + kreis(24.5, 14, 0.12, c);
   }
   // Handball (blau) – 40 × 20 m mit 6-m- und 9-m-Linie
-  if(L.hb){
+  if(L.hb && !klein){
     var c2 = lc('hb');
     s += rect(4.5, 4, 40, 20, 'none', c2, lw) + linie(24.5, 4, 24.5, 24, c2, lw);
     [[4.5, 1], [44.5, -1]].forEach(function(e){
@@ -499,25 +501,57 @@ function bodenSvg(o){
     });
   }
   // Fussball (schwarz) – 40 × 20 m, Mittelkreis r 3 m, Strafraum-Bögen r 6 m
-  if(L.fb){
+  if(L.fb && !klein){
     var c6 = lc('fb');
     s += rect(4.5, 4, 40, 20, 'none', c6, lw) + linie(24.5, 4, 24.5, 24, c6, lw) + kreis(24.5, 14, 3, 'none', c6, lw) + kreis(24.5, 14, 0.12, c6);
     s += '<path d="M4.5 8 A6 6 0 0 1 4.5 20" fill="none" stroke="' + c6 + '" stroke-width="' + lw + '"/><path d="M44.5 8 A6 6 0 0 0 44.5 20" fill="none" stroke="' + c6 + '" stroke-width="' + lw + '"/>';
   }
   for(i = 0; i < 3; i++){
     cx = drittelMitte(i);
-    // Badminton (grün) – 4 Felder pro Drittel
+    // Badminton (grün) – 3 Felder quer pro Drittel (Spielrichtung quer zur Halle, 13.4 × 6.1 m)
     if(L.bm){
       var c3 = lc('bm');
-      [cx - 6.8, cx + 0.7].forEach(function(bx){
-        [0.4, 14.2].forEach(function(by){
-          s += rect(bx, by, 6.1, 13.4, 'none', c3, 0.04);
-          s += linie(bx + 0.46, by, bx + 0.46, by + 13.4, c3, 0.04) + linie(bx + 5.64, by, bx + 5.64, by + 13.4, c3, 0.04);
-          s += linie(bx, by + 6.7 - 1.98, bx + 6.1, by + 6.7 - 1.98, c3, 0.04) + linie(bx, by + 6.7 + 1.98, bx + 6.1, by + 6.7 + 1.98, c3, 0.04);
-          s += linie(bx, by + 0.76, bx + 6.1, by + 0.76, c3, 0.04) + linie(bx, by + 12.64, bx + 6.1, by + 12.64, c3, 0.04);
-          s += linie(bx + 3.05, by, bx + 3.05, by + 6.7 - 1.98, c3, 0.04) + linie(bx + 3.05, by + 6.7 + 1.98, bx + 3.05, by + 13.4, c3, 0.04);
-        });
+      [5.6, 14, 22.4].forEach(function(by){
+        var bx = cx - 6.7, vy = by - 3.05;
+        s += rect(bx, vy, 13.4, 6.1, 'none', c3, 0.04);
+        s += linie(bx, vy + 0.46, bx + 13.4, vy + 0.46, c3, 0.04) + linie(bx, vy + 5.64, bx + 13.4, vy + 5.64, c3, 0.04);
+        s += linie(bx + 6.7 - 1.98, vy, bx + 6.7 - 1.98, vy + 6.1, c3, 0.04) + linie(bx + 6.7 + 1.98, vy, bx + 6.7 + 1.98, vy + 6.1, c3, 0.04);
+        s += linie(bx + 0.76, vy, bx + 0.76, vy + 6.1, c3, 0.04) + linie(bx + 12.64, vy, bx + 12.64, vy + 6.1, c3, 0.04);
+        s += linie(bx, vy + 3.05, bx + 6.7 - 1.98, vy + 3.05, c3, 0.04) + linie(bx + 6.7 + 1.98, vy + 3.05, bx + 13.4, vy + 3.05, c3, 0.04);
       });
+    }
+    // Einfachhalle (je Drittel): Handball, Unihockey, Fussball/Futsal – Spielfeld 24 × 15 m längs, Tore an den Sprossenwand-/Galerieseiten
+    if(klein){
+      if(L.hb || L.fb){
+        var ch = lc(L.hb ? 'hb' : 'fb'), ch2 = lc('fb');
+        if(L.hb){
+          s += rect(cx - 7.5, 2, 15, 24, 'none', ch, lw) + linie(cx - 7.5, 14, cx + 7.5, 14, ch, lw);
+          [[2, 1], [26, -1]].forEach(function(e){
+            var yg = e[0], k = e[1], sw = k > 0 ? 0 : 1;
+            s += '<path d="M' + r2(cx - 7.5) + ' ' + yg + ' A6 6 0 0 ' + sw + ' ' + r2(cx - 1.5) + ' ' + (yg + k * 6) + ' L' + r2(cx + 1.5) + ' ' + (yg + k * 6) + ' A6 6 0 0 ' + sw + ' ' + r2(cx + 7.5) + ' ' + yg + '" fill="none" stroke="' + ch + '" stroke-width="' + lw + '"/>';
+            s += '<path d="M' + r2(cx - 7.5) + ' ' + r2(yg + k * 6.7) + ' A9 9 0 0 ' + sw + ' ' + r2(cx - 1.5) + ' ' + (yg + k * 9) + ' L' + r2(cx + 1.5) + ' ' + (yg + k * 9) + ' A9 9 0 0 ' + sw + ' ' + r2(cx + 7.5) + ' ' + r2(yg + k * 6.7) + '" fill="none" stroke="' + ch + '" stroke-width="' + lw + '" stroke-dasharray="0.3 0.3"/>';
+            s += linie(cx - 0.5, yg + k * 7, cx + 0.5, yg + k * 7, ch, lw) + linie(cx - 1.5, yg, cx + 1.5, yg, ch, lw * 2);
+          });
+        }
+        if(L.fb){
+          var cf = ch2;
+          if(!L.hb) s += rect(cx - 7.5, 2, 15, 24, 'none', cf, lw) + linie(cx - 7.5, 14, cx + 7.5, 14, cf, lw);
+          s += kreis(cx, 14, 3, 'none', cf, lw) + kreis(cx, 14, 0.12, cf);
+          if(!L.hb) [[2, 1], [26, -1]].forEach(function(e){
+            var yg = e[0], k = e[1], sw = k > 0 ? 0 : 1;
+            s += '<path d="M' + r2(cx - 7.5) + ' ' + yg + ' A6 6 0 0 ' + sw + ' ' + r2(cx - 1.5) + ' ' + (yg + k * 6) + ' L' + r2(cx + 1.5) + ' ' + (yg + k * 6) + ' A6 6 0 0 ' + sw + ' ' + r2(cx + 7.5) + ' ' + yg + '" fill="none" stroke="' + cf + '" stroke-width="' + lw + '"/>';
+            s += linie(cx - 1.5, yg, cx + 1.5, yg, cf, lw * 2);
+          });
+        }
+      }
+      if(L.uh){
+        var cu = lc('uh');
+        s += rect(cx - 7.5, 2, 15, 24, 'none', cu, lw * 1.3) + linie(cx - 7.5, 14, cx + 7.5, 14, cu, lw) + kreis(cx, 14, 0.12, cu);
+        [[2, 1], [26, -1]].forEach(function(e){
+          var yg = e[0], k = e[1];
+          s += rect(cx - 2.5, Math.min(yg, yg + k * 4), 5, 4, 'none', cu, lw) + rect(cx - 1.25, Math.min(yg + k * 0.5, yg + k * 1.5), 2.5, 1, 'none', cu, lw) + linie(cx - 0.8, yg + k * 0.5, cx + 0.8, yg + k * 0.5, cu, lw * 1.6);
+        });
+      }
     }
     // Basketball (rot) – Querfeld pro Drittel, Körbe an den Längswänden
     if(L.bb){
@@ -557,9 +591,8 @@ function festeTeile(){
   for(i = 0; i < 3; i++){
     var c = drittelMitte(i);
     t.push({art:'glas', x:c - 5.6, w:2.8}, {art:'glas', x:c - 2.4, w:2.8}, {art:'korbtafel', x:c + 3.4, w:3.0, wand:'u'});
-    t.push({art:'ringe', x:c - 2.6, y:1.6}, {art:'ringe', x:c + 2.6, y:1.6});
+    t.push({art:'ringe', x:c - 4, y:1.6}, {art:'ringe', x:c, y:1.6}, {art:'ringe', x:c + 4, y:1.6});
   }
-  t.push({art:'schiene', y:1.6});
   t.push({art:'tafel', y:14}, {art:'reck', y:4.2, n:6}, {art:'kletter', y:8.6, n:4}, {art:'taue', y:12.6, n:3});
   [10.5, 16.5, 20, 24.5].forEach(function(y){ t.push({art:'wandkorb', y:y}); });
   t.push({art:'tuer', y:24, w:2.0});
@@ -618,7 +651,7 @@ function festSvg(druck){
       s += linie(Math.max(0, b.x0), f.y, Math.min(W, b.x1), f.y, blau, 0.05, ' stroke-dasharray="0.4 0.25" stroke-opacity="0.55"');
     } else if(a === 'ringe' && E.ringe){
       if(E.runter) s += kreis(f.x, f.y, 1.3, druck ? '#ced4da' : '#e8590c', druck ? '#868e96' : '#e8590c', 0.04, ' fill-opacity="0.16" stroke-dasharray="0.3 0.2"');
-      s += kreis(f.x - 0.28, f.y, E.runter ? 0.17 : 0.13, 'none', druck ? '#868e96' : '#e8590c', E.runter ? 0.07 : 0.045) + kreis(f.x + 0.28, f.y, E.runter ? 0.17 : 0.13, 'none', druck ? '#868e96' : '#e8590c', E.runter ? 0.07 : 0.045);
+      s += kreis(f.x, f.y - 0.28, E.runter ? 0.17 : 0.13, 'none', druck ? '#868e96' : '#e8590c', E.runter ? 0.07 : 0.045) + kreis(f.x, f.y + 0.28, E.runter ? 0.17 : 0.13, 'none', druck ? '#868e96' : '#e8590c', E.runter ? 0.07 : 0.045);
     }
   });
   return s;
@@ -763,7 +796,7 @@ function bankEinhaengen(it, h){
   var best = null;
   sprossenFelder().forEach(function(f){ if(!best || Math.abs(f.x - it.x) < Math.abs(best.x - it.x)) best = f; });
   if(!best) return false;
-  it.an = {h:h}; it.r = 90;
+  it.an = {h:h}; it.r = 90; delete it.kopf;
   it.x = r2(Math.min(Math.max(it.x, best.x - best.w / 2 + 0.2), best.x + best.w / 2 - 0.2));
   it.y = r2(0.16 + banklaenge(h) / 2);
   return true;
@@ -1633,12 +1666,13 @@ function alleSetzen(){
 function linienZeichnen(){
   document.getElementById('linien').innerHTML = LINIEN.map(function(l){
     return '<button type="button" class="chip' + (S.linien[l.id] ? '' : ' aus') + '" data-l="' + l.id + '" title="Linien ' + l.name + ' ein/aus"><i style="background:' + lfarbe(l.id) + ';box-shadow:0 0 0 1px rgba(0,0,0,.35)"></i>' + l.name + '</button>';
-  }).join('') + '<button type="button" class="chip" data-lalle="1" title="Alle Linien zeigen">alle</button><button type="button" class="chip" data-lalle="0" title="Alle Linien ausblenden">keine</button><button type="button" class="chip" id="lfarbBtn" title="Linienfarben pro Sportart einstellen">🎨 Farben</button>';
+  }).join('') + '<button type="button" class="chip" data-lalle="1" title="Alle Linien zeigen">alle</button><button type="button" class="chip" data-lalle="0" title="Alle Linien ausblenden">keine</button><button type="button" class="chip' + (S.lmodus === 'klein' ? ' an' : '') + '" id="lmodusBtn" title="Unihockey, Handball, Fussball: Grossfeld über die ganze Halle oder Spielfeld pro Einfachhalle (je Drittel)">' + (S.lmodus === 'klein' ? '📐 Einfachhalle (je Drittel)' : '📐 Ganze Halle') + '</button><button type="button" class="chip" id="lfarbBtn" title="Linienfarben pro Sportart einstellen">🎨 Farben</button>';
 }
 document.getElementById('linien').addEventListener('click', function(e){
   var al = e.target.closest('[data-lalle]');
   if(al){ LINIEN.forEach(function(l){ S.linien[l.id] = al.getAttribute('data-lalle') === '1'; }); linienZeichnen(); bodenZeichnen(); autosave(); if(S.ansicht3d) drei.neu(); return; }
   if(e.target.closest('#lfarbBtn')){ linienFarbDialog(); return; }
+  if(e.target.closest('#lmodusBtn')){ S.lmodus = S.lmodus === 'klein' ? 'gross' : 'klein'; linienZeichnen(); bodenZeichnen(); autosave(); if(S.ansicht3d) drei.neu(); return; }
   var b = e.target.closest('[data-l]'); if(!b) return;
   var id = b.getAttribute('data-l'); S.linien[id] = !S.linien[id];
   linienZeichnen(); bodenZeichnen(); autosave(); if(S.ansicht3d) drei.neu();
@@ -2098,7 +2132,6 @@ var drei = (function(){
       var g = new T.Group(), n = it.n || 4, ab = it.ab || 2.4, x0 = -(n - 1) * ab / 2;
       for(var i = 0; i < n; i++){
         g.add(kiste(0.12, 2.6, 0.12, '#dde1e6', x0 + i * ab, 1.3));
-        g.add(stange(x0 + i * ab, 2.6, 0, x0 + i * ab, HALLE.wandH - 0.35, 0, 0.008, '#555'));
         g.add(kiste(0.3, 0.03, 0.3, '#868e96', x0 + i * ab, 0.015));
       }
       for(var j = 0; j < n - 1; j++){
@@ -2318,16 +2351,17 @@ var drei = (function(){
         g.add(kiste(0.1, 0.12, 2.6, '#2b5fb4', x0w + 0.06, 3.5, wz(f.y)));
         for(i = 0; i < f.n; i++){ var zr = wz(f.y + (i - (f.n - 1) / 2) * 0.42); g.add(stange(x0w + 0.12, 3.45, zr, x0w + 1.0, 0.05, zr, 0.03, '#2b5fb4')); }
       } else if(a === 'kletter' && E.ringe){
-        for(i = 0; i < f.n; i++){ var zk = wz(f.y + (i - (f.n - 1) / 2) * 0.5); g.add(kiste(0.12, hh - 0.6, 0.12, '#dde1e6', x0w + 0.3, (hh - 0.6) / 2 + 0.1, zk)); }
+        for(i = 0; i < f.n; i++){ var zk = wz(f.y + (i - (f.n - 1) / 2) * 0.5); g.add(kiste(0.12, hh - 0.05, 0.12, '#dde1e6', x0w + 0.3, (hh - 0.05) / 2, zk)); }
       } else if(a === 'taue' && E.ringe){
-        for(i = 0; i < f.n; i++){ var zt = wz(f.y + (i - (f.n - 1) / 2) * 0.45); g.add(stange(x0w + 0.3, 0.4, zt, x0w + 0.3, hh - 0.4, zt, 0.03, '#c8a46a')); }
+        for(i = 0; i < f.n; i++){ var zt = wz(f.y + (i - (f.n - 1) / 2) * 0.45); g.add(stange(x0w + 0.3, 0.4, zt, x0w + 0.3, hh - 0.1, zt, 0.03, '#c8a46a')); }
       } else if(a === 'schiene' && E.ringe){
         g.add(stange(wx(Math.max(0, b.x0)), hh - 0.35, wz(f.y), wx(Math.min(HALLE.W, b.x1)), hh - 0.35, wz(f.y), 0.05, '#2b5fb4'));
       } else if(a === 'ringe' && E.ringe){
-        [-0.28, 0.28].forEach(function(dx){
-          var rh = E.runter ? 2.4 : 4.0;
-          g.add(stange(wx(f.x + dx), hh - 0.35, wz(f.y), wx(f.x + dx), rh + 0.1, wz(f.y), 0.008, '#555'));
-          var rr = new T.Mesh(new T.TorusGeometry(0.09, 0.012, 8, 24), mat('#c8955a')); rr.position.set(wx(f.x + dx), rh, wz(f.y)); g.add(rr);
+        var wi = rohr(0.11, 0.9, '#1f3f94'); wi.rotation.x = Math.PI / 2; wi.position.set(wx(f.x), hh - 0.4, wz(f.y)); g.add(wi);
+        [-0.28, 0.28].forEach(function(dz){
+          var rh = E.runter ? 2.4 : 3.8;
+          g.add(stange(wx(f.x), hh - 0.4, wz(f.y + dz), wx(f.x), rh + 0.1, wz(f.y + dz), 0.008, '#555'));
+          var rr = new T.Mesh(new T.TorusGeometry(0.09, 0.012, 8, 24), mat('#c8955a')); rr.position.set(wx(f.x), rh, wz(f.y + dz)); g.add(rr);
         });
       } else if(a === 'tuer' && E.tueren){
         g.add(flaeche(f.w, 2.3, '#8fd19e', wx(HALLE.W) - 0.03, 1.15, wz(f.y), -Math.PI / 2));
@@ -2348,7 +2382,7 @@ var drei = (function(){
       var bau = M[it.t]; if(!bau) return;
       var o = bau(it);
       o.userData.itemId = it.id; kartei[it.id] = o;
-      if(it.kopf && K[it.t].kopf){ var gk = new T.Group(); o.rotation.x = Math.PI; o.position.y = topHoehe(it); gk.add(o); o = gk; }
+      if(it.kopf && !it.an && K[it.t].kopf){ var gk = new T.Group(); o.rotation.x = Math.PI; o.position.y = it.t === 'langbank' ? 0.35 : topHoehe(it); gk.add(o); o = gk; }
       o.position.x += wx(it.x); o.position.z += wz(it.y); o.position.y += elev(it);
       if(it.t !== 'text') o.rotation.y = -(it.r || 0) * Math.PI / 180;
       o.userData.off = {x:o.position.x - wx(it.x), y:o.position.y - elev(it), z:o.position.z - wz(it.y)};
