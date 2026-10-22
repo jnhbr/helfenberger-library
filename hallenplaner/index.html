@@ -260,7 +260,7 @@ function lfarbe(id){ return (S.lfarbe && S.lfarbe[id]) || LINIEN.filter(function
 // Feste Einrichtungen der Halle: Ebenen einzeln ein-/ausblendbar.
 var EBENEN = [
   {id:'spr', n:'Sprossenwände'}, {id:'tueren', n:'Türen & Tore (mit Freihalte-Zone)'}, {id:'korb', n:'Basketballkörbe'},
-  {id:'ringe', n:'Ringe, Herunterlass-Hilfen, Kletterstangen & Reck'}, {id:'runter', n:'Ringe heruntergelassen (zeigt Fallzone)'}, {id:'vorhang', n:'Trennvorhänge (Stoff)'}
+  {id:'ringe', n:'Ringe, Herunterlass-Hilfen, Kletterstangen & Reck'}, {id:'vorhang', n:'Trennvorhänge (Stoff)'}
 ];
 var SPR_B = 4.2, TOR_B = 3.2;
 var TEAMS = [
@@ -654,7 +654,7 @@ function festSvg(druck){
     } else if(a === 'schiene' && E.ringe){
       s += linie(Math.max(0, b.x0), f.y, Math.min(W, b.x1), f.y, blau, 0.05, ' stroke-dasharray="0.4 0.25" stroke-opacity="0.55"');
     } else if(a === 'ringe' && E.ringe){
-      var rn = E.runter || S.ringeRunter[f.key];
+      var rn = S.ringeRunter[f.key];
       if(rn) s += kreis(f.x, f.y, 1.3, druck ? '#ced4da' : '#e8590c', druck ? '#868e96' : '#e8590c', 0.04, ' fill-opacity="0.16" stroke-dasharray="0.3 0.2"');
       s += kreis(f.x, f.y - 0.28, rn ? 0.17 : 0.13, 'none', druck ? '#868e96' : '#e8590c', rn ? 0.07 : 0.045) + kreis(f.x, f.y + 0.28, rn ? 0.17 : 0.13, 'none', druck ? '#868e96' : '#e8590c', rn ? 0.07 : 0.045);
     }
@@ -2411,7 +2411,7 @@ var drei = (function(){
       } else if(a === 'ringe' && E.ringe){
         var wi = rohr(0.11, 0.9, '#1f3f94'); wi.rotation.x = Math.PI / 2; wi.position.set(wx(f.x), hh - 0.4, wz(f.y)); g.add(wi);
         [-0.28, 0.28].forEach(function(dz){
-          var rh = (E.runter || S.ringeRunter[f.key]) ? 2.4 : 3.8;
+          var rh = S.ringeRunter[f.key] ? 2.0 : hh - 1.0;   // runter: 2 m über dem Boden, hoch: ganz oben an der Winde
           g.add(stange(wx(f.x), hh - 0.4, wz(f.y + dz), wx(f.x), rh + 0.1, wz(f.y + dz), 0.008, '#555'));
           var rr = new T.Mesh(new T.TorusGeometry(0.09, 0.012, 8, 24), mat('#c8955a')); rr.position.set(wx(f.x), rh, wz(f.y + dz)); g.add(rr);
         });
