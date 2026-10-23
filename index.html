@@ -2162,9 +2162,9 @@
   .vg-hint{color:var(--text-muted);font-size:13px;line-height:1.55;margin:0 2px 14px;}
 
   /* ===== 📚 Lernphase (Seitenleiste der Lehrperson) ===== */
-  .lph-panel{position:fixed;left:0;top:0;bottom:0;width:260px;z-index:1400;display:flex;flex-direction:column;background:var(--surface);border-right:1px solid var(--border);box-shadow:8px 0 30px -18px rgba(0,0,0,.35);font-size:14px;}
-  body.lph-offen{padding-left:260px;}
-  @media (max-width:900px){ body.lph-offen{padding-left:0;} }
+  .lph-panel{position:fixed;right:0;top:0;bottom:0;width:260px;z-index:1400;display:flex;flex-direction:column;background:var(--surface);border-left:1px solid var(--border);box-shadow:-8px 0 30px -18px rgba(0,0,0,.35);font-size:14px;}
+  body.lph-offen{padding-right:260px;}
+  @media (max-width:900px){ body.lph-offen{padding-right:0;} }
   .lph-head{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;padding:14px 12px 8px 16px;}
   .lph-head > span{flex:none;display:flex;}
   .lph-head small{display:block;color:var(--text-muted);font-size:12px;margin-top:2px;}
@@ -2189,7 +2189,7 @@
   @media (hover:none){ .lph-row .lph-mini{opacity:1;} }
   .lph-leer{color:var(--text-muted);padding:12px 8px;}
   .lph-foot{padding:10px 12px;border-top:1px solid var(--border);}
-  .lph-tab{position:fixed;left:0;top:50%;transform:translateY(-50%);z-index:1400;border:1px solid var(--border);border-left:none;border-radius:0 12px 12px 0;background:var(--surface);padding:12px 8px;cursor:pointer;font-size:20px;display:flex;flex-direction:column;align-items:center;gap:4px;box-shadow:4px 0 16px -8px rgba(0,0,0,.35);}
+  .lph-tab{position:fixed;right:0;top:50%;transform:translateY(-50%);z-index:1400;border:1px solid var(--border);border-right:none;border-radius:12px 0 0 12px;background:var(--surface);padding:12px 8px;cursor:pointer;font-size:20px;display:flex;flex-direction:column;align-items:center;gap:4px;box-shadow:-4px 0 16px -8px rgba(0,0,0,.35);}
   .lph-tab b{font-size:12px;color:#fff;background:var(--bad);border-radius:999px;padding:1px 7px;}
   .lph-tab b.hand{background:#D97706;}
   .lph-hand-btn{position:fixed;left:16px;bottom:16px;z-index:1450;display:flex;align-items:center;gap:8px;border:2px solid #D97706;background:var(--surface);color:var(--text);border-radius:999px;padding:10px 16px 10px 12px;font:inherit;font-weight:700;font-size:15px;cursor:pointer;box-shadow:0 8px 24px -10px rgba(0,0,0,.45);}
@@ -14748,6 +14748,8 @@ function renderSubject(subjectId, folderId){
     html += '<div style="margin-top:10px;"><button class="btn btn-ghost btn-sm" id="dzLinkBtn" type="button">🔗 Link hinzufügen</button></div>';
     html += '<div id="dzTarget" style="font-size:12.5px;margin-top:8px;"></div>';
     html += '<input type="file" id="fileInput" accept=".html,.htm,.pdf,text/html,application/pdf">';
+    html += '<div style="margin-top:10px;font-size:13px;"><label for="fileInputDir" style="color:var(--brand);text-decoration:underline;cursor:pointer;">📁 Ordner mit PDFs hochladen</label> <span style="color:var(--text-muted);">– Unterordner werden als Ordner angelegt. Ordner, die auf «(verdeckt)» enden (z. B. «Lösungen (verdeckt)»), werden ausgeblendet und geschützt.</span></div>';
+    html += '<input type="file" id="fileInputDir" webkitdirectory multiple style="display:none;">';
     html += '<div class="upload-progress" id="uploadProgress"></div>';
     html += '</div>';
     // 🔒 Lehrer-HTML: alles, was hier abgelegt wird, sehen nur Lehrpersonen
@@ -16230,6 +16232,10 @@ function wireDropzone(subjectId){
     if(input.files && input.files.length){ handleUpload(subjectId, state.route.folderId || null, input.files[0]); input.value=''; }
   });
   document.getElementById('dzLinkBtn').addEventListener('click', function(){ askAddLink(subjectId, state.route.folderId || null); });
+  var inputDir = document.getElementById('fileInputDir');
+  if(inputDir) inputDir.addEventListener('change', function(){
+    if(inputDir.files && inputDir.files.length){ handleOrdnerUpload(subjectId, state.route.folderId || null, inputDir.files); inputDir.value=''; }
+  });
 
   // 🔒 Lehrer-HTML-Ablage: Häkchen «Nur für Lehrpersonen» ist schon gesetzt
   var dzLp = document.getElementById('dropzoneLp');
@@ -16340,6 +16346,91 @@ function handleUpload(subjectId, folderId, file, nurLehrerVorwahl){
   document.getElementById('modalOk').addEventListener('click', submit);
   document.getElementById('modalCancel').addEventListener('click', closeModal);
   input.addEventListener('keydown', function(e){ if(e.key === 'Enter') submit(); });
+}
+
+/* ===================== PDF-ORDNER HOCHLADEN =====================
+   Ein ganzer Ordner mit PDFs (auch mit Unterordnern) auf einmal: Unterordner werden
+   als Library-Ordner angelegt (vorhandene gleichen Namens werden weiterverwendet), PDFs,
+   die schon am selben Ort liegen (gleicher Dateiname), werden übersprungen. Ordner, deren
+   Name auf «(verdeckt)» endet, werden ausgeblendet UND geschützt (Inhalt nurLehrer wie bei
+   🙈 Ausblenden → inhaltGeschuetzt), z. B. Lösungs-PDFs. */
+var pdfOrdnerZaehler = 0;
+function pdfOrdnerTitel(name){
+  var t = name.replace(/\.pdf$/i,'').replace(/[_-]+/g,' ');
+  t = t.replace(/\s([GE])\s+L$/, ' (Niveau $1, Lösung)').replace(/\s([GE])$/, ' (Niveau $1)');
+  return t.slice(0,60);
+}
+function handleOrdnerUpload(subjectId, parentId, fileList){
+  var dateien = Array.prototype.slice.call(fileList).filter(isPdfFile);
+  if(!dateien.length){ toast('Im Ordner wurden keine PDF-Dateien gefunden.'); return; }
+  var zuGross = dateien.filter(function(f){ return f.size > maxBytesFor(true); })[0];
+  if(zuGross){ toast(tooBigMsg(true)+' («'+zuGross.name+'»)'); return; }
+  var eintraege = dateien.map(function(f){
+    var teile = (f.webkitRelativePath || f.name).split('/');
+    var ordner = teile.slice(0,-1);
+    return { file:f, ordner:ordner, verdeckt: ordner.some(function(n){ return /\(verdeckt\)\s*$/i.test(n); }) };
+  }).sort(function(a,b){ return (a.ordner.join('/')+'/'+a.file.name).localeCompare(b.ordner.join('/')+'/'+b.file.name, 'de'); });
+  var pfade = {}; eintraege.forEach(function(e){ pfade[e.ordner.join('/')] = true; });
+  var nV = eintraege.filter(function(e){ return e.verdeckt; }).length;
+  var where_ = parentId ? ('Ordner «'+(folderById(parentId) ? folderById(parentId).name : '')+'»') : 'Fach-Hauptebene';
+  uiConfirm('PDF-Ordner hochladen', eintraege.length+' PDFs in '+Object.keys(pfade).length+' Ordnern werden in der '+where_+' abgelegt.'+(nV ? ' '+nV+' davon liegen in «(verdeckt)»-Ordnern: Sie werden ausgeblendet und geschützt, Schüler:innen sehen sie nicht.' : '')+' Bereits vorhandene PDFs werden übersprungen.', 'Hochladen', function(){
+    ordnerHochladen(subjectId, parentId, eintraege);
+  });
+}
+async function ordnerHochladen(subjectId, parentId, eintraege){
+  var progEl = document.getElementById('uploadProgress');
+  var ids = {}, neuProEltern = {}, ok = 0, uebersprungen = 0, fehler = [];
+  function zeige(t){ if(progEl){ progEl.textContent = t; progEl.classList.add('show'); } }
+  async function ordnerId(pfad){
+    var parent = parentId || null, key = '';
+    for(var i = 0; i < pfad.length; i++){
+      var name = pfad[i].slice(0,60); key += '/' + name;
+      if(ids[key] !== undefined){ parent = ids[key]; continue; }
+      var da = foldersIn(parent).filter(function(f){ return f.name === name; })[0];
+      if(da){ ids[key] = da.id; parent = da.id; continue; }
+      var id = subjectId+'_f_'+(Date.now() + (pdfOrdnerZaehler++));
+      var pk = String(parent);
+      var reihe = foldersIn(parent).length + (neuProEltern[pk] || 0);
+      neuProEltern[pk] = (neuProEltern[pk] || 0) + 1;
+      await setDoc(kdoc('folders', id), { subject: subjectId, parentId: parent || null, name: name, order: reihe, createdAt: serverTimestamp(), createdBy: state.user.uid });
+      ids[key] = id; parent = id;
+    }
+    return parent;
+  }
+  try{
+    for(var n = 0; n < eintraege.length; n++){
+      var e = eintraege[n];
+      zeige('Lade '+(n+1)+' von '+eintraege.length+': «'+e.file.name+'» …');
+      try{
+        var folderId = await ordnerId(e.ordner);
+        var schon = resourcesIn(folderId).filter(function(r){ return r.pdf && r.fileName === e.file.name; })[0];
+        if(schon){ uebersprungen++; continue; }
+        var content = await readFileAsBytes(e.file);
+        var chunks = contentChunkDocs(content);
+        var bytes = contentBytes(content);
+        await assertQuota(bytes);
+        var resId = subjectId+'_'+(Date.now() + (pdfOrdnerZaehler++));
+        var meta = { subject: subjectId, folderId: folderId || null, title: pdfOrdnerTitel(e.file.name), fileName: e.file.name, uploadedAt: serverTimestamp(), uploadedBy: state.user.uid, contentId: resId, version: 0, pdf: true };
+        if(e.verdeckt) meta.ausgeblendet = true;
+        var kopf = { chunkCount: chunks.length, bytes: bytes, ownerUid: state.user.uid };
+        if(e.verdeckt) kopf.nurLehrer = true;
+        var batch = writeBatch(db);
+        batch.set(kdoc('resources', resId), meta);
+        batch.set(doc(db,'resourceContent', resId), kopf);
+        chunks.forEach(function(chunk, i){ if(e.verdeckt) chunk.nurLehrer = true; batch.set(doc(db,'resourceContent', resId, 'chunks', String(i)), chunk); });
+        await batch.commit();
+        indexDazu(resId, state.klasse);
+        ok++;
+      }catch(err){
+        console.error(err);
+        fehler.push(e.file.name);
+        if(err && /Speicher|Kontingent|quota/i.test(String(err.message))) break;
+      }
+    }
+  }finally{
+    if(progEl) progEl.classList.remove('show');
+  }
+  toast(ok+' PDFs hochgeladen'+(uebersprungen ? ', '+uebersprungen+' schon vorhanden' : '')+(fehler.length ? ', '+fehler.length+' fehlgeschlagen (erneut versuchen: Vorhandenes wird übersprungen)' : '')+'.');
 }
 
 async function doUpload(subjectId, folderId, file, title, nurLehrer){
@@ -17148,7 +17239,7 @@ function libFensterOeffnen(r, src){
   if(isPseudoFsActive()) exitPseudoFullscreen();
   var f = {win:w, rid:r.id, uebung:src.html != null, tracked:{}, lastWritten:null, lastWriteAt:0, writeTimer:null, sek:0, tickAt:Date.now()};
   libFensterListe[r.id] = f;
-  if(!libFensterTakt) libFensterTakt = setInterval(libFensterTick, 1000);
+  if(!libFensterTakt) libFensterTakt = pipTakt(libFensterTick, 1000);
   if(f.uebung){
     // Die Beobachtung dieser Übung geht von der Library an das Fenster über.
     var bisher = syncState.resourceId === r.id ? syncState.tracked : {};
@@ -17176,7 +17267,7 @@ function libFensterZu(rid){
   delete libFensterListe[rid];
   if(f.uebung){ clearTimeout(f.writeTimer); libFensterSpeichern(f); libFensterZeit(f); }
   try{ if(f.win && !f.win.closed) f.win.close(); }catch(e){}
-  if(!Object.keys(libFensterListe).length){ clearInterval(libFensterTakt); libFensterTakt = null; }
+  if(!Object.keys(libFensterListe).length){ pipTaktStopp(libFensterTakt); libFensterTakt = null; }
   if(lph.aktiv) lphWechsel();
   // Steht die Library gerade auf dieser Übung: Viewer neu laden (zeigt den Stand aus dem Fenster).
   if(f.uebung && libFensterDarf() && state.route.name === 'resource' && state.route.resource && state.route.resource.id === rid) render();
@@ -23116,6 +23207,12 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-10-23-lernphase-fenster', datum:'2026-10-23', fuer:'lehrer', text:'📚 Lernphase: Wer in einem eigenen Übungsfenster arbeitet, wird nicht mehr zwischendurch rot — die Library meldet jetzt auch im Hintergrund zuverlässig, und kurzes Flackern beim Klicken zählt nicht als «raus».'},
+  {id:'2026-10-23-lernphase-rechts', datum:'2026-10-23', fuer:'lehrer', text:'📚 Lernphase: Die Übersicht steht jetzt rechts, damit links alle Knöpfe der Library sichtbar bleiben.'},
+  {id:'2026-10-23-lernphase-zuverlaessig', datum:'2026-10-23', fuer:'lehrer', text:'📚 Lernphase: Die Anzeige holt sich alle 30 Sekunden den Stand direkt vom Server und zeigt bei einem Wechsel der Phase «verbindet …» statt «noch nicht da». Das schwebende Fenster friert nicht mehr ein, wenn die Library im Hintergrund liegt.'},
+  {id:'2026-10-23-pdf-ordner', datum:'2026-10-23', fuer:'lehrer', text:'📁 PDF-Ordner hochladen: In jedem Fach gibt es unter «Neue Übungsseite oder PDF hinzufügen» jetzt «Ordner mit PDFs hochladen». Du wählst einen ganzen Ordner (auch mit Unterordnern), die Unterordner werden als Ordner angelegt und schon vorhandene PDFs übersprungen. Ordner, die auf «(verdeckt)» enden, zum Beispiel «Lösungen (verdeckt)», werden automatisch ausgeblendet und geschützt: Schüler:innen sehen sie nicht und können sie auch nicht lesen.'},
+  {id:'2026-10-23-pip-vollbild', datum:'2026-10-23', fuer:'lehrer', text:'📌 Das schwebende Fenster (Lernphase, Prüfung) bleibt jetzt auch vor Apps im Vollbild sichtbar.'},
+  {id:'2026-10-23-lernphase-fach', datum:'2026-10-23', fuer:'lehrer', text:'📚 Lernphase: Neu gibt es «📗 irgendwo in Deutsch» (und jedes andere Fach) — grün ist, wer in einer beliebigen Übung oder auf der Seite dieses Fachs arbeitet.'},
   {id:'2026-10-22-hallenplaner-11', datum:'2026-10-22', fuer:'lehrer', text:'🏟️ Hallenplaner: Die Kletterstangen hängen jetzt senkrecht an der Wand und gleiten per Knopf («⇥ Kletterstangen ausfahren», unter «Halle & Ebenen») mit Animation schräg in die Halle. Das Reck bleibt beim Ändern der Anzahl oder des Abstands bündig an der Wand.'},
   {id:'2026-10-22-hallenplaner-10', datum:'2026-10-22', fuer:'lehrer', text:'🏟️ Hallenplaner: Basketballkörbe stehen in der Mitte jeder Einfachhalle (beide Längsseiten), und die Bank lässt sich auch auf den Kopf gestellt in die Sprossenwand einhängen.'},
   {id:'2026-10-22-hallenplaner-9', datum:'2026-10-22', fuer:'lehrer', text:'🏟️ Hallenplaner: Ringe hängen auf Höhe der Ring-Hilfen, die Reck-Pfähle an der Wand stehen eng beieinander und sind so hoch wie ausgefahren, das Reck fährt bündig an der Wand rechtwinklig aus. Das Badmintonnetz kommt quer über die ganze Hallenbreite in die Mitte (Länge einstellbar: 1 Feld, 3 Felder, ganze Breite).'},
@@ -32755,6 +32852,23 @@ function pipMoeglich(){
   var v = document.createElement('video');
   return !!((document.pictureInPictureEnabled || v.webkitSupportsPresentationMode) && HTMLCanvasElement.prototype.captureStream);
 }
+// Takt für das Fenster: Chrome bremst setInterval, sobald die Library im
+// Hintergrund liegt (dann friert das Bild ein). Ein Worker wird nicht gebremst.
+function pipTakt(fn, ms){
+  ms = ms || 1000;
+  try{
+    var url = URL.createObjectURL(new Blob(['setInterval(function(){postMessage(1)},'+ms+')'], {type:'text/javascript'}));
+    var w = new Worker(url);
+    URL.revokeObjectURL(url);
+    w.onmessage = fn;
+    return {worker:w};
+  }catch(e){ return {id:setInterval(fn, ms)}; }
+}
+function pipTaktStopp(t){
+  if(!t) return;
+  if(t.worker) t.worker.terminate();
+  else if(t.id) clearInterval(t.id);
+}
 function pipRefresh(){
   if(pipv.fenster && pipv.fenster.closed){ pipStoppen(); return; }
   if(!pipv.canvas && !pipv.fenster) return;
@@ -32762,10 +32876,10 @@ function pipRefresh(){
   else if(pipv.art === 'pruef') pruefPipZeichnen();
 }
 function pipStarten(art, id){
-  // Chrome/Edge (und Firefox, sobald es das kann): echtes Bild-in-Bild mit
-  // HTML-Inhalt (Document Picture-in-Picture). Firefox ohne diese Funktion
-  // bekommt ein kleines eigenes Fenster. Safari bleibt beim Video-Weg unten.
-  if(window.documentPictureInPicture || !pipMoeglich()){ pipFensterStarten(art, id); return; }
+  // Video-Bild-in-Bild (Canvas-Stream) bevorzugt: Es schwebt auch vor Apps im
+  // Vollbild. Das Dokument-Bild-in-Bild von Chrome tut das auf dem Mac nicht.
+  // Nur ohne Video-Weg: HTML-Fenster (Document PiP bzw. kleines eigenes Fenster).
+  if(!pipMoeglich()){ pipFensterStarten(art, id); return; }
   if(pipv.video && pipv.art === art && pipv.id === (id || null)){ pipAnfordern(); return; }
   pipStoppen();
   var c = document.createElement('canvas'), v = document.createElement('video');
@@ -32781,7 +32895,7 @@ function pipStarten(art, id){
   v.addEventListener('webkitpresentationmodechanged', function(){
     if(pipv.video === v && pipv.offen && v.webkitPresentationMode === 'inline') pipStoppen();
   });
-  pipv.timer = setInterval(pipRefresh, 1000);
+  pipv.timer = pipTakt(pipRefresh);
   pipRefresh();
   var pl = v.play(); if(pl && pl.catch) pl.catch(function(){});
   pipAnfordern();
@@ -32825,7 +32939,7 @@ function pipFensterStarten(art, id){
     pipv = { art:art, id:id || null, canvas:null, video:null, timer:null, offen:true, fenster:w, html:null };
     pipFensterAufbauen(w);
     w.addEventListener('pagehide', function(){ if(pipv.fenster === w) pipStoppen(); });
-    pipv.timer = setInterval(pipRefresh, 1000);
+    pipv.timer = pipTakt(pipRefresh);
     pipRefresh();
   };
   if(window.documentPictureInPicture){
@@ -32874,7 +32988,7 @@ function pipHtml(titel, sub, liste, leerText){
 }
 function pipStoppen(){
   var v = pipv.video, f = pipv.fenster;
-  clearInterval(pipv.timer);
+  pipTaktStopp(pipv.timer);
   pipv = { art:null, id:null, canvas:null, video:null, timer:null, offen:false };
   if(f && !f.closed){ try{ f.close(); }catch(e){} }
   if(!v) return;
@@ -32945,8 +33059,9 @@ function pipZeichnen(titel, sub, eintraege, leerText){
    es ist nur eine Anzeige. Kranke lassen sich ausblenden (gilt nur für diese
    Lernphase).
 
-   Daten: lernphasen/{uidLehrperson}                -> {aktiv, startMs, titel, mitglieder:[uid], namen:{uid:name}, aus:[uid], nurUebung:{id, titel}|null}
+   Daten: lernphasen/{uidLehrperson}                -> {aktiv, startMs, titel, mitglieder:[uid], namen:{uid:name}, aus:[uid], nurUebung:{id, titel}|null, nurFach:{id, titel}|null}
           lernphasen/{uidLehrperson}/praesenz/{uid} -> {drin, falsch, ts, phase (= startMs), raus (Anzahl), rausSeit}
+   Mit nurFach zählt jede Übung und die Fach-Seite dieses Fachs als «drin» (z. B. «irgendwo in Deutsch»).
    Mit nurUebung zählt nur diese eine Übung als «drin»: wer sonst irgendwo in
    der Library ist, leuchtet auch rot (falsch = true → «nicht in der Übung»).
    Schüler:innen finden ihre Lernphase mit where('mitglieder','array-contains', uid)
@@ -32965,8 +33080,8 @@ var LPH_HB_MS = 30000;        // Lebenszeichen der Schüler:innen
 var LPH_STALE_MS = 75000;     // so lange nichts gehört = «keine Verbindung»
 var LPH_SORT_KEY = 'lib_lernphase_sort';
 var LPH_POLL_MS = 30000;      // Rückfall: so oft direkt beim Server nachfragen
-var lph = { unsub:null, aktiv:null, hb:null, drin:null, erste:false, blurT:null, poll:null, retry:null, hand:0, handBtn:null, handGesehen:{},
-            phase:null, phaseUnsub:null, praes:{}, empfangen:{}, rausLokal:{}, praesUnsub:null,
+var lph = { entprellt:null, unsub:null, aktiv:null, hb:null, drin:null, erste:false, blurT:null, poll:null, retry:null, hand:0, handBtn:null, handGesehen:{},
+            phase:null, phaseUnsub:null, praes:{}, empfangen:{}, rausLokal:{}, praesUnsub:null, praesPoll:null,
             panel:null, tab:null, offen:true, tick:null, gruppen:null };
 
 function lphMs(ts){ return ts && ts.toMillis ? ts.toMillis() : (typeof ts === 'number' ? ts : 0); }
@@ -33019,7 +33134,7 @@ function lphVerarbeiten(docs, ausCache){
     lph.aktiv = akt; lph.drin = null; lph.erste = true; lph.hand = 0;
     lphSchuelerStart();
     lphHandLaden(akt);
-    if(!vorher) toast(akt.nurUebung && akt.nurUebung.id ? '📚 Lernphase: Arbeite an «' + (akt.nurUebung.titel || 'der Übung') + '».' : '📚 Lernphase: Bleib hier in der Library.');
+    if(!vorher) toast(akt.nurFach && akt.nurFach.id ? '📚 Lernphase: Arbeite in ' + (akt.nurFach.titel || 'dem Fach') + '.' : akt.nurUebung && akt.nurUebung.id ? '📚 Lernphase: Arbeite an «' + (akt.nurUebung.titel || 'der Übung') + '».' : '📚 Lernphase: Bleib hier in der Library.');
   } else if(akt){
     lph.aktiv = akt;
   } else if(vorher && !ausCache){
@@ -33041,6 +33156,8 @@ function stopLernphaseWatcher(){
   lphHandBtnZeichnen();
   lphSchuelerStopp();
   if(lph.phaseUnsub){ lph.phaseUnsub(); lph.phaseUnsub = null; }
+  if(lph.praesUnsub){ lph.praesUnsub(); lph.praesUnsub = null; }
+  lphPraesPollStopp();
   lphPanelZu();
   lph.phase = null;
   updateLernphaseBanner();
@@ -33061,6 +33178,11 @@ function lphFensterFokus(){
 }
 function lphImFenster(){ return lphBibFokus() || !!lphFensterFokus(); }
 function lphAmOrt(){
+  var nf = lph.aktiv && lph.aktiv.nurFach;
+  if(nf && nf.id){
+    var r = state.route || {};
+    return (r.name === 'resource' && !!r.resource && (r.resource.subject || '') === nf.id) || (r.name === 'subject' && r.subject === nf.id);
+  }
   var n = lph.aktiv && lph.aktiv.nurUebung;
   if(!n || !n.id) return true;
   return state.route && state.route.name === 'resource' && state.route.resource && state.route.resource.id === n.id;
@@ -33068,6 +33190,7 @@ function lphAmOrt(){
 function lphIstDrin(){
   if(lphBibFokus()) return lphAmOrt();
   var f = lphFensterFokus(), n = lph.aktiv && lph.aktiv.nurUebung;
+  if(f && lph.aktiv && lph.aktiv.nurFach && lph.aktiv.nurFach.id) return true;
   return !!f && (!n || !n.id || String(f.rid) === String(n.id));
 }
 function lphMelden(heartbeat, erzwungenRaus){
@@ -33075,6 +33198,13 @@ function lphMelden(heartbeat, erzwungenRaus){
   var drin = erzwungenRaus ? false : lphIstDrin();
   var falsch = !erzwungenRaus && !drin && lphImFenster();
   if(!heartbeat && drin === lph.drin && falsch === lph.falsch) return;
+  // Mit eigenem Übungsfenster flackert hasFocus() beim Klicken kurz: «raus» erst
+  // melden, wenn es nach 2 s noch stimmt.
+  if(!drin && lph.drin === true && !erzwungenRaus && !arguments[2] && Object.keys(libFensterListe).length){
+    if(!lph.entprellt){ lph.entprellt = setTimeout(function(){ lph.entprellt = null; lphMelden(false, false, true); }, 2000); }
+    return;
+  }
+  if(drin && lph.entprellt){ clearTimeout(lph.entprellt); lph.entprellt = null; }
   lph.falsch = falsch;
   var data = { drin:drin, falsch:falsch, ts:serverTimestamp(), phase:lph.aktiv.startMs || 0 };
   if(lph.erste){ data.raus = drin ? 0 : 1; if(!drin) data.rausSeit = serverTimestamp(); lph.erste = false; }
@@ -33094,7 +33224,7 @@ function lphSchuelerStart(){
   window.addEventListener('focus', lphWechsel);
   window.addEventListener('blur', lphBlur);
   window.addEventListener('pagehide', lphPagehide);
-  lph.hb = setInterval(function(){ lphMelden(true); }, LPH_HB_MS);
+  lph.hb = pipTakt(function(){ lphMelden(true); }, LPH_HB_MS);
   lphMelden(true);
 }
 function lphSchuelerStopp(nurListener){
@@ -33102,7 +33232,7 @@ function lphSchuelerStopp(nurListener){
   window.removeEventListener('focus', lphWechsel);
   window.removeEventListener('blur', lphBlur);
   window.removeEventListener('pagehide', lphPagehide);
-  if(lph.hb){ clearInterval(lph.hb); lph.hb = null; }
+  if(lph.hb){ pipTaktStopp(lph.hb); lph.hb = null; }
   clearTimeout(lph.blurT);
   if(!nurListener) lph.drin = null;
 }
@@ -33110,8 +33240,14 @@ function updateLernphaseBanner(){
   var el = document.getElementById('lernphaseBadge');
   if(!el) return;
   el.hidden = !(lph.aktiv && state.profile && state.profile.role !== 'teacher');
-  var n = lph.aktiv && lph.aktiv.nurUebung;
-  if(n && n.id){
+  var n = lph.aktiv && lph.aktiv.nurUebung, nf = lph.aktiv && lph.aktiv.nurFach;
+  if(nf && nf.id){
+    var daF = lphAmOrt();
+    el.textContent = '📚 Lernphase: ' + (nf.titel || 'Fach') + (daF ? '' : ' ›');
+    el.title = daF ? 'Lernphase: Bleib in diesem Fach' : 'Lernphase: nur dieses Fach — antippen, um es zu öffnen';
+    el.classList.toggle('falsch', !daF);
+    el.onclick = daF ? null : function(){ goSubject(nf.id); };
+  } else if(n && n.id){
     var da = lphAmOrt();
     el.textContent = '📚 Lernphase: ' + (n.titel || 'Übung') + (da ? '' : ' ›');
     el.title = da ? 'Lernphase: Bleib in dieser Übung' : 'Lernphase: nur diese Übung — antippen, um sie zu öffnen';
@@ -33194,6 +33330,7 @@ function lphLehrerWatch(){
     if(!x || !x.aktiv){
       lph.phase = null;
       if(lph.praesUnsub){ lph.praesUnsub(); lph.praesUnsub = null; }
+      lphPraesPollStopp();
       lph.praes = {}; lph.empfangen = {}; lph.rausLokal = {};
       lphPanelZu();
       return;
@@ -33203,28 +33340,58 @@ function lphLehrerWatch(){
     if(neu){ lph.offen = true; lph.praes = {}; lph.empfangen = {}; lph.rausLokal = {}; lph.handGesehen = {}; }
     if(!lph.praesUnsub){
       lph.praesUnsub = onSnapshot(lphPraesCol(state.user.uid), function(ps){
-        var jetzt = Date.now();
         ps.docChanges().forEach(function(ch){
           var uid = ch.doc.id;
           if(ch.type === 'removed'){ delete lph.praes[uid]; delete lph.empfangen[uid]; delete lph.rausLokal[uid]; return; }
-          var d = ch.doc.data(), alt = lph.praes[uid];
-          lph.praes[uid] = d;
-          lph.empfangen[uid] = jetzt;
-          if(d.hand && lph.phase && d.phase === lph.phase.startMs && d.hand > lphErledigt(uid) && lph.handGesehen[uid] !== d.hand){
-            lph.handGesehen[uid] = d.hand;
-            // Beim ersten Laden (z.B. nach Neuladen) nicht für alte Hände piepsen.
-            if(!ps.metadata.fromCache && jetzt - d.hand < 120000) lphHandMelden(uid);
-          }
-          if(d.drin) delete lph.rausLokal[uid];
-          else if(!alt || alt.drin || !lph.rausLokal[uid]) lph.rausLokal[uid] = (alt && alt.drin) ? jetzt : (lphMs(d.rausSeit) || jetzt);
+          lphPraesAnwenden(uid, ch.doc.data(), ps.metadata.fromCache);
         });
         lphPaint();
       }, function(err){ console.error('Lernphase: Präsenz', err); });
     }
+    if(!lph.praesPoll){
+      lph.praesPoll = setInterval(lphPraesNachfragen, LPH_POLL_MS);
+      document.addEventListener('visibilitychange', lphPraesNachfragen);
+      window.addEventListener('online', lphPraesNachfragen);
+    }
+    if(neu) lphPraesNachfragen();
     lphPaint();
   }, function(err){ listenerFehler('Lernphase', err, stopLernphaseWatcher, startLernphaseWatcher); });
 }
 
+// Eine Präsenzmeldung übernehmen (vom Listener oder von der Server-Nachfrage).
+function lphPraesAnwenden(uid, d, ausCache){
+  var jetzt = Date.now(), alt = lph.praes[uid];
+  if(alt && lphMs(alt.ts) === lphMs(d.ts) && alt.drin === d.drin && alt.phase === d.phase && alt.hand === d.hand && alt.raus === d.raus) return false;
+  lph.praes[uid] = d;
+  lph.empfangen[uid] = jetzt;
+  if(d.hand && lph.phase && d.phase === lph.phase.startMs && d.hand > lphErledigt(uid) && lph.handGesehen[uid] !== d.hand){
+    lph.handGesehen[uid] = d.hand;
+    // Beim ersten Laden (z.B. nach Neuladen) nicht für alte Hände piepsen.
+    if(!ausCache && jetzt - d.hand < 120000) lphHandMelden(uid);
+  }
+  if(d.drin) delete lph.rausLokal[uid];
+  else if(!alt || alt.drin || !lph.rausLokal[uid]) lph.rausLokal[uid] = (alt && alt.drin) ? jetzt : (lphMs(d.rausSeit) || jetzt);
+  return true;
+}
+// Rückfall wie bei den Schüler:innen: der Listener allein kam nicht immer an —
+// darum alle 30 s und beim Zurückkommen direkt beim Server nachfragen.
+var lphPraesFragt = false;
+function lphPraesNachfragen(){
+  if(!lph.phase || !state.user || document.visibilityState === 'hidden' || lphPraesFragt) return;
+  lphPraesFragt = true;
+  getDocsFromServer(lphPraesCol(state.user.uid)).then(function(snap){
+    lphPraesFragt = false;
+    if(!lph.phase) return;
+    var neu = false;
+    snap.docs.forEach(function(dc){ if(lphPraesAnwenden(dc.id, dc.data(), false)) neu = true; });
+    if(neu) lphPaint();
+  }).catch(function(err){ lphPraesFragt = false; console.warn('Lernphase: Präsenz nachfragen', err && err.code); });
+}
+function lphPraesPollStopp(){
+  clearInterval(lph.praesPoll); lph.praesPoll = null;
+  document.removeEventListener('visibilitychange', lphPraesNachfragen);
+  window.removeEventListener('online', lphPraesNachfragen);
+}
 function lphErledigt(uid){ return ((lph.phase && lph.phase.erledigt) || {})[uid] || 0; }
 function lphHandVon(uid){
   var p = lph.praes[uid];
@@ -33270,8 +33437,9 @@ function lphHandErledigt(uid){
 
 function lphStatus(uid){
   var p = lph.praes[uid];
-  if(!p || p.phase !== lph.phase.startMs) return {rot:true, text:'noch nicht da'};
   var jetzt = Date.now();
+  if(p && p.phase !== lph.phase.startMs && jetzt - lphMs(p.ts) < 2 * LPH_STALE_MS) return {rot:true, text:'verbindet …'};
+  if(!p || p.phase !== lph.phase.startMs) return {rot:true, text:'noch nicht da'};
   if(jetzt - (lph.empfangen[uid] || 0) > LPH_STALE_MS || jetzt - lphMs(p.ts) > 5 * LPH_STALE_MS) return {rot:true, text:'keine Verbindung', raus:p.raus || 0};
   if(!p.drin){
     var seit = lph.rausLokal[uid] || lphMs(p.rausSeit) || jetzt;
@@ -33345,9 +33513,9 @@ function lphPaint(){
   var sort = lphSortGet();
   if(sort && faecher.indexOf(sort) < 0) sort = '';
 
-  var h = '<div class="lph-head"><div><b>📚 Lernphase</b><small>'+esc(p.titel || '')+(p.nurUebung && p.nurUebung.id ? '<br>nur: '+esc(p.nurUebung.titel || '') : '')+'</small></div>'+
+  var h = '<div class="lph-head"><div><b>📚 Lernphase</b><small>'+esc(p.titel || '')+(p.nurFach && p.nurFach.id ? '<br>nur: '+esc(p.nurFach.titel || '') : p.nurUebung && p.nurUebung.id ? '<br>nur: '+esc(p.nurUebung.titel || '') : '')+'</small></div>'+
     '<span><button class="lph-mini" data-lph="pip" type="button" title="Immer im Vordergrund — auch wenn du in einem anderen Programm arbeitest">📌</button>'+
-    '<button class="lph-mini" data-lph="zu" type="button" title="Einklappen">⟨</button></span></div>';
+    '<button class="lph-mini" data-lph="zu" type="button" title="Einklappen">⟩</button></span></div>';
   h += '<div class="lph-sum"><span class="lph-ok">🟢 '+(sichtbar.length - rot)+' drin</span><span class="lph-bad">🔴 '+rot+' raus</span></div>';
   if(haende.length){
     h += '<div class="lph-fragen"><b>✋ Fragen ('+haende.length+')</b>';
@@ -33465,7 +33633,7 @@ function openLernphase(){
     '<label class="modal-label" for="lphFach">Grün ist, wer …</label>'+
     '<select class="modal-input" id="lphFach"><option value="">📚 irgendwo in der Library ist</option></select>'+
     '<select class="modal-input" id="lphNur" style="margin-top:8px" hidden></select>'+
-    '<p class="pr-hinweis" id="lphNurInfo" style="margin-top:6px">Wählst du eine Übung, leuchtet auch rot, wer in der Library etwas anderes offen hat.</p>'+
+    '<p class="pr-hinweis" id="lphNurInfo" style="margin-top:6px">Wählst du ein Fach oder eine Übung, leuchtet auch rot, wer in der Library etwas anderes offen hat.</p>'+
     '<div class="modal-actions">'+
       '<button class="btn btn-ghost btn-sm" id="modalCancel" type="button">Abbrechen</button>'+
       '<button class="btn btn-primary btn-sm" id="modalOk" type="button">Starten</button>'+
@@ -33486,6 +33654,7 @@ function openLernphase(){
   function titelVon(r){ return r.title || r.fileName || r.id; }
   fachSel.addEventListener('change', function(){
     var f = fachSel.value;
+    if(f.indexOf('fach:') === 0) f = '';
     nurSel.innerHTML = '';
     nurSel.hidden = !f;
     if(!f) return;
@@ -33510,6 +33679,9 @@ function openLernphase(){
     SUBJECTS.map(function(f){ return f.id; }).concat(Object.keys(proFach)).filter(function(f, i, a){ return proFach[f] && a.indexOf(f) === i; }).forEach(function(f){
       proFach[f].sort(function(a, b){ return titelVon(a).localeCompare(titelVon(b), 'de'); });
       var o = document.createElement('option');
+      var of = document.createElement('option');
+      of.value = 'fach:' + f; of.textContent = '📗 irgendwo in ' + (subjectName(f) || 'Ohne Fach');
+      fachSel.appendChild(of);
       o.value = f; o.textContent = '📘 nur in einer Übung aus ' + (subjectName(f) || 'Ohne Fach') + ' (' + proFach[f].length + ')';
       fachSel.appendChild(o);
     });
@@ -33517,8 +33689,10 @@ function openLernphase(){
   document.getElementById('modalCancel').addEventListener('click', closeModal);
   document.getElementById('modalOk').addEventListener('click', function(){
     var gid = sel.value, g = meine.filter(function(x){ return x.id === gid; })[0];
-    if(fachSel.value && !nurSel.value){ toast('Bitte noch die Übung wählen.'); nurSel.focus(); return; }
-    var nurOpt = fachSel.value && nurSel.value ? nurSel.options[nurSel.selectedIndex] : null;
+    var nurFach = fachSel.value.indexOf('fach:') === 0 ? {id:fachSel.value.slice(5), titel:fachSel.options[fachSel.selectedIndex].textContent.replace('📗 irgendwo in ', '')} : null;
+    if(nurFach && !nurFach.id) nurFach = null;
+    if(!nurFach && fachSel.value && !nurSel.value){ toast('Bitte noch die Übung wählen.'); nurSel.focus(); return; }
+    var nurOpt = !nurFach && fachSel.value && nurSel.value ? nurSel.options[nurSel.selectedIndex] : null;
     var nurUebung = nurOpt ? {id:nurSel.value, titel:nurOpt.textContent} : null;
     var okBtn = document.getElementById('modalOk');
     okBtn.disabled = true;
@@ -33536,7 +33710,7 @@ function openLernphase(){
       return lphPraesenzLoeschen().catch(function(){}).then(function(){
         return setDoc(lphRef(state.user.uid), {
           aktiv:true, startMs:Date.now(), start:serverTimestamp(), titel:x.titel,
-          mitglieder:x.mitglieder.slice(0, 400), namen:x.namen, aus:[], nurUebung:nurUebung,
+          mitglieder:x.mitglieder.slice(0, 400), namen:x.namen, aus:[], nurUebung:nurUebung, nurFach:nurFach,
           klasse:state.klasse, ownerName:state.profile.displayName || ''
         });
       }).then(function(){ closeModal(); lph.offen = true; toast('📚 Lernphase gestartet.'); });
@@ -46601,7 +46775,7 @@ function render(){
   clearOverviewWatchers();
   if(state.route.name !== 'kalender') kal = { alle:false, vergangenOffen:false };
   // Lernphase mit «nur diese Übung»: jeder Seitenwechsel kann drin/raus ändern.
-  if(lph.aktiv && lph.aktiv.nurUebung){ setTimeout(function(){ lphMelden(false); updateLernphaseBanner(); }, 0); }
+  if(lph.aktiv && (lph.aktiv.nurUebung || lph.aktiv.nurFach)){ setTimeout(function(){ lphMelden(false); updateLernphaseBanner(); }, 0); }
   if(wackelnAktiv() && state.route.name !== 'home' && state.route.name !== 'klassenzimmer') wackelnEnde();
   // Übung verlassen: Stand und Lernzeit ein letztes Mal sichern, Beobachtung stoppen.
   if(state.route.name !== 'resource' && syncState.resourceId){
