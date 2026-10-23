@@ -11002,7 +11002,7 @@ function sortByOrder(list, fallbackField){
     if(oa !== null && ob !== null && oa !== ob) return oa - ob;
     if(oa !== null && ob === null) return -1;
     if(oa === null && ob !== null) return 1;
-    return String(a[fallbackField]||'').localeCompare(String(b[fallbackField]||''), 'de');
+    return String(a[fallbackField]||'').localeCompare(String(b[fallbackField]||''), 'de', {numeric:true});
   });
   return list;
 }
@@ -15267,6 +15267,9 @@ function sortResources(resources){
     if(oa !== null && ob !== null) return oa - ob;
     if(oa !== null) return -1;
     if(ob !== null) return 1;
+    // Nummerierte Titel («0.1 …», «2 …», «10 …») gehören in Zahlenreihenfolge nach oben: 1, 2, … 9, 10, 11.
+    var na = /^\s*\d/.test(a.title || ''), nb = /^\s*\d/.test(b.title || '');
+    if(na && nb) return String(a.title).localeCompare(String(b.title), 'de', {numeric:true});
     var ta = a.uploadedAt && a.uploadedAt.toDate ? a.uploadedAt.toDate().getTime() : 0;
     var tb = b.uploadedAt && b.uploadedAt.toDate ? b.uploadedAt.toDate().getTime() : 0;
     return tb - ta;
@@ -16425,6 +16428,7 @@ var pdfOrdnerZaehler = 0;
 function pdfOrdnerTitel(name){
   var t = name.replace(/\.pdf$/i,'').replace(/[_-]+/g,' ');
   t = t.replace(/\s([GE])\s+L$/, ' (Niveau $1, Lösung)').replace(/\s([GE])$/, ' (Niveau $1)');
+  [['Geraete','Geräte'],['Molekuele','Moleküle'],['Saeuren','Säuren'],['Klaeranlage','Kläranlage'],['Erdoel','Erdöl'],['Aenderung','Änderung'],['Uebung','Übung'],['Loesung','Lösung'],['Groesse','Grösse']].forEach(function(p){ t = t.split(p[0]).join(p[1]); });
   return t.slice(0,60);
 }
 function handleOrdnerUpload(subjectId, parentId, fileList){
@@ -16436,7 +16440,7 @@ function handleOrdnerUpload(subjectId, parentId, fileList){
     var teile = (f.webkitRelativePath || f.name).split('/');
     var ordner = teile.slice(0,-1);
     return { file:f, ordner:ordner, verdeckt: ordner.some(function(n){ return /\(verdeckt\)\s*$/i.test(n); }) };
-  }).sort(function(a,b){ return (a.ordner.join('/')+'/'+a.file.name).localeCompare(b.ordner.join('/')+'/'+b.file.name, 'de'); });
+  }).sort(function(a,b){ return (a.ordner.join('/')+'/'+a.file.name).localeCompare(b.ordner.join('/')+'/'+b.file.name, 'de', {numeric:true}); });
   var pfade = {}; eintraege.forEach(function(e){ pfade[e.ordner.join('/')] = true; });
   var nV = eintraege.filter(function(e){ return e.verdeckt; }).length;
   var where_ = parentId ? ('Ordner «'+(folderById(parentId) ? folderById(parentId).name : '')+'»') : 'Fach-Hauptebene';
@@ -16446,7 +16450,7 @@ function handleOrdnerUpload(subjectId, parentId, fileList){
 }
 async function ordnerHochladen(subjectId, parentId, eintraege){
   var progEl = document.getElementById('uploadProgress');
-  var ids = {}, neuProEltern = {}, ok = 0, uebersprungen = 0, fehler = [];
+  var ids = {}, neuProEltern = {}, resZaehler = {}, ok = 0, uebersprungen = 0, fehler = [];
   function zeige(t){ if(progEl){ progEl.textContent = t; progEl.classList.add('show'); } }
   async function ordnerId(pfad){
     var parent = parentId || null, key = '';
@@ -16478,6 +16482,9 @@ async function ordnerHochladen(subjectId, parentId, eintraege){
         await assertQuota(bytes);
         var resId = subjectId+'_'+(Date.now() + (pdfOrdnerZaehler++));
         var meta = { subject: subjectId, folderId: folderId || null, title: pdfOrdnerTitel(e.file.name), fileName: e.file.name, uploadedAt: serverTimestamp(), uploadedBy: state.user.uid, contentId: resId, version: 0, pdf: true };
+        var rk = String(folderId || '');
+        if(resZaehler[rk] === undefined) resZaehler[rk] = resourcesIn(folderId).length;
+        meta.order = resZaehler[rk]++;   // Reihenfolge wie im Ordner (1, 2, … 10, 11)
         if(e.verdeckt) meta.ausgeblendet = true;
         var kopf = { chunkCount: chunks.length, bytes: bytes, ownerUid: state.user.uid };
         if(e.verdeckt) kopf.nurLehrer = true;
@@ -32948,7 +32955,8 @@ function pipStarten(art, id){
   // Vollbild. Das Dokument-Bild-in-Bild von Chrome tut das auf dem Mac nicht.
   // Nur ohne Video-Weg: HTML-Fenster (Document PiP bzw. kleines eigenes Fenster).
   if(!pipMoeglich()){ pipFensterStarten(art, id); return; }
-  if(pipv.video && pipv.art === art && pipv.id === (id || null)){ pipAnfordern(); return; }
+  if(pipv.video && pipv.art === art && pipv.id === (id || null) && document.pictureInPictureElement !== pipv.video && !pipv.video.webkitPresentationMode){ pipStoppen(); }
+  else if(pipv.video && pipv.art === art && pipv.id === (id || null)){ pipAnfordern(); return; }
   pipStoppen();
   var c = document.createElement('canvas'), v = document.createElement('video');
   c.width = PIP_W; c.height = PIP_H;
@@ -33563,6 +33571,7 @@ function lphPaint(){
   if(!lph.panel){
     lph.panel = document.createElement('aside');
     lph.panel.className = 'lph-panel';
+    lph.panelHtml = null;
     lph.panel.addEventListener('click', lphPanelKlick);
     lph.panel.addEventListener('change', function(e){
       if(e.target.id === 'lphSort'){ lphSortSet(e.target.value); lphPaint(); }
@@ -33622,10 +33631,15 @@ function lphPaint(){
   }
   h += '</div>';
   h += '<div class="lph-foot"><button class="btn btn-ghost btn-sm" data-lph="ende" type="button">⏹ Lernphase beenden</button></div>';
-  var list = lph.panel.querySelector('.lph-list'), scroll = list ? list.scrollTop : 0;
-  lph.panel.innerHTML = h;
-  var neuList = lph.panel.querySelector('.lph-list');
-  if(neuList) neuList.scrollTop = scroll;
+  // Nur neu zeichnen, wenn sich etwas geändert hat: jede Meldung einer Schüler:in löst einen Paint
+  // aus, und ein mitten im Klick ersetzter Knopf (📌, Sortieren …) schluckt den Klick.
+  if(lph.panelHtml !== h || !lph.panel.firstChild){
+    var list = lph.panel.querySelector('.lph-list'), scroll = list ? list.scrollTop : 0;
+    lph.panel.innerHTML = h;
+    lph.panelHtml = h;
+    var neuList = lph.panel.querySelector('.lph-list');
+    if(neuList) neuList.scrollTop = scroll;
+  }
   lphTickStart();
   if(pipv.art === 'lph') pipRefresh();
 }
@@ -33665,7 +33679,7 @@ function lphPanelKlick(e){
   } else if(b.hasAttribute('data-lph-ein')){
     updateDoc(ref, {aus: arrayRemove(b.getAttribute('data-lph-ein'))}).catch(function(err){ console.error(err); toast('Konnte nicht einblenden.'); });
   } else if(b.getAttribute('data-lph') === 'pip'){
-    pipStarten('lph');
+    try{ pipStarten('lph'); }catch(err){ console.error('Bild-in-Bild', err); toast('📌 Das Fenster liess sich nicht öffnen.'); }
   } else if(b.getAttribute('data-lph') === 'zu'){
     lph.offen = false; lphPaint();
   } else if(b.getAttribute('data-lph') === 'ende'){
