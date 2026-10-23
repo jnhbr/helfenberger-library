@@ -12,7 +12,7 @@
  *
  * Regel (wie inhaltGeschuetzt() in index.html): ein Inhalt ist geschützt, wenn
  * ALLE Übungen in allen Klassen, die ihn als aktuelle oder vorherige Fassung
- * zeigen, Lehrer-HTMLs (nurLehrer:true) sind. Zeigt ihn irgendwo eine normal
+ * zeigen, Lehrer-HTMLs (nurLehrer:true) oder ausgeblendet (ausgeblendet:true) sind. Zeigt ihn irgendwo eine normal
  * sichtbare Übung, wird ein allfälliger Schutz wieder entfernt — das Skript
  * darf also jederzeit nochmals laufen und korrigiert dabei auch Fehlstände.
  */
@@ -34,7 +34,8 @@ async function inhalteSchuetzen(db, ja, uebungen) {
     [r.contentId || u.id, r.prevContentId].forEach(cid => {
       if (!cid) return;
       const x = inhalte[cid] = inhalte[cid] || { lehrer: 0, sichtbar: 0, titel: r.title || r.fileName || u.id };
-      if (r.nurLehrer === true) x.lehrer++; else x.sichtbar++;
+      // wie inhaltGeschuetzt() in index.html: auch 🙈 ausgeblendete Übungen (z. B. Lösungs-PDFs) gelten als geschützt
+      if (r.nurLehrer === true || r.ausgeblendet === true) x.lehrer++; else x.sichtbar++;
     });
   });
   // Nur die bereits geschützten Inhalte lesen (wenige), nicht alle Köpfe.

@@ -14827,6 +14827,7 @@ function renderSubject(subjectId, folderId){
     html += '</div>';
     html += '<div class="back-row" style="flex-wrap:wrap;"><button class="btn btn-ghost btn-sm" id="newFolderBtn" type="button">+ Neuer Ordner</button>'+
       '<button class="btn btn-ghost btn-sm" id="kzmHolenBtn" type="button" title="Quiz, Karteikarten, Wortwolke oder Blitzumfrage hier ablegen">🏫 Aus dem Klassenzimmer</button>'+
+      '<button class="btn btn-ghost btn-sm" id="dlHierBtn" type="button" title="Alle Dateien hier (mit allen Ordnern) als ZIP auf deinen Computer laden">⬇️ Alles herunterladen</button>'+
       (isLeitung() ? '' : '<button class="btn btn-ghost btn-sm" id="bkNeuBtn" type="button" title="Die Klasse gibt hier Dateien ab, du holst sie auf deinen Computer">📮 Briefkasten aufstellen</button>')+'</div>';
   }
 
@@ -14848,6 +14849,10 @@ function renderSubject(subjectId, folderId){
   if(isTeacher){
     wireDropzone(subjectId);
     document.getElementById('kzmHolenBtn').addEventListener('click', function(){ kzmHolenDialog(subjectId, state.route.folderId || null); });
+    document.getElementById('dlHierBtn').addEventListener('click', function(){
+      var here = state.route.folderId || null;
+      ordnerHerunterladen(here, here && folderById(here) ? folderById(here).name : s.name);
+    });
     var bkNeuBtn = document.getElementById('bkNeuBtn');
     if(bkNeuBtn) bkNeuBtn.addEventListener('click', function(){ bkEditor(null); });
     document.getElementById('newFolderBtn').addEventListener('click', function(){
@@ -15023,6 +15028,7 @@ function renderFolderContents(){
       uiPrompt('Ordner umbenennen', null, f.name, 'Speichern', function(name){ renameFolder(f, name); });
     });
     document.getElementById('fmove-'+f.id).addEventListener('click', function(){ askMoveFolder(f); });
+    document.getElementById('fdl-'+f.id).addEventListener('click', function(){ ordnerHerunterladen(f.id, f.name); });
     document.getElementById('fdel-'+f.id).addEventListener('click', function(){ askDeleteFolder(f); });
   });
 
@@ -15165,6 +15171,7 @@ function folderCardHtml(f, index, total, isTeacher){
     html += '<div class="folder-actions">';
     html += '<button class="btn btn-ghost btn-sm" id="frename-'+f.id+'" type="button">Umbenennen</button>';
     html += '<button class="btn btn-ghost btn-sm" id="fmove-'+f.id+'" type="button">Verschieben</button>';
+    html += '<button class="btn btn-ghost btn-sm" id="fdl-'+f.id+'" type="button" title="Alle Dateien dieses Ordners (mit Unterordnern) als ZIP herunterladen">⬇️ Herunterladen</button>';
     html += '<button class="btn btn-danger btn-sm" id="fdel-'+f.id+'" type="button">Löschen</button>';
     html += '</div>';
   }
@@ -16416,6 +16423,95 @@ function handleUpload(subjectId, folderId, file, nurLehrerVorwahl){
   document.getElementById('modalOk').addEventListener('click', submit);
   document.getElementById('modalCancel').addEventListener('click', closeModal);
   input.addEventListener('keydown', function(e){ if(e.key === 'Enter') submit(); });
+}
+
+/* ===================== ORDNER HERUNTERLADEN (Lehrpersonen) =====================
+   Alle Dateien eines Ordners samt Unterordnern als ZIP: PDFs als .pdf, HTML-Übungen
+   als .html (auch ausgeblendete und Lehrer-HTML), Links in «Links.txt». Quizze und
+   andere Klassenzimmer-Einträge sind keine Dateien und fehlen. Das ZIP entsteht im
+   Browser (ohne Komprimierung), es gibt keine Bibliothek und keinen Server. */
+var CRC_TAB = null;
+function crc32(u8){
+  if(!CRC_TAB){
+    CRC_TAB = new Uint32Array(256);
+    for(var n = 0; n < 256; n++){ var c0 = n; for(var k = 0; k < 8; k++) c0 = (c0 & 1) ? (0xEDB88320 ^ (c0 >>> 1)) : (c0 >>> 1); CRC_TAB[n] = c0 >>> 0; }
+  }
+  var c = 0xFFFFFFFF;
+  for(var i = 0; i < u8.length; i++) c = CRC_TAB[(c ^ u8[i]) & 0xFF] ^ (c >>> 8);
+  return (c ^ 0xFFFFFFFF) >>> 0;
+}
+function zipBauen(dateien){
+  var enc = new TextEncoder(), teile = [], zentral = [], offset = 0, d = new Date();
+  var dosT = (d.getHours() << 11) | (d.getMinutes() << 5) | (d.getSeconds() >> 1);
+  var dosD = ((d.getFullYear() - 1980) << 9) | ((d.getMonth() + 1) << 5) | d.getDate();
+  dateien.forEach(function(f){
+    var nm = enc.encode(f.name), crc = crc32(f.data), n = f.data.length;
+    var lh = new DataView(new ArrayBuffer(30));
+    lh.setUint32(0, 0x04034b50, true); lh.setUint16(4, 20, true); lh.setUint16(6, 0x0800, true); lh.setUint16(8, 0, true);
+    lh.setUint16(10, dosT, true); lh.setUint16(12, dosD, true); lh.setUint32(14, crc, true); lh.setUint32(18, n, true); lh.setUint32(22, n, true);
+    lh.setUint16(26, nm.length, true); lh.setUint16(28, 0, true);
+    teile.push(new Uint8Array(lh.buffer), nm, f.data);
+    var ch = new DataView(new ArrayBuffer(46));
+    ch.setUint32(0, 0x02014b50, true); ch.setUint16(4, 20, true); ch.setUint16(6, 20, true); ch.setUint16(8, 0x0800, true); ch.setUint16(10, 0, true);
+    ch.setUint16(12, dosT, true); ch.setUint16(14, dosD, true); ch.setUint32(16, crc, true); ch.setUint32(20, n, true); ch.setUint32(24, n, true);
+    ch.setUint16(28, nm.length, true); ch.setUint32(42, offset, true);
+    zentral.push(new Uint8Array(ch.buffer), nm);
+    offset += 30 + nm.length + n;
+  });
+  var zl = 0; zentral.forEach(function(x){ zl += x.length; });
+  var end = new DataView(new ArrayBuffer(22));
+  end.setUint32(0, 0x06054b50, true); end.setUint16(8, dateien.length, true); end.setUint16(10, dateien.length, true);
+  end.setUint32(12, zl, true); end.setUint32(16, offset, true);
+  return new Blob(teile.concat(zentral, [new Uint8Array(end.buffer)]), {type:'application/zip'});
+}
+function dlName(s){ return String(s || '').replace(/[\\\/:*?"<>|\u0000-\u001f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80) || 'Datei'; }
+function ordnerHerunterladen(folderId, name){
+  var liste = [], links = [];
+  function sammeln(fid, pfad){
+    resourcesIn(fid).forEach(function(r){
+      if(r.virtual || r.kzm) return;
+      if(r.externalUrl || r.linkUrl){ links.push(pfad.concat([r.title || r.fileName || 'Link']).join('/') + ' – ' + (r.externalUrl || r.linkUrl)); return; }
+      liste.push({pfad:pfad, r:r});
+    });
+    foldersIn(fid).forEach(function(f){ if(!f.virtual) sammeln(f.id, pfad.concat([dlName(f.name)])); });
+  }
+  sammeln(folderId, []);
+  if(!liste.length && !links.length){ toast('In diesem Ordner liegen keine Dateien.'); return; }
+  function los(){ ordnerZipErstellen(name, liste, links); }
+  if(liste.length > 40) uiConfirm('Grossen Ordner herunterladen?', liste.length+' Dateien werden zusammengestellt. Das kann etwas dauern und liest viele Daten aus Firebase. Bitte nicht öfter als nötig.', 'Herunterladen', los);
+  else los();
+}
+async function ordnerZipErstellen(name, liste, links){
+  var progEl = document.getElementById('uploadProgress');
+  function zeige(t){ if(progEl){ progEl.textContent = t; progEl.classList.add('show'); } }
+  var dateien = [], belegt = {}, fehler = 0, wurzel = dlName(name);
+  try{
+    for(var i = 0; i < liste.length; i++){
+      var r = liste[i].r;
+      zeige('Packe '+(i+1)+' von '+liste.length+': «'+(r.title || r.fileName || '')+'» …');
+      try{
+        var id = resourceContentId(r), daten;
+        if(r.pdf) daten = new Uint8Array(await (await loadResourcePdfBlob(id)).arrayBuffer());
+        else daten = new TextEncoder().encode(await loadResourceHtml(id));
+        var ext = r.pdf ? '.pdf' : '.html';
+        var basis = wurzel + '/' + liste[i].pfad.concat([dlName(r.title || r.fileName)]).join('/');
+        var pfad = basis + ext, nr = 2;
+        while(belegt[pfad.toLowerCase()]) pfad = basis + ' (' + (nr++) + ')' + ext;
+        belegt[pfad.toLowerCase()] = true;
+        dateien.push({name:pfad, data:daten});
+      }catch(err){ console.error(err); fehler++; }
+    }
+    if(links.length) dateien.push({name:wurzel + '/Links.txt', data:new TextEncoder().encode(links.join('\n') + '\n')});
+    if(!dateien.length){ toast('Es konnte keine Datei geladen werden.'); return; }
+    var blob = zipBauen(dateien);
+    var url = URL.createObjectURL(blob), a = document.createElement('a');
+    a.href = url; a.download = wurzel + '.zip';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 60000);
+    toast('«'+wurzel+'.zip» mit '+dateien.length+' Dateien heruntergeladen'+(fehler ? ' ('+fehler+' fehlgeschlagen)' : '')+'.');
+  }finally{
+    if(progEl) progEl.classList.remove('show');
+  }
 }
 
 /* ===================== PDF-ORDNER HOCHLADEN =====================
@@ -23281,6 +23377,7 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-10-23-ordner-download', datum:'2026-10-23', fuer:'lehrer', text:'⬇️ Ordner herunterladen: In jedem Fach gibt es bei jedem Ordner «⬇️ Herunterladen» und oben «⬇️ Alles herunterladen» (für den Ordner, in dem du gerade bist, oder das ganze Fach). Du bekommst ein ZIP mit allen PDFs und HTML-Übungen samt Unterordnern, Links stehen in Links.txt. Quizze und andere Klassenzimmer-Einträge sind keine Dateien und fehlen.'},
   {id:'2026-10-23-gruppen-ordner', datum:'2026-10-23', fuer:'alle', text:'📁 Übungen von anderen Lehrpersonen («👥 Bei …») stehen jetzt in aufklappbaren Ordnern, genau wie auf deiner Klassenseite. Hast du ein Fach bei mehreren Lehrpersonen, wählst du oben, bei wem – dieselbe Übung findest du bei beiden.'},
   {id:'2026-10-23-lernphase-fenster', datum:'2026-10-23', fuer:'lehrer', text:'📚 Lernphase: Wer in einem eigenen Übungsfenster arbeitet, wird nicht mehr zwischendurch rot — die Library meldet jetzt auch im Hintergrund zuverlässig, und kurzes Flackern beim Klicken zählt nicht als «raus».'},
   {id:'2026-10-23-lernphase-rechts', datum:'2026-10-23', fuer:'lehrer', text:'📚 Lernphase: Die Übersicht steht jetzt rechts, damit links alle Knöpfe der Library sichtbar bleiben.'},
