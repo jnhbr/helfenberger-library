@@ -3732,7 +3732,7 @@ function tokenNachlauf(){
   setTimeout(function(){
     auth.currentUser && auth.currentUser.getIdToken(true).then(function(){
       try{
-        if(state.route && state.route.name === 'home' && !modalEl.classList.contains('show')) render();
+        if(state.route && (state.route.name === 'home' || state.route.name === 'subject') && !modalEl.classList.contains('show')) render();
       }catch(e){}
     }, function(){});
   }, 1500);
@@ -14925,8 +14925,24 @@ function renderSubject(subjectId, folderId){
     console.error(err);
     var listEl = document.getElementById('resourceList');
     if(listEl) listEl.innerHTML = '<div class="empty-state">Übungen konnten nicht geladen werden.</div>';
+    // 23.10.2026: kurzes «permission-denied» trotz gültiger Anmeldung (Token noch nicht
+    // anerkannt) liess die Fachseite leer, bis jemand neu lud. Einmal pro Fach frisches
+    // Token holen und die Seite neu aufbauen; sonst bleibt die Meldung stehen.
+    if(err && err.code === 'permission-denied' && fachNachlaufGetan !== subjectId && auth.currentUser){
+      fachNachlaufGetan = subjectId;
+      listEl && (listEl.innerHTML = '<div class="empty-state">Wird neu geladen …</div>');
+      setTimeout(function(){
+        auth.currentUser && auth.currentUser.getIdToken(true).then(function(){
+          if(state.route && state.route.name === 'subject' && state.route.subject === subjectId && !modalEl.classList.contains('show')) render();
+        }, function(){
+          var l = document.getElementById('resourceList');
+          if(l) l.innerHTML = '<div class="empty-state">Übungen konnten nicht geladen werden.</div>';
+        });
+      }, 1500);
+    }
   });
 }
+var fachNachlaufGetan = null;
 
 // Zeichnet Brotkrumen + den Inhalt des gerade offenen Containers neu. Wird bei
 // jeder Snapshot-Änderung und nach jeder Navigation in einen Unterordner
@@ -15028,6 +15044,8 @@ function renderFolderContents(){
       uiPrompt('Ordner umbenennen', null, f.name, 'Speichern', function(name){ renameFolder(f, name); });
     });
     document.getElementById('fmove-'+f.id).addEventListener('click', function(){ askMoveFolder(f); });
+    // «(verdeckt)»-Ordner gibt es nicht: der Inhalt wird gleich neben die Aufgaben gestellt.
+    if(/\(verdeckt\)\s*$/i.test(f.name)) ordnerNebenAufgaben(f);
     document.getElementById('fdl-'+f.id).addEventListener('click', function(){ ordnerHerunterladen(f.id, f.name); });
     document.getElementById('fdel-'+f.id).addEventListener('click', function(){ askDeleteFolder(f); });
   });
@@ -15235,6 +15253,30 @@ function maxDepthBelow(folderId){
   var kids = state.folders.filter(function(f){ return (f.parentId||null) === folderId; });
   if(!kids.length) return 0;
   return 1 + Math.max.apply(null, kids.map(function(k){ return maxDepthBelow(k.id); }));
+}
+
+// «Lösungen (verdeckt)»-Ordner auflösen: die Dateien kommen eine Ebene höher, neben die Aufgaben
+// (Reihenfolge G, G-Lösung, E, E-Lösung; die PDFs behalten ihre Plätze), der leere Ordner wird gelöscht.
+var nebenSchonDran = {};
+function ordnerNebenAufgaben(f){
+  if(nebenSchonDran[f.id]) return;
+  if(state.folders.some(function(k){ return (k.parentId || null) === f.id; })) return;
+  nebenSchonDran[f.id] = true;
+  var eltern = f.parentId || null;
+  var ziel = resourcesIn(eltern).filter(function(x){ return !x.virtual; });
+  var rein = resourcesIn(f.id).filter(function(x){ return !x.virtual; });
+  var ist = function(x){ return x.pdf && x.fileName; };
+  var pdfs = ziel.concat(rein).filter(ist).sort(function(a, b){
+    var ka = pdfSortKey(a.fileName), kb = pdfSortKey(b.fileName);
+    return ka.base.localeCompare(kb.base, 'de', {numeric:true}) || (ka.niv - kb.niv) || (ka.los - kb.los);
+  });
+  var k = 0;
+  // PDFs übernehmen die Plätze der bisherigen PDFs; neue hängen hinten an.
+  var geordnet = ziel.map(function(x){ return ist(x) ? pdfs[k++] : x; }).concat(pdfs.slice(k)).concat(rein.filter(function(x){ return !ist(x); }));
+  var batch = writeBatch(db);
+  geordnet.forEach(function(x, i){ batch.update(kdoc('resources', x.id), {folderId: eltern, order: i}); });
+  batch.delete(kdoc('folders', f.id));
+  batch.commit().catch(function(err){ console.error(err); nebenSchonDran[f.id] = false; });
 }
 
 // Löschen bewusst nur, wenn wirklich nichts mehr drin ist — so kann nie
@@ -16546,7 +16588,8 @@ function handleOrdnerUpload(subjectId, parentId, fileList){
   var eintraege = dateien.map(function(f){
     var teile = (f.webkitRelativePath || f.name).split('/');
     var ordner = teile.slice(0,-1);
-    return { file:f, ordner:ordner, verdeckt: pdfIstVerdeckt(ordner, f.name) };
+    // «(verdeckt)»-Ordner gibt es nicht als Library-Ordner: die Datei liegt auf der Ebene der Aufgaben, ist aber verdeckt.
+    return { file:f, ordner:ordner.filter(function(n){ return !/\(verdeckt\)\s*$/i.test(n); }), verdeckt: pdfIstVerdeckt(ordner, f.name) };
   }).sort(function(a,b){
     var pa = a.ordner.join('/'), pb = b.ordner.join('/');
     if(pa !== pb) return pa.localeCompare(pb, 'de', {numeric:true});
@@ -17037,6 +17080,8 @@ function exerciseHelperScript(rid, mitEnter){
     'window.__libLoadView=function(){try{var v=JSON.parse(localStorage.getItem(K)||"null");return v&&typeof v==="object"?v:null;}catch(e){return null;}};' +
     'window.__libSaveView=function(v){try{if(!v||v.mode==="home")localStorage.removeItem(K);else localStorage.setItem(K,JSON.stringify({mode:v.mode,themeKey:v.themeKey,index:v.index,mDecided:!!v.mDecided}));}catch(e){}};' +
     'window.__libClearView=function(){try{localStorage.removeItem(K);}catch(e){}};' +
+    // Strg/Cmd+P in der Übung druckt die Übung selbst (Seitenbreite = Papierbreite), nicht die Library-Seite mit eingebettetem Rahmen.
+    'document.addEventListener("keydown",function(e){if((e.metaKey||e.ctrlKey)&&!e.shiftKey&&!e.altKey&&String(e.key).toLowerCase()==="p"){e.preventDefault();window.print();}},true);' +
     // Taschenrechner per Tastatur: nur wenn er offen ist und der Fokus nicht in einem Antwortfeld liegt.
     'var MAP={"0":"0","1":"1","2":"2","3":"3","4":"4","5":"5","6":"6","7":"7","8":"8","9":"9",".":".",",":".","+":"+","-":"−","*":"×","x":"×","X":"×","/":"÷",":":"÷","Enter":"=","=":"=","Backspace":"⌫","Delete":"C","Escape":"C","c":"C","C":"C","q":"x²","Q":"x²","²":"x²","w":"√","W":"√"};' +
     'function isField(a){return a&&(a.tagName==="INPUT"||a.tagName==="TEXTAREA"||a.tagName==="SELECT"||a.isContentEditable);}' +
@@ -17198,6 +17243,7 @@ function renderResource(r){
   }, r);
   var liveBtn = document.getElementById('liveBtn');
   if(liveBtn){ liveBtn.addEventListener('click', function(){ openLiveKlasse(r); }); }
+  resourceDruckTasteVerdrahten();
 
   watchProgress(r.id, function(p){ updateViewerProgress(p); });
 
@@ -17361,6 +17407,19 @@ function pdfDruckTasteVerdrahten(){
     if(!pb || pb.style.display === 'none' || !pdfViewerUrl) return;
     e.preventDefault();
     pdfDrucken(pdfViewerUrl);
+  }, true);
+}
+// Strg/Cmd+P mit offener Übung (Fokus ausserhalb des Rahmens): die Übung selbst drucken, nicht die Library-Seite.
+var resourceDruckTasteDa = false;
+function resourceDruckTasteVerdrahten(){
+  if(resourceDruckTasteDa) return;
+  resourceDruckTasteDa = true;
+  window.addEventListener('keydown', function(e){
+    if(!(e.metaKey || e.ctrlKey) || e.shiftKey || e.altKey || String(e.key).toLowerCase() !== 'p') return;
+    var fr = document.getElementById('resourceFrame');
+    if(!fr || !fr.srcdoc || !fr.contentWindow) return;
+    e.preventDefault();
+    try{ fr.contentWindow.focus(); fr.contentWindow.print(); }catch(err){ console.error(err); window.print(); }
   }, true);
 }
 function pdfDrucken(url){
@@ -23427,6 +23486,8 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-10-23-loesungen-neben', datum:'2026-10-23', fuer:'lehrer', text:'📁 PDF-Ordner: Lösungen stehen immer direkt neben den Aufgaben (verdeckt), nie in einem eigenen «(verdeckt)»-Ordner. Bestehende solche Ordner löst die Library von selbst auf.'},
+  {id:'2026-10-23-uebung-strg-p', datum:'2026-10-23', fuer:'alle', text:'🖨️ Strg/Cmd+P in einer Übung druckt jetzt das Blatt selbst in voller Seitenbreite – nichts mehr rechts abgeschnitten.'},
   {id:'2026-10-23-pdf-drucken', datum:'2026-10-23', fuer:'alle', text:'🖨️ PDFs drucken: Im PDF gibt es oben den Knopf «🖨️ Drucken». Er druckt das PDF in voller Seitengrösse. Strg/Cmd+P im Viewer hat den rechten Rand abgeschnitten.'},
   {id:'2026-10-23-ordner-download', datum:'2026-10-23', fuer:'lehrer', text:'⬇️ Ordner herunterladen: In jedem Fach gibt es bei jedem Ordner «⬇️ Herunterladen» und oben «⬇️ Alles herunterladen» (für den Ordner, in dem du gerade bist, oder das ganze Fach). Du bekommst ein ZIP mit allen PDFs und HTML-Übungen samt Unterordnern, Links stehen in Links.txt. Quizze und andere Klassenzimmer-Einträge sind keine Dateien und fehlen.'},
   {id:'2026-10-23-gruppen-ordner', datum:'2026-10-23', fuer:'alle', text:'📁 Übungen von anderen Lehrpersonen («👥 Bei …») stehen jetzt in aufklappbaren Ordnern, genau wie auf deiner Klassenseite. Hast du ein Fach bei mehreren Lehrpersonen, wählst du oben, bei wem – dieselbe Übung findest du bei beiden.'},
