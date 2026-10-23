@@ -5545,6 +5545,49 @@ function uebungIstNeu(r){
   return !!(t && t.toDate) && t.toDate().getTime() > Date.now() - 3*24*3600*1000;
 }
 
+// 📁 Ordner einer fremden Seite als aufklappbare Ordnerkarten (wie auf der eigenen Klassenseite).
+// Leere Ordner entfallen; Übungen ohne (bekannten) Ordner stehen auf der obersten Ebene.
+var gruppenLehrerWahl = {};   // Fach → gewählte Lehrpersonen-Seite (nur für diese Sitzung)
+var gruppenOrdnerOffen = {};   // «Klasse|Ordner» → aufgeklappt (nur für diese Sitzung)
+function gruppenOrdnerHtml(folders, liste, parentId, klasse, tiefe, alle){
+  var html = '';
+  var kinder = Object.keys(folders).map(function(k){ return folders[k]; }).filter(function(f){
+    return (f.parentId && folders[f.parentId] ? f.parentId : null) === parentId;
+  });
+  sortByOrder(kinder, 'name');
+  var unter = function(fid){
+    var ids = [fid], q = [fid], guard = 0;
+    while(q.length && guard++ < 500){
+      var cur = q.shift();
+      Object.keys(folders).forEach(function(k){ if(folders[k].parentId === cur && ids.indexOf(k) < 0){ ids.push(k); q.push(k); } });
+    }
+    return ids;
+  };
+  kinder.forEach(function(f){
+    var ids = unter(f.id);
+    var drin = liste.filter(function(r){ return ids.indexOf(r.folderId) >= 0; });
+    if(!drin.length) return;
+    var key = klasse+'|'+f.id, offen = !!gruppenOrdnerOffen[key];
+    var nOrdner = ids.length - 1;
+    var teile = [];
+    if(nOrdner) teile.push(nOrdner+' Ordner');
+    teile.push(drin.length+' Übung'+(drin.length === 1 ? '' : 'en'));
+    var cur = drin.some(function(r){ return !!r.current; });
+    html += '<div class="folder-card'+(cur ? ' has-current' : '')+'" style="margin-left:'+(tiefe*14)+'px;">'+
+      '<button class="folder-open" type="button" data-gfold="'+esc(key)+'" aria-expanded="'+offen+'">'+
+      '<span class="folder-glyph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></span>'+
+      '<span><span class="folder-name">'+esc(f.name)+(cur ? ' <span class="chip-current">Aktuelles Thema</span>' : '')+'</span>'+
+      '<span class="folder-count">'+teile.join(' · ')+'</span></span></button></div>';
+    html += '<div data-gfold-inhalt="'+esc(key)+'"'+(offen ? '' : ' hidden')+'>'+gruppenOrdnerHtml(folders, liste, f.id, klasse, tiefe+1, alle)+'</div>';
+  });
+  var lose = liste.filter(function(r){ return (r.folderId && folders[r.folderId] ? r.folderId : null) === parentId; });
+  sortResources(lose);
+  if(lose.length && kinder.length && parentId === null) html += '<div class="section-label">Übungen</div>';
+  html += lose.map(function(x){ return resourceCardHtml(x, 0, 1, false); }).join('');
+  Array.prototype.push.apply(alle, lose);
+  return html;
+}
+
 // Zeichnet die Übungen der Gruppen-Lehrpersonen unter die eigene Liste
 // (nur auf der Fach-Hauptebene; state.fachQuellen setzt renderSubject).
 function gruppenFachHtmlLaden(subjectId){
@@ -5552,43 +5595,67 @@ function gruppenFachHtmlLaden(subjectId){
   var fq = state.fachQuellen;
   if(!box || state.profile.role === 'teacher') return;
   if(!fq || !fq.fremd.length){ box.innerHTML = ''; return; }
-  var gezeigt = {};
+  var gezeigt = {};   // nur gegen die eigene Klassenseite entdoppeln — gleiche Übung bei zwei Lehrpersonen bleibt bei beiden erreichbar
   if(!fq.ohneEigene) (state.resources || []).forEach(function(r){ gezeigt[r.id] = true; });
   Promise.all(fq.fremd.map(function(p){
     return fremdeUebungen(p.klasse, subjectId).catch(function(err){ console.error('Gruppen-Übungen ('+p.klasse+')', err); return null; });
   })).then(function(listen){
     box = document.getElementById('gruppenFach');
     if(!box || state.route.name !== 'subject' || state.route.subject !== subjectId) return;
-    var html = '', alle = [];
+    var quellen = [];
     listen.forEach(function(d, i){
       if(!d) return;
-      var liste = d.resources.filter(function(r){ if(gezeigt[r.id]) return false; gezeigt[r.id] = true; return true; });
-      if(!liste.length) return;
-      var pfad = function(fid){
-        var teile = [], guard = 0, f = d.folders[fid];
-        while(f && guard++ < 20){ teile.unshift(f.name); f = d.folders[f.parentId]; }
-        return teile.join(' / ');
-      };
-      var gruppiert = {};
-      liste.forEach(function(x){ var pf = x.folderId ? pfad(x.folderId) : ''; (gruppiert[pf] = gruppiert[pf] || []).push(x); });
-      var p = fq.fremd[i];
-      html += '<div class="section-label">👥 Bei '+esc(p.lp)+' <span class="muted" style="font-weight:400;">· '+esc(p.gruppen.map(function(g){ return g.name; }).join(', '))+'</span></div>';
-      Object.keys(gruppiert).sort(function(a,b){ return a.localeCompare(b, 'de'); }).forEach(function(pf){
-        var l = gruppiert[pf];
-        sortResources(l);
-        if(pf) html += '<div class="section-label" style="font-weight:500;">📁 '+esc(pf)+'</div>';
-        html += l.map(function(x){ return resourceCardHtml(x, 0, 1, false); }).join('');
-        alle = alle.concat(l);
-      });
+      var liste = d.resources.filter(function(r){ return !gezeigt[r.id]; });
+      if(liste.length) quellen.push({d:d, liste:liste, p:fq.fremd[i]});
     });
     var listEl = document.getElementById('resourceList');
-    if(!html && listEl && !listEl.innerHTML) html = '<div class="empty-state">Für dieses Fach gibt es noch keine Übung. Schau später wieder vorbei!</div>';
-    box.innerHTML = html;
-    alle.forEach(function(x){
-      if(!x.pdf && !x.externalUrl) watchProgress(x.id, function(pr){ updateResourceBar(x.id, pr); });
-      var b = document.getElementById('open-'+x.id);
-      if(b) b.addEventListener('click', function(){ goResource(x); });
-    });
+    if(!quellen.length){
+      box.innerHTML = (listEl && !listEl.innerHTML) ? '<div class="empty-state">Für dieses Fach gibt es noch keine Übung. Schau später wieder vorbei!</div>' : '';
+      return;
+    }
+    var gruppenNamen = function(p){ return esc(p.gruppen.map(function(g){ return g.name; }).join(', ')); };
+    // Mehrere Lehrpersonen: oben wählen, bei wem man das Fach hat; es steht immer nur eine Liste da.
+    var wahl = gruppenLehrerWahl[subjectId];
+    if(!quellen.some(function(q){ return q.p.klasse === wahl; })) wahl = quellen[0].p.klasse;
+    function zeigen(){
+      var q = quellen.filter(function(x){ return x.p.klasse === wahl; })[0], alle = [], html = '';
+      if(quellen.length > 1){
+        html += '<div class="section-label">👥 Bei wem hast du das Fach?</div><div style="display:flex;flex-wrap:wrap;gap:8px;margin:2px 0 6px;">'+
+          quellen.map(function(x){
+            return '<button type="button" class="btn btn-sm '+(x.p.klasse === wahl ? 'btn-primary' : 'btn-ghost')+'" data-gwahl="'+esc(x.p.klasse)+'" aria-pressed="'+(x.p.klasse === wahl)+'">'+esc(x.p.lp)+'</button>';
+          }).join('')+'</div>'+
+          '<div class="muted" style="font-size:13px;margin:0 0 6px;">'+gruppenNamen(q.p)+'</div>';
+      } else {
+        html += '<div class="section-label">👥 Bei '+esc(q.p.lp)+' <span class="muted" style="font-weight:400;">· '+gruppenNamen(q.p)+'</span></div>';
+      }
+      html += gruppenOrdnerHtml(q.d.folders, q.liste, null, q.p.klasse, 0, alle);
+      box.innerHTML = html;
+      Array.prototype.forEach.call(box.querySelectorAll('[data-gwahl]'), function(b){
+        b.addEventListener('click', function(){
+          wahl = gruppenLehrerWahl[subjectId] = b.getAttribute('data-gwahl');
+          zeigen();
+        });
+      });
+      Array.prototype.forEach.call(box.querySelectorAll('[data-gfold]'), function(b){
+        b.addEventListener('click', function(){
+          var key = b.getAttribute('data-gfold'), offen = !gruppenOrdnerOffen[key];
+          gruppenOrdnerOffen[key] = offen;
+          b.setAttribute('aria-expanded', String(offen));
+          Array.prototype.forEach.call(box.querySelectorAll('[data-gfold-inhalt]'), function(dd){
+            if(dd.getAttribute('data-gfold-inhalt') === key) dd.hidden = !offen;
+          });
+        });
+      });
+      alle.forEach(function(x){
+        if(!x.pdf && !x.externalUrl){
+          watchProgress(x.id, function(pr){ updateResourceBar(x.id, pr); });
+          if(state.progressCache[x.id]) updateResourceBar(x.id, state.progressCache[x.id]);
+        }
+        var b = document.getElementById('open-'+x.id);
+        if(b) b.addEventListener('click', function(){ goResource(x); });
+      });
+    }
+    zeigen();
   });
 }
 
@@ -16384,7 +16451,7 @@ async function ordnerHochladen(subjectId, parentId, eintraege){
   async function ordnerId(pfad){
     var parent = parentId || null, key = '';
     for(var i = 0; i < pfad.length; i++){
-      var name = pfad[i].slice(0,60); key += '/' + name;
+      var name = pfad[i].slice(0,80); key += '/' + name;
       if(ids[key] !== undefined){ parent = ids[key]; continue; }
       var da = foldersIn(parent).filter(function(f){ return f.name === name; })[0];
       if(da){ ids[key] = da.id; parent = da.id; continue; }
@@ -23207,6 +23274,7 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-10-23-gruppen-ordner', datum:'2026-10-23', fuer:'alle', text:'📁 Übungen von anderen Lehrpersonen («👥 Bei …») stehen jetzt in aufklappbaren Ordnern, genau wie auf deiner Klassenseite. Hast du ein Fach bei mehreren Lehrpersonen, wählst du oben, bei wem – dieselbe Übung findest du bei beiden.'},
   {id:'2026-10-23-lernphase-fenster', datum:'2026-10-23', fuer:'lehrer', text:'📚 Lernphase: Wer in einem eigenen Übungsfenster arbeitet, wird nicht mehr zwischendurch rot — die Library meldet jetzt auch im Hintergrund zuverlässig, und kurzes Flackern beim Klicken zählt nicht als «raus».'},
   {id:'2026-10-23-lernphase-rechts', datum:'2026-10-23', fuer:'lehrer', text:'📚 Lernphase: Die Übersicht steht jetzt rechts, damit links alle Knöpfe der Library sichtbar bleiben.'},
   {id:'2026-10-23-lernphase-zuverlaessig', datum:'2026-10-23', fuer:'lehrer', text:'📚 Lernphase: Die Anzeige holt sich alle 30 Sekunden den Stand direkt vom Server und zeigt bei einem Wechsel der Phase «verbindet …» statt «noch nicht da». Das schwebende Fenster friert nicht mehr ein, wenn die Library im Hintergrund liegt.'},
