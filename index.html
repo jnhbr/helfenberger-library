@@ -11356,6 +11356,7 @@ async function uebungZuMir(r, quelle, heim){
     };
     if(r.externalUrl) copy.externalUrl = r.externalUrl;
     if(r.pdf) copy.pdf = true;
+    if(r.folien) copy.folien = true;
     // Ein Lehrer-HTML bleibt auch als Kopie eines (sonst sähe die Klasse es).
     if(istLehrerHtml(r)) copy.nurLehrer = true;
     await setDoc(ref, copy);
@@ -14810,11 +14811,11 @@ function renderSubject(subjectId, folderId){
 
   if(isTeacher){
     html += '<div class="dropzone" id="dropzone">';
-    html += '<div class="dz-title">Neue Übungsseite oder PDF hinzufügen</div>';
-    html += '<div>HTML- oder PDF-Datei hierher ziehen oder <label for="fileInput" style="color:var(--brand);text-decoration:underline;cursor:pointer;">Datei auswählen</label></div>';
+    html += '<div class="dz-title">Neue Übungsseite, PDF oder PowerPoint hinzufügen</div>';
+    html += '<div>HTML-, PDF- oder PowerPoint-Datei (.pptx) hierher ziehen oder <label for="fileInput" style="color:var(--brand);text-decoration:underline;cursor:pointer;">Datei auswählen</label></div>';
     html += '<div style="margin-top:10px;"><button class="btn btn-ghost btn-sm" id="dzLinkBtn" type="button">🔗 Link hinzufügen</button></div>';
     html += '<div id="dzTarget" style="font-size:12.5px;margin-top:8px;"></div>';
-    html += '<input type="file" id="fileInput" accept=".html,.htm,.pdf,text/html,application/pdf">';
+    html += '<input type="file" id="fileInput" accept=".html,.htm,.pdf,.pptx,text/html,application/pdf">';
     html += '<div style="margin-top:10px;font-size:13px;"><label for="fileInputDir" style="color:var(--brand);text-decoration:underline;cursor:pointer;">📁 Ordner mit PDFs hochladen</label> <span style="color:var(--text-muted);">– Unterordner werden als Ordner angelegt. Lösungen (Dateiname endet auf «_L.pdf» oder «Lösung.pdf», oder Ordner auf «(verdeckt)») stehen direkt neben der Aufgabe, werden aber ausgeblendet und geschützt.</span></div>';
     html += '<input type="file" id="fileInputDir" webkitdirectory multiple style="display:none;">';
     html += '<div class="upload-progress" id="uploadProgress"></div>';
@@ -15051,7 +15052,7 @@ function renderFolderContents(){
   });
 
   resources.forEach(function(r){
-    if(!r.virtual && !r.pdf && !r.externalUrl && !istLehrerHtml(r)) watchProgress(r.id, function(p){ updateResourceBar(r.id, p); });
+    if(!r.virtual && !r.pdf && !r.folien && !r.externalUrl && !istLehrerHtml(r)) watchProgress(r.id, function(p){ updateResourceBar(r.id, p); });
     var openBtn = document.getElementById('open-'+r.id);
     if(openBtn) openBtn.addEventListener('click', function(){ goResource(r); });
     if(r.kzm){
@@ -15119,6 +15120,7 @@ function renderFolderContents(){
    die offenen / mit Resultat). Die Karten sind
    immer im DOM (nur versteckt), damit die Knöpfe normal verdrahtet werden. */
 var ZUSATZ_ARTEN = {
+  folien:    {icon:'🎞️', name:'PPP Folien'},
   pruefung:{icon:'📝', name:'Prüfungen'},
   kk:      {icon:'🗂️', name:'Karteikarten'},
   quiz:    {icon:'🎮', name:'Klassen-Quizze'},
@@ -15129,6 +15131,7 @@ var ZUSATZ_ARTEN = {
 };
 var zusatzOffen = {};   // «Fach|Ordner|Art» → aufgeklappt (nur für diese Sitzung)
 function zusatzArt(r){
+  if(r.folien) return 'folien';
   if(r.kk && r.ausOrdner) return 'kk';
   if(r.kzm && ZUSATZ_ARTEN[r.kzm.typ]) return r.kzm.typ;
   if(r.kzmPruef) return 'pruefung';
@@ -15493,8 +15496,8 @@ function resourceCardHtml(r, index, total, isTeacher){
     html += '</div>';
   }
   html += '<div class="resource-info"><h4>'+esc(r.title || r.fileName)+(r.current?' <span class="chip-current">Aktuell</span>':'')+(lp?' <span class="chip-lehrer">🔒 Nur Lehrpersonen</span>':'')+(aus?' <span class="chip-lehrer">🙈 Ausgeblendet</span>':'')+niveauChipHtml(r, isTeacher)+'</h4>';
-  if(!lp) html += '<div class="resource-bar"><span id="pbar-'+r.id+'" style="width:0%;background:var(--brand)"></span></div>';
-  var metaStart = lp ? 'Lehrer-HTML · für Schüler:innen unsichtbar' : r.pdf ? '📄 PDF' : r.externalUrl ? '🔗 Link · öffnet in neuem Tab' : 'Noch nicht geübt';
+  if(!lp && !r.folien) html += '<div class="resource-bar"><span id="pbar-'+r.id+'" style="width:0%;background:var(--brand)"></span></div>';
+  var metaStart = lp && r.folien ? '🎞️ Folien · nur Lehrpersonen · Notizen + 🎤 Referentenansicht' : lp ? 'Lehrer-HTML · für Schüler:innen unsichtbar' : r.pdf ? '📄 PDF' : r.folien ? '🎞️ Folien · ▶ Präsentieren, Notizen nur für Lehrpersonen' : r.externalUrl ? '🔗 Link · öffnet in neuem Tab' : 'Noch nicht geübt';
   if(aus) metaStart = 'Für Schüler:innen ausgeblendet · ' + metaStart;
   html += '<div class="resource-meta" id="pmeta-'+r.id+'">'+metaStart+(uploaded?' · hinzugefügt am '+uploaded:'')+'</div>';
   html += '</div>';
@@ -15513,8 +15516,8 @@ function resourceCardHtml(r, index, total, isTeacher){
     html += '<span class="res-mehr"><button class="btn btn-ghost btn-sm res-mehr-btn" type="button" aria-haspopup="true" aria-expanded="false" title="Weitere Aktionen">⋯</button><span class="res-mehr-menu">';
     html += '<button class="btn btn-ghost btn-sm" id="rrename-'+r.id+'" type="button">Umbenennen</button>';
     if(!r.externalUrl){
-      if(!r.pdf) html += '<button class="btn btn-ghost btn-sm" id="uedit-'+r.id+'" type="button" title="Texte, Lösungen oder Code direkt in der App anpassen">✏️ Bearbeiten</button>';
-      html += '<button class="btn btn-ghost btn-sm" id="repl-'+r.id+'" type="button" title="'+(r.pdf ? 'Neue Version des PDFs hochladen – Titel und Ort bleiben' : 'Neue Version der HTML-Datei hochladen – Titel, Ort und Übungsstände bleiben')+'">Datei ersetzen</button>';
+      if(!r.pdf && !r.folien) html += '<button class="btn btn-ghost btn-sm" id="uedit-'+r.id+'" type="button" title="Texte, Lösungen oder Code direkt in der App anpassen">✏️ Bearbeiten</button>';
+      html += '<button class="btn btn-ghost btn-sm" id="repl-'+r.id+'" type="button" title="'+(r.pdf ? 'Neue Version des PDFs hochladen – Titel und Ort bleiben' : r.folien ? 'Neue Version der PowerPoint (.pptx) hochladen – Titel und Ort bleiben' : 'Neue Version der HTML-Datei hochladen – Titel, Ort und Übungsstände bleiben')+'">Datei ersetzen</button>';
     }
     html += '<button class="btn btn-ghost btn-sm" id="mv-'+r.id+'" type="button">Verschieben</button>';
     html += '<button class="btn btn-danger btn-sm" id="del-'+r.id+'">Löschen</button>';
@@ -15547,15 +15550,15 @@ function renameResource(r, title){
 function pickReplacementFile(r){
   var input = document.createElement('input');
   input.type = 'file';
-  input.accept = r.pdf ? '.pdf,application/pdf' : '.html,.htm,text/html';
+  input.accept = r.pdf ? '.pdf,application/pdf' : r.folien ? '.pptx' : '.html,.htm,text/html';
   input.addEventListener('change', function(){
     var file = input.files && input.files[0];
     if(!file) return;
-    if(r.pdf ? !isPdfFile(file) : !isHtmlFile(file)){
-      toast(r.pdf ? 'Bitte eine PDF-Datei wählen (.pdf).' : 'Bitte eine HTML-Datei wählen (.html).');
+    if(r.pdf ? !isPdfFile(file) : r.folien ? !isPptxFile(file) : !isHtmlFile(file)){
+      toast(r.pdf ? 'Bitte eine PDF-Datei wählen (.pdf).' : r.folien ? 'Bitte eine PowerPoint-Datei wählen (.pptx).' : 'Bitte eine HTML-Datei wählen (.html).');
       return;
     }
-    if(file.size > maxBytesFor(r.pdf)){
+    if(r.folien ? file.size > MAX_PPTX_BYTES : file.size > maxBytesFor(r.pdf)){
       toast(tooBigMsg(r.pdf));
       return;
     }
@@ -15568,7 +15571,7 @@ function pickReplacementFile(r){
 
 async function replaceResource(r, file){
   try{
-    var content = r.pdf ? await readFileAsBytes(file) : await readFileAsText(file);
+    var content = r.pdf ? await readFileAsBytes(file) : r.folien ? (await pptxZuFolien(file)).html : await readFileAsText(file);
     await publishResourceContent(r, content, file.name);
     toast('«'+(r.title||file.name)+'» wurde ersetzt.');
   }catch(err){
@@ -15667,6 +15670,42 @@ async function restorePreviousContent(r){
 // Die Übung trägt `pdf:true`; der Inhalt wird nur beim Öffnen gelesen.
 function isPdfFile(file){
   return /\.pdf$/i.test(file.name) || file.type === 'application/pdf';
+}
+function isPptxFile(file){
+  return /\.pptx$/i.test(file.name);
+}
+var MAX_PPTX_BYTES = 60 * 1024 * 1024;   // PowerPoint vor der Umwandlung; die fertigen Folien dürfen MAX_RESOURCE_BYTES nicht überschreiten
+// 🎞️ Folien: PowerPoint (.pptx) → eigenständige HTML-Präsentation (folien.js, auch von admin/folien-import.js genutzt).
+function folienLaden(){
+  if(window.FolienKonverter) return Promise.resolve(window.FolienKonverter);
+  return new Promise(function(resolve, reject){
+    var sc = document.createElement('script');
+    sc.src = 'folien.js?v=1';   // Service Worker liefert Dateien aus dem Cache: bei jeder Änderung an folien.js die Nummer erhöhen
+    sc.onload = function(){ resolve(window.FolienKonverter); };
+    sc.onerror = function(){ reject(new Error('Der PowerPoint-Umwandler konnte nicht geladen werden (Internet?).')); };
+    document.head.appendChild(sc);
+  });
+}
+// Grosse Fotos verkleinern, wenn die Folien sonst über dem Deckel liegen (max. 1600 px, JPEG).
+async function folienBildSchrumpfen(bytes, mimeTyp){
+  try{
+    var bmp = await createImageBitmap(new Blob([bytes], {type:mimeTyp}));
+    var f = Math.min(1, 1600 / Math.max(bmp.width, bmp.height));
+    if(f === 1 && bytes.length < 300000) return bytes;
+    var cv = document.createElement('canvas'); cv.width = Math.round(bmp.width * f); cv.height = Math.round(bmp.height * f);
+    var cx = cv.getContext('2d'); cx.fillStyle = '#fff'; cx.fillRect(0, 0, cv.width, cv.height); cx.drawImage(bmp, 0, 0, cv.width, cv.height);
+    var blob = await new Promise(function(res){ cv.toBlob(res, 'image/jpeg', 0.82); });
+    var neu = new Uint8Array(await blob.arrayBuffer());
+    return neu.length < bytes.length ? neu : bytes;
+  }catch(e){ return bytes; }
+}
+async function pptxZuFolien(file){
+  var K = await folienLaden();
+  var bytes = await readFileAsBytes(file);
+  var titel = file.name.replace(/\.pptx$/i,'').replace(/[_-]+/g,' ');
+  var res = await K.pptxZuHtml(bytes, {titel: titel});
+  if(new Blob([res.html]).size > MAX_RESOURCE_BYTES - 400*1024) res = await K.pptxZuHtml(bytes, {titel: titel, bildFilter: folienBildSchrumpfen});
+  return res;
 }
 function isHtmlFile(file){
   return /\.html?$/i.test(file.name) || file.type === 'text/html';
@@ -16427,8 +16466,16 @@ function readFileAsText(file){
 }
 
 function handleUpload(subjectId, folderId, file, nurLehrerVorwahl){
-  if(!isHtmlFile(file) && !isPdfFile(file)){
-    toast('Bitte eine HTML- oder PDF-Datei hochladen (.html / .pdf).');
+  if(!isHtmlFile(file) && !isPdfFile(file) && !isPptxFile(file)){
+    toast('Bitte eine HTML-, PDF- oder PowerPoint-Datei hochladen (.html / .pdf / .pptx).');
+    return;
+  }
+  if(isPptxFile(file)){
+    if(file.size > MAX_PPTX_BYTES){ toast('PowerPoint ist zu gross (max. '+Math.round(MAX_PPTX_BYTES/1024/1024)+' MB).'); return; }
+    var wo = folderId ? ('Ordner «'+(folderById(folderId) ? folderById(folderId).name : '')+'»') : 'Fach-Hauptebene';
+    uiPrompt('Titel für diese Präsentation', 'Wird als Folien in der '+wo+' abgelegt (unter «PPP Folien», nur für Lehrpersonen sichtbar), mit 🎤 Referentenansicht.', file.name.replace(/\.pptx$/i,'').replace(/[_-]+/g,' '), 'Hochladen', function(title){
+      doUpload(subjectId, folderId, file, title);
+    });
     return;
   }
   if(file.size > maxBytesFor(isPdfFile(file))){
@@ -16669,8 +16716,9 @@ async function doUpload(subjectId, folderId, file, title, nurLehrer){
   progEl.textContent = 'Lade «'+file.name+'» hoch …';
   progEl.classList.add('show');
   try{
-    var pdf = isPdfFile(file);
-    var content = pdf ? await readFileAsBytes(file) : await readFileAsText(file);
+    var pdf = isPdfFile(file), folien = isPptxFile(file);
+    if(folien) nurLehrer = true;   // PPP-Folien (mit Lehrerkommentar) sind nur für Lehrpersonen
+    var content = pdf ? await readFileAsBytes(file) : folien ? (progEl.textContent = 'Wandle «'+file.name+'» in Folien um …', (await pptxZuFolien(file)).html) : await readFileAsText(file);
     var chunks = contentChunkDocs(content);
     var bytes = contentBytes(content);
     await assertQuota(bytes);
@@ -16687,6 +16735,7 @@ async function doUpload(subjectId, folderId, file, title, nurLehrer){
       version: 0
     };
     if(pdf) meta.pdf = true;
+    if(folien) meta.folien = true;
     if(nurLehrer && !pdf) meta.nurLehrer = true;
     batch.set(kdoc('resources', resId), meta);
     var kopf = { chunkCount: chunks.length, bytes: bytes, ownerUid: state.user.uid };
@@ -17278,6 +17327,11 @@ function renderResource(r){
     // (beide würden sonst in denselben localStorage-Stand schreiben).
     if(libFensterOffen(r.id)){ libFensterPlatzhalter(r.id); return; }
     i18nFrame(frame, r.subject);
+    if(r.folien){
+      // 🎞️ Folien bringen ihre Ansicht mit; Lehrpersonen bekommen Notizen + Referentenansicht (__libLehrer).
+      frame.addEventListener('load', function(){ try{ frame.contentWindow.focus(); }catch(e){} }, {once:true});
+      frame.srcdoc = html.replace(/<head>/i, '<head><script>window.__libLehrer = '+(state.profile.role === 'teacher' ? 'true' : 'false')+';<\/script>');
+    } else
     frame.srcdoc = injectExerciseHelpers(html, r.id);
   }).catch(function(err){
     console.error(err);
@@ -23486,6 +23540,7 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-10-23-folien', datum:'2026-10-23', fuer:'lehrer', text:'🎞️ PowerPoints in der Library: im Fach «Datei auswählen» eine .pptx ablegen – sie wird zu Folien (normal anschaubar, ⛶ Vollbild, ▦ Übersicht). Nur für Lehrpersonen gibt es 📝 Notizen und die 🎤 Referentenansicht: ein zweites Fenster mit Notizen, nächster Folie und Uhr auf dem Laptop, während die Klasse im Vollbild nur die Folien sieht (Bildschirme erweitern, nicht spiegeln). Die bestehenden Präsentationen von Geografie, Deutsch und Geschichte sind schon drin.'},
   {id:'2026-10-23-loesungen-neben', datum:'2026-10-23', fuer:'lehrer', text:'📁 PDF-Ordner: Lösungen stehen immer direkt neben den Aufgaben (verdeckt), nie in einem eigenen «(verdeckt)»-Ordner. Bestehende solche Ordner löst die Library von selbst auf.'},
   {id:'2026-10-23-uebung-strg-p', datum:'2026-10-23', fuer:'alle', text:'🖨️ Strg/Cmd+P in einer Übung druckt jetzt das Blatt selbst in voller Seitenbreite – nichts mehr rechts abgeschnitten.'},
   {id:'2026-10-23-pdf-drucken', datum:'2026-10-23', fuer:'alle', text:'🖨️ PDFs drucken: Im PDF gibt es oben den Knopf «🖨️ Drucken». Er druckt das PDF in voller Seitengrösse. Strg/Cmd+P im Viewer hat den rechten Rand abgeschnitten.'},
@@ -25529,7 +25584,7 @@ async function openMioAusUebung(ziel){
   try{
     (await getDocs(kcol('resources'))).forEach(function(d){
       var r = Object.assign({id:d.id}, d.data()), s = subjectById(r.subject);
-      if(r.linkUrl || r.externalUrl || r.pdf || istLehrerHtml(r) || (s && (s.teacherOnly || s.id === 'berufswahl'))) return;
+      if(r.linkUrl || r.externalUrl || r.pdf || r.folien || istLehrerHtml(r) || (s && (s.teacherOnly || s.id === 'berufswahl'))) return;
       uebungen.push(r);
     });
     var ok = await pruefScanAlle(uebungen, function(k, n){ var e = document.getElementById('mioUebLade'); if(e) e.textContent = 'Übungen werden geprüft … ' + k + ' / ' + n; });
@@ -36323,7 +36378,7 @@ async function pruefEditor(p, vorwahl){
       snap.forEach(function(d){
         var r = Object.assign({id:d.id}, d.data()), s = subjectById(r.subject);
         // Lehrerbereich, Lehrer-HTMLs und Berufswahl: nie Prüfungsstoff
-        if(r.linkUrl || r.externalUrl || r.pdf || istLehrerHtml(r) || (s && (s.teacherOnly || s.id === 'berufswahl'))) return;
+        if(r.linkUrl || r.externalUrl || r.pdf || r.folien || istLehrerHtml(r) || (s && (s.teacherOnly || s.id === 'berufswahl'))) return;
         uebungen.push(r);
       });
       // Nur Übungen anbieten, aus denen sich wirklich eine Prüfung machen lässt.
@@ -36752,7 +36807,7 @@ async function pruefImportEditor(){
   try{
     (await getDocs(kcol('resources'))).forEach(function(d){
       var r = Object.assign({id:d.id}, d.data()), s = subjectById(r.subject);
-      if(r.linkUrl || r.externalUrl || r.pdf || istLehrerHtml(r) || (s && (s.teacherOnly || s.id === 'berufswahl'))) return;
+      if(r.linkUrl || r.externalUrl || r.pdf || r.folien || istLehrerHtml(r) || (s && (s.teacherOnly || s.id === 'berufswahl'))) return;
       uebungen.push(r);
     });
   }catch(err){ console.error(err); }
@@ -37071,7 +37126,7 @@ async function pruefBaukasten(p){
   try{
     (await getDocs(kcol('resources'))).forEach(function(d){
       var r = Object.assign({id:d.id}, d.data()), sj = subjectById(r.subject);
-      if(r.linkUrl || r.externalUrl || r.pdf || istLehrerHtml(r) || (sj && (sj.teacherOnly || sj.id === 'berufswahl'))) return;
+      if(r.linkUrl || r.externalUrl || r.pdf || r.folien || istLehrerHtml(r) || (sj && (sj.teacherOnly || sj.id === 'berufswahl'))) return;
       uebListe.push(r);
       titel[resourceContentId(r)] = titel[resourceContentId(r)] || r.title || r.fileName || 'Übung';
     });
@@ -44101,7 +44156,7 @@ async function rswQuellenLaden(){
   var snap = await getDocs(kcol('resources')), kand = [];
   snap.forEach(function(d){
     var r = Object.assign({id:d.id}, d.data());
-    if(r.pdf || r.externalUrl || r.linkUrl || istLehrerHtml(r)) return;
+    if(r.pdf || r.folien || r.externalUrl || r.linkUrl || istLehrerHtml(r)) return;
     if(WS_DATEI_RE.test(r.fileName || '') || WS_DATEI_RE.test(r.title || '')) kand.push(r);
   });
   var gelesen = await Promise.all(kand.map(function(r){
