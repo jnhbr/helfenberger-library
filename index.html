@@ -14815,7 +14815,7 @@ function renderSubject(subjectId, folderId){
     html += '<div style="margin-top:10px;"><button class="btn btn-ghost btn-sm" id="dzLinkBtn" type="button">🔗 Link hinzufügen</button></div>';
     html += '<div id="dzTarget" style="font-size:12.5px;margin-top:8px;"></div>';
     html += '<input type="file" id="fileInput" accept=".html,.htm,.pdf,text/html,application/pdf">';
-    html += '<div style="margin-top:10px;font-size:13px;"><label for="fileInputDir" style="color:var(--brand);text-decoration:underline;cursor:pointer;">📁 Ordner mit PDFs hochladen</label> <span style="color:var(--text-muted);">– Unterordner werden als Ordner angelegt. Ordner, die auf «(verdeckt)» enden (z. B. «Lösungen (verdeckt)»), werden ausgeblendet und geschützt.</span></div>';
+    html += '<div style="margin-top:10px;font-size:13px;"><label for="fileInputDir" style="color:var(--brand);text-decoration:underline;cursor:pointer;">📁 Ordner mit PDFs hochladen</label> <span style="color:var(--text-muted);">– Unterordner werden als Ordner angelegt. Lösungen (Dateiname endet auf «_L.pdf» oder «Lösung.pdf», oder Ordner auf «(verdeckt)») stehen direkt neben der Aufgabe, werden aber ausgeblendet und geschützt.</span></div>';
     html += '<input type="file" id="fileInputDir" webkitdirectory multiple style="display:none;">';
     html += '<div class="upload-progress" id="uploadProgress"></div>';
     html += '</div>';
@@ -16527,6 +16527,17 @@ function pdfOrdnerTitel(name){
   [['Geraete','Geräte'],['Molekuele','Moleküle'],['Saeuren','Säuren'],['Klaeranlage','Kläranlage'],['Erdoel','Erdöl'],['Aenderung','Änderung'],['Uebung','Übung'],['Loesung','Lösung'],['Groesse','Grösse']].forEach(function(p){ t = t.split(p[0]).join(p[1]); });
   return t.slice(0,60);
 }
+// Lösungen stehen direkt neben der Aufgabe und sind verdeckt: Dateiname endet auf «_L.pdf» oder «Lösung.pdf»,
+// oder die Datei liegt in einem Ordner, der auf «(verdeckt)» endet.
+function pdfIstVerdeckt(ordner, dateiName){
+  return ordner.some(function(n){ return /\(verdeckt\)\s*$/i.test(n); }) || /(^|[\s_.-])(L|Lösung|Loesung)\.pdf$/i.test(dateiName);
+}
+// Reihenfolge: Aufgabe G, deren Lösung, Aufgabe E, deren Lösung (Blattnummer natürlich: 1.2 vor 1.10).
+function pdfSortKey(name){
+  var m = name.match(/^(.*?)_([GE])(?:_L)?\.pdf$/i);
+  if(!m) return {base:name, niv:0, los:/(^|[\s_.-])(L|Lösung|Loesung)\.pdf$/i.test(name) ? 1 : 0};
+  return {base:m[1], niv:m[2].toUpperCase() === 'G' ? 0 : 1, los:/_L\.pdf$/i.test(name) ? 1 : 0};
+}
 function handleOrdnerUpload(subjectId, parentId, fileList){
   var dateien = Array.prototype.slice.call(fileList).filter(isPdfFile);
   if(!dateien.length){ toast('Im Ordner wurden keine PDF-Dateien gefunden.'); return; }
@@ -16535,12 +16546,18 @@ function handleOrdnerUpload(subjectId, parentId, fileList){
   var eintraege = dateien.map(function(f){
     var teile = (f.webkitRelativePath || f.name).split('/');
     var ordner = teile.slice(0,-1);
-    return { file:f, ordner:ordner, verdeckt: ordner.some(function(n){ return /\(verdeckt\)\s*$/i.test(n); }) };
-  }).sort(function(a,b){ return (a.ordner.join('/')+'/'+a.file.name).localeCompare(b.ordner.join('/')+'/'+b.file.name, 'de', {numeric:true}); });
+    return { file:f, ordner:ordner, verdeckt: pdfIstVerdeckt(ordner, f.name) };
+  }).sort(function(a,b){
+    var pa = a.ordner.join('/'), pb = b.ordner.join('/');
+    if(pa !== pb) return pa.localeCompare(pb, 'de', {numeric:true});
+    var ka = pdfSortKey(a.file.name), kb = pdfSortKey(b.file.name);
+    var c = ka.base.localeCompare(kb.base, 'de', {numeric:true});
+    return c || (ka.niv - kb.niv) || (ka.los - kb.los);
+  });
   var pfade = {}; eintraege.forEach(function(e){ pfade[e.ordner.join('/')] = true; });
   var nV = eintraege.filter(function(e){ return e.verdeckt; }).length;
   var where_ = parentId ? ('Ordner «'+(folderById(parentId) ? folderById(parentId).name : '')+'»') : 'Fach-Hauptebene';
-  uiConfirm('PDF-Ordner hochladen', eintraege.length+' PDFs in '+Object.keys(pfade).length+' Ordnern werden in der '+where_+' abgelegt.'+(nV ? ' '+nV+' davon liegen in «(verdeckt)»-Ordnern: Sie werden ausgeblendet und geschützt, Schüler:innen sehen sie nicht.' : '')+' Bereits vorhandene PDFs werden übersprungen.', 'Hochladen', function(){
+  uiConfirm('PDF-Ordner hochladen', eintraege.length+' PDFs in '+Object.keys(pfade).length+' Ordnern werden in der '+where_+' abgelegt.'+(nV ? ' '+nV+' davon sind Lösungen («_L.pdf», «Lösung.pdf» oder «(verdeckt)»-Ordner): Sie stehen neben der Aufgabe, werden aber ausgeblendet und geschützt, Schüler:innen sehen sie nicht.' : '')+' Bereits vorhandene PDFs werden übersprungen.', 'Hochladen', function(){
     ordnerHochladen(subjectId, parentId, eintraege);
   });
 }
@@ -17301,6 +17318,7 @@ function renderPdfResource(r){
   html += '<div class="back-row"><button class="btn btn-ghost btn-sm" id="backBtn">&larr; '+esc(s ? s.name : 'Fach')+'</button></div>';
   html += '<div class="viewer-head"><h2>'+esc(r.title || r.fileName)+'</h2><span class="viewer-progress">📄 PDF</span>';
   html += '<a class="btn btn-ghost btn-sm" id="pdfTabBtn" target="_blank" rel="noopener" style="display:none;">↗ Neuer Tab</a>';
+  html += '<button class="btn btn-ghost btn-sm" id="pdfPrintBtn" type="button" style="display:none;" title="Das PDF in voller Seitengrösse drucken (Strg/Cmd+P im Viewer schneidet den Rand ab)">🖨️ Drucken</button>';
   html += libFensterBtnHtml('fensterBtn');
   html += '<button class="btn btn-ghost btn-sm btn-fs" id="fsBtn" type="button">'+FS_ICON_ENTER+'</button>';
   html += '</div>';
@@ -17318,11 +17336,43 @@ function renderPdfResource(r){
     var frame = document.getElementById('resourceFrame'), tab = document.getElementById('pdfTabBtn');
     if(frame) frame.src = pdfViewerUrl;
     if(tab){ tab.href = pdfViewerUrl; tab.style.display = ''; }
+    var pb = document.getElementById('pdfPrintBtn');
+    if(pb){ pb.style.display = ''; pb.addEventListener('click', function(){ pdfDrucken(pdfViewerUrl); }); }
+    pdfDruckTasteVerdrahten();
+    // Fokus in den Viewer: dort druckt Strg/Cmd+P das PDF selbst
+    if(frame) frame.addEventListener('load', function(){ try{ frame.contentWindow.focus(); }catch(err){} });
   }).catch(function(err){
     console.error(err);
     var wrap = document.querySelector('.viewer-frame-wrap');
     if(wrap) wrap.innerHTML = '<div class="empty-state">Dieses PDF konnte nicht geladen werden.</div>';
   });
+}
+
+// PDF drucken: das PDF selbst (unsichtbarer Rahmen), nicht die Library-Seite mit dem eingebetteten Viewer —
+// sonst schneidet der Druck den Rand ab und skaliert falsch.
+// Strg/Cmd+P in der PDF-Ansicht druckt das PDF (nicht die Library-Seite drumherum).
+var pdfDruckTasteDa = false;
+function pdfDruckTasteVerdrahten(){
+  if(pdfDruckTasteDa) return;
+  pdfDruckTasteDa = true;
+  window.addEventListener('keydown', function(e){
+    if(!(e.metaKey || e.ctrlKey) || e.shiftKey || e.altKey || String(e.key).toLowerCase() !== 'p') return;
+    var pb = document.getElementById('pdfPrintBtn');
+    if(!pb || pb.style.display === 'none' || !pdfViewerUrl) return;
+    e.preventDefault();
+    pdfDrucken(pdfViewerUrl);
+  }, true);
+}
+function pdfDrucken(url){
+  var f = document.createElement('iframe');
+  f.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;';
+  f.onload = function(){
+    try{ f.contentWindow.focus(); f.contentWindow.print(); }
+    catch(err){ console.error(err); window.open(url, '_blank'); }
+    setTimeout(function(){ if(f.parentNode) f.parentNode.removeChild(f); }, 120000);
+  };
+  f.src = url;
+  document.body.appendChild(f);
 }
 
 /* ===================== 🪟 IN NEUEM FENSTER =====================
@@ -23377,12 +23427,13 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-10-23-pdf-drucken', datum:'2026-10-23', fuer:'alle', text:'🖨️ PDFs drucken: Im PDF gibt es oben den Knopf «🖨️ Drucken». Er druckt das PDF in voller Seitengrösse. Strg/Cmd+P im Viewer hat den rechten Rand abgeschnitten.'},
   {id:'2026-10-23-ordner-download', datum:'2026-10-23', fuer:'lehrer', text:'⬇️ Ordner herunterladen: In jedem Fach gibt es bei jedem Ordner «⬇️ Herunterladen» und oben «⬇️ Alles herunterladen» (für den Ordner, in dem du gerade bist, oder das ganze Fach). Du bekommst ein ZIP mit allen PDFs und HTML-Übungen samt Unterordnern, Links stehen in Links.txt. Quizze und andere Klassenzimmer-Einträge sind keine Dateien und fehlen.'},
   {id:'2026-10-23-gruppen-ordner', datum:'2026-10-23', fuer:'alle', text:'📁 Übungen von anderen Lehrpersonen («👥 Bei …») stehen jetzt in aufklappbaren Ordnern, genau wie auf deiner Klassenseite. Hast du ein Fach bei mehreren Lehrpersonen, wählst du oben, bei wem – dieselbe Übung findest du bei beiden.'},
   {id:'2026-10-23-lernphase-fenster', datum:'2026-10-23', fuer:'lehrer', text:'📚 Lernphase: Wer in einem eigenen Übungsfenster arbeitet, wird nicht mehr zwischendurch rot — die Library meldet jetzt auch im Hintergrund zuverlässig, und kurzes Flackern beim Klicken zählt nicht als «raus».'},
   {id:'2026-10-23-lernphase-rechts', datum:'2026-10-23', fuer:'lehrer', text:'📚 Lernphase: Die Übersicht steht jetzt rechts, damit links alle Knöpfe der Library sichtbar bleiben.'},
   {id:'2026-10-23-lernphase-zuverlaessig', datum:'2026-10-23', fuer:'lehrer', text:'📚 Lernphase: Die Anzeige holt sich alle 30 Sekunden den Stand direkt vom Server und zeigt bei einem Wechsel der Phase «verbindet …» statt «noch nicht da». Das schwebende Fenster friert nicht mehr ein, wenn die Library im Hintergrund liegt.'},
-  {id:'2026-10-23-pdf-ordner', datum:'2026-10-23', fuer:'lehrer', text:'📁 PDF-Ordner hochladen: In jedem Fach gibt es unter «Neue Übungsseite oder PDF hinzufügen» jetzt «Ordner mit PDFs hochladen». Du wählst einen ganzen Ordner (auch mit Unterordnern), die Unterordner werden als Ordner angelegt und schon vorhandene PDFs übersprungen. Ordner, die auf «(verdeckt)» enden, zum Beispiel «Lösungen (verdeckt)», werden automatisch ausgeblendet und geschützt: Schüler:innen sehen sie nicht und können sie auch nicht lesen.'},
+  {id:'2026-10-23-pdf-ordner', datum:'2026-10-23', fuer:'lehrer', text:'📁 PDF-Ordner hochladen: In jedem Fach gibt es unter «Neue Übungsseite oder PDF hinzufügen» jetzt «Ordner mit PDFs hochladen». Du wählst einen ganzen Ordner (auch mit Unterordnern), die Unterordner werden als Ordner angelegt und schon vorhandene PDFs übersprungen. Lösungen (Dateiname endet auf «_L.pdf» oder «Lösung.pdf», oder ein Ordner auf «(verdeckt)») stehen direkt neben der Aufgabe und werden automatisch ausgeblendet und geschützt: Schüler:innen sehen sie nicht und können sie auch nicht lesen.'},
   {id:'2026-10-23-pip-vollbild', datum:'2026-10-23', fuer:'lehrer', text:'📌 Das schwebende Fenster (Lernphase, Prüfung) bleibt jetzt auch vor Apps im Vollbild sichtbar.'},
   {id:'2026-10-23-lernphase-fach', datum:'2026-10-23', fuer:'lehrer', text:'📚 Lernphase: Neu gibt es «📗 irgendwo in Deutsch» (und jedes andere Fach) — grün ist, wer in einer beliebigen Übung oder auf der Seite dieses Fachs arbeitet.'},
   {id:'2026-10-22-hallenplaner-11', datum:'2026-10-22', fuer:'lehrer', text:'🏟️ Hallenplaner: Die Kletterstangen hängen jetzt senkrecht an der Wand und gleiten per Knopf («⇥ Kletterstangen ausfahren», unter «Halle & Ebenen») mit Animation schräg in die Halle. Das Reck bleibt beim Ändern der Anzahl oder des Abstands bündig an der Wand.'},
