@@ -10835,16 +10835,28 @@ function renderHomeworkWidget(){
   var isTeacher = state.profile.role === 'teacher';
   Promise.all([loadMyCalendarEntries(todayStr()), isTeacher ? loadStudentRoster() : Promise.resolve(null), erledigtLoad(), earlybirdKalenderLaden()]).then(function(res){
     var entries = res[0], roster = res[1];
-    if(!document.getElementById('homeworkWidget')) return; // Seite inzwischen gewechselt
+    if(!host.isConnected || document.getElementById('homeworkWidget')!==host) return; // Seite inzwischen gewechselt / neu gerendert
     var today = todayStr(), horizon = addDaysStr(7);
     var upcoming = entries.filter(function(e){ return e.dueDate>=today && e.dueDate<=horizon; });
     // Earlybird nur, wenn er diese Woche ist und (bei Schüler:innen) man selbst drin ist.
     var earlybird = res[3].filter(function(t){ return t.datum <= horizon && t.liste && (isTeacher || t.liste.length); });
     if(!upcoming.length && !earlybird.length){ host.innerHTML=''; return; }
-    var h = '<div class="card homework-card"><h3 style="margin-top:0;">📘 Die nächsten 7 Tage</h3>';
-    h += '<div class="cal-list">'+calendarWithFerienHtml(upcoming, [], isTeacher, roster, false, earlybird)+'</div>';
+    var zu = false;
+    try{ zu = localStorage.getItem('wk7_eingeklappt')==='1'; }catch(e){}
+    var h = '<div class="card homework-card"><h3 style="margin:0;"><button type="button" id="wk7Toggle" aria-expanded="'+(zu?'false':'true')+'" style="all:unset;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;">'+
+      '<span>📘 Die nächsten 7 Tage</span><span id="wk7Pfeil" aria-hidden="true" style="transition:transform .2s;transform:rotate('+(zu?'-90':'0')+'deg);">▾</span></button></h3>';
+    h += '<div class="cal-list" id="wk7Liste" style="margin-top:12px;'+(zu?'display:none;':'')+'">'+calendarWithFerienHtml(upcoming, [], isTeacher, roster, false, earlybird)+'</div>';
     h += '</div>';
     host.innerHTML = h;
+    var wk7t = host.querySelector('#wk7Toggle');
+    if(wk7t) wk7t.addEventListener('click', function(){
+      var liste = document.getElementById('wk7Liste');
+      var nowZu = liste.style.display !== 'none';
+      liste.style.display = nowZu ? 'none' : '';
+      this.setAttribute('aria-expanded', nowZu ? 'false' : 'true');
+      document.getElementById('wk7Pfeil').style.transform = 'rotate('+(nowZu?'-90':'0')+'deg)';
+      try{ localStorage.setItem('wk7_eingeklappt', nowZu ? '1' : '0'); }catch(e){}
+    });
     wireCalendarResourceLinks(host);
     earlybirdKalenderVerdrahten(host);
     wireCalendarEntryActions(host, upcoming, isTeacher, renderHomeworkWidget, roster);
@@ -16829,7 +16841,9 @@ var syncState = {
   lastWritten: null,  // zuletzt geschriebenes JSON (spart unnötige Schreibvorgänge)
   pollTimer: null,
   writeTimer: null,
-  lastWriteAt: 0      // wann zuletzt nach Firestore geschrieben (Drossel)
+  lastWriteAt: 0,     // wann zuletzt nach Firestore geschrieben (Drossel)
+  remoteOk: true,     // false, solange der Stand vom Server nicht bestätigt gelesen wurde (nichts überschreiben)
+  unsub: null         // Live-Beobachtung des Stands (anderes Gerät war später dran → neuen Stand holen)
 };
 
 function lsGet(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } }
@@ -16882,12 +16896,16 @@ async function prepareResourceSync(rid){
   syncState.resourceId = rid;
   syncState.tracked = loadTrackedKeys(rid);
   syncState.lastWritten = null;
+  syncState.remoteOk = true;
   // Ansicht als Schüler:in: deren Übungsstand nicht in diesen Browser holen
   // (er würde sich sonst mit Jans eigenem Stand vermischen) und nichts hochladen.
   if(!state.user || alsSchueler()){ syncState.baseline = lsSnapshot(); return; }
   try{
     var snap = await getDoc(doc(db,'progress', state.user.uid, 'resources', rid));
     var data = snap.exists() ? snap.data() : null;
+    // Aus dem Zwischenspeicher gelesen (offline/Netz schlecht)? Dann ist der Stand evtl. veraltet:
+    // erst schreiben, wenn der Server bestätigt hat, dass kein neuerer Stand von einem anderen Gerät da ist.
+    syncState.remoteOk = !(snap.metadata && snap.metadata.fromCache);
     var remoteRev = (data && typeof data.storeRev === 'number') ? data.storeRev : 0;
     var keys = (data && Array.isArray(data.storeKeys)) ? data.storeKeys : [];
     keys.forEach(function(k){ syncState.tracked[k] = true; });
@@ -16898,11 +16916,50 @@ async function prepareResourceSync(rid){
       setLocalRev(rid, remoteRev);
       saveTrackedKeys(rid, syncState.tracked);
     }
+    // Nichts neu hochladen, solange sich nichts geändert hat (früher wurde beim Öffnen immer geschrieben —
+    // mit einem veralteten lokalen Stand überschrieb das den Stand vom anderen Gerät).
+    // Ausnahme: lokal liegt Neueres als in der Cloud (früherer Schreibvorgang gescheitert) → hochladen.
+    if(data && data.storeJson && remoteRev >= localRev(rid) || !syncState.remoteOk){
+      syncState.lastWritten = buildStorePayload().json;
+    }
   }catch(err){
     console.error('Stand konnte nicht geladen werden', err);
+    syncState.remoteOk = false;
+    syncState.lastWritten = buildStorePayload().json;
   }
   syncState.baseline = lsSnapshot();
+  svaSyncBeobachten(rid);
   syncState.pollTimer = setInterval(function(){ checkLocalChanges(rid); }, SYNC_POLL_MS);
+}
+
+// Live-Beobachtung: hat ein anderes Gerät (oder Tab) später gespeichert, wird dessen Stand geholt und die
+// Übung neu geladen — solange hier nichts Ungespeichertes liegt. Ohne das arbeitet ein offen gebliebener Laptop
+// auf dem alten Stand weiter und überschreibt beim nächsten Tippen die Arbeit vom Handy (SVA, 24.10.2026).
+function svaSyncBeobachten(rid){
+  if(syncState.unsub){ try{ syncState.unsub(); }catch(e){} syncState.unsub = null; }
+  if(!state.user || alsSchueler()) return;
+  syncState.unsub = onSnapshot(doc(db,'progress', state.user.uid, 'resources', rid), function(snap){
+    if(syncState.resourceId !== rid || !snap.exists() || snap.metadata.hasPendingWrites) return;
+    var data = snap.data(), remoteRev = (typeof data.storeRev === 'number') ? data.storeRev : 0;
+    if(!snap.metadata.fromCache) syncState.remoteOk = true;
+    if(!data.storeJson || remoteRev <= localRev(rid)) return;
+    checkLocalChanges(rid);
+    if(syncState.writeTimer || buildStorePayload().json !== syncState.lastWritten) return;   // hier ist Neueres ungespeichert → das gewinnt
+    var store = {};
+    try{ store = JSON.parse(data.storeJson) || {}; }catch(e){ return; }
+    var keys = Array.isArray(data.storeKeys) ? data.storeKeys : [];
+    keys.forEach(function(k){ syncState.tracked[k] = true; });
+    // Übung zuerst aus der Seite nehmen: ihr pagehide würde sonst den alten Stand wieder in localStorage schreiben.
+    var fr = document.getElementById('resourceFrame');
+    if(fr && fr.parentNode) fr.parentNode.removeChild(fr);
+    applyRemoteStore(keys, store);
+    setLocalRev(rid, remoteRev);
+    saveTrackedKeys(rid, syncState.tracked);
+    syncState.lastWritten = buildStorePayload().json;
+    syncState.baseline = lsSnapshot();
+    toast('Neuerer Stand von deinem anderen Gerät geladen.');
+    if(state.route && state.route.name === 'resource') render();
+  }, function(err){ console.error('Stand-Beobachtung', err); });
 }
 
 // Jeder Schlüssel, der sich seit dem Öffnen geändert hat oder neu ist, gehört
@@ -17034,6 +17091,7 @@ function writeStore(rid){
   if(!state.user || syncState.resourceId !== rid) return;
   var payload = buildStorePayload();
   if(!payload.keys.length || payload.json === syncState.lastWritten) return;
+  if(!syncState.remoteOk){ scheduleStoreWrite(rid); return; }   // Server-Stand noch unbestätigt: nichts überschreiben
   if(payload.json.length > SYNC_MAX_BYTES){
     console.warn('Übungsstand zu gross für die Synchronisierung ('+payload.json.length+' Zeichen) — bleibt nur auf diesem Gerät.');
     return;
@@ -17080,11 +17138,18 @@ function stopResourceSync(){
   syncState.baseline = {};
   syncState.lastWritten = null;
   syncState.lastWriteAt = 0;
+  syncState.remoteOk = true;
+  if(syncState.unsub){ try{ syncState.unsub(); }catch(e){} syncState.unsub = null; }
 }
 
 window.addEventListener('pagehide', flushResourceSync);
 document.addEventListener('visibilitychange', function(){
-  if(document.visibilityState === 'hidden') flushResourceSync();
+  if(document.visibilityState !== 'hidden') return;
+  // Handy: beim Wegwischen kommt pagehide in der Übung oft nicht → SVA-Seiten sichern lassen, bevor wir lesen.
+  if(syncState.resourceId && String(syncState.resourceId).indexOf('sva_') === 0){
+    try{ var fr = document.getElementById('resourceFrame'); if(fr && fr.contentWindow) fr.contentWindow.dispatchEvent(new Event('pagehide')); }catch(e){}
+  }
+  flushResourceSync();
 });
 
 /* ===================== LERNZEIT (Stunden pro Schüler:in und Übung) =====================
@@ -23567,6 +23632,8 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-10-24-wk7-einklappen', datum:'2026-10-24', fuer:'alle', text:'📘 «Die nächsten 7 Tage» auf der Startseite lässt sich jetzt mit einem Klick auf den Titel ein- und ausklappen (Handy und Computer).'},
+  {id:'2026-10-24-sva-abgleich', datum:'2026-10-24', fuer:'alle', text:'🔄 Handy und Laptop bleiben jetzt im Gleichklang: Hast du auf einem Gerät weitergearbeitet, holt das andere den neuen Stand von selbst – und überschreibt ihn nicht mehr mit dem alten.'},
   {id:'2026-10-23-folien', datum:'2026-10-23', fuer:'lehrer', text:'🎞️ PowerPoints in der Library: im Fach «Datei auswählen» eine .pptx ablegen – sie wird zu Folien (normal anschaubar, ⛶ Vollbild, ▦ Übersicht). Nur für Lehrpersonen gibt es 📝 Notizen und die 🎤 Referentenansicht: ein zweites Fenster mit Notizen, nächster Folie und Uhr auf dem Laptop, während die Klasse im Vollbild nur die Folien sieht (Bildschirme erweitern, nicht spiegeln). Die bestehenden Präsentationen von Geografie, Deutsch und Geschichte sind schon drin.'},
   {id:'2026-10-23-loesungen-neben', datum:'2026-10-23', fuer:'lehrer', text:'📁 PDF-Ordner: Lösungen stehen immer direkt neben den Aufgaben (verdeckt), nie in einem eigenen «(verdeckt)»-Ordner. Bestehende solche Ordner löst die Library von selbst auf.'},
   {id:'2026-10-23-uebung-strg-p', datum:'2026-10-23', fuer:'alle', text:'🖨️ Strg/Cmd+P in einer Übung druckt jetzt das Blatt selbst in voller Seitenbreite – nichts mehr rechts abgeschnitten.'},

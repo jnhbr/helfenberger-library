@@ -140,6 +140,7 @@ function laden(){ var o; try{ o = JSON.parse(localStorage.getItem(KEY) || '{}');
 var spTimer = null;
 function sichern(sofort){ clearTimeout(spTimer); var f = function(){ try{ S.t = Date.now(); localStorage.setItem(KEY, JSON.stringify(S)); }catch(e){} melden(); }; if(sofort) f(); else spTimer = setTimeout(f, 500); }
 window.addEventListener('pagehide', function(){ sichern(true); });
+document.addEventListener('visibilitychange', function(){ if(document.visibilityState === 'hidden') sichern(true); });   // Handy: pagehide kommt beim Wegwischen oft nicht
 function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function heute(){ var d = new Date(); return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2); }
 function datCH(iso){ if(!iso) return ''; var p = iso.split('-'); return (+p[2])+'.'+(+p[1])+'.'+p[0]; }
