@@ -17,6 +17,8 @@ set -euo pipefail
 LABEL="ch.helfenberger.library-briefkasten"
 ZIEL="$HOME/Library/Application Support/LibraryBriefkasten"
 PLIST="$HOME/Library/LaunchAgents/$LABEL.plist"
+LABEL_W="ch.helfenberger.library-ordnerwaehler"
+PLIST_W="$HOME/Library/LaunchAgents/$LABEL_W.plist"
 LOG="$HOME/Library/Logs/library-briefkasten.log"
 HIER="$(cd "$(dirname "$0")" && pwd)"
 NODE="$(command -v node || true)"
@@ -27,7 +29,7 @@ case "${1:-}" in
     SCHLUESSEL="${BRIEFKASTEN_SCHLUESSEL:-$HOME/Desktop/Claude/Projekte/helfenberger-library-firebase/admin/serviceAccountKey.json}"
     [ -f "$SCHLUESSEL" ] || { echo "Service-Account-Schlüssel fehlt: $SCHLUESSEL"; exit 1; }
     mkdir -p "$ZIEL" "$HOME/Library/LaunchAgents" "$HOME/Library/Logs"
-    cp "$HIER/briefkasten-abholen.js" "$ZIEL/"
+    cp "$HIER/briefkasten-abholen.js" "$HIER/briefkasten-waehler.js" "$ZIEL/"
     if [ ! -f "$ZIEL/config.json" ]; then
       cat > "$ZIEL/config.json" <<EOF
 {
@@ -68,6 +70,28 @@ EOF
 EOF
     launchctl bootout "gui/$(id -u)/$LABEL" 2>/dev/null || true
     launchctl bootstrap "gui/$(id -u)" "$PLIST"
+    # Ordner-Wähler: lokaler Helfer für den «Ordner wählen…»-Knopf im Briefkasten-Dialog
+    cat > "$PLIST_W" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>$LABEL_W</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>$NODE</string>
+    <string>$ZIEL/briefkasten-waehler.js</string>
+  </array>
+  <key>WorkingDirectory</key><string>$ZIEL</string>
+  <key>KeepAlive</key><true/>
+  <key>RunAtLoad</key><true/>
+  <key>StandardOutPath</key><string>$LOG</string>
+  <key>StandardErrorPath</key><string>$LOG</string>
+</dict>
+</plist>
+EOF
+    launchctl bootout "gui/$(id -u)/$LABEL_W" 2>/dev/null || true
+    launchctl bootstrap "gui/$(id -u)" "$PLIST_W"
     echo "📮 Dienst läuft: alle 5 Minuten, Abgaben landen unter dem in config.json eingestellten Ordner."
     echo "   Einstellungen: $ZIEL/config.json"
     echo "   Protokoll:     $LOG"
@@ -81,7 +105,8 @@ EOF
     ;;
   uninstall)
     launchctl bootout "gui/$(id -u)/$LABEL" 2>/dev/null || true
-    rm -f "$PLIST"
+    launchctl bootout "gui/$(id -u)/$LABEL_W" 2>/dev/null || true
+    rm -f "$PLIST" "$PLIST_W"
     echo "Dienst entfernt. Einstellungen und Protokoll bleiben in $ZIEL bzw. $LOG."
     ;;
   *)

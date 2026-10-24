@@ -440,7 +440,9 @@ function datenLaden(d){
 }
 function speicherLesen(){ try{ return JSON.parse(lsGet(SPEICHER) || '{}') || {}; }catch(e){ return {}; } }
 function speicherSchreiben(sp){ if(!lsSet(SPEICHER, JSON.stringify(sp))) toast('Speichern im Browser hat nicht geklappt (Speicher voll?).'); }
+var EINBETT = /[?&]einbett=1/.test(location.search);   // aus der Präp-Werkstatt: nur Bilder liefern, nichts speichern
 function autosave(){
+  if(EINBETT) return;
   var sp = speicherLesen(); sp.aktuell = datenJetzt();
   sp.einst = {fest:S.fest, raster:S.raster, magnet:S.magnet, druck:S.druck, ebenen:S.ebenen, lfarbe:S.lfarbe, klasse:S.klasse, namen:S.namen, ebV:2};
   speicherSchreiben(sp);
@@ -2475,7 +2477,8 @@ var drei = (function(){
     renderer.render(scene, kamera);
     renderer.domElement.toBlob(function(bl){ herunterladen(bl, dateiName() + '_3D.png'); });
   });
-  return {start:start, stopp:stopp, neu:neu, groesse:groesse, positionen:positionen, bodenPunkt:bodenPunkt};
+  function bild(){ if(!renderer) return null; groesse(); renderer.render(scene, kamera); return renderer.domElement.toDataURL('image/jpeg', 0.86); }
+  return {start:start, stopp:stopp, neu:neu, groesse:groesse, positionen:positionen, bodenPunkt:bodenPunkt, bild:bild};
 })();
 
 /* ===================== Start ===================== */
@@ -2486,6 +2489,8 @@ var drei = (function(){
     S.ebenen = Object.assign(S.ebenen, sp.einst.ebenen || {}); if(sp.einst.ebV !== 2) S.ebenen.ringe = false;   // Turngeräte (Ringe, Reck, Kletterstangen) sind standardmässig aus S.lfarbe = sp.einst.lfarbe || {}; S.klasse = sp.einst.klasse || null; S.namen = sp.einst.namen !== false;
   }
   if(sp.aktuell) datenLaden(sp.aktuell);
+  var qa = /[?&]aufbau=([^&]+)/.exec(location.search);
+  if(qa){ var ab = (sp.gespeichert || []).filter(function(x){ return x.id === decodeURIComponent(qa[1]); })[0]; if(ab) datenLaden(JSON.parse(JSON.stringify(ab.data))); }
   document.getElementById('ansicht').value = S.ansicht;
   document.getElementById('titelIn').value = S.titel; document.getElementById('notizIn').value = S.notizen;
   paletteZeichnen(); linienZeichnen(); phasenZeichnen(); klasseZeichnen();
@@ -2495,6 +2500,18 @@ var drei = (function(){
   merken();
   allesZeichnen();
   ansicht3d(true);   // Start immer in der 3D-Ansicht
+  // Präp-Werkstatt: Bilder (2D-Plan und 3D-Ansicht) und Materialliste des geladenen Aufbaus liefern
+  window.addEventListener('message', function(e){
+    if(!e.data || e.data.t !== 'praep-bild' || e.source !== window.parent) return;
+    var t0 = Date.now();
+    (function warten(){
+      if(!drei.bild() && Date.now() - t0 < 12000){ setTimeout(warten, 250); return; }
+      setTimeout(function(){
+        var m = materialDaten(), antwort = {t:'praep-bild', id:e.data.id, titel:S.titel, notizen:S.notizen, bild3d:drei.bild(), material:m.geraete.map(function(g){ return g[1] + '× ' + g[0]; }), leibchen:leibchenText(m)};
+        svgZuPng(planSvgString(true), 1400, function(c){ antwort.bild2d = c.toDataURL('image/jpeg', 0.8); e.source.postMessage(antwort, '*'); });
+      }, 600);
+    })();
+  });
   if(!S.items.length) hinweis('Tipp: Links ein Gerät anklicken oder in die Halle ziehen – oder oben eine 📋 Vorlage wählen.');
   setTimeout(function(){ if(!S.modus) hinweis(''); }, 6000);
 })();

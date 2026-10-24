@@ -447,6 +447,7 @@
   .modal .bk-pfad-hinweis{margin:-10px 0 14px;}
   .bk-reihe{display:flex;gap:10px;}
   .bk-reihe > *{flex:1;min-width:0;}
+  .bk-reihe > .btn{flex:none;}
   .modal input[type=time]{width:100%;padding:11px 13px;border:1px solid var(--border);border-radius:10px;font:inherit;background:var(--surface-2);color:var(--text);margin-bottom:16px;}
   .zusatz-ordner .folder-glyph{font-size:20px;}
   .zusatz-pfeil{margin-left:auto;font-size:22px;color:var(--text-muted);transition:transform .15s ease;}
@@ -11114,7 +11115,7 @@ function lmvzMerge(){
   var v = state.lmvzV;
   state.folders = state.folders.filter(function(f){ return !f.virtual; });
   state.resources = state.resources.filter(function(r){ return !r.virtual; }).concat(tippVirtuell(state.route.subject))
-    .concat(mtVirtuell(state.route.subject)).concat(kkVirtuell(state.route.subject)).concat(kzmVirtuell(state.route.subject)).concat(svaVirtuell(state.route.subject)).concat(schachVirtuell(state.route.subject)).concat(jassenVirtuell(state.route.subject)).concat(raetselVirtuell(state.route.subject)).concat(hallenplanerVirtuell(state.route.subject));
+    .concat(mtVirtuell(state.route.subject)).concat(kkVirtuell(state.route.subject)).concat(kzmVirtuell(state.route.subject)).concat(svaVirtuell(state.route.subject)).concat(schachVirtuell(state.route.subject)).concat(jassenVirtuell(state.route.subject)).concat(raetselVirtuell(state.route.subject)).concat(hallenplanerVirtuell(state.route.subject)).concat(praepVirtuell(state.route.subject));
   if(state.route.subject !== LMVZ_SUBJECT) return;
   var sv = sikoreVirtuell();
   state.folders = state.folders.concat(sv.folders);
@@ -13305,7 +13306,8 @@ function bkEditor(existing){
     '<label class="modal-label">Titel</label><input type="text" id="bkTitel" maxlength="80" value="'+esc(existing ? existing.titel : '')+'" placeholder="z. B. Schienen Blatt 3">'+
     '<label class="modal-label">Ordner auf deinem Computer</label><input type="text" id="bkOrdner" maxlength="80" value="'+esc(ordnerVon)+'" placeholder="So heisst der Ordner mit den Abgaben">'+
     '<div id="bkPfadBox" style="display:none;"><label class="modal-label">Genauer Pfad auf deinem Mac (Abhol-Dienst)</label>'+
-      '<input type="text" id="bkPfad" maxlength="300" spellcheck="false" autocapitalize="off" autocomplete="off">'+
+      '<div class="bk-reihe"><input type="text" id="bkPfad" maxlength="300" spellcheck="false" autocapitalize="off" autocomplete="off">'+
+        '<button class="btn btn-ghost btn-sm" id="bkPfadWahl" type="button">📂 Ordner wählen…</button></div>'+
       '<p class="bk-klein bk-pfad-hinweis">Der Abhol-Dienst legt die Abgaben genau in diesem Ordner ab. Änderst du den Pfad später, zieht der Ordner mit um.</p></div>'+
     '<label class="modal-label">Für</label><select id="bkFuer"><option value="">Ganze Seite '+esc(klasseLabel())+'</option></select>'+
     '<label class="modal-label">Erlaubte Dateien</label><div class="bk-typen" id="bkTypen">'+BK_TYPEN.map(function(t){
@@ -13344,6 +13346,20 @@ function bkEditor(existing){
   }
   function pfadNachziehen(){ if(dienst && pfadFolgt) pfadEl.value = pfadStandard(); }
   pfadEl.addEventListener('input', function(){ pfadFolgt = false; });
+  // Finder-Dialog über den lokalen Ordner-Wähler (admin/briefkasten-waehler.js, nur Jans Mac)
+  var wahlBtn = document.getElementById('bkPfadWahl');
+  wahlBtn.addEventListener('click', function(){
+    wahlBtn.disabled = true;
+    fetch('http://127.0.0.1:47831/waehlen', { method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ start: pfadEl.value }) })
+      .then(function(r){ return r.json(); })
+      .then(function(j){
+        if(j.pfad){ pfadEl.value = j.pfad; pfadFolgt = false; }
+      }).catch(function(){
+        errEl.textContent = 'Der Ordner-Wähler antwortet nicht. Auf dem Mac einmal «bash admin/briefkasten-dienst.sh install» ausführen; bis dahin kannst du den Pfad auch eintippen.';
+        errEl.classList.add('show');
+      }).then(function(){ wahlBtn.disabled = false; });
+  });
   if(!existing || bkIstMeiner(existing)){
     var verz = collection(db, 'lehrer', state.user.uid, 'briefkaesten');
     Promise.all([getDoc(doc(verz, '_dienst')), existing ? getDoc(doc(verz, existing.id)) : null]).then(function(r){
@@ -13877,7 +13893,15 @@ function raetselVirtuell(subject){
 /* 🏟️ HALLENPLANER – Werkzeug im Fach Sport (nur Lehrperson): statische Seite hallenplaner/ im Link-Viewer (iframe src).
    Grundriss der Dreifachhalle Altnau, Geräte-Baukasten, Materialliste, Druck, 3D (three.js aus assets/vendor). Kein Firestore:
    Aufbauten liegen im Browser (localStorage hallenplaner_v1) und lassen sich als Datei weitergeben. */
-var HALLENPLANER_VERSION = 23;   // nach jeder Änderung an hallenplaner/index.html erhöhen (Browser-Cache)
+/* 🧱 SPORT-BAUSTEINE – Werkzeug im Fach Sport (nur Lehrperson): statische Seite praep/ im Link-Viewer.
+   Bausteinkatalog pro Sportart (3v3-Modell), Daten in praep/daten/*.json (alle LP sehen dieselben, kommen mit dem Deploy). Auswahl im Browser (praep_korb_v1). */
+var PRAEP_VERSION = 2;   // nach jeder Änderung an praep/ erhöhen (Browser-Cache)
+function praepVirtuell(subject){
+  if(subject !== 'sport' || !(state.profile && state.profile.role === 'teacher')) return [];
+  return [{id:'praep-bausteine', subject:'sport', folderId:null, order:-1900, virtual:true, werkzeug:true, linkUrl:'praep/?v='+PRAEP_VERSION, linkLabel:'Werkzeug',
+    title:'🧱 Sport-Bausteine und Präp-Werkstatt', meta:'Bausteine für Volleyball, Basketball, Fussball, Handball, Unihockey · 🛠️ Präp-Werkstatt: Reihe aus Bausteinen, Aufbau mit 3D aus dem Hallenplaner, Druck im Altnau-Design'}];
+}
+var HALLENPLANER_VERSION = 24;   // nach jeder Änderung an hallenplaner/index.html erhöhen (Browser-Cache)
 function hallenplanerVirtuell(subject){
   if(subject !== 'sport' || !(state.profile && state.profile.role === 'teacher')) return [];
   return [{id:'hallenplaner', subject:'sport', folderId:null, order:-2000, virtual:true, werkzeug:true, linkUrl:'hallenplaner/?v='+HALLENPLANER_VERSION, linkLabel:'Werkzeug',
@@ -23632,6 +23656,9 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-10-24-praep-werkstatt', datum:'2026-10-24', fuer:'lehrer', text:'🛠️ Neu im Fach Sport: die Präp-Werkstatt (in «🧱 Sport-Bausteine» oben rechts). Eine Reihe aus mehreren Doppellektionen zusammenstellen: Tagesziel, Phasen mit Bausteinen und Notizen, Aufbau aus dem Hallenplaner mit 2D- und 3D-Bild und Materialliste. Drucken pro Doppellektion oder als ganze Reihe im Altnau-Design. Mit Beispielreihe für jede Sportart.'},
+  {id:'2026-10-24-sport-bausteine', datum:'2026-10-24', fuer:'lehrer', text:'🧱 Neu im Fach Sport: die Sport-Bausteine. Sammlung für Präps nach dem 3v3-Modell mit Volleyball, Basketball, Fussball, Handball und Unihockey: Einstiege, Spielformen, Interventionen, Regelkarten und Beurteilung. Nach Phase und Halle filtern, Karten auswählen und im Altnau-Design drucken. Dazu die Sport-Ordner nach Lehrplan 21.'},
+  {id:'2026-10-24-ordner-waehlen', datum:'2026-10-24', fuer:'lehrer', text:'📂 Im Briefkasten-Dialog gibt es neben dem Abhol-Pfad den Knopf «Ordner wählen…»: Es öffnet sich der Finder, du klickst den Ordner an. (Dienst einmal aktualisieren: bash admin/briefkasten-dienst.sh install)'},
   {id:'2026-10-24-wk7-einklappen', datum:'2026-10-24', fuer:'alle', text:'📘 «Die nächsten 7 Tage» auf der Startseite lässt sich jetzt mit einem Klick auf den Titel ein- und ausklappen (Handy und Computer).'},
   {id:'2026-10-24-sva-abgleich', datum:'2026-10-24', fuer:'alle', text:'🔄 Handy und Laptop bleiben jetzt im Gleichklang: Hast du auf einem Gerät weitergearbeitet, holt das andere den neuen Stand von selbst – und überschreibt ihn nicht mehr mit dem alten.'},
   {id:'2026-10-23-folien', datum:'2026-10-23', fuer:'lehrer', text:'🎞️ PowerPoints in der Library: im Fach «Datei auswählen» eine .pptx ablegen – sie wird zu Folien (normal anschaubar, ⛶ Vollbild, ▦ Übersicht). Nur für Lehrpersonen gibt es 📝 Notizen und die 🎤 Referentenansicht: ein zweites Fenster mit Notizen, nächster Folie und Uhr auf dem Laptop, während die Klasse im Vollbild nur die Folien sieht (Bildschirme erweitern, nicht spiegeln). Die bestehenden Präsentationen von Geografie, Deutsch und Geschichte sind schon drin.'},
