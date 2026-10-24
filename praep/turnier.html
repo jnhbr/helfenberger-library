@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sportplaner · Turnierplan</title>
+<!-- 🏆 Turnierplan: Jeder gegen jeden für 3–8 Teams, Feldzuteilung, Zeiten, Ergebnisse, Rangliste. Nur im Browser (localStorage praep_turnier_v1). -->
+<link rel="stylesheet" href="karten.css?v=6">
+<style>
+  .box{border:1px solid var(--linie); border-radius:10px; padding:8px 12px; background:var(--flaeche); margin:10px 0;} .box h2{font-size:16px; margin:0 0 6px;}
+  .zeile{display:flex; flex-wrap:wrap; gap:10px; align-items:flex-end; margin:6px 0;}
+  label.fl{display:flex; flex-direction:column; gap:2px; font-size:12.5px; color:var(--grau); font-weight:700;}
+  input.feld,select.feld{border:1px solid var(--linie); background:var(--flaeche); color:var(--ink); border-radius:8px; padding:5px 9px; font:inherit; font-size:14px;}
+  table.t{border-collapse:collapse; width:100%; font-size:14px;} table.t th,table.t td{border:1px solid var(--linie); padding:3px 7px; text-align:left;} table.t th{background:var(--grau-t);}
+  .tn{display:inline-block; border-radius:6px; padding:0 8px; font-weight:700; color:#1C1C1A;}
+  .score{width:46px; text-align:center;} .frei{color:var(--grau);}
+  .rk td:first-child{font-weight:800; text-align:center;} .rk tr.top td{background:var(--gruen-t);}
+  .teamnamen{display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:6px;}
+  .hinweis{font-size:13px; color:var(--grau);}
+  @media print{ .ctl,.pnav{display:none !important;} input.feld{border:0; background:transparent; padding:0;} }
+</style>
+<script src="gemeinsam.js?v=6"></script>
+</head>
+<body>
+<div class="kopf"><img src="../sva/Logo_Sek_Altnau.png" alt="" onerror="this.style.display='none'"><div><h1>📋 Sportplaner · Turnierplan</h1><div class="sub">Jeder gegen jeden · 3 bis 8 Teams · Felder und Zeiten · Ergebnisse und Rangliste</div></div></div>
+<div class="streifen"><span></span><span></span><span></span><span></span></div>
+<div id="navw"></div>
+<main>
+  <div class="box ctl"><h2>1 · Einstellungen</h2>
+    <div class="zeile">
+      <label class="fl">Teams<input class="feld" id="anz" type="number" min="3" max="8" style="width:70px"></label>
+      <label class="fl">Felder<input class="feld" id="felder" type="number" min="1" max="6" style="width:70px"></label>
+      <label class="fl">Spielzeit (Min.)<input class="feld" id="dauer" type="number" min="1" max="60" style="width:90px"></label>
+      <label class="fl">Wechsel (Min.)<input class="feld" id="pause" type="number" min="0" max="10" style="width:80px"></label>
+      <label class="fl">Start<input class="feld" id="start" type="time"></label>
+      <label class="fl">Hin- und Rückrunde<select class="feld" id="doppel"><option value="0">nein</option><option value="1">ja</option></select></label>
+      <label class="fl">Siegpunkte<select class="feld" id="pkt"><option value="3">3 – 1 – 0</option><option value="2">2 – 1 – 0</option></select></label>
+      <label class="fl">Titel<input class="feld" id="titel" style="min-width:200px"></label>
+    </div>
+    <div class="teamnamen" id="namen"></div>
+  </div>
+  <div class="box"><h2 id="planTitel">2 · Spielplan</h2><div id="plan"></div><div class="hinweis" id="info"></div></div>
+  <div class="box"><h2>3 · Rangliste</h2><div id="rang"></div></div>
+  <div class="ctl zeile"><button class="btn" onclick="window.print()" type="button">🖨️ Drucken</button><button class="btn" id="reset" type="button">Ergebnisse löschen</button></div>
+</main>
+<script>
+(function(){
+  var P = Praep, esc = P.esc, KEY = 'praep_turnier_v1';
+  var FARBEN = ['#FEEB15','#74C0FC','#8CE99A','#FFA94D','#DA77F2','#FF8787','#A5D8FF','#C0EB75'];
+  var S = {anz:4, felder:2, dauer:5, pause:1, start:'', doppel:'0', pkt:'3', titel:'Rundenturnier', namen:[], erg:{}};
+  try{ var g = JSON.parse(localStorage.getItem(KEY) || 'null'); if(g) Object.assign(S, g); }catch(e){}
+  function sp(){ try{ localStorage.setItem(KEY, JSON.stringify(S)); }catch(e){} }
+  function $(i){ return document.getElementById(i); }
+  function name(i){ return S.namen[i] || 'Team ' + 'ABCDEFGH'[i]; }
+  function tag(i){ return '<span class="tn" style="background:'+FARBEN[i]+'">'+esc(name(i))+'</span>'; }
+  // Kreismethode: pro Runde floor(n/2) Spiele, bei ungerader Zahl hat ein Team frei
+  function runden(n){
+    var t = []; for(var i = 0; i < n; i++) t.push(i);
+    if(n % 2) t.push(-1);
+    var m = t.length, out = [];
+    for(var r = 0; r < m - 1; r++){
+      var sp = [], frei = null;
+      for(var k = 0; k < m / 2; k++){ var a = t[k], b = t[m - 1 - k]; if(a < 0) frei = b; else if(b < 0) frei = a; else sp.push([a, b]); }
+      out.push({spiele:sp, frei:frei});
+      t.splice(1, 0, t.pop());
+    }
+    return out;
+  }
+  function plan(){
+    var rs = runden(S.anz);
+    if(S.doppel === '1') rs = rs.concat(rs.map(function(r){ return {spiele:r.spiele.map(function(x){ return [x[1], x[0]]; }), frei:r.frei}; }));
+    var slots = [], nr = 0;
+    rs.forEach(function(r, ri){
+      for(var i = 0; i < r.spiele.length; i += S.felder){
+        slots.push({runde:ri + 1, spiele:r.spiele.slice(i, i + S.felder).map(function(x, k){ return {a:x[0], b:x[1], feld:k + 1, id:'r' + ri + '_' + (i + k)}; }), frei:i === 0 ? r.frei : null});
+      }
+    });
+    return slots;
+  }
+  function zeit(k){
+    if(!S.start) return '';
+    var p = S.start.split(':'), min = +p[0] * 60 + +p[1] + k * (S.dauer + S.pause), h = Math.floor(min / 60) % 24, m = min % 60;
+    return (h < 10 ? '0' : '') + h + ':' + (m < 10 ? '0' : '') + m;
+  }
+  function zeichnen(){
+    var sl = plan(), h = '<table class="t"><tr><th>Runde</th>'+(S.start ? '<th>Zeit</th>' : '')+Array.apply(null, Array(S.felder)).map(function(_, k){ return '<th>Feld '+(k + 1)+'</th>'; }).join('')+'<th>Pause</th></tr>';
+    sl.forEach(function(s, k){
+      h += '<tr><td>'+s.runde+'</td>'+(S.start ? '<td>'+zeit(k)+'</td>' : '');
+      for(var f = 0; f < S.felder; f++){
+        var m = s.spiele[f];
+        h += m ? '<td>'+tag(m.a)+' – '+tag(m.b)+'<br><input class="feld score" type="number" min="0" data-s="'+m.id+'|a" value="'+(S.erg[m.id] ? esc(S.erg[m.id].a) : '')+'"> : <input class="feld score" type="number" min="0" data-s="'+m.id+'|b" value="'+(S.erg[m.id] ? esc(S.erg[m.id].b) : '')+'"></td>' : '<td class="frei">–</td>';
+      }
+      h += '<td class="frei">'+(s.frei != null ? tag(s.frei) : '')+'</td></tr>';
+    });
+    $('plan').innerHTML = h+'</table>';
+    var spiele = sl.reduce(function(a, s){ return a + s.spiele.length; }, 0), dauer = sl.length * (S.dauer + S.pause);
+    $('info').textContent = spiele+' Spiele in '+sl.length+' Zeitfenstern, ca. '+dauer+' Minuten'+(S.start ? ' (bis '+zeit(sl.length)+')' : '')+'. Bei ungerader Teamzahl hat pro Runde ein Team frei.';
+    $('planTitel').textContent = '2 · Spielplan – ' + (S.titel || 'Turnier');
+    rang(sl);
+  }
+  function rang(sl){
+    var T = []; for(var i = 0; i < S.anz; i++) T.push({i:i, sp:0, s:0, u:0, n:0, tp:0, tg:0, pk:0});
+    sl.forEach(function(s){ s.spiele.forEach(function(m){
+      var e = S.erg[m.id]; if(!e || e.a === '' || e.b === '' || e.a == null || e.b == null) return;
+      var a = T[m.a], b = T[m.b]; a.sp++; b.sp++; a.tp += +e.a; a.tg += +e.b; b.tp += +e.b; b.tg += +e.a;
+      if(+e.a > +e.b){ a.s++; b.n++; a.pk += +S.pkt; } else if(+e.a < +e.b){ b.s++; a.n++; b.pk += +S.pkt; } else { a.u++; b.u++; a.pk++; b.pk++; }
+    }); });
+    T.sort(function(x, y){ return y.pk - x.pk || (y.tp - y.tg) - (x.tp - x.tg) || y.tp - x.tp || x.i - y.i; });
+    var h = '<table class="t rk"><tr><th>Rang</th><th>Team</th><th>Sp</th><th>S</th><th>U</th><th>N</th><th>Tore</th><th>Diff</th><th>Punkte</th></tr>';
+    T.forEach(function(t, k){ h += '<tr class="'+(k < 3 && t.sp ? 'top' : '')+'"><td>'+(k + 1)+'</td><td>'+tag(t.i)+'</td><td>'+t.sp+'</td><td>'+t.s+'</td><td>'+t.u+'</td><td>'+t.n+'</td><td>'+t.tp+':'+t.tg+'</td><td>'+(t.tp - t.tg)+'</td><td><b>'+t.pk+'</b></td></tr>'; });
+    $('rang').innerHTML = h+'</table>';
+  }
+  function einst(){
+    $('anz').value = S.anz; $('felder').value = S.felder; $('dauer').value = S.dauer; $('pause').value = S.pause; $('start').value = S.start; $('doppel').value = S.doppel; $('pkt').value = S.pkt; $('titel').value = S.titel;
+    $('namen').innerHTML = Array.apply(null, Array(S.anz)).map(function(_, i){ return '<input class="feld" data-nm="'+i+'" value="'+esc(S.namen[i] || '')+'" placeholder="Team '+'ABCDEFGH'[i]+'" style="background:'+FARBEN[i]+'55">'; }).join('');
+  }
+  document.addEventListener('input', function(e){
+    var t = e.target;
+    if(t.dataset.nm != null){ S.namen[+t.dataset.nm] = t.value; sp(); zeichnen(); }
+    else if(t.dataset.s){ var a = t.dataset.s.split('|'); S.erg[a[0]] = S.erg[a[0]] || {a:'', b:''}; S.erg[a[0]][a[1]] = t.value; sp(); var sl = plan(); rang(sl); }
+  });
+  document.addEventListener('change', function(e){
+    var t = e.target, m = {anz:'anz', felder:'felder', dauer:'dauer', pause:'pause', start:'start', doppel:'doppel', pkt:'pkt', titel:'titel'}[t.id];
+    if(!m) return;
+    var v = t.value; if(['anz','felder','dauer','pause'].indexOf(m) >= 0) v = Math.max(m === 'pause' ? 0 : 1, +v || 1);
+    if(m === 'anz') v = Math.max(3, Math.min(8, v)); if(m === 'felder') v = Math.min(6, v);
+    S[m] = v; if(m === 'anz' || m === 'doppel') S.erg = {}; sp(); einst(); zeichnen();
+  });
+  $('reset').addEventListener('click', function(){ S.erg = {}; sp(); zeichnen(); });
+  $('navw').innerHTML = P.nav('turnier.html'); einst(); zeichnen();
+})();
+</script>
+</body>
+</html>

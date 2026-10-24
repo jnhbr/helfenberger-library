@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sportplaner · Jahresplanung</title>
+<!-- 🗓️ Jahresplanung Sport (7.–9. Klasse): nach Jans Jahresplanungen, Stufen nach Lehrplan 21; daten/jahresplan.json. Kein Firestore. -->
+<link rel="stylesheet" href="karten.css?v=6">
+<style>
+  .jp-kopf{display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:8px 0;}
+  .jahrtab{font-size:16px; padding:5px 18px;}
+  .abdeckung{border:1px solid var(--linie); border-radius:10px; padding:8px 12px; background:var(--flaeche); margin:8px 0;}
+  .abd-bar{display:flex; height:22px; border-radius:6px; overflow:hidden; margin:4px 0; border:1px solid var(--linie);}
+  .abd-bar span{display:flex; align-items:center; justify-content:center; font-size:11.5px; font-weight:700; color:#1C1C1A; white-space:nowrap; overflow:hidden;}
+  .abd-leg{display:flex; flex-wrap:wrap; gap:4px 12px; font-size:12.5px;} .abd-leg i{display:inline-block; width:11px; height:11px; border-radius:3px; margin-right:4px; vertical-align:-1px;}
+  .sem h2{font-size:18px; margin:18px 0 4px; display:flex; align-items:center; gap:8px;} .sem h2::before{content:""; width:10px; height:20px; border-radius:3px; background:var(--blau);}
+  .periode{border:1px solid var(--linie); border-radius:10px; background:var(--flaeche); margin:10px 0; padding:8px 10px 10px;}
+  .periode h3{margin:0 0 4px; font-size:15.5px; display:flex; flex-wrap:wrap; gap:8px; align-items:center;} .periode h3 small{font-weight:400; color:var(--grau);}
+  .wochen{display:grid; grid-template-columns:repeat(var(--n),1fr); gap:2px; margin:4px 0 8px;} .wk{font-size:10.5px; text-align:center; background:var(--grau-t); border-radius:3px; padding:1px 0; color:var(--grau);} .wk.so{background:var(--gelb); color:#222; font-weight:700;}
+  .cols{display:grid; grid-template-columns:1fr 1fr; gap:10px;} .cols h4{margin:0 0 3px; font-size:13px; color:var(--grau); text-transform:uppercase; letter-spacing:.04em;}
+  .vh{border:1px solid var(--linie); border-left:7px solid var(--bc); background:var(--flaeche); border-radius:7px; padding:5px 8px 6px; margin:5px 0;}
+  .vh b{font-size:15px;} .vh .wo{float:right; font-size:12px; color:var(--grau); font-weight:700;}
+  .vh .bz{font-size:12px; font-weight:700; color:var(--bc);} .vh .an{font-size:13px; color:var(--grau); margin-top:2px;}
+  .stufe{font-size:12.5px; margin:3px 0 0; padding-left:8px; border-left:2px solid var(--linie);} .stufe b{font-size:12.5px;}
+  .vh .btns{margin-top:4px; display:flex; gap:6px; flex-wrap:wrap;}
+  .btn.klein{padding:1px 9px; font-size:12.5px; text-decoration:none;}
+  .codes{display:flex; flex-wrap:wrap; gap:4px; margin-top:4px;} .codes span{font-size:12px; border:1px solid var(--linie); border-radius:6px; padding:0 6px; background:var(--grau-t);} .codes span.gedeckt{background:var(--gruen-t); border-color:var(--gruen);}
+  @media (max-width:760px){ .cols{grid-template-columns:1fr;} }
+  @media print{ @page{size:A4 landscape; margin:9mm;} .jp-kopf,.pnav,.btns{display:none !important;} .periode{break-inside:avoid;} body{font-size:9.5pt;} .vh{break-inside:avoid;} .abdeckung{break-inside:avoid;} }
+</style>
+<script src="gemeinsam.js?v=6"></script>
+</head>
+<body>
+<div class="kopf"><img src="../sva/Logo_Sek_Altnau.png" alt="" onerror="this.style.display='none'"><div><h1>📋 Sportplaner · Jahresplanung</h1><div class="sub">7., 8. und 9. Klasse · Doppellektion und Einzellektion · Stufen nach Lehrplan 21 · mit Bausteinen verknüpft</div></div></div>
+<div class="streifen"><span></span><span></span><span></span><span></span></div>
+<div id="navw"></div>
+<main>
+  <div class="jp-kopf" id="tabs"></div>
+  <div id="abd"></div>
+  <div id="jahr"></div>
+  <p class="modell" id="quelle"></p><p class="modell">Quelle: deine Jahresplanungen (Word, Ordner _Planung). Die Anlässe, Wochen und Gruppenrotationen entsprechen dort. Die Verknüpfung mit den Bausteinen ist neu: «Reihe anlegen» öffnet die Präp-Werkstatt mit einem passenden Block.</p>
+</main>
+<script>
+(function(){
+  var P = Praep, esc = P.esc;
+  var BF = {1:'#72AC55', 2:'#F08316', 3:'#8E44AD', 4:'#189CDA', 5:'#16A085', 6:'#2E86C1'};
+  var S = {daten:null, jahr:7, bst:null, plan:'meine'};
+  function $(i){ return document.getElementById(i); }
+  function wochenAnz(w){ var m = /(\d+)(?:–(\d+))?/.exec(w); return m ? ((m[2] ? +m[2] : +m[1]) - +m[1] + 1) : 1; }
+  function abdeckung(j){
+    var wo = {}, codes = {};
+    j.perioden.forEach(function(p){ p.vorhaben.forEach(function(v){ var n = wochenAnz(v.wochen) * (v.typ === 'DL' ? 2 : 1); wo[v.bereichNr] = (wo[v.bereichNr] || 0) + n; v.stufen.forEach(function(s){ codes[s[0]+' '+s[1]] = v.bereichNr; }); }); });
+    var tot = 0; Object.keys(wo).forEach(function(k){ tot += wo[k]; });
+    var h = '<div class="abdeckung"><b>Lehrplan 21: Abdeckung im Schuljahr</b> <span class="modell">(Lektionen ≈ Wochen × 2 bei Doppellektion, × 1 bei Einzellektion)</span><div class="abd-bar">';
+    [1,2,3,4,5,6].forEach(function(k){ if(wo[k]) h += '<span style="width:'+(wo[k] / tot * 100)+'%;background:'+BF[k]+'" title="'+esc(S.daten.bereiche[k])+': '+wo[k]+' Lektionen">'+Math.round(wo[k] / tot * 100)+'%</span>'; });
+    h += '</div><div class="abd-leg">'+[1,2,3,4,5,6].map(function(k){ var rw = S.daten.richtwert ? S.daten.richtwert.anteile[k] : null, ist = wo[k] ? Math.round(wo[k] / tot * 100) : 0; return '<span><i style="background:'+BF[k]+'"></i>'+esc(S.daten.bereiche[k])+(wo[k] ? ' · '+wo[k]+' Lekt. ('+ist+' %)' : ' · <b style="color:#C0392B">nicht geplant</b>')+(rw ? ' <span class="modell" style="margin:0">Richtwert '+rw+' %</span>' : '')+'</span>'; }).join('')+'</div>';
+    if(S.daten.richtwert) h += '<div class="modell" style="margin:4px 0 0">Richtwert: '+esc(S.daten.richtwert.quelle)+'. Im 3. Zyklus ist das ein Orientierungswert über alle drei Schuljahre, nicht pro Jahr verbindlich.</div>';
+    h += '<div class="codes">'+Object.keys(codes).sort().map(function(c){ return '<span class="gedeckt">'+esc(c)+'</span>'; }).join('')+'</div></div>';
+    return h;
+  }
+  function vhHtml(v, jk, pi, vi){
+    var bc = BF[v.bereichNr];
+    var h = '<div class="vh" style="--bc:'+bc+'"><span class="wo">Wo '+esc(v.wochen)+'</span><div class="bz">'+esc(v.bereich)+'</div><b>'+esc(v.thema)+'</b>';
+    if(v.anlass) h += '<div class="an">'+esc(v.anlass)+'</div>';
+    (v.stufen || []).forEach(function(s){ h += '<div class="stufe"><b>'+esc(s[0])+' '+esc(s[1])+'</b> – '+esc(s[2])+'</div>'; });
+    var btns = '';
+    var sport = v.sport; var info = sport && S.bst ? S.bst.filter(function(x){ return x.id === sport; })[0] : null;
+    if(info){
+      var dl = Math.max(1, Math.min(5, Math.round(wochenAnz(v.wochen) * (v.typ === 'DL' ? 1 : 1) )));
+      if(info.reihen === false) btns += '<a class="btn klein" href="index.html" title="Kleine Spiele als Bausteine">🎲 Bausteine ansehen</a>';
+      else btns += '<a class="btn klein" href="werkstatt.html?neu='+encodeURIComponent(sport)+'&dl='+dl+'&titel='+encodeURIComponent(v.thema+' '+jk+'. Klasse')+'&klasse='+encodeURIComponent(jk+'. Klasse')+'">🛠️ Reihe anlegen ('+dl+' DL)</a><a class="btn klein" href="index.html" title="Bausteine ansehen">🧱 Bausteine</a>';
+    } else btns += '<span class="modell" style="margin:0">Bausteine folgen</span>';
+    return h+'<div class="btns">'+btns+'</div></div>';
+  }
+  function jahrHtml(j){
+    var h = '', sem = 0;
+    j.perioden.forEach(function(p, pi){
+      if(p.semester !== sem){ sem = p.semester; h += '<div class="sem"><h2>'+sem+'. Semester</h2></div>'; }
+      h += '<div class="periode"><h3>'+esc(p.name)+' <small>'+p.wochen+' Wochen'+(p.ferien ? ' · danach '+esc(p.ferien) : '')+'</small></h3>';
+      h += '<div class="wochen" style="--n:'+p.wochen+'">'+Array.apply(null, Array(p.wochen)).map(function(_, k){ var so = p.sonder && p.sonder[0] === k + 1; return '<div class="wk'+(so ? ' so' : '')+'" title="'+(so ? esc(p.sonder[1]) : 'Woche '+(k + 1))+'">'+(so ? esc(p.sonder[1].slice(0, 7)) : (k + 1))+'</div>'; }).join('')+'</div>';
+      var dl = p.vorhaben.filter(function(v){ return v.typ === 'DL'; }), el = p.vorhaben.filter(function(v){ return v.typ === 'EL'; });
+      h += '<div class="cols"><div><h4>Doppellektion</h4>'+dl.map(function(v, vi){ return vhHtml(v, j.klasse, pi, vi); }).join('')+'</div><div><h4>Einzellektion</h4>'+(el.length ? el.map(function(v, vi){ return vhHtml(v, j.klasse, pi, vi); }).join('') : '<div class="modell">–</div>')+'</div></div>';
+      if(p.extra) h += '<div class="modell" style="margin:6px 0 0"><b>'+esc(p.extra)+'</b></div>';
+      h += '</div>';
+    });
+    return h;
+  }
+  function zeichnen(){
+    $('tabs').innerHTML = [7, 8, 9].map(function(k){ return '<button class="tab jahrtab'+(S.jahr === k ? ' an' : '')+'" data-j="'+k+'" type="button">'+k+'. Klasse</button>'; }).join('')+'<span style="width:14px"></span><button class="tab'+(S.plan === 'meine' ? ' an' : '')+'" data-plan="meine" type="button">Deine Planung (Word)</button><button class="tab'+(S.plan === 'vorschlag' ? ' an' : '')+'" data-plan="vorschlag" type="button">Vorschlag (neu)</button><button class="btn" onclick="window.print()" type="button">🖨️ Drucken (A4 quer)</button>';
+    var liste = S.plan === 'meine' ? S.daten.jahre : S.daten.vorschlag;
+    var j = liste.filter(function(x){ return x.klasse === S.jahr; })[0];
+    $('quelle').innerHTML = S.plan === 'meine' ? '<b>Deine Planung</b> aus den Word-Dateien (_Planung), unverändert übernommen.' : '<b>Vorschlag:</b> gleiche Periodenstruktur und Sonderwochen wie bei dir. Neu: fester Auftritt in Darstellen und Tanzen, Gleiten/Rollen/Fahren, Schwimmen in jedem Jahr, Progression von «Grundlagen» (7.) über «Vertiefen» (8.) zu «selbstständig und mit Rückmeldung» (9.). Bewegen im Wasser ist kurz gehalten (zwei Wochen) und am Ende des Schuljahres im Sommer eingeplant. Die Zeiten orientieren sich an Richtwerten aus Graubünden und der Planungshilfe Basel-Stadt, die Inhalte sind meine Zusammenstellung.';
+    $('abd').innerHTML = abdeckung(j);
+    $('jahr').innerHTML = jahrHtml(j);
+  }
+  document.addEventListener('click', function(e){ var b = e.target.closest('[data-j],[data-plan]'); if(!b) return; if(b.dataset.j) S.jahr = +b.dataset.j; if(b.dataset.plan) S.plan = b.dataset.plan; zeichnen(); });
+  $('navw').innerHTML = P.nav('jahresplan.html');
+  Promise.all([P.holen('daten/jahresplan.json?v=2'), P.laden()]).then(function(r){ S.daten = r[0]; S.bst = r[1].sportarten; zeichnen(); })
+    .catch(function(e){ $('jahr').innerHTML = '<p class="leer">Planung konnte nicht geladen werden ('+esc(e.message)+').</p>'; });
+})();
+</script>
+</body>
+</html>

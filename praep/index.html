@@ -3,23 +3,24 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Sport-Bausteine</title>
+<title>Sportplaner</title>
 <!--
   🧱 Sport-Bausteine (Präp-Baukasten, Teil 1) — Helfenberger's Library
   Katalog der Bausteine pro Sportart (3v3-Modell: Spielen – Intervenieren – Weiterspielen) im Altnau-Design.
   Daten: daten/index.json + eine JSON-Datei pro Sportart (alle Texte in eigenen Worten). Kein Firestore.
   Auswahl («Mein Korb») liegt im Browser (localStorage praep_korb_v1) und lässt sich als Karten drucken.
 -->
-<link rel="stylesheet" href="karten.css?v=3">
-<script src="gemeinsam.js?v=3"></script>
+<link rel="stylesheet" href="karten.css?v=6">
+<script src="gemeinsam.js?v=6"></script>
 </head>
 <body>
 <div class="kopf">
   <img src="../sva/Logo_Sek_Altnau.png" alt="" onerror="this.style.display='none'">
-  <div><h1>🧱 Sport-Bausteine</h1><div class="sub">Sammlung pro Sportart nach dem 3v3-Modell · Spielen – Intervenieren – Weiterspielen</div></div>
-  <a class="btn primaer" href="werkstatt.html" style="margin-left:auto;text-decoration:none">🛠️ Präp-Werkstatt</a>
+  <div><h1>📋 Sportplaner · Bausteine</h1><div class="sub">Sammlung pro Sportart nach dem 3v3-Modell · Spielen – Intervenieren – Weiterspielen</div></div>
+  
 </div>
 <div class="streifen"><span></span><span></span><span></span><span></span></div>
+<div id="navw"></div>
 <main>
   <div class="leiste" id="tabs"></div>
   <div class="modell" id="modell"></div>
@@ -37,7 +38,7 @@
 <script>
 (function(){
   var P = Praep, PHASEN = P.PHASEN, HALLE = P.HALLE, esc = P.esc;
-  var S = {sport:null, phase:null, halle:null, persp:null, q:'', daten:{}, sportarten:[], korb:[]};
+  var S = {sport:null, phase:null, halle:null, persp:null, fav:false, q:'', daten:{}, sportarten:[], korb:[]};
   try{ S.korb = JSON.parse(localStorage.getItem('praep_korb_v1') || '[]'); }catch(e){}
   function speichern(){ try{ localStorage.setItem('praep_korb_v1', JSON.stringify(S.korb)); }catch(e){} }
   function $(id){ return document.getElementById(id); }
@@ -52,6 +53,7 @@
     var liste = S.daten[S.sport] || [];
     return liste.filter(function(i){
       if(S.phase && i.phase !== S.phase) return false;
+      if(S.fav && !P.favIs(i.id)) return false;
       if(S.persp && (i.perspektiven || []).indexOf(S.persp) < 0) return false;
       if(S.halle && (i.halle || []).indexOf(S.halle) < 0 && i.art !== 'alternativ') return false;
       if(q && JSON.stringify(i).toLowerCase().indexOf(q) < 0) return false;
@@ -73,7 +75,7 @@
     $('filter').innerHTML = '<button class="chip'+(!S.phase ? ' an' : '')+'" data-phase="" type="button">Alle</button>'+
       PHASEN.filter(function(p){ return vorh[p.id]; }).map(function(p){ return '<button class="chip'+(S.phase === p.id ? ' an' : '')+'" data-phase="'+p.id+'" type="button">'+esc(p.name)+' ('+vorh[p.id]+')</button>'; }).join('')+
       '<span style="width:8px"></span>'+['E','D','A'].map(function(x){ return '<button class="chip'+(S.halle === x ? ' an' : '')+'" data-halle="'+x+'" type="button">'+HALLE[x]+'</button>'; }).join('');
-    $('persp').innerHTML = '<span class="modell" style="margin:0 4px 0 0">Perspektive:</span>'+P.PERSP.map(function(x){ return '<button class="chip'+(S.persp === x ? ' an' : '')+'" data-persp="'+x+'" type="button" style="border-color:'+P.PERSPFARBE[x]+'">'+esc(x)+'</button>'; }).join('');
+    $('persp').innerHTML = '<button class="chip'+(S.fav ? ' an' : '')+'" data-favfilter="1" type="button">★ Favoriten</button> <span class="modell" style="margin:0 4px 0 6px">Perspektive:</span>'+P.PERSP.map(function(x){ return '<button class="chip'+(S.persp === x ? ' an' : '')+'" data-persp="'+x+'" type="button" style="border-color:'+P.PERSPFARBE[x]+'">'+esc(x)+'</button>'; }).join('');
     var v = sichtbar();
     $('zaehler').textContent = v.length+' von '+liste.length+' Karten';
     $('raster').innerHTML = v.length ? v.map(karte).join('') : '<div class="leer">Keine Karte passt zum Filter.</div>';
@@ -85,6 +87,7 @@
     var b = e.target.closest('button'); if(!b) return;
     if(b.dataset.sport){ S.sport = b.dataset.sport; S.phase = null; zeichnen(); }
     else if(b.hasAttribute('data-phase')){ S.phase = b.dataset.phase || null; zeichnen(); }
+    else if(b.dataset.favfilter){ S.fav = !S.fav; zeichnen(); }
     else if(b.dataset.persp){ S.persp = S.persp === b.dataset.persp ? null : b.dataset.persp; zeichnen(); }
     else if(b.dataset.halle){ S.halle = S.halle === b.dataset.halle ? null : b.dataset.halle; zeichnen(); }
     else if(b.dataset.korb){ var k = S.korb.indexOf(b.dataset.korb); if(k >= 0) S.korb.splice(k, 1); else S.korb.push(b.dataset.korb); speichern(); zeichnen(); }
@@ -97,8 +100,13 @@
     }
   });
   $('suche').addEventListener('input', function(){ S.q = this.value; zeichnen(); });
+  document.getElementById('navw').innerHTML = P.nav('index.html');
+  P.onFav = function(){ if(S.fav) zeichnen(); };
   P.laden().then(function(d){
-    S.sportarten = d.sportarten; S.daten = d.daten; S.sport = S.sportarten[0].id; zeichnen();
+    S.sportarten = d.sportarten; S.daten = d.daten; S.sport = S.sportarten[0].id;
+    var qsp = new URLSearchParams(location.search).get('sport');
+    if(qsp && (qsp === 'alternativ' || S.sportarten.some(function(x){ return x.id === qsp; }))) S.sport = qsp;
+    zeichnen();
   }).catch(function(e){ $('raster').innerHTML = '<div class="leer">Bausteine konnten nicht geladen werden ('+esc(e.message)+').</div>'; });
 })();
 </script>

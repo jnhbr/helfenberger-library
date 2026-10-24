@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sportplaner · Notenrechner</title>
+<!-- 🧮 Notenrechner Sport: Punkte → Note, Notentabelle, Klassenübersicht. Alles nur im Browser (localStorage praep_noten_v1), keine Namen in der Datenbank. -->
+<link rel="stylesheet" href="karten.css?v=6">
+<style>
+  .box{border:1px solid var(--linie); border-radius:10px; padding:8px 12px; background:var(--flaeche); margin:10px 0;}
+  .box h2{font-size:16px; margin:0 0 6px;}
+  .zeile{display:flex; flex-wrap:wrap; gap:10px; align-items:flex-end; margin:6px 0;}
+  label.fl{display:flex; flex-direction:column; gap:2px; font-size:12.5px; color:var(--grau); font-weight:700;}
+  input.feld,select.feld,textarea.feld{border:1px solid var(--linie); background:var(--flaeche); color:var(--ink); border-radius:8px; padding:5px 9px; font:inherit; font-size:14px;}
+  table.t{border-collapse:collapse; width:100%; font-size:14px;} table.t th,table.t td{border:1px solid var(--linie); padding:3px 7px; text-align:left;} table.t th{background:var(--grau-t);} table.t td.n{font-weight:800; text-align:center;}
+  .note{display:inline-block; min-width:42px; text-align:center; border-radius:6px; font-weight:800; padding:1px 6px;}
+  .ng{background:#FBD5D5;} .nm{background:#FFF3BF;} .ngut{background:#D3F0D0;}
+  .histo{display:flex; gap:3px; align-items:flex-end; height:80px; margin:6px 0;} .histo div{flex:1; background:var(--blau); color:#fff; font-size:11px; text-align:center; border-radius:3px 3px 0 0; min-width:16px; position:relative;} .histo span{display:block; font-size:11px; text-align:center; color:var(--grau);}
+  .btn.klein{padding:1px 9px; font-size:12.5px;} .hinweis{font-size:13px; color:var(--grau);}
+  .teile{display:grid; grid-template-columns:2fr 1fr auto; gap:6px; margin:4px 0;}
+  @media print{ .ctl,.pnav{display:none !important;} }
+</style>
+<script src="gemeinsam.js?v=6"></script>
+</head>
+<body>
+<div class="kopf"><img src="../sva/Logo_Sek_Altnau.png" alt="" onerror="this.style.display='none'"><div><h1>📋 Sportplaner · Notenrechner</h1><div class="sub">Punkte → Note · Notentabelle · Klassenübersicht · Daten bleiben nur in diesem Browser</div></div></div>
+<div class="streifen"><span></span><span></span><span></span><span></span></div>
+<div id="navw"></div>
+<main>
+  <div class="box ctl"><h2>1 · Prüfungsteile und Punkte</h2>
+    <div id="teile"></div>
+    <div class="zeile"><button class="btn klein" id="teilNeu" type="button">＋ Teil</button><span class="hinweis">Beispiel Sport: Technik-Check 15 + Spielverhalten 15 (5 Kriterien à 0–3).</span></div>
+  </div>
+  <div class="box ctl"><h2>2 · Notenskala</h2>
+    <div class="zeile">
+      <label class="fl">Note 4 ab … % der Punkte<input class="feld" id="schwelle" type="number" min="30" max="90" step="1" style="width:90px"></label>
+      <label class="fl">Beste Note<input class="feld" id="max" type="number" min="5" max="6" step="0.5" style="width:70px"></label>
+      <label class="fl">Rundung<select class="feld" id="rundung"><option value="0.5">auf 0,5</option><option value="0.25">auf 0,25</option><option value="0.1">auf 0,1</option></select></label>
+      <label class="fl">Modell<select class="feld" id="modell"><option value="schwelle">Schwelle (Note 4 bei x %)</option><option value="linear">linear (1 + 5 · Punkte/Max)</option></select></label>
+    </div>
+    <div class="hinweis">Schweizer Skala 1–6. Die Skala gilt nur für diesen Rechner. Die Schulvorgaben (zum Beispiel Notenstufen) gehen vor.</div>
+  </div>
+  <div class="box"><h2>3 · Notentabelle</h2><div id="tabelle"></div></div>
+  <div class="box"><h2>4 · Klassenübersicht</h2>
+    <div class="ctl zeile"><label class="fl" style="flex:1;min-width:240px">Namen (eine Person pro Zeile, am besten nur Vornamen oder Kürzel)<textarea class="feld" id="namen" rows="3"></textarea></label>
+      <button class="btn" id="ladeNamen" type="button">Liste übernehmen</button><button class="btn" id="csv" type="button">⬇️ CSV</button><button class="btn" onclick="window.print()" type="button">🖨️ Drucken</button><button class="btn" id="leer" type="button">Alle Punkte löschen</button></div>
+    <div id="klasse"></div><div id="stat"></div>
+    <div class="hinweis">Datenschutz: Die Eingaben liegen nur auf diesem Computer im Browser und werden nicht mit anderen Lehrpersonen geteilt.</div>
+  </div>
+</main>
+<script>
+(function(){
+  var P = Praep, esc = P.esc, KEY = 'praep_noten_v1';
+  var S = {teile:[{n:'Technik-Check', m:15}, {n:'Spielverhalten', m:15}], schwelle:60, max:6, rundung:0.5, modell:'schwelle', namen:[], punkte:{}};
+  try{ var g = JSON.parse(localStorage.getItem(KEY) || 'null'); if(g) Object.assign(S, g); }catch(e){}
+  function sp(){ try{ localStorage.setItem(KEY, JSON.stringify(S)); }catch(e){} }
+  function $(i){ return document.getElementById(i); }
+  function gesamt(){ return S.teile.reduce(function(a, t){ return a + (+t.m || 0); }, 0); }
+  function note(p){
+    var M = gesamt(); if(!M) return null;
+    var f = Math.max(0, Math.min(1, p / M)), n;
+    if(S.modell === 'linear') n = 1 + (S.max - 1) * f;
+    else { var s = S.schwelle / 100; n = f < s ? 1 + 3 * f / s : 4 + (S.max - 4) * (f - s) / (1 - s); }
+    n = Math.round(n / S.rundung) * S.rundung;
+    return Math.max(1, Math.min(S.max, n));
+  }
+  function nf(n){ return n == null ? '' : (Math.round(n * 100) / 100).toString().replace('.', ','); }
+  function badge(n){ return '<span class="note '+(n < 4 ? 'ng' : n < 5 ? 'nm' : 'ngut')+'">'+nf(n)+'</span>'; }
+  function teile(){
+    $('teile').innerHTML = S.teile.map(function(t, i){ return '<div class="teile"><input class="feld" data-tn="'+i+'" value="'+esc(t.n)+'" placeholder="Name des Teils"><input class="feld" type="number" min="1" data-tm="'+i+'" value="'+esc(t.m)+'" placeholder="max. Punkte"><button class="btn klein" data-tw="'+i+'" type="button" title="Teil entfernen">✕</button></div>'; }).join('')+'<div class="hinweis">Total: <b>'+gesamt()+'</b> Punkte</div>';
+  }
+  function tabelle(){
+    var M = gesamt(), h = '';
+    if(!M){ $('tabelle').innerHTML = '<div class="hinweis">Zuerst Punkte eingeben.</div>'; return; }
+    var rows = []; for(var p = 0; p <= M; p++) rows.push([p, note(p)]);
+    var spalten = Math.min(3, Math.ceil(rows.length / 12)), per = Math.ceil(rows.length / spalten);
+    h = '<div style="display:grid;grid-template-columns:repeat('+spalten+',1fr);gap:10px">';
+    for(var c = 0; c < spalten; c++) h += '<table class="t"><tr><th>Punkte</th><th>Note</th></tr>'+rows.slice(c * per, (c + 1) * per).map(function(r){ return '<tr><td>'+r[0]+'</td><td class="n">'+badge(r[1])+'</td></tr>'; }).join('')+'</table>';
+    $('tabelle').innerHTML = h+'</div>';
+  }
+  function klasse(){
+    if(!S.namen.length){ $('klasse').innerHTML = '<div class="hinweis">Namen eintragen und «Liste übernehmen».</div>'; $('stat').innerHTML = ''; return; }
+    var h = '<table class="t"><tr><th>Name</th>'+S.teile.map(function(t){ return '<th>'+esc(t.n)+' (/'+t.m+')</th>'; }).join('')+'<th>Total</th><th>Note</th></tr>';
+    var noten = [];
+    S.namen.forEach(function(nm, i){
+      var pk = S.punkte[nm] || [], tot = 0, voll = true;
+      h += '<tr><td>'+esc(nm)+'</td>'+S.teile.map(function(t, k){ var v = pk[k]; if(v === '' || v == null) voll = false; tot += +v || 0; return '<td><input class="feld" type="number" min="0" max="'+t.m+'" step="0.5" data-p="'+i+'|'+k+'" value="'+(v == null ? '' : esc(v))+'" style="width:70px"></td>'; }).join('');
+      var n = voll ? note(tot) : null; if(n != null) noten.push(n);
+      h += '<td>'+(voll ? nf(tot) : '')+'</td><td class="n" id="nn'+i+'">'+(voll ? badge(n) : '')+'</td></tr>';
+    });
+    $('klasse').innerHTML = h+'</table>';
+    stat(noten);
+  }
+  function stat(noten){
+    if(!noten.length){ $('stat').innerHTML = ''; return; }
+    var avg = noten.reduce(function(a, b){ return a + b; }, 0) / noten.length, ung = noten.filter(function(n){ return n < 4; }).length;
+    var bins = {}; noten.forEach(function(n){ var k = Math.round(n); bins[k] = (bins[k] || 0) + 1; });
+    var mx = Math.max.apply(null, Object.keys(bins).map(function(k){ return bins[k]; }));
+    $('stat').innerHTML = '<div class="zeile"><span><b>Durchschnitt:</b> '+nf(avg)+'</span><span><b>Ungenügend (unter 4):</b> '+ung+' von '+noten.length+'</span></div><div class="histo">'+[1,2,3,4,5,6].map(function(k){ return '<div style="height:'+((bins[k] || 0) / mx * 100)+'%" title="Note '+k+': '+(bins[k] || 0)+'">'+(bins[k] || '')+'</div>'; }).join('')+'</div><div class="histo" style="height:auto">'+[1,2,3,4,5,6].map(function(k){ return '<span style="flex:1">'+k+'</span>'; }).join('')+'</div>';
+  }
+  function alles(){ $('schwelle').value = S.schwelle; $('max').value = S.max; $('rundung').value = String(S.rundung); $('modell').value = S.modell; $('namen').value = S.namen.join('\n'); teile(); tabelle(); klasse(); }
+  document.addEventListener('input', function(e){
+    var t = e.target;
+    if(t.dataset.tn != null){ S.teile[+t.dataset.tn].n = t.value; sp(); klasse(); }
+    else if(t.dataset.tm != null){ S.teile[+t.dataset.tm].m = +t.value || 0; sp(); teile(); tabelle(); klasse(); }
+    else if(t.dataset.p){ var a = t.dataset.p.split('|'), nm = S.namen[+a[0]]; S.punkte[nm] = S.punkte[nm] || []; S.punkte[nm][+a[1]] = t.value === '' ? '' : +t.value; sp(); var pk = S.punkte[nm], tot = 0, voll = true; S.teile.forEach(function(x, k){ if(pk[k] === '' || pk[k] == null) voll = false; tot += +pk[k] || 0; }); var n = voll ? note(tot) : null; var cell = $('nn'+a[0]); cell.innerHTML = voll ? badge(n) : ''; cell.previousSibling.textContent = voll ? nf(tot) : ''; var ns = []; S.namen.forEach(function(nn){ var q = S.punkte[nn] || [], tt = 0, v = true; S.teile.forEach(function(x, k){ if(q[k] === '' || q[k] == null) v = false; tt += +q[k] || 0; }); if(v) ns.push(note(tt)); }); stat(ns); }
+  });
+  document.addEventListener('change', function(e){
+    var t = e.target;
+    if(t.id === 'schwelle'){ S.schwelle = +t.value || 60; } else if(t.id === 'max'){ S.max = +t.value || 6; } else if(t.id === 'rundung'){ S.rundung = +t.value; } else if(t.id === 'modell'){ S.modell = t.value; } else return;
+    sp(); tabelle(); klasse();
+  });
+  document.addEventListener('click', function(e){
+    var b = e.target.closest('button'); if(!b) return;
+    if(b.id === 'teilNeu'){ S.teile.push({n:'Teil '+(S.teile.length + 1), m:10}); sp(); teile(); tabelle(); klasse(); }
+    else if(b.dataset.tw != null){ S.teile.splice(+b.dataset.tw, 1); sp(); teile(); tabelle(); klasse(); }
+    else if(b.id === 'ladeNamen'){ S.namen = $('namen').value.split('\n').map(function(x){ return x.trim(); }).filter(Boolean); sp(); klasse(); }
+    else if(b.id === 'leer'){ S.punkte = {}; sp(); klasse(); }
+    else if(b.id === 'csv'){
+      var rows = [['Name'].concat(S.teile.map(function(t){ return t.n; }), ['Total', 'Note'])];
+      S.namen.forEach(function(nm){ var pk = S.punkte[nm] || [], tot = 0, voll = true; S.teile.forEach(function(t, k){ if(pk[k] === '' || pk[k] == null) voll = false; tot += +pk[k] || 0; }); rows.push([nm].concat(S.teile.map(function(t, k){ return pk[k] == null ? '' : pk[k]; }), [voll ? tot : '', voll ? nf(note(tot)) : ''])); });
+      var blob = new Blob(['﻿' + rows.map(function(r){ return r.map(function(c){ return '"' + String(c).replace(/"/g, '""') + '"'; }).join(';'); }).join('\n')], {type:'text/csv;charset=utf-8'});
+      var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'Sportnoten.csv'; document.body.appendChild(a); a.click(); setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 1500);
+    }
+  });
+  $('navw').innerHTML = P.nav('noten.html'); alles();
+})();
+</script>
+</body>
+</html>

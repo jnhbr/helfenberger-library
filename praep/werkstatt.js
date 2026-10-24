@@ -197,17 +197,18 @@
   }
 
   /* ---------- Bausteinwahl ---------- */
-  var wahl = {p:0, alle:false, q:'', sport:null, persp:null};
+  var wahl = {p:0, alle:false, q:'', sport:null, persp:null, fav:false};
   function bwahlOeffnen(pi){
-    wahl.p = pi; wahl.alle = false; wahl.q = ''; wahl.persp = null; wahl.sport = reihe().sport; bwahlZeichnen();
+    wahl.p = pi; wahl.alle = false; wahl.q = ''; wahl.persp = null; wahl.fav = false; wahl.sport = reihe().sport; bwahlZeichnen();
   }
   function bwahlZeichnen(){
     var d = dl(), ph = d.phasen[wahl.p], def = PHASEN[wahl.p];
-    var liste = (W.daten.daten[wahl.sport] || []).concat(wahl.sport === 'alternativ' ? [] : (W.daten.daten.alternativ || []));
+    var liste = (W.daten.daten[wahl.sport] || []).concat((wahl.sport === 'alternativ' || wahl.sport === 'kleinespiele') ? [] : (W.daten.daten.alternativ || []).concat(W.daten.daten.kleinespiele || []));
     if(wahl.sport === 'alternativ') liste = W.daten.daten.alternativ || [];
     var q = wahl.q.trim().toLowerCase();
     liste = liste.filter(function(i){
       if(!wahl.alle){ var passt = def.hilfe.indexOf(i.phase) >= 0 || (def.regel && i.art === 'regelkarte'); if(!passt) return false; }
+      if(wahl.fav && !P.favIs(i.id)) return false;
       if(wahl.persp && (i.perspektiven || []).indexOf(wahl.persp) < 0) return false;
       return !q || JSON.stringify(i).toLowerCase().indexOf(q) >= 0;
     });
@@ -220,7 +221,7 @@
       var drin = ph.ids.indexOf(i.id) >= 0, kurz = (i.beschreibung && i.beschreibung[0]) || (i.punkte && i.punkte[0]) || (i.iv && i.iv[0] && i.iv[0].t) || '';
       return '<div class="wahl t-'+esc(i.phase)+(drin ? ' drin' : '')+'" style="--cd:var(--'+farbe(i.phase)+')"><span class="code" style="background:var(--cd);border-radius:6px;padding:0 7px;font-weight:800;font-size:13px">'+esc(i.code)+'</span>'+
         '<span class="tt"><b>'+esc(i.titel)+'</b> <span class="mini" style="color:var(--grau);font-size:12px">'+esc(P.ARTEN[i.art] || '')+' · '+esc(P.phaseName(i.phase))+(i.dauer ? ' · '+esc(i.dauer) : '')+'</span><small>'+esc(String(kurz).slice(0, 170))+'</small></span>'+
-        '<button class="btn klein'+(drin ? ' an' : '')+'" data-w="'+esc(i.id)+'" type="button">'+(drin ? '✓' : '＋')+'</button></div>';
+        '<button class="fav'+(P.favIs(i.id) ? ' an' : '')+'" data-fav="'+esc(i.id)+'" type="button" title="Favorit">'+(P.favIs(i.id) ? '★' : '☆')+'</button><button class="btn klein'+(drin ? ' an' : '')+'" data-w="'+esc(i.id)+'" type="button">'+(drin ? '✓' : '＋')+'</button></div>';
     }).join('') : '<div class="leer">Nichts gefunden. Probiere «alle Phasen zeigen».</div>';
     h += '</div>';
     var m = $('modal'); m.innerHTML = h; m.hidden = false;
@@ -324,20 +325,21 @@
   /* ---------- Ereignisse ---------- */
   function neuDialog(){
     var m = $('modal');
-    m.innerHTML = '<div class="mbox"><h3>Neue Reihe</h3><div class="zeile"><label class="fl">Sportart<select class="feld" id="nSport">'+W.daten.sportarten.map(function(s){ return '<option value="'+s.id+'">'+esc(s.emoji+' '+s.name)+'</option>'; }).join('')+'</select></label>'+
+    m.innerHTML = '<div class="mbox"><h3>Neue Reihe</h3><div class="zeile"><label class="fl">Sportart<select class="feld" id="nSport">'+W.daten.sportarten.filter(function(s){ return s.reihen !== false; }).map(function(s){ return '<option value="'+s.id+'">'+esc(s.emoji+' '+s.name)+'</option>'; }).join('')+'</select></label>'+
       '<label class="fl">Block<select class="feld" id="nAnz"><option value="1">1 DL (Einzellektion)</option><option value="3">3 DL (kurzer Block)</option><option value="5" selected>5 DL (mit Prüfung in DL 5)</option></select></label></div>'+
       '<label class="fl" style="flex-direction:row;align-items:center;gap:6px;margin:6px 0"><input type="checkbox" id="nBsp" checked> mit Beispiel füllen (Bausteine und Tagesziele zum Anpassen)</label>'+
       '<div class="zeile"><button class="btn primaer" id="nOk" type="button">Reihe anlegen</button><button class="btn" id="wZu" type="button">Abbrechen</button></div></div>';
     m.hidden = false;
   }
   document.addEventListener('click', function(e){
-    var b = e.target.closest('[data-reihe],[data-di],[data-act],[data-w],[data-wp],#wZu,#nOk,#jaOk'); if(!b) return;
+    var b = e.target.closest('[data-reihe],[data-di],[data-act],[data-w],[data-wp],[data-wfav],#wZu,#nOk,#jaOk'); if(!b) return;
     var r = reihe(), d = dl(), act = b.dataset.act;
     if(b.dataset.reihe){ W.rid = b.dataset.reihe; W.di = 0; schreiben(); alles(); return; }
     if(b.dataset.di){ W.di = +b.dataset.di; schreiben(); dlTabs(); dlPanel(); return; }
     if(b.id === 'jaOk'){ $('modal').hidden = true; var f = jaFn; jaFn = null; if(f) f(); return; }
     if(b.id === 'wZu'){ $('modal').hidden = true; dlPanel(); schreiben(); return; }
     if(b.id === 'nOk'){ var s = $('nSport').value, a = +$('nAnz').value || 5, bs = $('nBsp').checked; $('modal').hidden = true; neueReihe(s, a, bs); return; }
+    if(b.dataset.wfav){ wahl.fav = !wahl.fav; bwahlZeichnen(); return; }
     if(b.dataset.wp){ wahl.persp = wahl.persp === b.dataset.wp ? null : b.dataset.wp; bwahlZeichnen(); return; }
     if(b.dataset.w){
       var ph = d.phasen[wahl.p], k = ph.ids.indexOf(b.dataset.w);
@@ -383,7 +385,14 @@
   lesen();
   P.laden().then(function(daten){
     W.daten = daten;
+    document.getElementById('navw').innerHTML = P.nav('werkstatt.html');
     if(!reihe() && W.reihen.length) W.rid = W.reihen[0].id;
+    var qs = new URLSearchParams(location.search), nsp = qs.get('neu');
+    if(nsp && W.daten.sportarten.some(function(x){ return x.id === nsp && x.reihen !== false; })){
+      neueReihe(nsp, Math.max(1, Math.min(5, +qs.get('dl') || 3)), true);
+      var rr = reihe(); if(rr){ if(qs.get('titel')) rr.titel = qs.get('titel'); if(qs.get('klasse')) rr.klasse = qs.get('klasse'); schreiben(); }
+      try{ history.replaceState(null, '', location.pathname); }catch(e){}
+    }
     alles();
   }).catch(function(e){ $('reiheKopf').innerHTML = '<p class="leer">Bausteine konnten nicht geladen werden ('+esc(e.message)+').</p>'; });
 })();
