@@ -10,8 +10,8 @@
   Daten: daten/index.json + eine JSON-Datei pro Sportart (alle Texte in eigenen Worten). Kein Firestore.
   Auswahl («Mein Korb») liegt im Browser (localStorage praep_korb_v1) und lässt sich als Karten drucken.
 -->
-<link rel="stylesheet" href="karten.css?v=2">
-<script src="gemeinsam.js?v=2"></script>
+<link rel="stylesheet" href="karten.css?v=3">
+<script src="gemeinsam.js?v=3"></script>
 </head>
 <body>
 <div class="kopf">
@@ -24,6 +24,7 @@
   <div class="leiste" id="tabs"></div>
   <div class="modell" id="modell"></div>
   <div class="leiste" id="filter"></div>
+  <div class="leiste" id="persp"></div>
   <div class="leiste"><input class="suche" id="suche" type="search" placeholder="Suchen (Titel, Material, Text) …"><span id="zaehler" class="modell"></span></div>
   <div class="kartenkopf-druck"><img src="../sva/Logo_Sek_Altnau.png" alt=""><b id="druckTitel">Sport-Bausteine</b></div>
   <div class="raster" id="raster"></div>
@@ -36,7 +37,7 @@
 <script>
 (function(){
   var P = Praep, PHASEN = P.PHASEN, HALLE = P.HALLE, esc = P.esc;
-  var S = {sport:null, phase:null, halle:null, q:'', daten:{}, sportarten:[], korb:[]};
+  var S = {sport:null, phase:null, halle:null, persp:null, q:'', daten:{}, sportarten:[], korb:[]};
   try{ S.korb = JSON.parse(localStorage.getItem('praep_korb_v1') || '[]'); }catch(e){}
   function speichern(){ try{ localStorage.setItem('praep_korb_v1', JSON.stringify(S.korb)); }catch(e){} }
   function $(id){ return document.getElementById(id); }
@@ -51,6 +52,7 @@
     var liste = S.daten[S.sport] || [];
     return liste.filter(function(i){
       if(S.phase && i.phase !== S.phase) return false;
+      if(S.persp && (i.perspektiven || []).indexOf(S.persp) < 0) return false;
       if(S.halle && (i.halle || []).indexOf(S.halle) < 0 && i.art !== 'alternativ') return false;
       if(q && JSON.stringify(i).toLowerCase().indexOf(q) < 0) return false;
       return true;
@@ -65,12 +67,13 @@
       return '<button class="tab'+(S.sport === sp.id ? ' an' : '')+'" data-sport="'+sp.id+'" type="button">'+esc(sp.emoji)+' '+esc(sp.name)+'</button>';
     }).join('')+'<button class="tab'+(S.sport === 'alternativ' ? ' an' : '')+'" data-sport="alternativ" type="button">🔄 Ohne Sportart</button>';
     var sp = S.sportarten.filter(function(x){ return x.id === S.sport; })[0];
-    $('modell').textContent = sp ? 'Aufbau: '+sp.modell+'. Phasenfarben wie in den Präps: Gelb Einstieg, Blau Spiel, Orange Technik/Intervention, Grün Abschluss.' : 'Aufwärm- und Schlussspiele, die zu jeder Sportart passen – als Abwechslung.';
+    $('modell').textContent = sp ? 'Lehrplan 21 · '+(sp.bereichNr || '')+' '+(sp.bereich || '')+' · '+sp.modell+'. Phasenfarben wie in den Präps: Gelb Einstieg, Blau Spiel, Orange Technik/Intervention, Grün Abschluss.' : 'Aufwärm- und Schlussspiele, die zu jeder Sportart passen – als Abwechslung.';
     var liste = S.daten[S.sport] || [];
     var vorh = {}; liste.forEach(function(i){ vorh[i.phase] = (vorh[i.phase] || 0) + 1; });
     $('filter').innerHTML = '<button class="chip'+(!S.phase ? ' an' : '')+'" data-phase="" type="button">Alle</button>'+
       PHASEN.filter(function(p){ return vorh[p.id]; }).map(function(p){ return '<button class="chip'+(S.phase === p.id ? ' an' : '')+'" data-phase="'+p.id+'" type="button">'+esc(p.name)+' ('+vorh[p.id]+')</button>'; }).join('')+
       '<span style="width:8px"></span>'+['E','D','A'].map(function(x){ return '<button class="chip'+(S.halle === x ? ' an' : '')+'" data-halle="'+x+'" type="button">'+HALLE[x]+'</button>'; }).join('');
+    $('persp').innerHTML = '<span class="modell" style="margin:0 4px 0 0">Perspektive:</span>'+P.PERSP.map(function(x){ return '<button class="chip'+(S.persp === x ? ' an' : '')+'" data-persp="'+x+'" type="button" style="border-color:'+P.PERSPFARBE[x]+'">'+esc(x)+'</button>'; }).join('');
     var v = sichtbar();
     $('zaehler').textContent = v.length+' von '+liste.length+' Karten';
     $('raster').innerHTML = v.length ? v.map(karte).join('') : '<div class="leer">Keine Karte passt zum Filter.</div>';
@@ -82,6 +85,7 @@
     var b = e.target.closest('button'); if(!b) return;
     if(b.dataset.sport){ S.sport = b.dataset.sport; S.phase = null; zeichnen(); }
     else if(b.hasAttribute('data-phase')){ S.phase = b.dataset.phase || null; zeichnen(); }
+    else if(b.dataset.persp){ S.persp = S.persp === b.dataset.persp ? null : b.dataset.persp; zeichnen(); }
     else if(b.dataset.halle){ S.halle = S.halle === b.dataset.halle ? null : b.dataset.halle; zeichnen(); }
     else if(b.dataset.korb){ var k = S.korb.indexOf(b.dataset.korb); if(k >= 0) S.korb.splice(k, 1); else S.korb.push(b.dataset.korb); speichern(); zeichnen(); }
     else if(b.id === 'leeren'){ S.korb = []; speichern(); zeichnen(); }

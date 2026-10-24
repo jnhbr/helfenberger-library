@@ -9,7 +9,7 @@
   function holen(u){ return fetch(u).then(function(r){ if(!r.ok) throw new Error(u); return r.json(); }); }
   // Lädt alle Sportarten + Alternativspiele: {sportarten:[...], daten:{id:[items]}, alle:{itemId:item}}
   function laden(){
-    var V = 'v=2', out = {sportarten:[], daten:{}, alle:{}};
+    var V = 'v=3', out = {sportarten:[], daten:{}, alle:{}};
     return holen('daten/index.json?'+V).then(function(ix){
       var jobs = ix.sportarten.map(function(s){ return holen('daten/'+s.datei+'?'+V).then(function(d){ out.sportarten.push(d.sportart); out.daten[d.sportart.id] = d.items; }); });
       jobs.push(holen('daten/'+ix.alternativ+'?'+V).then(function(d){ out.daten.alternativ = d.items; }));
@@ -21,6 +21,12 @@
       });
     });
   }
+  var PERSP = ['Leistung','Miteinander','Gesundheit','Ausdruck','Eindruck','Wagnis'];
+  var PERSPFARBE = {Leistung:'#C0392B',Miteinander:'#2E86C1',Gesundheit:'#27AE60',Ausdruck:'#8E44AD',Eindruck:'#16A085',Wagnis:'#D35400'};
+  function lpHtml(i){
+    if(!i.bereich) return '';
+    return '<div class="lp"><span class="lpb" title="Kompetenzbereich Lehrplan 21: Bewegung und Sport">LP21 · '+esc(i.bereich)+'</span>'+(i.perspektiven || []).map(function(p){ return '<span class="lpp" style="--pc:'+(PERSPFARBE[p] || '#666')+'" title="Pädagogische Perspektive">'+esc(p)+'</span>'; }).join('')+'</div>';
+  }
   function phaseName(id){ return (PHASEN.filter(function(p){ return p.id === id; })[0] || {}).name || ''; }
   // opts.klasse: zusätzliche CSS-Klasse, opts.aktion: HTML am Ende (Knöpfe), opts.kurz: nur Kopf + Meta (ohne Beschreibung)
   function karteHtml(i, opts){
@@ -29,6 +35,7 @@
     var h = '<div class="karte t-'+esc(ph)+(opts.klasse ? ' '+opts.klasse : '')+'" data-id="'+esc(i.id)+'"><div class="kh"><span class="code">'+esc(i.code)+'</span><h3>'+esc(i.titel)+'</h3>'+
       '<span class="typ">'+esc(ARTEN[i.art] || '')+' · '+esc(phaseName(ph))+'</span></div>';
     var m = [];
+    h += lpHtml(i);
     if(i.halle && i.halle.length) m.push('<span><b>Ort:</b> '+i.halle.map(function(x){ return HALLE[x] || x; }).join(' / ')+'</span>');
     if(i.gruppe) m.push('<span><b>Gruppe:</b> '+esc(i.gruppe)+'</span>');
     if(i.dauer) m.push('<span><b>Dauer:</b> '+esc(i.dauer)+'</span>');
@@ -46,5 +53,5 @@
     }
     return h+(opts.aktion ? '<div class="aktion">'+opts.aktion+'</div>' : '')+'</div>';
   }
-  window.Praep = {PHASEN:PHASEN, ARTEN:ARTEN, HALLE:HALLE, esc:esc, holen:holen, laden:laden, karteHtml:karteHtml, phaseName:phaseName};
+  window.Praep = {PERSP:PERSP, PERSPFARBE:PERSPFARBE, PHASEN:PHASEN, ARTEN:ARTEN, HALLE:HALLE, esc:esc, holen:holen, laden:laden, karteHtml:karteHtml, phaseName:phaseName};
 })();

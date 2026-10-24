@@ -10,7 +10,7 @@
     {id:'abschluss', name:'Abschluss', hilfe:['abschluss','alt','check'], zeit:''},
     {id:'kreis', name:'Kreis', hilfe:[], zeit:''}
   ];
-  var VORLAGEN_HP = [{id:'v:0', n:'Volleyball 3:3 – drei Kleinfelder', sport:'volleyball'}, {id:'v:1', n:'Basketball 3:3 – EasyBasket', sport:'basketball'}, {id:'v:2', n:'Fussball 3:3 – Kleinfelder mit vier Toren', sport:'fussball'}, {id:'v:3', n:'Handball 3:3 – Softhandball quer', sport:'handball'}, {id:'v:4', n:'Unihockey 3:3 – Kleinfelder', sport:'unihockey'}];
+  var VORLAGEN_HP = [{id:'v:0', n:'Volleyball 3:3 – drei Kleinfelder', sport:'volleyball'}, {id:'v:1', n:'Basketball 3:3 – EasyBasket', sport:'basketball'}, {id:'v:2', n:'Fussball 3:3 – Kleinfelder mit vier Toren', sport:'fussball'}, {id:'v:3', n:'Handball 3:3 – Softhandball quer', sport:'handball'}, {id:'v:4', n:'Unihockey 3:3 – Kleinfelder', sport:'unihockey'}, {id:'v:5', n:'Zirkeltraining – 8 Posten', sport:'geraete'}];
   function vorlageVon(sport){ var v = VORLAGEN_HP.filter(function(x){ return x.sport === sport; })[0]; return v ? v.id : ''; }
   var W = {daten:null, reihen:[], rid:null, di:0, bild:{}, beobachter:null};
 
@@ -23,6 +23,16 @@
   function dl(){ var r = reihe(); return r ? r.dls[Math.min(W.di, r.dls.length - 1)] : null; }
   function sportInfo(id){ return W.daten.sportarten.filter(function(s){ return s.id === id; })[0] || {name:'', emoji:''}; }
   function item(id){ return W.daten.alle[id]; }
+  // LP21-Abdeckung: Bereiche und pädagogische Perspektiven der gewählten Bausteine
+  function lpInfo(dls){
+    var b = {}, p = {};
+    (Array.isArray(dls) ? dls : [dls]).forEach(function(d){ d.phasen.forEach(function(ph){ ph.ids.forEach(function(id){ var it = item(id); if(!it) return; if(it.bereich) b[it.bereich] = 1; (it.perspektiven || []).forEach(function(x){ p[x] = (p[x] || 0) + 1; }); }); }); });
+    return {bereiche:Object.keys(b), persp:P.PERSP.filter(function(x){ return p[x]; }).map(function(x){ return {n:x, c:p[x]}; })};
+  }
+  function lpZeile(info){
+    if(!info.bereiche.length) return '';
+    return '<div class="lp"><span class="lpb">LP21 · '+info.bereiche.map(esc).join(', ')+'</span>'+info.persp.map(function(x){ return '<span class="lpp" style="--pc:'+(P.PERSPFARBE[x.n] || '#666')+'">'+esc(x.n)+(x.c > 1 ? ' ×'+x.c : '')+'</span>'; }).join('')+'</div>';
+  }
 
   /* ---------- Neue Reihe / DL ---------- */
   function leereDl(){
@@ -48,12 +58,13 @@
     var einst = nach(function(i){ return i.phase === 'einstieg'; }), aufw = nach(function(i){ return i.phase === 'aufwaermen'; }),
         reg = nach(function(i){ return i.art === 'regelkarte'; }), iv = nach(function(i){ return i.art === 'intervention'; }),
         kx = nach(function(i){ return i.phase === 'komplex'; }), chk = nach(function(i){ return i.art === 'check'; }),
-        abs = alt.filter(function(i){ return i.phase === 'abschluss'; });
+        abs = nach(function(i){ return i.phase === 'abschluss'; }), spf = nach(function(i){ return i.phase === 'spiel' && i.art === 'baustein'; });
+    if(!abs.length) abs = alt.filter(function(i){ return i.phase === 'abschluss'; });
     var pruef = T === 5 && n === 4, L = T === 5 ? 4 : T;
     var at = function(a, k){ return a.length ? [a[((k % a.length) + a.length) % a.length].id] : []; };
     d.halle = HALLEN[n % 5];
     d.phasen[0].ids = at(einst, n); d.phasen[1].ids = at(aufw, n);
-    var sp = at(reg, 0);
+    var sp = reg.length ? at(reg, 0) : at(spf, n * 2).concat(at(spf, n * 2 + 1)).filter(function(x, k, a){ return a.indexOf(x) === k; });
     if(pruef){
       d.phasen[2].ids = sp.concat(chk.map(function(c){ return c.id; }));
       d.phasen[4].ids = at(abs, n); d.phasen[4].notiz = 'Rückblick: Was kann ich jetzt, was vor 5 Doppellektionen noch nicht ging? Abschluss-Karte ausfüllen.';
@@ -119,6 +130,7 @@
       '<button class="btn" data-act="export" type="button">⬇️ Als Datei</button>'+
       '<button class="btn" data-act="reiheKopie" type="button">⧉ Kopie</button>'+
       '<button class="btn gefahr" data-act="reiheWeg" type="button">🗑️</button></div>'+
+      '<div class="hilfe">Lehrplan 21 in der ganzen Reihe:</div>'+lpZeile(lpInfo(r.dls))+
       '<label class="fl">Notizen zur Reihe (z. B. Modell, Bewertung, Absenzen)<textarea class="feld" data-f="notizen" rows="2">'+esc(r.notizen)+'</textarea></label>';
   }
   function dlTabs(){
@@ -152,6 +164,7 @@
       '<button class="btn" data-act="dlHoch" type="button" title="nach vorne">←</button><button class="btn" data-act="dlRunter" type="button" title="nach hinten">→</button>'+
       '<button class="btn gefahr" data-act="dlWeg" type="button">🗑️</button></div>';
     h += '<div class="ziel"><label class="fl">Tagesziel (fix, verschiebbar – bis wohin sie kommen sollten)<textarea class="feld" data-d="ziel" rows="2">'+esc(d.ziel)+'</textarea></label></div>';
+    h += '<div class="hilfe">Lehrplan 21 in dieser Doppellektion:</div>'+lpZeile(lpInfo(d));
     h += '<h2 class="abschnitt">Ablauf</h2><div class="hilfe">Zeiten sind nur Richtwerte. Wähle Bausteine nach der Beobachtung, schreib dazu, was du tust.</div>';
     d.phasen.forEach(function(ph, pi){
       h += '<div class="phase t-'+esc(ph.id)+'"><div class="ph"><b>'+esc(ph.name)+'</b><input class="feld" data-ph="'+pi+'" data-pf="zeit" value="'+esc(ph.zeit)+'" placeholder="Zeit"><span style="flex:1"></span>'+
@@ -184,9 +197,9 @@
   }
 
   /* ---------- Bausteinwahl ---------- */
-  var wahl = {p:0, alle:false, q:'', sport:null};
+  var wahl = {p:0, alle:false, q:'', sport:null, persp:null};
   function bwahlOeffnen(pi){
-    wahl.p = pi; wahl.alle = false; wahl.q = ''; wahl.sport = reihe().sport; bwahlZeichnen();
+    wahl.p = pi; wahl.alle = false; wahl.q = ''; wahl.persp = null; wahl.sport = reihe().sport; bwahlZeichnen();
   }
   function bwahlZeichnen(){
     var d = dl(), ph = d.phasen[wahl.p], def = PHASEN[wahl.p];
@@ -195,13 +208,14 @@
     var q = wahl.q.trim().toLowerCase();
     liste = liste.filter(function(i){
       if(!wahl.alle){ var passt = def.hilfe.indexOf(i.phase) >= 0 || (def.regel && i.art === 'regelkarte'); if(!passt) return false; }
+      if(wahl.persp && (i.perspektiven || []).indexOf(wahl.persp) < 0) return false;
       return !q || JSON.stringify(i).toLowerCase().indexOf(q) >= 0;
     });
     var h = '<div class="mbox"><h3>Baustein für «'+esc(ph.name)+'»</h3><div class="zeile">'+
       '<select class="feld" id="wSport">'+W.daten.sportarten.map(function(s){ return '<option value="'+s.id+'"'+(wahl.sport === s.id ? ' selected' : '')+'>'+esc(s.emoji+' '+s.name)+'</option>'; }).join('')+'<option value="alternativ"'+(wahl.sport === 'alternativ' ? ' selected' : '')+'>🔄 Ohne Sportart</option></select>'+
       '<input class="feld suche" id="wQ" type="search" placeholder="Suchen …" value="'+esc(wahl.q)+'" style="flex:1;min-width:140px">'+
       '<label class="fl" style="flex-direction:row;align-items:center;gap:6px"><input type="checkbox" id="wAlle"'+(wahl.alle ? ' checked' : '')+'> alle Phasen zeigen</label>'+
-      '<button class="btn primaer" id="wZu" type="button">Fertig</button></div><div class="hilfe">Ein Klick fügt den Baustein hinzu oder nimmt ihn wieder weg. Mehrere pro Phase sind möglich.</div>';
+      '<button class="btn primaer" id="wZu" type="button">Fertig</button></div><div class="zeile" style="margin:0">'+P.PERSP.map(function(x){ return '<button class="chip'+(wahl.persp === x ? ' an' : '')+'" data-wp="'+x+'" type="button" style="border-color:'+P.PERSPFARBE[x]+'">'+esc(x)+'</button>'; }).join('')+'</div><div class="hilfe">Ein Klick fügt den Baustein hinzu oder nimmt ihn wieder weg. Mehrere pro Phase sind möglich.</div>';
     h += liste.length ? liste.map(function(i){
       var drin = ph.ids.indexOf(i.id) >= 0, kurz = (i.beschreibung && i.beschreibung[0]) || (i.punkte && i.punkte[0]) || (i.iv && i.iv[0] && i.iv[0].t) || '';
       return '<div class="wahl t-'+esc(i.phase)+(drin ? ' drin' : '')+'" style="--cd:var(--'+farbe(i.phase)+')"><span class="code" style="background:var(--cd);border-radius:6px;padding:0 7px;font-weight:800;font-size:13px">'+esc(i.code)+'</span>'+
@@ -245,6 +259,7 @@
     d.phasen.forEach(function(ph){ ph.ids.forEach(function(id){ var it = item(id); if(it && it.material) mat[it.material] = 1; }); });
     h += '<section class="seite">'+kopfHtml(r, d, n, r.titel)+'<div class="etiketten">'+
       (d.datum ? '<span class="etikett">'+esc(datumLang(d.datum))+'</span>' : '')+(d.zeit ? '<span class="etikett">'+esc(d.zeit)+'</span>' : '')+'<span class="etikett">'+esc(P.HALLE[d.halle] || '')+'</span>'+(d.sus ? '<span class="etikett">'+esc(d.sus)+' SuS</span>' : '')+'</div>';
+    h += lpZeile(lpInfo(d));
     if(d.ziel) h += '<div class="dziel"><b>Tagesziel (fix):</b> '+esc(d.ziel)+'</div>';
     h += '<h2 class="dh">Ablauf</h2><table class="ablauf"><tr><th>Zeit</th><th>Phase</th><th>Vorschlag – Bausteine nach Beobachtung wählen</th><th>Notizen</th></tr>';
     d.phasen.forEach(function(ph){
@@ -271,21 +286,25 @@
     if(ids.length) h += '<section class="seite">'+kopfHtml(r, d, n, 'Bausteine DL '+n)+'<div class="karten2">'+ids.map(function(id){ return P.karteHtml(item(id)); }).join('')+'</div><div class="fuss"><span>'+esc(sportInfo(r.sport).name)+' · Bausteine DL '+n+'</span><span>Sek Altnau</span></div></section>';
     return h;
   }
-  function drucken(alle){
-    var r = reihe(); if(!r) return;
+  function druckHtml(r, alle){
     var h = '';
     if(alle){
       h += '<section class="seite">'+kopfHtml(r, null, 0, r.titel+' – auf einen Blick')+(r.notizen ? '<p>'+esc(r.notizen).replace(/\n/g, '<br>')+'</p>' : '')+
-        '<table class="ablauf"><tr><th>DL</th><th>Datum / Halle</th><th>Tagesziel</th><th>Bausteine</th></tr>'+
+        ''+lpZeile(lpInfo(r.dls))+'<table class="ablauf"><tr><th>DL</th><th>Datum / Halle</th><th>Tagesziel</th><th>Bausteine</th></tr>'+
         r.dls.map(function(d, i){
           var codes = []; d.phasen.forEach(function(ph){ ph.ids.forEach(function(id){ var it = item(id); if(it) codes.push(it.code); }); });
           return '<tr><td><b>'+(i + 1)+'</b></td><td>'+esc(datumLang(d.datum))+'<br>'+esc(P.HALLE[d.halle] || '')+'</td><td>'+esc(d.ziel)+'</td><td>'+esc(codes.join(', '))+'</td></tr>';
         }).join('')+'</table><div class="fuss"><span>'+esc(sportInfo(r.sport).name)+' · Reihe</span><span>Sek Altnau</span></div></section>';
       r.dls.forEach(function(d, i){ h += dlSeiten(r, i); });
     } else h = dlSeiten(r, Math.min(W.di, r.dls.length - 1));
-    $('druck').innerHTML = h;
+    return h;
+  }
+  function drucken(alle){
+    var r = reihe(); if(!r) return;
+    $('druck').innerHTML = druckHtml(r, alle);
     setTimeout(function(){ window.print(); }, 80);
   }
+  window.PraepWerkstatt = {W:W, neueReihe:neueReihe, bilderHolen:bilderHolen, druckHtml:druckHtml, schreiben:schreiben, alles:alles};
 
   /* ---------- Datei ---------- */
   function exportieren(){
@@ -312,13 +331,14 @@
     m.hidden = false;
   }
   document.addEventListener('click', function(e){
-    var b = e.target.closest('[data-reihe],[data-di],[data-act],[data-w],#wZu,#nOk,#jaOk'); if(!b) return;
+    var b = e.target.closest('[data-reihe],[data-di],[data-act],[data-w],[data-wp],#wZu,#nOk,#jaOk'); if(!b) return;
     var r = reihe(), d = dl(), act = b.dataset.act;
     if(b.dataset.reihe){ W.rid = b.dataset.reihe; W.di = 0; schreiben(); alles(); return; }
     if(b.dataset.di){ W.di = +b.dataset.di; schreiben(); dlTabs(); dlPanel(); return; }
     if(b.id === 'jaOk'){ $('modal').hidden = true; var f = jaFn; jaFn = null; if(f) f(); return; }
     if(b.id === 'wZu'){ $('modal').hidden = true; dlPanel(); schreiben(); return; }
     if(b.id === 'nOk'){ var s = $('nSport').value, a = +$('nAnz').value || 5, bs = $('nBsp').checked; $('modal').hidden = true; neueReihe(s, a, bs); return; }
+    if(b.dataset.wp){ wahl.persp = wahl.persp === b.dataset.wp ? null : b.dataset.wp; bwahlZeichnen(); return; }
     if(b.dataset.w){
       var ph = d.phasen[wahl.p], k = ph.ids.indexOf(b.dataset.w);
       if(k >= 0) ph.ids.splice(k, 1); else ph.ids.push(b.dataset.w);

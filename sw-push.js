@@ -19,7 +19,7 @@
 // hat — sonst erscheint ein kleiner Hinweis «Neue Version». Vorher wartete
 // jeder Start auf den ganzen Download.
 
-var CACHE = 'hl-app-v3';
+var CACHE = 'hl-app-v4';
 var SHELL = 'index.html';
 
 var PRECACHE = [
