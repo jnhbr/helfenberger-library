@@ -19,7 +19,7 @@
 // hat — sonst erscheint ein kleiner Hinweis «Neue Version». Vorher wartete
 // jeder Start auf den ganzen Download.
 
-var CACHE = 'hl-app-v2';
+var CACHE = 'hl-app-v3';
 var SHELL = 'index.html';
 
 var PRECACHE = [
@@ -94,8 +94,15 @@ function shellAusCache(event){
       var netz = fetch(SHELL, { cache: 'no-cache' }).then(function(res){
         if(!res || !res.ok || res.redirected) return res;
         var neu = stempel(res), alt = hit ? stempel(hit) : '';
-        return cache.put(SHELL, res.clone()).then(function(){
-          if(hit && neu && neu !== alt) return meldeNeu(neu);
+        // Anderer Stempel allein genügt nicht (verschiedene Server geben für dieselbe
+        // Datei manchmal verschiedene ETags): nur melden, wenn der Inhalt wirklich anders ist.
+        var anders = (hit && neu && neu !== alt)
+          ? Promise.all([hit.clone().text(), res.clone().text()]).then(function(t){ return t[0] !== t[1]; }).catch(function(){ return true; })
+          : Promise.resolve(false);
+        return anders.then(function(a){
+          return cache.put(SHELL, res.clone()).then(function(){
+            if(a) return meldeNeu(neu);
+          });
         }).then(function(){ return res; });
       });
       if(hit){ event.waitUntil(netz.catch(function(){})); return hit; }

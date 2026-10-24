@@ -2,12 +2,12 @@
 <html lang="de" data-design="neu">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Helfenberger's Library</title>
 <link rel="icon" href="assets/icon-192.png">
 <link rel="apple-touch-icon" href="assets/icon-180.png">
 <link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#000000">
+<meta name="theme-color" content="#1D1D1B">
 <script>
 // Gespeicherte Dark-/Light-Mode-Wahl VOR dem ersten Rendern setzen, sonst blitzt
 // beim Laden kurz das falsche Theme auf (Systemvorgabe statt manueller Wahl).
@@ -3131,6 +3131,34 @@
     :root[data-design="neu"] .todo-popover{left:calc(248px + (calc(100vw/var(--lz,1)) - 248px) / 2);width:min(760px, calc(calc(100vw/var(--lz,1)) - 272px));}
   }
   @media print{ :root[data-design="neu"] #app.hat-chrome{padding-left:0;} }
+
+  /* ---------- Handy: kompakter, nichts läuft mehr aus dem Bild (24.10.2026) ----------
+     Statusleiste (Uhrzeit, Akku) bekommt einen festen schwarzen Hintergrund, damit der Inhalt
+     beim Scrollen nicht darunter durchläuft; der Inhalt rückt um die Sicherheitszone ein. */
+  :root[data-design="neu"]::before{content:'';position:fixed;top:0;left:0;right:0;height:env(safe-area-inset-top,0px);background:#1D1D1B;z-index:50;pointer-events:none;}
+  :root[data-design="neu"] body{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);padding-left:env(safe-area-inset-left,0px);padding-right:env(safe-area-inset-right,0px);}
+  @media (min-width:1000px){ :root[data-design="neu"] .topbar{padding-top:calc(18px + env(safe-area-inset-top,0px));} :root[data-design="neu"] body{padding:0;} }
+  @media (max-width:600px){
+    :root[data-design="neu"] .btn{padding:8px 12px;font-size:14px;border-width:1.5px;border-radius:9px;}
+    :root[data-design="neu"] .btn-sm{padding:5px 10px;font-size:13px;}
+    :root[data-design="neu"] :is(.resource-card,.folder-card,.kz-tile,.login-card){box-shadow:0 3px 0 var(--kontur);border-radius:12px;border-width:1.5px;}
+    :root[data-design="neu"] .resource-card.current, :root[data-design="neu"] .folder-card.has-current{box-shadow:0 3px 0 var(--bad);}
+    :root[data-design="neu"] .subject-card{box-shadow:0 4px 0 var(--fach, var(--kontur));min-height:84px;padding:10px 14px;}
+    :root[data-design="neu"] .resource-list{gap:12px;}
+    :root[data-design="neu"] .folder-card{padding:10px 12px;gap:8px 10px;}
+    :root[data-design="neu"] .folder-open{min-width:0;}
+    :root[data-design="neu"] .folder-actions{flex-shrink:1;min-width:0;max-width:100%;gap:6px;}
+    :root[data-design="neu"] .resource-actions{gap:6px;}
+    /* Kalender: Datum, Typ, Titel und Knöpfe untereinander statt in vier schmalen Spalten. */
+    :root[data-design="neu"] .cal-entry{flex-direction:column;gap:2px;padding:10px 12px;}
+    :root[data-design="neu"] .cal-entry-date{width:auto;display:flex;align-items:baseline;gap:8px;font-size:13.5px;}
+    :root[data-design="neu"] .cal-entry-weekday{display:inline;}
+    :root[data-design="neu"] .cal-entry-body{width:100%;}
+    :root[data-design="neu"] .cal-entry-actions{flex-direction:row;flex-wrap:wrap;gap:6px;margin-top:6px;}
+    :root[data-design="neu"] .cal-entry-actions .btn, :root[data-design="neu"] .cal-entry .cal-sub-btn, :root[data-design="neu"] .cal-entry .cal-open-res-btn{padding:4px 10px;font-size:12.5px;border-width:1.5px;}
+    :root[data-design="neu"] .cal-entry .cal-open-res-btn{padding-left:10px;margin-top:6px;text-align:left;}
+    :root[data-design="neu"] .cal-entry .cal-sub-btn{margin-top:6px;}
+  }
 
   /* ---------- Übungsliste: «⋯»-Menü (im bisherigen Design stehen die Knöpfe wie gehabt in der Reihe) ---------- */
   .res-mehr, .res-mehr-menu{display:contents;}
@@ -8677,10 +8705,10 @@ function toggleTheme(){
   if(btn) btn.textContent = next === 'dark' ? '☀️' : '🌙';
   syncThemeColor();
 }
-// Titelleiste der installierten App (Chrome/Edge): immer schwarz, Schrift wird dadurch automatisch weiss.
+// Titelleiste der installierten App (Chrome/Edge): im Schwarz der Seitenleiste (#1D1D1B), Schrift wird dadurch automatisch weiss.
 function syncThemeColor(){
   var m = document.querySelector('meta[name="theme-color"]');
-  if(m) m.setAttribute('content', '#000000');
+  if(m) m.setAttribute('content', '#1D1D1B');
 }
 syncThemeColor();
 if(window.matchMedia) window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', syncThemeColor);
@@ -23575,6 +23603,8 @@ const NEUIGKEITEN = [
   {id:'2026-10-21-sva-logo', datum:'2026-10-21', fuer:'alle', text:'🎓 SVA: Das Logo der Sek Altnau für Titelseite und Fusszeile deines Dossiers kannst du jetzt im Fach SVA mit «⬇️ Logo Sek Altnau» herunterladen.'},
   {id:'2026-10-21-sva-praesentation', datum:'2026-10-21', fuer:'alle', text:'🎓 SVA: Die Präsentation zum Arbeitsdossier (die Folien aus dem Erklärvideo) findest du jetzt im Fach SVA unter «🖼️ Präsentation Arbeitsdossier (PDF)». So kannst du alles in Ruhe nachlesen.'},
   {id:'2026-10-21-neue-version-offen', datum:'2026-10-21', fuer:'alle', text:'🔄 Neues kommt jetzt schneller in die Library – nicht mehr erst über Nacht. Ist die Library schon offen, erscheint unten «🔄 Neue Version der Library». Antippen, und du hast die neueste Fassung. Während einer Prüfung kommt der Hinweis nie.'},
+  {id:'2026-10-24-handy-kompakter', datum:'2026-10-24', fuer:'alle', text:'📱 Auf dem Handy ist die Library aufgeräumter: kleinere Knöpfe, schlankere Karten, der Kalender steht untereinander und die Uhrzeit oben überdeckt nichts mehr.'},
+  {id:'2026-10-24-neue-version-einmal', datum:'2026-10-24', fuer:'alle', text:'🔄 Der Hinweis «Neue Version der Library» erscheint jetzt nur noch einmal – nicht mehr mehrmals hintereinander.'},
   {id:'2026-10-21-safari-ohne-timer', datum:'2026-10-21', fuer:'lehrer', text:'🦒 Stille Safari geht jetzt auch ohne Timer: unten in der Leiste «🌿 Ohne Timer» antippen. Die Szene läuft ohne Countdown, bleibt es ruhig, kommen die Tiere. Nochmals tippen = Pause (die Tiere hören zu). Startest du doch den Timer, übernimmt er.'},
   {id:'2026-10-21-frei-fenster', datum:'2026-10-21', fuer:'lehrer', text:'🪟 Im 🏫 Klassenzimmer haben ⏱ Ruhephase, 🎲 Zufall, 🌍 Stadt Land Fluss, 👥 Gruppen & Partner und ⚡ Energizer oben rechts auf der Kachel ein 🪟: öffnet sie in einem eigenen Fenster (z. B. auf den Beamer ziehen). Sie laufen unabhängig – neben einer Wortwolke, einem Quiz oder einem Spiel, auch mehrere gleichzeitig – und werden beim Start von etwas anderem nicht mehr beendet.'},
   {id:'2026-10-21-verlaengern-nur-offene', datum:'2026-10-21', fuer:'lehrer', text:'⏰ Hausaufgaben, Abgaben und Unterschriften verlängern: Schiebst du das Datum unter «Bearbeiten» nach hinten oder nutzt «↺ Reaktivieren», sehen den Eintrag nur noch die, die in der Abgabe-Checkliste (☑) noch nicht abgehakt sind. Die Checkliste bleibt dabei stehen. Erkennbar am Zeichen «⏰ nur noch Offene»; im Formular lässt sich das Häkchen wieder entfernen.'},
@@ -45846,7 +45876,7 @@ function registerAppServiceWorker(){
    offen bleibt (Beamer, iPads), alle 10 Minuten und beim Zurückkommen in den
    Tab nach, ob index.html einen anderen Stempel (ETag) hat als beim ersten
    Nachsehen – nur die Kopfzeilen (HEAD), nicht die ganze Datei. */
-var NEU_CACHE = 'hl-app-v2';   // = CACHE in sw-push.js
+var NEU_CACHE = 'hl-app-v3';   // = CACHE in sw-push.js
 var neueVersion = { start:Date.now(), bedient:false, gemeldet:false, stempel:null, zuletzt:0 };
 function neueVersionStempel(){
   return fetch(new URL('index.html', location.href).href, { method:'HEAD', cache:'no-store' }).then(function(r){
@@ -45860,7 +45890,13 @@ function neueVersionNachsehen(){
   neueVersionStempel().then(function(st){
     if(!st) return;
     if(!neueVersion.stempel){ neueVersion.stempel = st; return; }
-    if(st !== neueVersion.stempel) neueVersionDa();
+    if(st !== neueVersion.stempel){
+      // Erst melden, wenn ein zweites Nachsehen denselben neuen Stempel liefert
+      // (verschiedene Server können kurz verschiedene Stempel für dieselbe Datei geben).
+      setTimeout(function(){
+        neueVersionStempel().then(function(st2){ if(st2 && st2 === st && st2 !== neueVersion.stempel) neueVersionDa(); });
+      }, 20000);
+    }
   });
 }
 function neueVersionBeobachten(){
@@ -45884,6 +45920,8 @@ function neueVersionBeobachten(){
 }
 function neueVersionDa(){
   if(neueVersion.gemeldet) return;
+  // Gerade erst neu geladen (Knopf oder stilles Neuladen): nicht gleich nochmal melden.
+  try{ if(Date.now() - Number(sessionStorage.getItem('hl_neu_zeit') || 0) < 5 * 60 * 1000) return; }catch(e){}
   // Nie während einer Prüfung stören. Nicht als gemeldet merken: Das regelmässige
   // Nachsehen findet die neue Fassung nach der Prüfung wieder und zeigt dann den Knopf.
   if(pruef.sess) return;
@@ -45893,14 +45931,17 @@ function neueVersionDa(){
   var ruhig = !neueVersion.bedient && Date.now() - neueVersion.start < 25000 && !overlayStack.length && !modalEl.classList.contains('show') &&
     (!state.route || state.route.name === 'loading' || state.route.name === 'login' || state.route.name === 'home');
   if(ruhig && !schon){
-    try{ sessionStorage.setItem('hl_neu_geladen', '1'); }catch(e){}
+    try{ sessionStorage.setItem('hl_neu_geladen', '1'); sessionStorage.setItem('hl_neu_zeit', String(Date.now())); }catch(e){}
     location.reload();
     return;
   }
   var b = document.createElement('button');
   b.type = 'button'; b.id = 'neueVersionKnopf'; b.className = 'neue-version';
   b.textContent = '🔄 Neue Version der Library – antippen zum Neuladen';
-  b.addEventListener('click', function(){ location.reload(); });
+  b.addEventListener('click', function(){
+    try{ sessionStorage.setItem('hl_neu_zeit', String(Date.now())); }catch(e){}
+    location.reload();
+  });
   document.body.appendChild(b);
 }
 
