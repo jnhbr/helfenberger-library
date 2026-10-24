@@ -1888,6 +1888,81 @@ var VORLAGEN = [
     it.push(P('ballwagen', HALLE.x[1] - 1, 1.2));
     return {ansicht:'E1', linien:{vb:false, bb:false, hb:false, uh:false, bm:false}, titel:'Volleyball 3:3 – Kleinfelder', notizen:'Felder 1–2: 3 gegen 3, Feld 3: 2 gegen 2.\nNetz bzw. Leine auf 2.00 m. Gewinnerteam steigt ein Feld auf.', items:it};
   }},
+  {n:'Basketball 3:3 – EasyBasket', u:'Einfachhalle · 16 Schüler:innen · 2 feste Körbe + 2 mobile Körbe', bau:function(){
+    var cx = drittelMitte(0), it = [];
+    var felder = [{y:6.2, dir:-1, farbe:2, nr:1}, {y:21.8, dir:1, farbe:3, nr:4}];
+    felder.forEach(function(f, k){
+      var y = f.y, d = f.dir, ra = d < 0 ? 0 : 180, rb = d < 0 ? 180 : 0;   // d = Richtung zum Korb (−1 = oben)
+      it.push(P('zone', cx, y, {w:13, d:10.4, farbe:ZONENFARBEN[f.farbe], text:''}));
+      it.push(P('text', cx - 6.9, y, {text:'Feld ' + (k + 1) + ' · 3:3', fs:0.5, r:270}));
+      it.push(team('rot', f.nr, cx - 3.8, y - d * 1.2, ra)); it.push(team('rot', f.nr + 1, cx + 3.8, y - d * 1.2, ra)); it.push(team('rot', f.nr + 2, cx, y - d * 3.2, ra));
+      it.push(team('blau', f.nr, cx - 1.9, y + d * 0.8, rb)); it.push(team('blau', f.nr + 1, cx + 1.9, y + d * 0.8, rb)); it.push(team('blau', f.nr + 2, cx, y + d * 2.8, rb));
+      it.push(P('ball', cx + 0.5, y - d * 3.2, {sorte:'basketball'}));
+    });
+    it.push(P('zone', cx, 14, {w:13, d:3.8, farbe:ZONENFARBEN[0], text:'Feld 3 · 2:2 Wurfspiel'}));
+    it.push(P('korbball', cx - 5.6, 14)); it.push(P('korbball', cx + 5.6, 14));
+    it.push(team('rot', 7, cx - 3, 13.4, 90)); it.push(team('rot', 8, cx - 3, 14.8, 90)); it.push(team('blau', 7, cx + 3, 13.4, 270)); it.push(team('blau', 8, cx + 3, 14.8, 270));
+    it.push(P('ball', cx, 14, {sorte:'basketball'}));
+    it.push(P('lehrer', cx + 7.4, 14, {r:270}));
+    it.push(P('ballwagen', HALLE.x[1] - 1, 1.2));
+    return {ansicht:'E1', linien:{vb:false, bb:true, hb:false, uh:false, bm:false}, titel:'Basketball 3:3 – EasyBasket', notizen:'Felder 1–2 an den festen Körben: 3 gegen 3, Feld 3 mit zwei mobilen Körben: 2 gegen 2 (Wurfspiel).\nZwei Bodenkontakte und Sternschritt, nach jedem Korb Ballwechsel, Einwurf hinter der Seitenlinie. Körbe wenn möglich tiefer stellen.', items:it};
+  }},
+  {n:'Fussball 3:3 – Kleinfelder mit vier Toren', u:'Doppelhalle · 16 Schüler:innen · Play More Football', bau:function(){
+    var it = [], pos = [[8.2, 7], [24.5, 7], [8.2, 21], [24.5, 21]];
+    pos.forEach(function(c, k){
+      var x = c[0], y = c[1], n = k === 2 ? 2 : 3;
+      if(k === 3){
+        it.push(P('zone', x, y, {w:14, d:12, farbe:ZONENFARBEN[0], text:'Feld 4 · Übung'}));
+        [[-3, -2], [3, -2], [-3, 2], [3, 2]].forEach(function(e){ it.push(P('huetchen', x + e[0], y + e[1])); });
+        it.push(P('ball', x, y, {sorte:'fussball'}));
+        return;
+      }
+      it.push(P('zone', x, y, {w:14, d:12, farbe:ZONENFARBEN[[2, 3, 5][k]], text:''}));
+      it.push(P('text', x, y - 5.3, {text:'Feld ' + (k + 1) + ' · ' + n + ':' + n, fs:0.5}));
+      [-3, 3].forEach(function(dy){ it.push(P('kleintor', x - 6.5, y + dy, {r:90})); it.push(P('kleintor', x + 6.5, y + dy, {r:270})); });
+      var py = n === 3 ? [-2.2, 2.2, 0] : [-1.6, 1.6], px = n === 3 ? [-3.2, -3.2, -0.9] : [-3, -3];
+      for(var i = 0; i < n; i++){ it.push(team('rot', k * 3 + i + 1, x + px[i], y + py[i], 90)); it.push(team('blau', k * 3 + i + 1, x - px[i], y + py[i], 270)); }
+      it.push(P('ball', x, y, {sorte:'fussball'}));
+      [[-6.6, -5.4], [6.6, -5.4], [-6.6, 5.4], [6.6, 5.4]].forEach(function(e){ it.push(P('ball', x + e[0], y + e[1], {sorte:'fussball'})); });
+    });
+    it.push(P('lehrer', 16.33, 14, {r:0}));
+    return {ansicht:'D12', linien:{vb:false, bb:false, hb:false, uh:false, bm:false, fb:true}, titel:'Fussball 3:3 – Kleinfelder', notizen:'Jedes Team verteidigt zwei Tore und greift auf die zwei gegenüberliegenden an, kein fester Torwart. Ersatzbälle in den Ecken: Ball im Aus – sofort mit einem neuen Ball weiter, wer ihn rausgespielt hat holt ihn (Team in Unterzahl). Hallenvariante: Softball, flach spielen, Tore nicht über Hüfthöhe.', items:it};
+  }},
+  {n:'Handball 3:3 – Softhandball quer', u:'Einfachhalle · 16 Schüler:innen · drei Felder quer', bau:function(){
+    var cx = drittelMitte(0), it = [];
+    [4.8, 14, 23.2].forEach(function(y, f){
+      var n = f === 2 ? 2 : 3;
+      it.push(P('zone', cx, y, {w:14.4, d:8.4, farbe:ZONENFARBEN[[2, 3, 5][f]], text:''}));
+      it.push(P('text', cx, y - 3.7, {text:'Feld ' + (f + 1) + ' · ' + n + ':' + n, fs:0.5}));
+      it.push(P('handballtor', cx - 7.2, y, {r:90})); it.push(P('handballtor', cx + 7.2, y, {r:270}));
+      if(n === 3){
+        it.push(team('rot', f * 3 + 1, cx - 6, y, 90)); it.push(team('rot', f * 3 + 2, cx - 1.2, y - 2.2, 90)); it.push(team('rot', f * 3 + 3, cx - 1.2, y + 2.2, 90));
+        it.push(team('blau', f * 3 + 1, cx + 6, y, 270)); it.push(team('blau', f * 3 + 2, cx + 1.2, y - 2.2, 270)); it.push(team('blau', f * 3 + 3, cx + 1.2, y + 2.2, 270));
+      } else {
+        it.push(team('rot', 7, cx - 1.5, y - 1.4, 90)); it.push(team('rot', 8, cx - 1.5, y + 1.4, 90)); it.push(team('blau', 7, cx + 1.5, y - 1.4, 270)); it.push(team('blau', 8, cx + 1.5, y + 1.4, 270));
+      }
+      it.push(P('ball', cx, y, {sorte:'softball'}));
+    });
+    it.push(P('lehrer', cx, 9.4, {r:0}));
+    it.push(P('ballwagen', HALLE.x[1] - 1, 1.2));
+    return {ansicht:'E1', linien:{vb:false, bb:false, hb:true, uh:false, bm:false}, titel:'Handball 3:3 – Softhandball', notizen:'Felder 1–2: 3 gegen 3 inkl. Torhüter (darf mitspielen), Feld 3: 2 gegen 2.\nHöchstens 3 Schritte, kein Prellen, Tore erst ab der Mittellinie, kein Körperkontakt (Freiwurf). Weiche Bälle.', items:it};
+  }},
+  {n:'Unihockey 3:3 – Kleinfelder', u:'Einfachhalle · 16 Schüler:innen · Tore umgekippt', bau:function(){
+    var cx = drittelMitte(0), it = [];
+    [4.6, 14, 23.4].forEach(function(y, f){
+      var n = f === 2 ? 2 : 3;
+      it.push(P('zone', cx, y, {w:14.2, d:8.4, farbe:ZONENFARBEN[[2, 3, 5][f]], text:''}));
+      it.push(P('text', cx, y - 3.7, {text:'Feld ' + (f + 1) + ' · ' + n + ':' + n, fs:0.5}));
+      it.push(P('unihockeytor', cx - 7, y, {r:90})); it.push(P('unihockeytor', cx + 7, y, {r:270}));
+      [[-6, -3.9], [6, -3.9], [-6, 3.9], [6, 3.9]].forEach(function(e){ it.push(P('huetchen', cx + e[0], y + e[1])); });
+      var py = n === 3 ? [-2.2, 2.2, 0] : [-1.4, 1.4], px = n === 3 ? [-3.4, -3.4, -0.8] : [-2.8, -2.8];
+      for(var i = 0; i < n; i++){ it.push(team('rot', f * 3 + i + 1, cx + px[i], y + py[i], 90)); it.push(team('blau', f * 3 + i + 1, cx - px[i], y + py[i], 270)); }
+      it.push(P('ball', cx, y, {sorte:'softball'}));
+    });
+    it.push(P('lehrer', cx, 9.3, {r:0}));
+    it.push(P('ballwagen', HALLE.x[1] - 1, 1.2));
+    return {ansicht:'E1', linien:{vb:false, bb:false, hb:false, uh:true, bm:false}, titel:'Unihockey 3:3 – Kleinfelder', notizen:'Felder 1–2: 3 gegen 3 ohne Torhüter, Feld 3: 2 gegen 2. Eine Person pro Team spielt nur im Angriff und verteidigt höchstens bis zur Mitte.\nSeitenlinien mit Langbänken begrenzen, wenn vorhanden. Schläger bis zwischen Bauchnabel und Brustbein, Schaufel unter der Hüfte.', items:it};
+  }},
   {n:'Zirkeltraining – 8 Posten', u:'Doppelhalle · Posten im Kreis · Wechsel im Uhrzeigersinn', bau:function(){
     var it = [], mx = HALLE.x[1], my = 14;
     var posten = [
@@ -2489,6 +2564,8 @@ var drei = (function(){
     S.ebenen = Object.assign(S.ebenen, sp.einst.ebenen || {}); if(sp.einst.ebV !== 2) S.ebenen.ringe = false;   // Turngeräte (Ringe, Reck, Kletterstangen) sind standardmässig aus S.lfarbe = sp.einst.lfarbe || {}; S.klasse = sp.einst.klasse || null; S.namen = sp.einst.namen !== false;
   }
   if(sp.aktuell) datenLaden(sp.aktuell);
+  var qv = /[?&]vorlage=(\d+)/.exec(location.search);
+  if(qv && VORLAGEN[+qv[1]]) datenLaden(VORLAGEN[+qv[1]].bau());
   var qa = /[?&]aufbau=([^&]+)/.exec(location.search);
   if(qa){ var ab = (sp.gespeichert || []).filter(function(x){ return x.id === decodeURIComponent(qa[1]); })[0]; if(ab) datenLaden(JSON.parse(JSON.stringify(ab.data))); }
   document.getElementById('ansicht').value = S.ansicht;

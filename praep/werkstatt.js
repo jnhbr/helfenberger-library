@@ -10,6 +10,8 @@
     {id:'abschluss', name:'Abschluss', hilfe:['abschluss','alt','check'], zeit:''},
     {id:'kreis', name:'Kreis', hilfe:[], zeit:''}
   ];
+  var VORLAGEN_HP = [{id:'v:0', n:'Volleyball 3:3 – drei Kleinfelder', sport:'volleyball'}, {id:'v:1', n:'Basketball 3:3 – EasyBasket', sport:'basketball'}, {id:'v:2', n:'Fussball 3:3 – Kleinfelder mit vier Toren', sport:'fussball'}, {id:'v:3', n:'Handball 3:3 – Softhandball quer', sport:'handball'}, {id:'v:4', n:'Unihockey 3:3 – Kleinfelder', sport:'unihockey'}];
+  function vorlageVon(sport){ var v = VORLAGEN_HP.filter(function(x){ return x.sport === sport; })[0]; return v ? v.id : ''; }
   var W = {daten:null, reihen:[], rid:null, di:0, bild:{}, beobachter:null};
 
   function $(id){ return document.getElementById(id); }
@@ -38,27 +40,62 @@
     {ziel:'Prüfung: Technik-Check S/M/P und Spielverhalten. Halbklasse prüft, die andere spielt nebenan Fussball.', halle:'D',
      p:{spiel:['b18b','b19','b24'], abschluss:['b21']}}
   ];
+  // Beispiel-Block für eine Sportart: n = Index der DL, T = Anzahl DL. Prüfung nur im 5er-Block (letzte DL).
+  var HALLEN = ['E', 'D', 'E', 'E', 'D'];
+  function beispielDl(sport, n, T, d){
+    var liste = W.daten.daten[sport] || [], alt = W.daten.daten.alternativ || [];
+    var nach = function(f){ return liste.filter(f); };
+    var einst = nach(function(i){ return i.phase === 'einstieg'; }), aufw = nach(function(i){ return i.phase === 'aufwaermen'; }),
+        reg = nach(function(i){ return i.art === 'regelkarte'; }), iv = nach(function(i){ return i.art === 'intervention'; }),
+        kx = nach(function(i){ return i.phase === 'komplex'; }), chk = nach(function(i){ return i.art === 'check'; }),
+        abs = alt.filter(function(i){ return i.phase === 'abschluss'; });
+    var pruef = T === 5 && n === 4, L = T === 5 ? 4 : T;
+    var at = function(a, k){ return a.length ? [a[((k % a.length) + a.length) % a.length].id] : []; };
+    d.halle = HALLEN[n % 5];
+    d.phasen[0].ids = at(einst, n); d.phasen[1].ids = at(aufw, n);
+    var sp = at(reg, 0);
+    if(pruef){
+      d.phasen[2].ids = sp.concat(chk.map(function(c){ return c.id; }));
+      d.phasen[4].ids = at(abs, n); d.phasen[4].notiz = 'Rückblick: Was kann ich jetzt, was vor 5 Doppellektionen noch nicht ging? Abschluss-Karte ausfüllen.';
+      d.ziel = 'Prüfung: Technik-Check (15 Punkte) und Spielverhalten im 3 gegen 3 (5 × 0–3). Doppelhalle: eine Halbklasse wird geprüft, die andere spielt nebenan ein anderes Spiel, dann Wechsel. Geprüft wird nur, was geübt wurde.';
+      d.phasen[2].notiz = 'Technik-Check an 3 Posten, danach Spiel-Bewertung in Viererteams (alle 2′ wechselt der Nächste ein).';
+      d.phasen[3].ids = []; d.phasen[5].notiz = 'Ergebnis offen lassen, Rückmeldung folgt mit dem Prüfungsblatt.';
+      return;
+    }
+    var von, bis;
+    if(L === 1){ von = 0; bis = 2; } else { von = Math.round(n * 5 / L); bis = Math.max(von + 1, Math.round((n + 1) * 5 / L)); }
+    var ivs = iv.slice(von, Math.min(bis, von + 2)), ids = [], namen = [];
+    ivs.forEach(function(x){
+      ids.push(x.id); namen.push(x.titel);
+      var weiter = ((x.iv || []).filter(function(r){ return r.k === 'Weiter mit'; })[0] || {t:''}).t.match(/[A-Z]{2}\d+/g) || [];
+      weiter.slice(0, 2).forEach(function(c){ var f = liste.filter(function(y){ return y.code === c; })[0]; if(f && ids.indexOf(f.id) < 0) ids.push(f.id); });
+    });
+    d.phasen[3].ids = ids;
+    if(n >= L - 1 && L > 1 && kx.length){ sp = sp.concat(at(kx, 0)); }
+    d.phasen[2].ids = sp;
+    d.phasen[4].ids = at(abs, n);
+    d.phasen[4].notiz = 'Rundenturnier 3 × 4′ auf 2–3 Feldern, die Teams zählen selbst, am Schluss abklatschen.';
+    d.phasen[5].notiz = 'Was macht euer Team jetzt besser als am Anfang? Material versorgen.';
+    d.ziel = (n === 0 ? 'Alle kennen die Spielidee und spielen das 3 gegen 3 selbstständig nach den Regeln. ' : 'Das Spiel läuft selbstständig und flüssig. ') + 'Schwerpunkt heute (nach Beobachtung): ' + (namen.join(' und ') || 'Spielverständnis') + '.' +
+      (T === 5 && n === 3 ? ' Probe-Check für die Prüfung in DL 5.' : '');
+    if(T === 5 && n === 3 && chk.length){ d.phasen[2].ids.push(chk[chk.length - 1].id); d.phasen[2].notiz = 'Probe-Check: den Technik-Check einmal als Probe durchspielen, Ergebnis ins Probenfeld des Prüfungsblatts.'; }
+  }
   function neueReihe(sport, anzahl, beispiel){
-    var info = sportInfo(sport), liste = W.daten.daten[sport] || [];
-    var r = {id:uid(), titel:info.name + '-Reihe', sport:sport, klasse:'', notizen:'', dls:[]};
+    var info = sportInfo(sport);
+    var r = {id:uid(), titel:info.name + '-Block ' + anzahl + ' DL', sport:sport, klasse:'', notizen:'', dls:[]};
     for(var n = 0; n < anzahl; n++){
       var d = leereDl();
       if(beispiel){
-        if(sport === 'volleyball' && VB[n]){
-          d.ziel = VB[n].ziel; d.halle = VB[n].halle;
-          d.phasen.forEach(function(ph){ ph.ids = (VB[n].p[ph.id] || []).map(function(c){ return 'volleyball-' + c; }); });
-        } else {
-          var nach = function(f){ return liste.filter(f); };
-          var einst = nach(function(i){ return i.phase === 'einstieg'; }), aufw = nach(function(i){ return i.phase === 'aufwaermen'; }),
-              reg = nach(function(i){ return i.art === 'regelkarte'; }), iv = nach(function(i){ return i.art === 'intervention'; }),
-              kx = nach(function(i){ return i.phase === 'komplex'; }), chk = nach(function(i){ return i.art === 'check'; }),
-              alt = (W.daten.daten.alternativ || []).filter(function(i){ return i.phase === 'abschluss'; });
-          var at = function(a, k){ return a.length ? [a[k % a.length].id] : []; };
-          d.phasen[0].ids = at(einst, n); d.phasen[1].ids = at(aufw, n); d.phasen[2].ids = at(reg, 0).concat(n === anzahl - 1 ? at(chk, 0) : (n > 1 ? at(kx, n) : []));
-          d.phasen[3].ids = at(iv, n * 2).concat(at(iv, n * 2 + 1)); d.phasen[4].ids = at(alt, n);
-          d.ziel = ['Alle kennen die Spielidee und spielen das 3 gegen 3 selbstständig nach den Regeln.', 'Das Spiel läuft flüssig: erster Schwerpunkt aus den Interventionen verbessern.', 'Zusammenspiel und Raum nutzen, Spiel selbstständig leiten.', 'Spiel festigen, Komplexität erhöhen oder Check vorbereiten.', 'Beurteilung: Technik und Spielverhalten.'][Math.min(n, 4)];
-        }
+        if(sport === 'volleyball'){
+          var vi = anzahl === 5 ? n : anzahl === 3 ? [0, 1, 2][n] : 0;
+          if(anzahl !== 5 && anzahl !== 3 && n > 0) vi = Math.min(n, 3);
+          d.ziel = VB[vi].ziel; d.halle = VB[vi].halle;
+          d.phasen.forEach(function(ph){ ph.ids = (VB[vi].p[ph.id] || []).map(function(c){ return 'volleyball-' + c; }); });
+          if(anzahl !== 5) d.phasen.forEach(function(ph){ ph.ids = ph.ids.filter(function(id){ return id.indexOf('b18') < 0 && id.indexOf('b19') < 0 && id.indexOf('b24') < 0; }); });
+          if(anzahl !== 5 && n === anzahl - 1 && anzahl > 1) d.phasen[4].notiz = 'Rundenturnier mit allen Stufen, Teams zählen selbst.';
+        } else beispielDl(sport, n, anzahl, d);
       }
+      if(beispiel) d.org.aufbauId = vorlageVon(sport);
       r.dls.push(d);
     }
     W.reihen.push(r); W.rid = r.id; W.di = 0; schreiben(); alles();
@@ -125,14 +162,15 @@
     h += '<h2 class="abschnitt">Organisation und Aufbau</h2>'+orgHtml(d);
     $('dlPanel').innerHTML = h;
   }
+  function hpQuery(id){ if(!id) return ''; return id.indexOf('v:') === 0 ? '?vorlage='+id.slice(2) : '?aufbau='+encodeURIComponent(id); }
   function aufbauten(){ try{ return (JSON.parse(localStorage.getItem('hallenplaner_v1') || '{}').gespeichert || []); }catch(e){ return []; } }
   function orgHtml(d){
     var o = d.org, liste = aufbauten();
     var h = '<div class="org"><div class="zeile"><label class="fl">Aufbau aus dem Hallenplaner'+
-      '<select class="feld" data-org="aufbauId" style="min-width:240px"><option value="">– keiner –</option>'+liste.map(function(a){ return '<option value="'+esc(a.id)+'"'+(o.aufbauId === a.id ? ' selected' : '')+'>'+esc(a.name)+'</option>'; }).join('')+'</select></label>'+
+      '<select class="feld" data-org="aufbauId" style="min-width:240px"><option value="">– keiner –</option><optgroup label="Vorlagen">'+VORLAGEN_HP.map(function(v){ return '<option value="'+v.id+'"'+(o.aufbauId === v.id ? ' selected' : '')+'>'+esc(v.n)+'</option>'; }).join('')+'</optgroup><optgroup label="Meine gespeicherten Aufbauten">'+liste.map(function(a){ return '<option value="'+esc(a.id)+'"'+(o.aufbauId === a.id ? ' selected' : '')+'>'+esc(a.name)+'</option>'; }).join('')+'</optgroup></select></label>'+
       '<button class="btn gruen" data-act="bildHolen" type="button"'+(o.aufbauId ? '' : ' disabled')+'>'+(o.bild3d ? '🔄 Bilder aktualisieren' : '🖼️ Bilder holen')+'</button>'+
-      '<a class="btn" style="text-decoration:none" target="_blank" href="../hallenplaner/'+(o.aufbauId ? '?aufbau='+encodeURIComponent(o.aufbauId) : '')+'">🏟️ '+(o.aufbauId ? 'Im Hallenplaner bearbeiten' : 'Neuen Aufbau zeichnen')+'</a></div>'+
-      '<div class="hilfe">'+(liste.length ? 'Gespeicherte Aufbauten stammen aus deinem Hallenplaner in diesem Browser.' : 'Noch kein Aufbau gespeichert: im Hallenplaner zeichnen und unter «💾 Aufbauten» speichern, dann hier wählen.')+
+      '<a class="btn" style="text-decoration:none" target="_blank" href="../hallenplaner/'+hpQuery(o.aufbauId)+'">🏟️ '+(o.aufbauId ? 'Im Hallenplaner bearbeiten' : 'Neuen Aufbau zeichnen')+'</a></div>'+
+      '<div class="hilfe">Die Vorlagen sind fertige Aufbauten pro Sportart. Eigene Aufbauten kommen aus deinem Hallenplaner in diesem Browser (dort unter «💾 Aufbauten» speichern).'+
       ' Nach Änderungen im Hallenplaner unter gleichem Namen speichern und hier «Bilder aktualisieren».</div>';
     if(W.bild[d.id] === 'laedt') h += '<div class="hilfe">⏳ Bilder werden erstellt …</div>';
     if(o.bild3d || o.bild2d){
@@ -179,7 +217,7 @@
     var d = dl(); if(!d || !d.org.aufbauId) return;
     var id = d.id; W.bild[id] = 'laedt'; dlPanel();
     var f = document.createElement('iframe');
-    f.src = '../hallenplaner/?einbett=1&aufbau='+encodeURIComponent(d.org.aufbauId);
+    f.src = '../hallenplaner/'+hpQuery(d.org.aufbauId)+'&einbett=1';
     f.style.cssText = 'position:fixed;left:-12000px;top:0;width:1100px;height:700px;border:0;';
     var fertig = false;
     function ende(){ window.removeEventListener('message', empf); clearTimeout(zeit); setTimeout(function(){ f.remove(); }, 100); }
@@ -268,7 +306,7 @@
   function neuDialog(){
     var m = $('modal');
     m.innerHTML = '<div class="mbox"><h3>Neue Reihe</h3><div class="zeile"><label class="fl">Sportart<select class="feld" id="nSport">'+W.daten.sportarten.map(function(s){ return '<option value="'+s.id+'">'+esc(s.emoji+' '+s.name)+'</option>'; }).join('')+'</select></label>'+
-      '<label class="fl">Anzahl Doppellektionen<input class="feld" id="nAnz" type="number" min="1" max="12" value="5" style="width:90px"></label></div>'+
+      '<label class="fl">Block<select class="feld" id="nAnz"><option value="1">1 DL (Einzellektion)</option><option value="3">3 DL (kurzer Block)</option><option value="5" selected>5 DL (mit Prüfung in DL 5)</option></select></label></div>'+
       '<label class="fl" style="flex-direction:row;align-items:center;gap:6px;margin:6px 0"><input type="checkbox" id="nBsp" checked> mit Beispiel füllen (Bausteine und Tagesziele zum Anpassen)</label>'+
       '<div class="zeile"><button class="btn primaer" id="nOk" type="button">Reihe anlegen</button><button class="btn" id="wZu" type="button">Abbrechen</button></div></div>';
     m.hidden = false;
@@ -280,7 +318,7 @@
     if(b.dataset.di){ W.di = +b.dataset.di; schreiben(); dlTabs(); dlPanel(); return; }
     if(b.id === 'jaOk'){ $('modal').hidden = true; var f = jaFn; jaFn = null; if(f) f(); return; }
     if(b.id === 'wZu'){ $('modal').hidden = true; dlPanel(); schreiben(); return; }
-    if(b.id === 'nOk'){ var s = $('nSport').value, a = Math.max(1, Math.min(12, +$('nAnz').value || 5)), bs = $('nBsp').checked; $('modal').hidden = true; neueReihe(s, a, bs); return; }
+    if(b.id === 'nOk'){ var s = $('nSport').value, a = +$('nAnz').value || 5, bs = $('nBsp').checked; $('modal').hidden = true; neueReihe(s, a, bs); return; }
     if(b.dataset.w){
       var ph = d.phasen[wahl.p], k = ph.ids.indexOf(b.dataset.w);
       if(k >= 0) ph.ids.splice(k, 1); else ph.ids.push(b.dataset.w);
