@@ -262,12 +262,18 @@
   .subject-card h3{font-size:18px;}
   /* iOS-Safari färbt Button-Text sonst systemblau – Fachnamen immer in Textfarbe */
   .subject-card, .subject-card h3{color:var(--text);}
+  /* 🎨 Fachfarbe: Farbkante links, leichter Farbverlauf, Fachname in Fachfarbe */
+  .subject-card{--fach:var(--brand);border-left:6px solid var(--fach);border-color:color-mix(in srgb, var(--fach) 32%, var(--border));border-left-color:var(--fach);
+    background:linear-gradient(135deg, color-mix(in srgb, var(--fach) 15%, var(--surface)), color-mix(in srgb, var(--fach) 5%, var(--surface)));}
+  .subject-card h3{color:color-mix(in srgb, var(--fach) 72%, var(--text));}
+  :root[data-design="neu"] .subject-card{border-left-width:8px;border-color:var(--kontur);border-left-color:var(--fach);}
   /* ✨ Bewegung beim Anklicken: Kachel sinkt wie eine Taste ein */
   .subject-card:active,.subject-card.gedrueckt{transform:translateY(3px) scale(.985);box-shadow:0 3px 8px -6px rgba(20,20,40,.35);transition-duration:.07s;}
   :root[data-design="neu"] .subject-card:active,:root[data-design="neu"] .subject-card.gedrueckt{transform:translateY(5px);box-shadow:0 1px 0 var(--fach, var(--kontur));}
   body.wackeln .subject-card:active{transform:none;}
   @media (prefers-reduced-motion: reduce){ .subject-card:active,.subject-card.gedrueckt{transform:none;} }
   .subject-meta{font-size:12.5px;color:var(--text-muted);}
+  .subject-meta:empty{display:none;}
   .subject-bar{height:7px;border-radius:99px;background:var(--surface-2);overflow:hidden;}
   .subject-bar span{display:block;height:100%;border-radius:99px;transition:width .4s ease;}
 
@@ -2831,6 +2837,7 @@
   .stp-cell.leer{background:transparent;border:1.5px dashed var(--border);}
   .stp-cell.frei{--c:#10B981;background:repeating-linear-gradient(135deg, color-mix(in srgb, #10B981 14%, var(--surface)) 0 8px, var(--surface) 8px 16px);border-left-color:#10B981;}
   .stp-img{width:30px;height:30px;border-radius:8px;object-fit:cover;flex-shrink:0;background:var(--surface);}
+  .ferien-bild{object-fit:contain;vertical-align:middle;}
   .stp-dot{width:12px;height:12px;border-radius:50%;background:var(--c);flex-shrink:0;margin:0 4px;}
   .stp-txt{display:flex;flex-direction:column;min-width:0;}
   .stp-name{font-weight:800;font-size:13.5px;color:color-mix(in srgb, var(--c) 70%, var(--text));white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
@@ -3171,6 +3178,8 @@
   :root[data-design="neu"] .res-mehr-menu .btn{justify-content:flex-start;width:100%;text-align:left;border-color:transparent;border-radius:8px;background:transparent;}
   :root[data-design="neu"] .res-mehr-menu .btn:hover{background:var(--surface-2);}
   :root[data-design="neu"] .res-mehr-menu .btn-danger{color:var(--bad);}
+  :root[data-design="neu"] .res-mehr-menu .btn.active{font-weight:800;background:var(--surface-2);}
+  :root[data-design="neu"] .res-mehr-menu .btn.active::before{content:"✓ ";}
 
   /* ===================== 🤖 HILFE-BOT (Logo-Animation + Sprechblase) =====================
      Klick aufs Sek-Altnau-Logo: die Schrift blendet aus, das blaue Männchen steht in fünf
@@ -4261,7 +4270,7 @@ function currentSchoolYearFerien(){
 function ferienEntryLineHtml(f){
   var today = todayStr();
   var ongoing = f.start <= today && f.end >= today;
-  return '<div class="cal-ferien-item">'+f.icon+' <b>'+esc(f.label)+'</b> <span>'+esc(fmtDueDate(f.start))+'–'+esc(fmtDueDate(f.end))+'</span>'+
+  return '<div class="cal-ferien-item">'+ferienIconHtml(f, 28)+' <b>'+esc(f.label)+'</b> <span>'+esc(fmtDueDate(f.start))+'–'+esc(fmtDueDate(f.end))+'</span>'+
     (ongoing ? ' <span class="cal-ferien-tag">laufen gerade</span>' : '')+
     '</div>';
 }
@@ -10789,8 +10798,7 @@ function renderHome(){
     html += '<div class="subject-visual" style="background:'+s.soft+';">'+s.icon+'</div>';
     html += '<div class="subject-card-body">';
     html += '<h3>'+s.name+'</h3>';
-    html += '<div class="subject-meta" id="meta-'+s.id+'">wird geladen …</div>';
-    html += '<div class="subject-bar"><span id="bar-'+s.id+'" style="width:0%;background:'+s.color+'"></span></div>';
+    html += '<div class="subject-meta" id="meta-'+s.id+'"></div>';
     html += '</div>';
     html += '</button>';
   });
@@ -10896,14 +10904,12 @@ function paintSubjectsOverview(){
 }
 function paintSubjectOverview(subjectId, eigene){
   var metaEl = document.getElementById('meta-'+subjectId);
-  var barEl = document.getElementById('bar-'+subjectId);
-  if(!metaEl || !barEl) return; // navigated away
+  if(!metaEl) return; // navigated away
   function zeigen(count, neuBei){
-    metaEl.textContent = (count===0 ? 'Noch keine Übung' : (count+' Übung'+(count===1?'':'en'))) +
-      (neuBei.length ? ' · 🆕 neu bei '+neuBei.join(', ') : '');
+    // Anzahl wird nicht mehr gezeigt (schlankere Kachel); nur der Hinweis «neu bei …» bleibt.
+    metaEl.textContent = neuBei.length ? '🆕 neu bei '+neuBei.join(', ') : '';
   }
   zeigen(eigene.length, []);
-  barEl.style.width = '0%';
   // 👥 Schüler:innen: Übungen der Gruppen-Lehrpersonen mitzählen (wie auf der Fachseite).
   fachQuellen(subjectId).then(function(fq){
     if(!fq.fremd.length) return;
@@ -15593,16 +15599,16 @@ function resourceCardHtml(r, index, total, isTeacher){
   html += '<div class="resource-actions">';
   html += '<button class="btn btn-primary btn-sm" id="open-'+r.id+'">Öffnen</button>';
   if(isTeacher){
-    if(!lp) html += '<button class="btn btn-sm btn-lehrer'+(r.niveau || Array.isArray(r.nurFuer) ? ' active' : '')+'" id="zu-'+r.id+'" type="button" title="Niveau A/B/C setzen und festlegen, wer diese Übung sieht">🎯 Zuweisen</button>';
-    if(!r.externalUrl && !r.pdf) html += '<button class="btn btn-sm btn-lehrer'+(lp?' active':'')+'" id="lp-'+r.id+'" type="button" title="'+(lp?'Wieder für alle sichtbar machen':'Nur für Lehrpersonen sichtbar machen (z. B. Unterrichtsplanung)')+'">'+(lp?'🔓 Für alle sichtbar machen':'🔒 Nur Lehrpersonen')+'</button>';
-    if(!lp) html += '<button class="btn btn-sm btn-lehrer'+(aus?' active':'')+'" id="aus-'+r.id+'" type="button" title="'+(aus?'Wieder für die Klasse einblenden (z. B. wenn das Thema durch ist)':'Für die Klasse ausblenden (z. B. Lösungsdossier, bis das Thema durch ist)')+'">'+(aus?'👁 Einblenden':'🙈 Ausblenden')+'</button>';
     if(!r.externalUrl && !lp){
       html += '<button class="btn btn-sm btn-current'+(r.current?' active':'')+'" id="cur-'+r.id+'">'+(r.current?'Nicht mehr aktuell':'Als aktuell markieren')+'</button>';
     }
+    html += '<span class="res-mehr"><button class="btn btn-ghost btn-sm res-mehr-btn" type="button" aria-haspopup="true" aria-expanded="false" title="Weitere Aktionen">⋯</button><span class="res-mehr-menu">';
+    if(!lp) html += '<button class="btn btn-sm btn-lehrer'+(r.niveau || Array.isArray(r.nurFuer) ? ' active' : '')+'" id="zu-'+r.id+'" type="button" title="Niveau A/B/C setzen und festlegen, wer diese Übung sieht">🎯 Zuweisen</button>';
+    if(!r.externalUrl && !r.pdf) html += '<button class="btn btn-sm btn-lehrer'+(lp?' active':'')+'" id="lp-'+r.id+'" type="button" title="'+(lp?'Wieder für alle sichtbar machen':'Nur für Lehrpersonen sichtbar machen (z. B. Unterrichtsplanung)')+'">'+(lp?'🔓 Für alle sichtbar machen':'🔒 Nur Lehrpersonen')+'</button>';
+    if(!lp) html += '<button class="btn btn-sm btn-lehrer'+(aus?' active':'')+'" id="aus-'+r.id+'" type="button" title="'+(aus?'Wieder für die Klasse einblenden (z. B. wenn das Thema durch ist)':'Für die Klasse ausblenden (z. B. Lösungsdossier, bis das Thema durch ist)')+'">'+(aus?'👁 Einblenden':'🙈 Ausblenden')+'</button>';
     if(heimKlasse() && !isFremdeKlasse()){
       html += '<button class="btn btn-sm btn-empfohlen'+(r.empfohlen?' active':'')+'" id="emp-'+r.id+'" type="button" title="'+(r.empfohlen?'Wird anderen Lehrpersonen unter ⚙️ empfohlen – antippen, um die Empfehlung zurückzunehmen':'Anderen Lehrpersonen unter ⚙️ «Von Lehrern empfohlen» vorschlagen')+'">'+(r.empfohlen?'⭐ Empfohlen':'☆ Empfehlen')+'</button>';
     }
-    html += '<span class="res-mehr"><button class="btn btn-ghost btn-sm res-mehr-btn" type="button" aria-haspopup="true" aria-expanded="false" title="Weitere Aktionen">⋯</button><span class="res-mehr-menu">';
     html += '<button class="btn btn-ghost btn-sm" id="rrename-'+r.id+'" type="button">Umbenennen</button>';
     if(!r.externalUrl){
       if(!r.pdf && !r.folien) html += '<button class="btn btn-ghost btn-sm" id="uedit-'+r.id+'" type="button" title="Texte, Lösungen oder Code direkt in der App anpassen">✏️ Bearbeiten</button>';
@@ -23682,6 +23688,8 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-10-25-fachfarbe', datum:'2026-10-25', fuer:'alle', text:'🎨 Die Fach-Kacheln tragen jetzt die Farbe ihres Fachs, und die Übungsanzahl ist weg – es bleibt übersichtlicher. Termine und Ferien im Stundenplan bekommen nach und nach eigene Bildchen.'},
+  {id:'2026-10-25-weniger-knoepfe', datum:'2026-10-25', fuer:'lehrer', text:'🧹 Weniger Knöpfe bei den Übungen: Sichtbar bleiben «Öffnen» und «Als aktuell markieren». Zuweisen, Nur Lehrpersonen, Ausblenden und Empfehlen findest du unter «⋯» (der Haken zeigt, was gerade aktiv ist).'},
   {id:'2026-10-24-bausteine-ordner', datum:'2026-10-24', fuer:'lehrer', text:'🧱 Im Fach Sport liegt in jedem passenden Ordner (Spielen, Bewegen an Geräten, Laufen/Springen/Werfen und bei den Sportarten) eine Kachel «Bausteine …», die den Sportplaner gleich in dieser Kategorie öffnet.'},
   {id:'2026-10-24-sportplaner', datum:'2026-10-24', fuer:'lehrer', text:'📋 Im Fach Sport heisst das Werkzeug mit Bausteinen, Präp-Werkstatt, Jahresplanung, Notenrechner und Turnierplan jetzt «Sportplaner» (neben dem Hallenplaner).'},
   {id:'2026-10-24-sport-planung', datum:'2026-10-24', fuer:'lehrer', text:'🗓️ Sport: Jahresplanung für die 7., 8. und 9. Klasse (deine Planung und ein Vorschlag) mit Abdeckung nach Lehrplan 21; «Reihe anlegen» öffnet die Präp-Werkstatt mit passendem Block. Neu auch der 🧮 Notenrechner (Punkte → Note, Notentabelle, Klassenliste) und der 🏆 Turnierplan (Jeder gegen jeden, Felder, Zeiten, Rangliste) sowie ★ Favoriten bei den Bausteinen.'},
@@ -46616,13 +46624,46 @@ function stpPlanRoh(ansicht){
     eigen:function(k){ return stpHat(stp.eigen.zellen, k); }
   };
 }
+// 🖼️ Bilder für freie Termine und Ferien (assets/termine/<schlüssel>.webp, gleicher Stil wie die Fachbilder).
+// Gewählt wird nach Stichwort im Titel (ohne Umlaute, Kleinschreibung); fehlt die Datei, bleibt der Punkt bzw. das Emoji.
+var STP_TERMIN_BILDER = [
+  ['jahrmarkt', /jahrmarkt|markt/], ['elternabend', /elternabend|elternanlass|infoabend/], ['elterngespraech', /eltern|standortgespr|gespraech|lernbericht/],
+  ['weiterbildung', /weiterbild|fortbild|\bwb\b|\bkurs\b|tagung/], ['sva', /\bsva\b|arbeitstag/, 'assets/subject-sva.webp'], ['konvent', /konvent|sitzung|konferenz|teamtag|schilf/],
+  ['sporttag', /sporttag|sportnachmittag|turnier|sportanlass|spieltag|schwimm/], ['schulreise', /schulreise|reise|ausflug/], ['exkursion', /exkursion|wanderung|besuch|museum|betriebs/],
+  ['lager', /lager|skitag|schneesport/], ['projektwoche', /projekt/], ['pruefung', /pruefung|\btest\b|lernkontrolle|\blk\b|\bprobe\b/],
+  ['zeugnis', /zeugnis|beurteilung|notenschluss/], ['schnuppern', /schnupper|berufs|praktikum|lehrstelle/], ['auftritt', /konzert|theater|auffuehrung|auftritt|musical|zirkus/],
+  ['feier', /weihnacht|chlaus|advent|feier|fest\b|abschluss|entlassung|apero/], ['fasnacht', /fasnacht|verkleid|fasching/], ['putztag', /putz|aufraeum|raeumen|clean/],
+  ['arzt', /arzt|zahn|impf|schulaerzt|schulpsych/], ['foto', /foto/], ['hospitation', /hospitation|unterrichtsbesuch|inspektion|evaluation/],
+  ['offene-tuer', /offene tuer|tag der offenen|schnuppertag|infotag/], ['ausfall', /ausfall|krank|vertretung|abwesen/]
+];
+var stpBilderFehlt = {};
+function stpTerminBild(text){
+  var t = String(text || '').toLowerCase().replace(/ä/g,'ae').replace(/ö/g,'oe').replace(/ü/g,'ue').replace(/ß/g,'ss');
+  for(var i = 0; i < STP_TERMIN_BILDER.length; i++){
+    if(STP_TERMIN_BILDER[i][1].test(t)){ var src = STP_TERMIN_BILDER[i][2] || 'assets/termine/'+STP_TERMIN_BILDER[i][0]+'.webp'; return stpBilderFehlt[src] ? null : src; }
+  }
+  return null;
+}
+var STP_FERIEN_BILDER = { 'Sportferien':'sport', 'Frühlingsferien':'fruehling', 'Pfingstferien':'pfingsten', 'Sommerferien':'sommer', 'Herbstferien':'herbst', 'Weihnachtsferien':'weihnachten' };
+// Ferien-Symbol: Bildchen, bei fehlender Datei das Emoji.
+function ferienIconHtml(f, px){
+  var k = STP_FERIEN_BILDER[f.label], src = k ? 'assets/termine/ferien-'+k+'.webp' : '';
+  if(!src || stpBilderFehlt[src]) return f.icon;
+  return '<img class="ferien-bild" src="'+src+'" alt="" style="width:'+px+'px;height:'+px+'px" onerror="stpBildFehlt(this,\''+f.icon+'\')">';
+}
+window.stpBildFehlt = function(img, ersatz){
+  var src = img.getAttribute('src'); stpBilderFehlt[src] = true;
+  var n = document.createElement('span');
+  if(ersatz){ n.textContent = ersatz; } else { n.className = 'stp-dot'; }
+  if(img.parentNode) img.parentNode.replaceChild(n, img);
+};
 function stpInfo(c){
   if(!c || c.frei) return null;
   var s = c.f ? subjectById(c.f) : null;
   if(s) return { name:s.name, color:s.color, img:s.img, full:!!s.full, fachId:s.teacherOnly ? null : s.id };
   if(!c.t) return null;
   var h = 0; for(var i = 0; i < c.t.length; i++) h = (h*31 + c.t.charCodeAt(i)) >>> 0;
-  return { name:c.t, color:STP_FREI_FARBEN[h % STP_FREI_FARBEN.length], img:null, fachId:null };
+  return { name:c.t, color:STP_FREI_FARBEN[h % STP_FREI_FARBEN.length], img:stpTerminBild(c.t), fachId:null };
 }
 function stpJetztMin(){ var d = new Date(); return d.getHours()*60 + d.getMinutes(); }
 function stpHeute(){ var t = new Date().getDay(); return t >= 1 && t <= 5 ? t - 1 : -1; }
@@ -46838,7 +46879,7 @@ function stpZeichnen(){
       (woche !== stpWocheJetzt() ? '<button class="btn btn-ghost btn-sm" type="button" id="stpWHeute">Heute</button>' : '')+'</div>';
     if(ferien.every(Boolean)){
       var f0 = ferien[0];
-      h += '<div class="stp-ferien-banner"><span>'+f0.icon+' <b>'+esc(f0.label)+'</b> bis '+stpDatumKurz(f0.end)+' – keine Schule.</span>'+
+      h += '<div class="stp-ferien-banner"><span>'+ferienIconHtml(f0, 40)+' <b>'+esc(f0.label)+'</b> bis '+stpDatumKurz(f0.end)+' – keine Schule.</span>'+
         '<button class="btn btn-ghost btn-sm" type="button" id="stpWSchule">Zur nächsten Schulwoche ▶</button></div>';
     }
   }
@@ -46871,7 +46912,7 @@ function stpZeichnen(){
     var st = info ? ' style="--c:'+info.color+'"' : '';
     var inner = '';
     if(info){
-      inner += (info.img ? '<img class="stp-img'+(info.full?'':' ct')+'" src="'+info.img+'" alt="" loading="lazy">' : '<span class="stp-dot"></span>');
+      inner += (info.img ? '<img class="stp-img'+(info.full?'':' ct')+'" src="'+info.img+'" alt="" loading="lazy" onerror="stpBildFehlt(this)">' : '<span class="stp-dot"></span>');
       inner += '<span class="stp-txt"><span class="stp-name">'+esc(info.name)+'</span>';
       var sub = [c.kl ? '👥 '+c.kl : '', c.zi ? '📍 '+c.zi : '', c.lp || ''].filter(Boolean).join(' · ');
       if(sub) inner += '<span class="stp-sub">'+esc(sub)+'</span>';
@@ -46881,7 +46922,7 @@ function stpZeichnen(){
     } else if(stp.bearbeiten){
       inner += '<span class="stp-plus">＋</span>';
     } else if(a.ferien){
-      inner += '<span class="stp-plus" title="'+esc(a.ferien.label)+'">'+a.ferien.icon+'</span>';
+      inner += '<span class="stp-plus" title="'+esc(a.ferien.label)+'">'+ferienIconHtml(a.ferien, 28)+'</span>';
     }
     if(tmHier) inner += '<span class="stp-eigen-tag" title="Nur diese Woche">📌</span>';
     if(istJetzt) inner += '<span class="stp-jetzt-tag">JETZT</span>';
@@ -47254,7 +47295,7 @@ function renderStpJetzt(){
   function chip(l, label, extra){
     var sub = [l.c.kl ? '👥 '+l.c.kl : '', l.c.zi ? '📍 '+l.c.zi : '', l.par ? '↔️ '+l.par : '', extra || ''].filter(Boolean).join(' · ');
     return '<div class="stp-jchip" style="--c:'+l.info.color+'">'+
-      (l.info.img ? '<img class="'+(l.info.full?'':'ct')+'" src="'+l.info.img+'" alt="">' : '<span class="stp-dot"></span>')+
+      (l.info.img ? '<img class="'+(l.info.full?'':'ct')+'" src="'+l.info.img+'" alt="" onerror="stpBildFehlt(this)">' : '<span class="stp-dot"></span>')+
       '<div><small>'+label+'</small><b>'+esc(l.info.name)+'</b>'+(sub ? '<span>'+esc(sub)+'</span>' : '')+'</div></div>';
   }
   var h = '<button type="button" class="stp-jetzt" id="stpJetztBtn">';

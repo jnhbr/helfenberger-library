@@ -158,6 +158,7 @@ var seiten;
     ok((await anna.$$eval('#card-r_b .chip-niv-C', e => e.length)) === 1, 'Niveau-Abzeichen C bei «nur Anna»');
     ok(/🎯 1 Pers/.test(await lp.$eval('#card-r_b', e => e.innerText)), 'Lehrperson sieht «🎯 1 Pers.» an der eingeschränkten Übung');
     // Lehrperson weist «Übung Alle» nur Ben zu
+    await lp.click('#card-r_a .res-mehr-btn');   // «Zuweisen» steht im ⋯-Menü
     await lp.click('#zu-r_a');
     await lp.waitForSelector('#zuOk');
     await lp.selectOption('#zuNiv', 'A');
@@ -169,6 +170,7 @@ var seiten;
     await bis(async () => !(await anna.$('#card-r_a')), 'Anna sieht die Übung nicht mehr');
     ok(!!(await ben.$('#card-r_a')), 'Anna sieht «Übung Alle» nicht mehr, Ben schon (Live-Update)');
     // zurück auf alle
+    await lp.click('#card-r_a .res-mehr-btn');   // «Zuweisen» steht im ⋯-Menü
     await lp.click('#zu-r_a');
     await lp.waitForSelector('#zuOk');
     await lp.check('[name=zuWer][value=alle]');
