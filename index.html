@@ -4197,6 +4197,20 @@ function subjectById(id){ return SUBJECTS.find(function(s){return s.id===id;}); 
 
 // 🖼️ Bildsymbole im Stil der Fachbilder: assets/icons/<schlüssel>.webp. Fehlt die Datei,
 // bleibt das Emoji (bildIconHtml). So lassen sich Emojis nach und nach ersetzen.
+// 👋 Anrede der Lehrpersonen (Herr/Frau + Nachname) für die Begrüssung. Quelle: Lehrpersonen-Liste;
+// Schlüssel = Nachname ohne Umlaute/Akzente in Kleinschreibung. Wer fehlt (Praktikum, Zivi), wird nur mit dem Namen begrüsst.
+var LP_ANREDE = {
+  'helfenberger':'Herr','schlaepfer':'Frau','schoch':'Herr','fischer':'Herr','alder':'Herr','bommeli':'Herr','frey':'Frau','straub':'Herr',
+  'stoller':'Herr','steinbruechel':'Frau','staedler':'Herr','rhiner':'Frau','lopez':'Frau','rutishauser':'Herr','stolz':'Herr','theus':'Herr',
+  'peter':'Frau','zweifel':'Frau','ledergerber':'Frau','weber':'Frau','giger':'Frau','strebel':'Frau','herforth':'Herr','hugentobler':'Frau',
+  'hauser':'Frau','rechsteiner':'Frau','gierszewski':'Frau','baechi':'Herr','rolfsmeyer':'Frau','haeberli':'Frau'
+};
+function anredeMitName(profile){
+  var name = (profile && profile.displayName) || '';
+  if(!profile || profile.role !== 'teacher') return name;
+  var k = name.toLowerCase().replace(/ä/g,'ae').replace(/ö/g,'oe').replace(/ü/g,'ue').replace(/ß/g,'ss').replace(/é|è|ê/g,'e').trim();
+  return LP_ANREDE[k] ? LP_ANREDE[k]+' '+name : name;
+}
 var bildIconFehlt = {};
 function bildIconHtml(schluessel, emoji, px){
   var src = 'assets/icons/'+schluessel+'.webp';
@@ -10814,7 +10828,7 @@ function renderHome(){
   clearSubjectWatchers();
   var isTeacher = state.profile.role === 'teacher';
   var html = '';
-  html += '<h2 class="page-welcome">Willkommen, '+esc(state.profile.displayName)+'!</h2>';
+  html += '<h2 class="page-welcome">Willkommen, '+esc(anredeMitName(state.profile))+'!</h2>';
   html += '<div class="back-row" style="flex-wrap:wrap;">';
   html += '<button class="btn btn-primary btn-sm" id="kalenderBtn" type="button">📅 Kalender</button>';
   if(isTeacher){
