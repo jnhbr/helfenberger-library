@@ -47259,10 +47259,14 @@ function stpZeichnen(){
     if(stpLeer(c) && !c.frei && !a.termin) return '';
     return JSON.stringify([c.f || '', c.t || '', c.zi || '', c.lp || '', c.kl || '', !!c.frei, !!a.termin, !!a.par, a.par && a.termin ? (a.termin.c.t || '') : '']);
   }
-  function zusammen(j, tag){
-    if(stp.bearbeiten || j + 1 >= zeilen.length || pause(j + 1) !== '') return false;
-    var s1 = zellenSig(tag, zeilen[j]);
-    return s1 !== '' && s1 === zellenSig(tag, zeilen[j + 1]);
+  // Letzte Lektion der Reihe gleicher Lektionen ab j (Pausen und Mittag trennen eine Reihe).
+  function laufEnde(j, tag){
+    if(stp.bearbeiten) return j;
+    var s0 = zellenSig(tag, zeilen[j]);
+    if(s0 === '') return j;
+    var k = j;
+    while(k + 1 < zeilen.length && pause(k + 1) === '' && zellenSig(tag, zeilen[k + 1]) === s0) k++;
+    return k;
   }
 
   if(schmal){
@@ -47273,9 +47277,10 @@ function stpZeichnen(){
     var uebersprungen = {};
     zeilen.forEach(function(z, j){
       if(uebersprungen[j]) return;
-      var z2 = zusammen(j, stp.tag) ? zeilen[j + 1] : null;
-      if(z2) uebersprungen[j + 1] = true;
-      h += pause(j) + '<div class="stp-zeile">'+zeit(z, z2)+zelle(stp.tag, z, z2)+'</div>';
+      var k = laufEnde(j, stp.tag);
+      for(var q = j + 1; q <= k; q++) uebersprungen[q] = true;
+      var zk = k > j ? zeilen[k] : null;
+      h += pause(j) + '<div class="stp-zeile">'+zeit(z, zk)+zelle(stp.tag, z, zk)+'</div>';
     });
     h += '</div>';
   } else {
@@ -47288,13 +47293,12 @@ function stpZeichnen(){
     var weg = {};
     zeilen.forEach(function(z, j){
       h += pause(j);
-      var tagRaus = [0,1,2,3,4].map(function(d){ return zusammen(j, d); });
       h += zeit(z);
       for(var d = 0; d < 5; d++){
         if(weg[j+'-'+d]) continue;
-        var doppelt = tagRaus[d];
-        if(doppelt) weg[(j + 1)+'-'+d] = true;
-        h += '<div class="stp-slot'+(d===heute?' heute':'')+(doppelt ? ' stp-slot2' : '')+'">'+zelle(d, z, doppelt ? zeilen[j + 1] : null)+'</div>';
+        var k = laufEnde(j, d);
+        for(var q = j + 1; q <= k; q++) weg[q+'-'+d] = true;
+        h += '<div class="stp-slot'+(d===heute?' heute':'')+'"'+(k > j ? ' style="grid-row:span '+(k - j + 1)+'"' : '')+'>'+zelle(d, z, k > j ? zeilen[k] : null)+'</div>';
       }
     });
     h += '</div>';
