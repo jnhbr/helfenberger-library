@@ -3490,6 +3490,8 @@
   .up-menue{min-width:340px;}
   .up-menue .btn, :root[data-design="neu"] .up-menue .btn{justify-content:flex-start;text-align:left;border-color:transparent;box-shadow:none;background:transparent;cursor:pointer;width:100%;white-space:nowrap;}
   .up-menue .btn:hover{background:var(--surface-2);}
+  .up-pille{display:inline-flex;align-items:center;gap:6px;padding:6px 14px;border:2px dashed #7C8494;border-radius:10px;font-size:13px;font-weight:600;color:var(--text-muted);background:var(--surface);cursor:default;}
+  .up-pille.drag{border-color:var(--brand);color:var(--text);background:var(--surface-2);}
   .up-ziel{font-size:12.5px;color:var(--text-muted);margin:-8px 0 var(--sp-4, 16px);}
   #fileInput, #fileInputLp{display:none;}
   .zieh-flaeche{position:fixed;inset:0;z-index:300;display:none;align-items:center;justify-content:center;gap:24px;padding:24px;background:rgba(20,24,36,.62);}
@@ -15045,7 +15047,7 @@ function renderSubject(subjectId, folderId){
     html += '<input type="file" id="fileInput" accept=".html,.htm,.pdf,.pptx,text/html,application/pdf">';
     html += '<input type="file" id="fileInputDir" webkitdirectory multiple style="display:none;">';
     html += '<input type="file" id="fileInputLp" accept=".html,.htm,text/html">';
-    html += '<div class="back-row up-leiste" style="flex-wrap:wrap;">'+upMenue+'<button class="btn btn-ghost btn-sm" id="newFolderBtn" type="button">+ Neuer Ordner</button>'+
+    html += '<div class="back-row up-leiste" style="flex-wrap:wrap;">'+upMenue+'<span class="up-pille" id="upPille" title="Datei von deinem Computer hierher ziehen und loslassen">⬇ Datei hierher ziehen</span><button class="btn btn-ghost btn-sm" id="newFolderBtn" type="button">+ Neuer Ordner</button>'+
       '<button class="btn btn-ghost btn-sm" id="kzmHolenBtn" type="button" title="Quiz, Karteikarten, Wortwolke oder Blitzumfrage hier ablegen">🏫 Aus dem Klassenzimmer</button>'+
       '<button class="btn btn-ghost btn-sm" id="dlHierBtn" type="button" title="Alle Dateien hier (mit allen Ordnern) als ZIP auf deinen Computer laden">⬇️ Alles herunterladen</button>'+
       (isLeitung() ? '' : '<button class="btn btn-ghost btn-sm" id="bkNeuBtn" type="button" title="Die Klasse gibt hier Dateien ab, du holst sie auf deinen Computer">📮 Briefkasten aufstellen</button>')+'</div>';
@@ -16640,6 +16642,16 @@ function wireDropzone(subjectId){
     });
     upMenue.addEventListener('click', function(){ setTimeout(function(){ upMenue.hidden = true; upBtn.setAttribute('aria-expanded', 'false'); }, 0); });
     document.addEventListener('click', function(e){ if(!document.body.contains(upMenue) || upMenue.hidden) return; if(!upMenue.contains(e.target) && e.target !== upBtn){ upMenue.hidden = true; upBtn.setAttribute('aria-expanded', 'false'); } });
+  }
+  // Dauerhaft sichtbares Feld «Datei hierher ziehen» (gilt für die Klasse); die grossen Flächen erscheinen zusätzlich beim Ziehen.
+  var pille = document.getElementById('upPille');
+  if(pille){
+    ['dragenter','dragover'].forEach(function(evt){ pille.addEventListener(evt, function(e){ e.preventDefault(); pille.classList.add('drag'); }); });
+    ['dragleave','drop'].forEach(function(evt){ pille.addEventListener(evt, function(e){ e.preventDefault(); pille.classList.remove('drag'); }); });
+    pille.addEventListener('drop', function(e){
+      var files = e.dataTransfer.files;
+      if(files && files.length){ handleUpload(subjectId, state.route.folderId || null, files[0]); }
+    });
   }
   var dz = document.getElementById('dropzone');
   var input = document.getElementById('fileInput');
