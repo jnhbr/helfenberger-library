@@ -262,11 +262,6 @@
   .subject-card h3{font-size:18px;}
   /* iOS-Safari färbt Button-Text sonst systemblau – Fachnamen immer in Textfarbe */
   .subject-card, .subject-card h3{color:var(--text);}
-  /* 🎨 Fachfarbe: Farbkante links, leichter Farbverlauf, Fachname in Fachfarbe */
-  .subject-card{--fach:var(--brand);border-left:6px solid var(--fach);border-color:color-mix(in srgb, var(--fach) 32%, var(--border));border-left-color:var(--fach);
-    background:linear-gradient(135deg, color-mix(in srgb, var(--fach) 15%, var(--surface)), color-mix(in srgb, var(--fach) 5%, var(--surface)));}
-  .subject-card h3{color:color-mix(in srgb, var(--fach) 72%, var(--text));}
-  :root[data-design="neu"] .subject-card{border-left-width:8px;border-color:var(--kontur);border-left-color:var(--fach);}
   /* ✨ Bewegung beim Anklicken: Kachel sinkt wie eine Taste ein */
   .subject-card:active,.subject-card.gedrueckt{transform:translateY(3px) scale(.985);box-shadow:0 3px 8px -6px rgba(20,20,40,.35);transition-duration:.07s;}
   :root[data-design="neu"] .subject-card:active,:root[data-design="neu"] .subject-card.gedrueckt{transform:translateY(5px);box-shadow:0 1px 0 var(--fach, var(--kontur));}
@@ -23690,7 +23685,7 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
-  {id:'2026-10-25-fachfarbe', datum:'2026-10-25', fuer:'alle', text:'🎨 Die Fach-Kacheln tragen jetzt die Farbe ihres Fachs, und die Übungsanzahl ist weg – es bleibt übersichtlicher. Termine und Ferien im Stundenplan bekommen nach und nach eigene Bildchen.'},
+  {id:'2026-10-25-fachfarbe', datum:'2026-10-25', fuer:'alle', text:'🧹 Auf den Fach-Kacheln steht die Übungsanzahl nicht mehr – es bleibt übersichtlicher. Termine und Ferien im Stundenplan haben jetzt eigene Bildchen.'},
   {id:'2026-10-25-weniger-knoepfe', datum:'2026-10-25', fuer:'lehrer', text:'🧹 Weniger Knöpfe bei den Übungen: Sichtbar bleiben «Öffnen» und «Als aktuell markieren». Zuweisen, Nur Lehrpersonen, Ausblenden und Empfehlen findest du unter «⋯» (der Haken zeigt, was gerade aktiv ist).'},
   {id:'2026-10-24-bausteine-ordner', datum:'2026-10-24', fuer:'lehrer', text:'🧱 Im Fach Sport liegt in jedem passenden Ordner (Spielen, Bewegen an Geräten, Laufen/Springen/Werfen und bei den Sportarten) eine Kachel «Bausteine …», die den Sportplaner gleich in dieser Kategorie öffnet.'},
   {id:'2026-10-24-sportplaner', datum:'2026-10-24', fuer:'lehrer', text:'📋 Im Fach Sport heisst das Werkzeug mit Bausteinen, Präp-Werkstatt, Jahresplanung, Notenrechner und Turnierplan jetzt «Sportplaner» (neben dem Hallenplaner).'},
@@ -46636,15 +46631,21 @@ var STP_TERMIN_BILDER = [
   ['zeugnis', /zeugnis|beurteilung|notenschluss/], ['schnuppern', /schnupper|berufs|praktikum|lehrstelle/], ['auftritt', /konzert|theater|auffuehrung|auftritt|musical|zirkus/],
   ['feier', /weihnacht|chlaus|advent|feier|fest\b|abschluss|entlassung|apero/], ['fasnacht', /fasnacht|verkleid|fasching/], ['putztag', /putz|aufraeum|raeumen|clean/],
   ['arzt', /arzt|zahn|impf|schulaerzt|schulpsych/], ['foto', /foto/], ['hospitation', /hospitation|unterrichtsbesuch|inspektion|evaluation/],
-  ['offene-tuer', /offene tuer|tag der offenen|schnuppertag|infotag/], ['ausfall', /ausfall|krank|vertretung|abwesen/]
+  ['offene-tuer', /offene tuer|tag der offenen|schnuppertag|infotag/], ['ausfall', /ausfall|krank|vertretung|abwesen/],
+  ['feiertag', /feiertag|ostern|auffahrt|pfingst|1\. august|bundesfeier|karfreitag|neujahr|berchtold/], ['brueckentag', /bruecke|unterrichtsfrei|schulfrei|schule aus|keine schule/],
+  ['klassenrat', /klassenrat|schuelerrat|klassenstunde|klassenlehrer|\bkl\b|wahlen|abstimmung/], ['lesung', /lesung|lesenacht|bibliothek|buch|vorlese|autor|lesen/],
+  ['wettbewerb', /wettbewerb|olympiade|kaenguru|quiz|schnitzeljagd|rallye|meisterschaft/], ['gesundheit', /gesundheit|praevention|erste hilfe|sucht|aufklaerung|zahnpflege|ernaehrung/],
+  ['praesentation', /praesentation|vortrag|abschlussarbeit|ausstellung|vernissage|projektpraesent|referat/], ['geburtstag', /geburtstag|jubilaeum|verabschied|pensionierung|willkommen/],
+  ['medien', /medien|handy|cyber|internet|computer|digital/], ['teamanlass', /team|kollegium|personal|hock|abendessen|ausflug lp/]
 ];
+var STP_TERMIN_STANDARD = 'assets/termine/termin.webp';   // alles ohne Stichwort-Treffer
 var stpBilderFehlt = {};
 function stpTerminBild(text){
   var t = String(text || '').toLowerCase().replace(/ä/g,'ae').replace(/ö/g,'oe').replace(/ü/g,'ue').replace(/ß/g,'ss');
   for(var i = 0; i < STP_TERMIN_BILDER.length; i++){
-    if(STP_TERMIN_BILDER[i][1].test(t)){ var src = STP_TERMIN_BILDER[i][2] || 'assets/termine/'+STP_TERMIN_BILDER[i][0]+'.webp'; return stpBilderFehlt[src] ? null : src; }
+    if(STP_TERMIN_BILDER[i][1].test(t)){ var src = STP_TERMIN_BILDER[i][2] || 'assets/termine/'+STP_TERMIN_BILDER[i][0]+'.webp'; if(!stpBilderFehlt[src]) return src; break; }
   }
-  return null;
+  return stpBilderFehlt[STP_TERMIN_STANDARD] ? null : STP_TERMIN_STANDARD;
 }
 var STP_FERIEN_BILDER = { 'Sportferien':'sport', 'Frühlingsferien':'fruehling', 'Pfingstferien':'pfingsten', 'Sommerferien':'sommer', 'Herbstferien':'herbst', 'Weihnachtsferien':'weihnachten' };
 // Ferien-Symbol: Bildchen, bei fehlender Datei das Emoji.
