@@ -12,14 +12,12 @@
 // installierte Geräte ihre alte Dateiliste. Der Name steht auch in index.html
 // (NEU_CACHE) — beide gleich halten.
 //
-// Ladezeit (seit 08.10.2026): Die App-Hülle index.html (über 2,5 MB) kommt
-// SOFORT aus dem Cache und wird im Hintergrund neu geholt. Ist die geholte
-// Fassung eine andere, erfährt die Seite das (postMessage + Eintrag
-// «hl-version» im Cache) und lädt sich neu, solange noch niemand etwas getan
-// hat — sonst erscheint ein kleiner Hinweis «Neue Version». Vorher wartete
-// jeder Start auf den ganzen Download.
+// App-Hülle (seit 25.10.2026): Netz zuerst, Cache nur als Rückfall (offline oder Netz
+// langsamer als 3 Sekunden). Vorher kam die Hülle SOFORT aus dem Cache und wurde im
+// Hintergrund aufgefrischt – dabei blieb auf manchen Geräten (Safari) eine alte Fassung hängen.
+// Die Nachfrage ist günstig: Ist die Datei unverändert, antwortet GitHub nur mit «304».
 
-var CACHE = 'hl-app-v5';
+var CACHE = 'hl-app-v6';
 var SHELL = 'index.html';
 
 var PRECACHE = [
@@ -87,31 +85,26 @@ function meldeNeu(neu){
     list.forEach(function(c){ c.postMessage({ hlNeueVersion: true, stempel: neu }); });
   }).catch(function(){});
 }
-// App-Hülle: aus dem Cache antworten und im Hintergrund auffrischen.
+// App-Hülle: zuerst das Netz (mit Nachfrage «hat sich etwas geändert?» – bei unveränderter
+// Datei antwortet GitHub nur mit 304, das geht schnell). Ist das Netz weg oder nach 3 Sekunden
+// noch nicht da, kommt die Kopie aus dem Cache; das Holen läuft dann im Hintergrund weiter und
+// füllt den Cache für den nächsten Start. So bleibt nie eine alte Fassung hängen
+// (vorher: Cache zuerst, Auffrischen im Hintergrund – das blieb bei Jan auf dem Mac stecken).
 function shellAusCache(event){
-  // Der Service Worker muss SOFORT (nicht erst nach dem Cache-Zugriff) um Lebenszeit bitten,
-  // sonst beendet ihn vor allem Safari nach der Antwort, bevor die neue Fassung geholt ist.
   var fertig; event.waitUntil(new Promise(function(ok){ fertig = ok; }));
-  return caches.open(CACHE).then(function(cache){
-    return cache.match(SHELL).then(function(hit){
-      var netz = fetch(SHELL, { cache: 'no-cache' }).then(function(res){
-        if(!res || !res.ok || res.redirected) return res;
-        var neu = stempel(res), alt = hit ? stempel(hit) : '';
-        // Anderer Stempel allein genügt nicht (verschiedene Server geben für dieselbe
-        // Datei manchmal verschiedene ETags): nur melden, wenn der Inhalt wirklich anders ist.
-        var anders = (hit && neu && neu !== alt)
-          ? Promise.all([hit.clone().text(), res.clone().text()]).then(function(t){ return t[0] !== t[1]; }).catch(function(){ return true; })
-          : Promise.resolve(false);
-        return anders.then(function(a){
-          return cache.put(SHELL, res.clone()).then(function(){
-            if(a) return meldeNeu(neu);
-          });
-        }).then(function(){ return res; });
-      });
-      if(hit){ netz.catch(function(){}).then(fertig); return hit; }
-      return netz.then(function(res){ fertig(); return res; }, function(err){ fertig(); throw err; });
-    });
-  }, function(err){ fertig(); throw err; });
+  var netz = fetch(SHELL, { cache: 'no-cache' }).then(function(res){
+    if(res && res.ok && !res.redirected){
+      var kopie = res.clone();
+      return caches.open(CACHE).then(function(c){ return c.put(SHELL, kopie); }).then(function(){ return res; }, function(){ return res; });
+    }
+    return res;
+  });
+  netz.catch(function(){}).then(fertig);
+  var frist = new Promise(function(ok){ setTimeout(function(){ ok(null); }, 3000); });
+  return Promise.race([netz.catch(function(){ return null; }), frist]).then(function(res){
+    if(res && res.ok) return res;
+    return caches.open(CACHE).then(function(c){ return c.match(SHELL); }).then(function(hit){ return hit || netz; });
+  });
 }
 
 function cacheFirst(request){
