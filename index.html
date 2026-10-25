@@ -3494,13 +3494,15 @@
   .up-pille.drag{border-color:var(--brand);color:var(--text);background:var(--surface-2);}
   .up-ziel{font-size:12.5px;color:var(--text-muted);margin:-8px 0 var(--sp-4, 16px);}
   #fileInput, #fileInputLp{display:none;}
-  .zieh-flaeche{position:fixed;inset:0;z-index:300;display:none;align-items:center;justify-content:center;gap:24px;padding:24px;background:rgba(20,24,36,.62);}
+  .zieh-flaeche{position:absolute;left:0;right:0;top:calc(100% + 8px);z-index:70;display:none;gap:16px;padding:12px;background:var(--surface);border:2px solid var(--kontur, var(--border));border-radius:14px;box-shadow:0 6px 0 var(--kontur, rgba(0,0,0,.2));}
   .zieh-flaeche.an{display:flex;}
-  .zieh-flaeche .dropzone{flex:1 1 0;max-width:420px;min-height:230px;margin:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;font-size:16px;border:3px dashed #fff;background:rgba(255,255,255,.96);color:var(--text-muted);}
-  .zieh-flaeche .dropzone .dz-title{font-size:22px;margin:0;}
-  .zieh-flaeche .dropzone.drag{border-color:var(--brand);background:#fff;transform:scale(1.03);}
-  .zieh-flaeche .dropzone-lp{margin-top:0;padding:28px 20px;font-size:16px;}
-  @media (max-width:700px){ .zieh-flaeche{flex-direction:column;} .zieh-flaeche .dropzone{max-width:none;width:100%;min-height:120px;} }
+  .zieh-flaeche .dropzone{flex:1 1 0;min-height:110px;margin:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font-size:14px;border:2.5px dashed #7C8494;background:var(--surface);color:var(--text-muted);}
+  .zieh-flaeche .dropzone .dz-title{font-size:18px;margin:0;}
+  .zieh-flaeche .dropzone.drag{border-color:var(--brand);background:var(--surface-2);color:var(--text);}
+  .zieh-flaeche .dropzone-lp{margin-top:0;padding:16px 20px;font-size:14px;}
+  .up-ziehknopf{border-style:dashed;}
+  .up-ziehknopf[aria-expanded="true"]{background:var(--surface-2);}
+  @media (max-width:700px){ .zieh-flaeche{flex-direction:column;} .zieh-flaeche .dropzone{width:100%;min-height:90px;} }
 </style>
 <script>if(/-test\//.test(location.pathname))document.documentElement.classList.add('test-site');</script>
 </head>
@@ -15047,17 +15049,16 @@ function renderSubject(subjectId, folderId){
     html += '<input type="file" id="fileInput" accept=".html,.htm,.pdf,.pptx,text/html,application/pdf">';
     html += '<input type="file" id="fileInputDir" webkitdirectory multiple style="display:none;">';
     html += '<input type="file" id="fileInputLp" accept=".html,.htm,text/html">';
-    html += '<div class="back-row up-leiste" style="flex-wrap:wrap;">'+upMenue+'<span class="up-pille" id="upPille" title="Datei von deinem Computer hierher ziehen und loslassen">⬇ Datei hierher ziehen</span><button class="btn btn-ghost btn-sm" id="newFolderBtn" type="button">+ Neuer Ordner</button>'+
+    html += '<div class="back-row up-leiste" style="flex-wrap:wrap;">'+upMenue+'<button class="btn btn-ghost btn-sm up-ziehknopf" id="upPille" type="button" aria-expanded="false" title="Antippen oder eine Datei darüberziehen: dann erscheinen die Ziele «Für die Klasse» und «Nur Lehrpersonen»">⬇ Datei hinziehen</button><button class="btn btn-ghost btn-sm" id="newFolderBtn" type="button">+ Neuer Ordner</button>'+
       '<button class="btn btn-ghost btn-sm" id="kzmHolenBtn" type="button" title="Quiz, Karteikarten, Wortwolke oder Blitzumfrage hier ablegen">🏫 Aus dem Klassenzimmer</button>'+
       '<button class="btn btn-ghost btn-sm" id="dlHierBtn" type="button" title="Alle Dateien hier (mit allen Ordnern) als ZIP auf deinen Computer laden">⬇️ Alles herunterladen</button>'+
-      (isLeitung() ? '' : '<button class="btn btn-ghost btn-sm" id="bkNeuBtn" type="button" title="Die Klasse gibt hier Dateien ab, du holst sie auf deinen Computer">📮 Briefkasten aufstellen</button>')+'</div>';
+      (isLeitung() ? '' : '<button class="btn btn-ghost btn-sm" id="bkNeuBtn" type="button" title="Die Klasse gibt hier Dateien ab, du holst sie auf deinen Computer">📮 Briefkasten aufstellen</button>')+
+      '<div class="zieh-flaeche" id="ziehFlaeche">'+
+        '<div class="dropzone" id="dropzone"><div class="dz-title">Für die Klasse</div><div>Datei hier loslassen (HTML, PDF, PowerPoint)</div></div>'+
+        '<div class="dropzone dropzone-lp" id="dropzoneLp"><div class="dz-title">🔒 Nur Lehrpersonen</div><div>HTML-Datei hier loslassen (Unterrichtsplanung, Präp)</div></div>'+
+      '</div></div>';
     html += '<div class="up-ziel" id="dzTarget"></div>';
     html += '<div class="upload-progress" id="uploadProgress"></div>';
-    // Ablageflächen: nur sichtbar, solange eine Datei gezogen wird
-    html += '<div class="zieh-flaeche" id="ziehFlaeche" aria-hidden="true">'+
-      '<div class="dropzone" id="dropzone"><div class="dz-title">Für die Klasse</div><div>HTML, PDF oder PowerPoint hier loslassen</div></div>'+
-      '<div class="dropzone dropzone-lp" id="dropzoneLp"><div class="dz-title">🔒 Nur Lehrpersonen</div><div>HTML-Datei hier loslassen (Unterrichtsplanung, Präp)</div></div>'+
-    '</div>';
   }
 
   html += '<div id="resourceList" class="resource-list"><div class="empty-state">Wird geladen …</div></div>';
@@ -16612,6 +16613,8 @@ function ziehFlaecheZeigen(an){
   var f = document.getElementById('ziehFlaeche');
   if(!f) return;
   f.classList.toggle('an', !!an);
+  var k = document.getElementById('upPille');
+  if(k) k.setAttribute('aria-expanded', an ? 'true' : 'false');
   if(!an) ziehZaehler = 0;
 }
 // Das Fenster als Ziel: sobald eine DATEI über die Seite gezogen wird, erscheinen die zwei Ablageflächen.
@@ -16643,14 +16646,18 @@ function wireDropzone(subjectId){
     upMenue.addEventListener('click', function(){ setTimeout(function(){ upMenue.hidden = true; upBtn.setAttribute('aria-expanded', 'false'); }, 0); });
     document.addEventListener('click', function(e){ if(!document.body.contains(upMenue) || upMenue.hidden) return; if(!upMenue.contains(e.target) && e.target !== upBtn){ upMenue.hidden = true; upBtn.setAttribute('aria-expanded', 'false'); } });
   }
-  // Dauerhaft sichtbares Feld «Datei hierher ziehen» (gilt für die Klasse); die grossen Flächen erscheinen zusätzlich beim Ziehen.
-  var pille = document.getElementById('upPille');
-  if(pille){
-    ['dragenter','dragover'].forEach(function(evt){ pille.addEventListener(evt, function(e){ e.preventDefault(); pille.classList.add('drag'); }); });
-    ['dragleave','drop'].forEach(function(evt){ pille.addEventListener(evt, function(e){ e.preventDefault(); pille.classList.remove('drag'); }); });
-    pille.addEventListener('drop', function(e){
-      var files = e.dataTransfer.files;
-      if(files && files.length){ handleUpload(subjectId, state.route.folderId || null, files[0]); }
+  // Knopf «Datei hinziehen»: klappt die zwei Ziele («Für die Klasse», «Nur Lehrpersonen») unter der Leiste auf.
+  var ziehKnopf = document.getElementById('upPille');
+  if(ziehKnopf){
+    ziehKnopf.addEventListener('click', function(e){
+      e.stopPropagation();
+      var f = document.getElementById('ziehFlaeche');
+      ziehFlaecheZeigen(!(f && f.classList.contains('an')));
+    });
+    document.addEventListener('click', function(e){
+      var f = document.getElementById('ziehFlaeche');
+      if(!f || !f.classList.contains('an')) return;
+      if(!f.contains(e.target) && e.target !== ziehKnopf && !ziehKnopf.contains(e.target)) ziehFlaecheZeigen(false);
     });
   }
   var dz = document.getElementById('dropzone');
