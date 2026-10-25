@@ -3481,6 +3481,24 @@
   .page-welcome{margin-bottom:var(--sp-5);}
   .dropzone{margin-bottom:var(--sp-5);}
   .section-label{margin:var(--sp-2) 2px 0;}
+
+  /* 📎 Hinzufügen-Menü und Zieh-Fläche (statt zwei grosser Ablageflächen) */
+  .up-leiste{position:relative;}
+  .up-wrap{position:relative;display:inline-flex;}
+  .up-menue{position:absolute;left:0;top:calc(100% + 6px);z-index:60;display:flex;flex-direction:column;align-items:stretch;gap:2px;min-width:290px;padding:6px;background:var(--surface);border:2px solid var(--kontur, var(--border));border-radius:12px;box-shadow:0 6px 0 var(--kontur, rgba(0,0,0,.2));}
+  .up-menue[hidden]{display:none;}
+  .up-menue{min-width:340px;}
+  .up-menue .btn, :root[data-design="neu"] .up-menue .btn{justify-content:flex-start;text-align:left;border-color:transparent;box-shadow:none;background:transparent;cursor:pointer;width:100%;white-space:nowrap;}
+  .up-menue .btn:hover{background:var(--surface-2);}
+  .up-ziel{font-size:12.5px;color:var(--text-muted);margin:-8px 0 var(--sp-4, 16px);}
+  #fileInput, #fileInputLp{display:none;}
+  .zieh-flaeche{position:fixed;inset:0;z-index:300;display:none;align-items:center;justify-content:center;gap:24px;padding:24px;background:rgba(20,24,36,.62);}
+  .zieh-flaeche.an{display:flex;}
+  .zieh-flaeche .dropzone{flex:1 1 0;max-width:420px;min-height:230px;margin:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;font-size:16px;border:3px dashed #fff;background:rgba(255,255,255,.96);color:var(--text-muted);}
+  .zieh-flaeche .dropzone .dz-title{font-size:22px;margin:0;}
+  .zieh-flaeche .dropzone.drag{border-color:var(--brand);background:#fff;transform:scale(1.03);}
+  .zieh-flaeche .dropzone-lp{margin-top:0;padding:28px 20px;font-size:16px;}
+  @media (max-width:700px){ .zieh-flaeche{flex-direction:column;} .zieh-flaeche .dropzone{max-width:none;width:100%;min-height:120px;} }
 </style>
 <script>if(/-test\//.test(location.pathname))document.documentElement.classList.add('test-site');</script>
 </head>
@@ -15015,26 +15033,29 @@ function renderSubject(subjectId, folderId){
   }
 
   if(isTeacher){
-    html += '<div class="dropzone" id="dropzone">';
-    html += '<div class="dz-title">Neue Übungsseite, PDF oder PowerPoint hinzufügen</div>';
-    html += '<div>HTML-, PDF- oder PowerPoint-Datei (.pptx) hierher ziehen oder <label for="fileInput" style="color:var(--brand);text-decoration:underline;cursor:pointer;">Datei auswählen</label></div>';
-    html += '<div style="margin-top:10px;"><button class="btn btn-ghost btn-sm" id="dzLinkBtn" type="button">🔗 Link hinzufügen</button></div>';
-    html += '<div id="dzTarget" style="font-size:12.5px;margin-top:8px;"></div>';
+    // 📎 Hinzufügen: ein Menü statt zwei grosser Ablageflächen. Ziehen geht weiter – die Flächen unten
+    // erscheinen nur, solange eine Datei über das Fenster gezogen wird (wireDropzone).
+    var upMenue = '<span class="up-wrap"><button class="btn btn-primary btn-sm" id="upMenuBtn" type="button" aria-haspopup="true" aria-expanded="false">＋ Hinzufügen ▾</button>'+
+      '<span class="up-menue" id="upMenue" hidden>'+
+        '<label class="btn btn-ghost btn-sm" for="fileInput">📄 Datei: HTML, PDF oder PowerPoint</label>'+
+        '<button class="btn btn-ghost btn-sm" id="dzLinkBtn" type="button">🔗 Link</button>'+
+        '<label class="btn btn-ghost btn-sm" for="fileInputDir" title="Unterordner werden als Ordner angelegt. Lösungen (Dateiname endet auf «_L.pdf» oder «Lösung.pdf», oder Ordner auf «(verdeckt)») stehen direkt neben der Aufgabe, werden aber ausgeblendet und geschützt.">📁 Ordner mit PDFs</label>'+
+        '<label class="btn btn-ghost btn-sm" for="fileInputLp" title="Liegt neben den Übungen, nur Lehrpersonen sehen es – z. B. Unterrichtsplanung oder Präp.">🔒 Lehrer-HTML (nur für Lehrpersonen)</label>'+
+      '</span></span>';
     html += '<input type="file" id="fileInput" accept=".html,.htm,.pdf,.pptx,text/html,application/pdf">';
-    html += '<div style="margin-top:10px;font-size:13px;"><label for="fileInputDir" style="color:var(--brand);text-decoration:underline;cursor:pointer;">📁 Ordner mit PDFs hochladen</label> <span style="color:var(--text-muted);">– Unterordner werden als Ordner angelegt. Lösungen (Dateiname endet auf «_L.pdf» oder «Lösung.pdf», oder Ordner auf «(verdeckt)») stehen direkt neben der Aufgabe, werden aber ausgeblendet und geschützt.</span></div>';
     html += '<input type="file" id="fileInputDir" webkitdirectory multiple style="display:none;">';
-    html += '<div class="upload-progress" id="uploadProgress"></div>';
-    html += '</div>';
-    // 🔒 Lehrer-HTML: alles, was hier abgelegt wird, sehen nur Lehrpersonen
-    html += '<div class="dropzone dropzone-lp" id="dropzoneLp">';
-    html += '<div class="dz-title">🔒 Lehrer-HTML hinzufügen</div>';
-    html += '<div>HTML-Datei hierher ziehen oder <label for="fileInputLp" style="color:var(--brand);text-decoration:underline;cursor:pointer;">Datei auswählen</label> – z. B. Unterrichtsplanung oder Präp. Liegt neben den Übungen, nur Lehrpersonen sehen sie.</div>';
     html += '<input type="file" id="fileInputLp" accept=".html,.htm,text/html">';
-    html += '</div>';
-    html += '<div class="back-row" style="flex-wrap:wrap;"><button class="btn btn-ghost btn-sm" id="newFolderBtn" type="button">+ Neuer Ordner</button>'+
+    html += '<div class="back-row up-leiste" style="flex-wrap:wrap;">'+upMenue+'<button class="btn btn-ghost btn-sm" id="newFolderBtn" type="button">+ Neuer Ordner</button>'+
       '<button class="btn btn-ghost btn-sm" id="kzmHolenBtn" type="button" title="Quiz, Karteikarten, Wortwolke oder Blitzumfrage hier ablegen">🏫 Aus dem Klassenzimmer</button>'+
       '<button class="btn btn-ghost btn-sm" id="dlHierBtn" type="button" title="Alle Dateien hier (mit allen Ordnern) als ZIP auf deinen Computer laden">⬇️ Alles herunterladen</button>'+
       (isLeitung() ? '' : '<button class="btn btn-ghost btn-sm" id="bkNeuBtn" type="button" title="Die Klasse gibt hier Dateien ab, du holst sie auf deinen Computer">📮 Briefkasten aufstellen</button>')+'</div>';
+    html += '<div class="up-ziel" id="dzTarget"></div>';
+    html += '<div class="upload-progress" id="uploadProgress"></div>';
+    // Ablageflächen: nur sichtbar, solange eine Datei gezogen wird
+    html += '<div class="zieh-flaeche" id="ziehFlaeche" aria-hidden="true">'+
+      '<div class="dropzone" id="dropzone"><div class="dz-title">Für die Klasse</div><div>HTML, PDF oder PowerPoint hier loslassen</div></div>'+
+      '<div class="dropzone dropzone-lp" id="dropzoneLp"><div class="dz-title">🔒 Nur Lehrpersonen</div><div>HTML-Datei hier loslassen (Unterrichtsplanung, Präp)</div></div>'+
+    '</div>';
   }
 
   html += '<div id="resourceList" class="resource-list"><div class="empty-state">Wird geladen …</div></div>';
@@ -15189,8 +15210,8 @@ function renderFolderContents(){
   var dzTarget = document.getElementById('dzTarget');
   if(dzTarget){
     dzTarget.innerHTML = here
-      ? 'Die Datei landet im Ordner <b>'+esc(folderById(here).name)+'</b>.'
-      : 'Die Datei landet direkt im Fach <b>'+esc(s.name)+'</b>.';
+      ? 'Neues landet im Ordner <b>'+esc(folderById(here).name)+'</b>.'
+      : 'Neues landet direkt im Fach <b>'+esc(s.name)+'</b>.';
   }
 
   var grFachEl = document.getElementById('gruppenFach');
@@ -16584,7 +16605,42 @@ async function deleteContentIfUnused(contentId, rid){
 // Die Dropzone lädt immer in den GERADE OFFENEN Ordner (state.route.folderId).
 // Sie wird nur einmal pro Fachseite verdrahtet und liest das Ziel erst beim
 // Ablegen aus — so stimmt es auch nach einem Wechsel in einen Unterordner.
+var ziehZaehler = 0, ziehVerdrahtet = false;
+function ziehFlaecheZeigen(an){
+  var f = document.getElementById('ziehFlaeche');
+  if(!f) return;
+  f.classList.toggle('an', !!an);
+  if(!an) ziehZaehler = 0;
+}
+// Das Fenster als Ziel: sobald eine DATEI über die Seite gezogen wird, erscheinen die zwei Ablageflächen.
+function ziehFensterVerdrahten(){
+  if(ziehVerdrahtet) return;
+  ziehVerdrahtet = true;
+  function mitDatei(e){ return e.dataTransfer && Array.prototype.indexOf.call(e.dataTransfer.types || [], 'Files') >= 0; }
+  document.addEventListener('dragenter', function(e){ if(mitDatei(e) && document.getElementById('ziehFlaeche')){ ziehZaehler++; ziehFlaecheZeigen(true); } });
+  document.addEventListener('dragleave', function(e){ if(mitDatei(e) && document.getElementById('ziehFlaeche')){ ziehZaehler--; if(ziehZaehler <= 0) ziehFlaecheZeigen(false); } });
+  document.addEventListener('dragover', function(e){ if(mitDatei(e) && document.getElementById('ziehFlaeche')) e.preventDefault(); });
+  document.addEventListener('drop', function(e){
+    if(!document.getElementById('ziehFlaeche')) return;
+    if(!e.target.closest || !e.target.closest('.zieh-flaeche')) e.preventDefault();   // daneben losgelassen: nichts tun, der Browser soll die Datei nicht öffnen
+    ziehFlaecheZeigen(false);
+  });
+  document.addEventListener('dragend', function(){ ziehFlaecheZeigen(false); });
+  document.addEventListener('keydown', function(e){ if(e.key === 'Escape') ziehFlaecheZeigen(false); });
+}
 function wireDropzone(subjectId){
+  ziehFensterVerdrahten();
+  var upBtn = document.getElementById('upMenuBtn'), upMenue = document.getElementById('upMenue');
+  if(upBtn && upMenue){
+    upBtn.addEventListener('click', function(e){
+      e.stopPropagation();
+      var an = upMenue.hidden;
+      upMenue.hidden = !an;
+      upBtn.setAttribute('aria-expanded', an ? 'true' : 'false');
+    });
+    upMenue.addEventListener('click', function(){ setTimeout(function(){ upMenue.hidden = true; upBtn.setAttribute('aria-expanded', 'false'); }, 0); });
+    document.addEventListener('click', function(e){ if(!document.body.contains(upMenue) || upMenue.hidden) return; if(!upMenue.contains(e.target) && e.target !== upBtn){ upMenue.hidden = true; upBtn.setAttribute('aria-expanded', 'false'); } });
+  }
   var dz = document.getElementById('dropzone');
   var input = document.getElementById('fileInput');
   ['dragenter','dragover'].forEach(function(evt){
