@@ -621,6 +621,12 @@
   .eb-leiste{display:flex;align-items:center;gap:10px 14px;flex-wrap:wrap;margin-bottom:12px;}
   .eb-feld{display:flex;align-items:center;gap:8px;font-weight:700;font-size:14px;}
   .eb-feld select{width:auto;max-width:100%;}
+  /* Auswahlfelder und Eingaben der Earlybird-Seite im Stil der Library (statt Browser-Standard) */
+  .eb-leiste select, .eb-card select{appearance:none;-webkit-appearance:none;font:inherit;font-weight:700;font-size:14px;color:var(--text);cursor:pointer;
+    background:var(--surface) url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%237C8494' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'><path d='m6 9 6 6 6-6'/></svg>") no-repeat right 12px center;
+    border:2px solid var(--kontur, var(--border));border-radius:10px;padding:8px 36px 8px 12px;min-height:40px;box-shadow:0 3px 0 var(--kontur, transparent);}
+  .eb-auftrag{font:inherit;font-size:13.5px;color:var(--text);background:var(--surface);border:2px solid var(--border);border-radius:10px;padding:8px 12px;}
+  .eb-leiste select:focus-visible, .eb-card select:focus-visible, .eb-auftrag:focus-visible{outline:2px solid var(--gelb, #FEEB15);outline-offset:2px;border-color:var(--kontur, var(--brand));}
   .eb-zahl{color:var(--text-muted);font-size:14px;font-weight:600;margin-right:auto;}
   .eb-von{color:var(--text-muted);}
   .submission-list.eb-liste{max-height:none;overflow:visible;align-items:start;}
@@ -15044,18 +15050,18 @@ function renderSubject(subjectId, folderId){
         '<label class="btn btn-ghost btn-sm" for="fileInput">📄 Datei: HTML, PDF oder PowerPoint</label>'+
         '<button class="btn btn-ghost btn-sm" id="dzLinkBtn" type="button">🔗 Link</button>'+
         '<label class="btn btn-ghost btn-sm" for="fileInputDir" title="Unterordner werden als Ordner angelegt. Lösungen (Dateiname endet auf «_L.pdf» oder «Lösung.pdf», oder Ordner auf «(verdeckt)») stehen direkt neben der Aufgabe, werden aber ausgeblendet und geschützt.">📁 Ordner mit PDFs</label>'+
-        '<label class="btn btn-ghost btn-sm" for="fileInputLp" title="Liegt neben den Übungen, nur Lehrpersonen sehen es – z. B. Unterrichtsplanung oder Präp.">🔒 Lehrer-HTML (nur für Lehrpersonen)</label>'+
+        '<label class="btn btn-ghost btn-sm" for="fileInputLp" title="Liegt neben den Übungen, nur Lehrpersonen sehen es – z. B. Unterrichtsplanung, Präp, Lösungen oder Folien.">🔒 Nur für Lehrpersonen: HTML, PDF, PowerPoint</label>'+
       '</span></span>';
     html += '<input type="file" id="fileInput" accept=".html,.htm,.pdf,.pptx,text/html,application/pdf">';
     html += '<input type="file" id="fileInputDir" webkitdirectory multiple style="display:none;">';
-    html += '<input type="file" id="fileInputLp" accept=".html,.htm,text/html">';
+    html += '<input type="file" id="fileInputLp" accept=".html,.htm,.pdf,.pptx,text/html,application/pdf">';
     html += '<div class="back-row up-leiste" style="flex-wrap:wrap;">'+upMenue+'<button class="btn btn-ghost btn-sm up-ziehknopf" id="upPille" type="button" aria-expanded="false" title="Antippen oder eine Datei darüberziehen: dann erscheinen die Ziele «Für die Klasse» und «Nur Lehrpersonen»">⬇ Datei hinziehen</button><button class="btn btn-ghost btn-sm" id="newFolderBtn" type="button">+ Neuer Ordner</button>'+
       '<button class="btn btn-ghost btn-sm" id="kzmHolenBtn" type="button" title="Quiz, Karteikarten, Wortwolke oder Blitzumfrage hier ablegen">🏫 Aus dem Klassenzimmer</button>'+
       '<button class="btn btn-ghost btn-sm" id="dlHierBtn" type="button" title="Alle Dateien hier (mit allen Ordnern) als ZIP auf deinen Computer laden">⬇️ Alles herunterladen</button>'+
       (isLeitung() ? '' : '<button class="btn btn-ghost btn-sm" id="bkNeuBtn" type="button" title="Die Klasse gibt hier Dateien ab, du holst sie auf deinen Computer">📮 Briefkasten aufstellen</button>')+
       '<div class="zieh-flaeche" id="ziehFlaeche">'+
         '<div class="dropzone" id="dropzone"><div class="dz-title">Für die Klasse</div><div>Datei hier loslassen (HTML, PDF, PowerPoint)</div></div>'+
-        '<div class="dropzone dropzone-lp" id="dropzoneLp"><div class="dz-title">🔒 Nur Lehrpersonen</div><div>HTML-Datei hier loslassen (Unterrichtsplanung, Präp)</div></div>'+
+        '<div class="dropzone dropzone-lp" id="dropzoneLp"><div class="dz-title">🔒 Nur Lehrpersonen</div><div>HTML, PDF oder PowerPoint hier loslassen</div></div>'+
       '</div></div>';
     html += '<div class="up-ziel" id="dzTarget"></div>';
     html += '<div class="upload-progress" id="uploadProgress"></div>';
@@ -15728,7 +15734,7 @@ function resourceCardHtml(r, index, total, isTeacher){
   }
   if(!lp && !r.folien) html += '<div class="resource-ring" style="--p:0" title="Fortschritt"><span id="pbar-'+r.id+'">–</span></div>';
   html += '<div class="resource-info"><h4>'+esc(r.title || r.fileName)+(r.current?' <span class="chip-current">Aktuell</span>':'')+(lp?' <span class="chip-lehrer">🔒 Nur Lehrpersonen</span>':'')+(aus?' <span class="chip-lehrer">🙈 Ausgeblendet</span>':'')+niveauChipHtml(r, isTeacher)+'</h4>';
-  var metaStart = lp && r.folien ? '🎞️ Folien · nur Lehrpersonen · Notizen + 🎤 Referentenansicht' : lp ? 'Lehrer-HTML · für Schüler:innen unsichtbar' : r.pdf ? '📄 PDF' : r.folien ? '🎞️ Folien · ▶ Präsentieren, Notizen nur für Lehrpersonen' : r.externalUrl ? '🔗 Link · öffnet in neuem Tab' : 'Noch nicht geübt';
+  var metaStart = lp && r.folien ? '🎞️ Folien · nur Lehrpersonen · Notizen + 🎤 Referentenansicht' : lp && r.pdf ? '📄 Lehrer-PDF · für Schüler:innen unsichtbar' : lp ? 'Lehrer-HTML · für Schüler:innen unsichtbar' : r.pdf ? '📄 PDF' : r.folien ? '🎞️ Folien · ▶ Präsentieren, Notizen nur für Lehrpersonen' : r.externalUrl ? '🔗 Link · öffnet in neuem Tab' : 'Noch nicht geübt';
   if(aus) metaStart = 'Für Schüler:innen ausgeblendet · ' + metaStart;
   html += '<div class="resource-meta" id="pmeta-'+r.id+'">'+metaStart+(uploaded?' · hinzugefügt am '+uploaded:'')+'</div>';
   html += '</div>';
@@ -15740,7 +15746,7 @@ function resourceCardHtml(r, index, total, isTeacher){
     }
     html += '<span class="res-mehr"><button class="btn btn-ghost btn-sm res-mehr-btn" type="button" aria-haspopup="true" aria-expanded="false" title="Weitere Aktionen">⋯</button><span class="res-mehr-menu">';
     if(!lp) html += '<button class="btn btn-sm btn-lehrer'+(r.niveau || Array.isArray(r.nurFuer) ? ' active' : '')+'" id="zu-'+r.id+'" type="button" title="Niveau A/B/C setzen und festlegen, wer diese Übung sieht">🎯 Zuweisen</button>';
-    if(!r.externalUrl && !r.pdf) html += '<button class="btn btn-sm btn-lehrer'+(lp?' active':'')+'" id="lp-'+r.id+'" type="button" title="'+(lp?'Wieder für alle sichtbar machen':'Nur für Lehrpersonen sichtbar machen (z. B. Unterrichtsplanung)')+'">'+(lp?'🔓 Für alle sichtbar machen':'🔒 Nur Lehrpersonen')+'</button>';
+    if(!r.externalUrl) html += '<button class="btn btn-sm btn-lehrer'+(lp?' active':'')+'" id="lp-'+r.id+'" type="button" title="'+(lp?'Wieder für alle sichtbar machen':'Nur für Lehrpersonen sichtbar machen (z. B. Unterrichtsplanung)')+'">'+(lp?'🔓 Für alle sichtbar machen':'🔒 Nur Lehrpersonen')+'</button>';
     if(!lp) html += '<button class="btn btn-sm btn-lehrer'+(aus?' active':'')+'" id="aus-'+r.id+'" type="button" title="'+(aus?'Wieder für die Klasse einblenden (z. B. wenn das Thema durch ist)':'Für die Klasse ausblenden (z. B. Lösungsdossier, bis das Thema durch ist)')+'">'+(aus?'👁 Einblenden':'🙈 Ausblenden')+'</button>';
     if(heimKlasse() && !isFremdeKlasse()){
       html += '<button class="btn btn-sm btn-empfohlen'+(r.empfohlen?' active':'')+'" id="emp-'+r.id+'" type="button" title="'+(r.empfohlen?'Wird anderen Lehrpersonen unter ⚙️ empfohlen – antippen, um die Empfehlung zurückzunehmen':'Anderen Lehrpersonen unter ⚙️ «Von Lehrern empfohlen» vorschlagen')+'">'+(r.empfohlen?'⭐ Empfohlen':'☆ Empfehlen')+'</button>';
@@ -16686,7 +16692,7 @@ function wireDropzone(subjectId){
   var inputLp = document.getElementById('fileInputLp');
   if(!dzLp || !inputLp) return;
   function lpDatei(file){
-    if(!isHtmlFile(file)){ toast('Als Lehrer-HTML gehen nur HTML-Dateien (.html).'); return; }
+    if(!isHtmlFile(file) && !isPdfFile(file) && !isPptxFile(file)){ toast('Für Lehrpersonen gehen HTML-, PDF- und PowerPoint-Dateien (.html / .pdf / .pptx).'); return; }
     handleUpload(subjectId, state.route.folderId || null, file, true);
   }
   ['dragenter','dragover'].forEach(function(evt){
@@ -16771,8 +16777,8 @@ function handleUpload(subjectId, folderId, file, nurLehrerVorwahl){
   var suggested = file.name.replace(/\.(html?|pdf)$/i,'').replace(/[_-]+/g,' ');
   var where_ = folderId ? ('Ordner «'+(folderById(folderId) ? folderById(folderId).name : '')+'»') : 'Fach-Hauptebene';
   if(isPdfFile(file)){
-    uiPrompt('Titel für dieses PDF', 'Die Datei wird in der '+where_+' abgelegt.', suggested, 'Hochladen', function(title){
-      doUpload(subjectId, folderId, file, title);
+    uiPrompt(nurLehrerVorwahl ? '🔒 Titel für dieses Lehrer-PDF' : 'Titel für dieses PDF', 'Die Datei wird in der '+where_+' abgelegt'+(nurLehrerVorwahl ? ' – nur Lehrpersonen sehen sie.' : '.'), suggested, 'Hochladen', function(title){
+      doUpload(subjectId, folderId, file, title, !!nurLehrerVorwahl);
     });
     return;
   }
@@ -17022,7 +17028,7 @@ async function doUpload(subjectId, folderId, file, title, nurLehrer){
     };
     if(pdf) meta.pdf = true;
     if(folien) meta.folien = true;
-    if(nurLehrer && !pdf) meta.nurLehrer = true;
+    if(nurLehrer) meta.nurLehrer = true;   // Lehrer-HTML, Lehrer-PDF und Folien: Inhalt nur für Lehrpersonen
     batch.set(kdoc('resources', resId), meta);
     var kopf = { chunkCount: chunks.length, bytes: bytes, ownerUid: state.user.uid };
     if(meta.nurLehrer) kopf.nurLehrer = true;   // 🔒 siehe inhaltSchutzSetzen
