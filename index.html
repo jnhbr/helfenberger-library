@@ -3455,6 +3455,32 @@
     .tsp-zwei,.tsp-zwei.sv{grid-template-columns:1fr;}
   }
   @media (prefers-reduced-motion:reduce){ .bg-bingo,.bz-wer.frei,.bz-knopf.dran,.dg-feld.gew{animation:none;} }
+
+  /* ✅ Hinweis mit Symbol */
+  .toast{display:flex;align-items:center;gap:10px;max-width:min(92vw,540px);}
+  .toast-ico{flex:none;width:24px;height:24px;border-radius:50%;display:grid;place-items:center;}
+  .toast-ico.ja{background:var(--good);}
+  .toast-ico.nein{background:var(--bad);}
+  .toast-ico svg{width:15px;height:15px;fill:none;stroke:#fff;stroke-width:3;stroke-linecap:round;stroke-linejoin:round;}
+  .toast.show .toast-ico{animation:toastPop .38s cubic-bezier(.2,1.7,.4,1);}
+  .toast.show .toast-ico.ja path{stroke-dasharray:26;stroke-dashoffset:26;animation:toastHaken .34s .1s ease forwards;}
+  .toast.show .toast-ico.nein{animation:toastWackel .42s ease;}
+  @keyframes toastPop{0%{transform:scale(.3);}100%{transform:scale(1);}}
+  @keyframes toastHaken{to{stroke-dashoffset:0;}}
+  @keyframes toastWackel{0%,100%{transform:translateX(0);}20%{transform:translateX(-4px);}40%{transform:translateX(4px);}60%{transform:translateX(-3px);}80%{transform:translateX(3px);}}
+  @media (prefers-reduced-motion: reduce){ .toast.show .toast-ico{animation:none;} .toast.show .toast-ico.ja path{animation:none;stroke-dashoffset:0;} .toast.show .toast-ico.nein{animation:none;} }
+
+  /* 📐 Einheitliche Abstände (25.10.2026): feste Stufen 4 / 8 / 12 / 16 / 24 / 32 statt vieler Einzelwerte */
+  :root{--sp-1:4px;--sp-2:8px;--sp-3:12px;--sp-4:16px;--sp-5:24px;--sp-6:32px;--sp-liste:16px;--sp-karte:16px 18px;--r-karte:14px;}
+  @media (max-width:700px){ :root{--sp-liste:12px;--sp-karte:12px 16px;} }
+  .resource-list, .cal-list, :root[data-design="neu"] .resource-list{gap:var(--sp-liste);}
+  .kz-tiles{gap:var(--sp-liste);}
+  .resource-card, .folder-card, .cal-entry{padding:var(--sp-karte);border-radius:var(--r-karte);}
+  .back-row{margin-bottom:var(--sp-4);}
+  .subject-head, .crumbs{margin-bottom:var(--sp-4);}
+  .page-welcome{margin-bottom:var(--sp-5);}
+  .dropzone{margin-bottom:var(--sp-5);}
+  .section-label{margin:var(--sp-2) 2px 0;}
 </style>
 <script>if(/-test\//.test(location.pathname))document.documentElement.classList.add('test-site');</script>
 </head>
@@ -8126,12 +8152,21 @@ var state = {
 var app = document.getElementById('app');
 var toastEl = document.getElementById('toast');
 var toastTimer = null;
-function toast(msg){
-  toastEl.textContent = msg;
+// Hinweis unten: grüner Haken (Erfolg) oder rotes Ausrufezeichen (Fehler/Problem), mit kurzer Animation.
+// Ob es ein Problem ist, erkennt die Funktion am Text; ein zweites Argument 'fehler'/'ok' erzwingt es.
+var TOAST_FEHLER = /fehl|nicht |nicht$|konnte|ungültig|ungueltig|zu gross|zu groß|bitte |abgelehnt|gesperrt|nicht erlaubt|kein /i;
+var TOAST_SVG_OK = '<svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+var TOAST_SVG_NEIN = '<svg viewBox="0 0 24 24"><path d="M12 6v7M12 17.5v.5"/></svg>';
+function toast(msg, art){
+  var text = String(msg == null ? '' : msg).replace(/^(✅|✔️?|❌|⚠️)\s*/, '');
+  var fehler = art ? art === 'fehler' : TOAST_FEHLER.test(text);
+  toastEl.innerHTML = '<span class="toast-ico '+(fehler ? 'nein' : 'ja')+'" aria-hidden="true">'+(fehler ? TOAST_SVG_NEIN : TOAST_SVG_OK)+'</span><span class="toast-txt">'+esc(text)+'</span>';
+  toastEl.classList.remove('show'); void toastEl.offsetWidth;   // Animation bei jedem Hinweis neu starten
   toastEl.classList.add('show');
   clearTimeout(toastTimer);
   toastTimer = setTimeout(function(){ toastEl.classList.remove('show'); }, 2600);
 }
+if(typeof IS_TEST_SITE !== 'undefined' && IS_TEST_SITE) window.hlToast = toast;   // nur Testseite: zum Ausprobieren in der Konsole
 
 function esc(s){ return (s||'').toString().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 /* 🖨️ Ausdrucke ohne die Kopf-/Fusszeilen des Browsers (Datum, Seitentitel, Adresse, Seitenzahl): Besetzt eine Seite alle
