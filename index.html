@@ -583,6 +583,9 @@
   /* Farbe nach Art: dicke Kante und leicht getönter Hintergrund in der Farbe der Eintragsart */
   .cal-entry{border-left-width:8px;background:linear-gradient(100deg, color-mix(in srgb, var(--cal-c, var(--brand)) 13%, var(--surface)), var(--surface) 55%);}
   .bild-icon{object-fit:contain;vertical-align:middle;}
+  .kz-tile-icon .bild-icon{display:block;}
+  /* auf dunkler Seitenleiste ein heller Untergrund, damit die dunkle Kontur lesbar bleibt */
+  :root[data-design="neu"] .topbar .bild-icon{background:#fff;border-radius:8px;padding:2px;box-sizing:border-box;}
   .cal-entry-type{display:inline-flex;align-items:center;gap:6px;}
   .cal-list-past{opacity:.6;}
   .cal-past-details summary{cursor:pointer;font-weight:700;font-size:15px;padding:8px 0;list-style:none;}
@@ -4211,15 +4214,19 @@ function anredeMitName(profile){
   var k = name.toLowerCase().replace(/ä/g,'ae').replace(/ö/g,'oe').replace(/ü/g,'ue').replace(/ß/g,'ss').replace(/é|è|ê/g,'e').trim();
   return LP_ANREDE[k] ? LP_ANREDE[k]+' '+name : name;
 }
-var bildIconFehlt = {};
-function bildIconHtml(schluessel, emoji, px){
+var bildIconFehlt = {}, bildErsatzHtml = {};
+function bildIconHtml(schluessel, emoji, px, ersatzHtml){
+  if(ersatzHtml) bildErsatzHtml[schluessel] = ersatzHtml;
   var src = 'assets/icons/'+schluessel+'.webp';
-  if(bildIconFehlt[src]) return emoji;
+  if(bildIconFehlt[src]) return ersatzHtml || emoji;
   return '<img class="bild-icon" src="'+src+'" alt="" loading="lazy" style="width:'+px+'px;height:'+px+'px" onerror="bildIconWeg(this,\''+emoji+'\')">';
 }
 window.bildIconWeg = function(img, ersatz){
-  bildIconFehlt[img.getAttribute('src')] = true;
-  var n = document.createElement('span'); n.textContent = ersatz;
+  var src = img.getAttribute('src');
+  bildIconFehlt[src] = true;
+  var key = src.replace(/^assets\/icons\//, '').replace(/\.webp$/, '');
+  var n = document.createElement('span');
+  if(bildErsatzHtml[key]) n.innerHTML = bildErsatzHtml[key]; else n.textContent = ersatz;
   if(img.parentNode) img.parentNode.replaceChild(n, img);
 };
 var CALENDAR_TYPES = {
@@ -9832,6 +9839,10 @@ function neuFavWahl(){
 
 var neuMehrOffen = false;
 // Welcher Eintrag der Navigation zur aktuellen Ansicht gehört.
+function neuNavIcon(id){
+  var bild = {kalender:'nav-kalender', stundenplan:'nav-stundenplan', lernstand:'nav-lernstand', klassenzimmer:'nav-klassenzimmer', tools:'nav-tools'}[id];
+  return bild ? bildIconHtml(bild, '', 28, NEU_ICON[id]) : NEU_ICON[id];
+}
 function neuNavAktiv(){
   var n = state.route && state.route.name;
   if(n === 'kalender' || n === 'stundenplan' || n === 'tools') return n;
@@ -9847,7 +9858,7 @@ function neuNavHtml(isTeacher){
   var aktiv = neuNavAktiv();
   var h = '<nav class="neu-nav" id="neuNav" aria-label="Hauptnavigation">';
   eintraege.forEach(function(e){
-    h += '<button type="button" class="neu-nav-btn'+(e[0] === aktiv ? ' on' : '')+'" data-neu="'+e[0]+'"'+(e[0] === aktiv ? ' aria-current="page"' : '')+'>'+NEU_ICON[e[0]]+'<span>'+e[1]+'</span></button>';
+    h += '<button type="button" class="neu-nav-btn'+(e[0] === aktiv ? ' on' : '')+'" data-neu="'+e[0]+'"'+(e[0] === aktiv ? ' aria-current="page"' : '')+'>'+neuNavIcon(e[0])+'<span>'+e[1]+'</span></button>';
   });
   return h + '</nav>';
 }
@@ -10468,8 +10479,8 @@ function renderChrome(innerHtml){
   html += '<button class="btn btn-ghost btn-sm topbar-coin" id="coinBtn" type="button" title="Schulden" hidden>💸<span class="topbar-coin-badge" id="coinBadge" hidden></span></button>';
   html += topbarFerienCountdownHtml();
   if(isTeacher && !isLeitung()){
-    html += '<button class="btn btn-ghost btn-sm topbar-todo" id="todoBtn" type="button" title="To-dos">📝 To-dos <span class="topbar-todo-badge" id="todoBadge">0</span></button>';
-    html += '<button class="btn btn-ghost btn-sm topbar-todo" id="pflanzenBtn" type="button" title="Pflanzen">🪴 <span class="topbar-todo-badge due" hidden>0</span></button>';
+    html += '<button class="btn btn-ghost btn-sm topbar-todo" id="todoBtn" type="button" title="To-dos">'+bildIconHtml('nav-todos','📝',24)+' To-dos <span class="topbar-todo-badge" id="todoBadge">0</span></button>';
+    html += '<button class="btn btn-ghost btn-sm topbar-todo" id="pflanzenBtn" type="button" title="Pflanzen">'+bildIconHtml('nav-pflanzen','🪴',24)+' <span class="topbar-todo-badge due" hidden>0</span></button>';
   }
   html += '<button class="topbar-quiz" id="quizJoinBtn" type="button" hidden>🎮 Quiz läuft — mitmachen</button>';
   html += '<button class="topbar-quiz topbar-umfrage" id="umfrageJoinBtn" type="button" hidden>📊 Umfrage läuft — abstimmen</button>';
@@ -10488,19 +10499,19 @@ function renderChrome(innerHtml){
   if(IS_TEST_SITE && isTeacher && !isLeitung()){ html += '<button class="btn btn-primary btn-sm" id="goLiveBtn" type="button" title="Stand der Testseite sofort auf die Live-Seite übernehmen">🚀 Jetzt live</button>'; }
   html += '<span class="topbar-iconrow"><button class="btn btn-ghost btn-sm topbar-bell neu-mehr-btn" id="neuMehrBtn" type="button" aria-expanded="'+(neuMehrOffen?'true':'false')+'">'+NEU_ICON.mehr+' Mehr</button><button class="btn btn-ghost btn-sm topbar-bell neu-fav-wahl" id="neuFavBtn" type="button">★ Favoriten wählen</button><span class="topbar-icons" id="topbarIcons">';
   if(!isTeacher){ html += '<button class="btn btn-ghost btn-sm topbar-bell" id="streakBtn" type="button">🔥 <b>0</b></button>'; }
-  if(!isTeacher){ html += '<button class="btn btn-ghost btn-sm topbar-bell topbar-besen" id="aemtliBtn" type="button" title="Ämtli">🧹</button>'; }
-  if(!isTeacher){ html += '<button class="btn btn-ghost btn-sm topbar-bell" id="notenBtn" type="button" title="Notenrechner">🎶</button>'; }
-  if(isTeacher && !istPraktikum()){ html += '<button class="btn btn-ghost btn-sm topbar-bell" id="earlybirdBtn" type="button" title="Earlybird">🐦</button>'; }
-  html += '<button class="btn btn-ghost btn-sm topbar-bell" id="neuBtn" type="button" title="Neuigkeiten">🆕</button>';
-  html += '<button class="btn btn-ghost btn-sm topbar-bell" id="fragenBtn" type="button" title="Anonyme Fragebox">❓<span class="topbar-badge" id="fragenBadge" hidden>0</span></button>';
-  html += '<button class="btn btn-ghost btn-sm topbar-bell" id="searchBtn" type="button" title="Suche">🔍</button>';
-  html += '<button class="btn btn-ghost btn-sm topbar-bell" id="langBtn" type="button" title="Sprache wählen">🌐'+(i18nCode() !== 'de' ? '<span class="topbar-lang-code">'+esc(i18nCode().toUpperCase())+'</span>' : '')+'</button>';
+  if(!isTeacher){ html += '<button class="btn btn-ghost btn-sm topbar-bell topbar-besen" id="aemtliBtn" type="button" title="Ämtli">'+bildIconHtml('nav-aemtli','🧹',24)+'</button>'; }
+  if(!isTeacher){ html += '<button class="btn btn-ghost btn-sm topbar-bell" id="notenBtn" type="button" title="Notenrechner">'+bildIconHtml('nav-noten','🎶',24)+'</button>'; }
+  if(isTeacher && !istPraktikum()){ html += '<button class="btn btn-ghost btn-sm topbar-bell" id="earlybirdBtn" type="button" title="Earlybird">'+bildIconHtml('kal-earlybird','🐦',24)+'</button>'; }
+  html += '<button class="btn btn-ghost btn-sm topbar-bell" id="neuBtn" type="button" title="Neuigkeiten">'+bildIconHtml('nav-neuigkeiten','🆕',24)+'</button>';
+  html += '<button class="btn btn-ghost btn-sm topbar-bell" id="fragenBtn" type="button" title="Anonyme Fragebox">'+bildIconHtml('nav-fragebox','❓',24)+'<span class="topbar-badge" id="fragenBadge" hidden>0</span></button>';
+  html += '<button class="btn btn-ghost btn-sm topbar-bell" id="searchBtn" type="button" title="Suche">'+bildIconHtml('nav-suche','🔍',24)+'</button>';
+  html += '<button class="btn btn-ghost btn-sm topbar-bell" id="langBtn" type="button" title="Sprache wählen">'+bildIconHtml('nav-sprache','🌐',24)+(i18nCode() !== 'de' ? '<span class="topbar-lang-code">'+esc(i18nCode().toUpperCase())+'</span>' : '')+'</button>';
   html += '<button class="btn btn-ghost btn-sm topbar-bell" id="themeToggleBtn" type="button" title="Darstellung">'+(currentEffectiveTheme()==='dark'?'☀️':'🌙')+'</button>';
-  html += '<button class="btn btn-ghost btn-sm topbar-bell" id="pushBellBtn" type="button" title="Erinnerungen">🔔</button>';
-  html += '<button class="btn btn-ghost btn-sm topbar-bell" id="stundenplanBtn" type="button" title="Stundenplan">🗓️</button>';
-  if(!isLeitung()){ html += '<button class="btn btn-ghost btn-sm topbar-bell" id="linksBtn" type="button" title="Links"'+(isTeacher || linksFuerSchueler().length ? '' : ' style="display:none;"')+'>🔗</button>'; }
+  html += '<button class="btn btn-ghost btn-sm topbar-bell" id="pushBellBtn" type="button" title="Erinnerungen">'+bildIconHtml('kal-erinnerung','🔔',24)+'</button>';
+  html += '<button class="btn btn-ghost btn-sm topbar-bell" id="stundenplanBtn" type="button" title="Stundenplan">'+bildIconHtml('nav-stundenplan','🗓️',24)+'</button>';
+  if(!isLeitung()){ html += '<button class="btn btn-ghost btn-sm topbar-bell" id="linksBtn" type="button" title="Links"'+(isTeacher || linksFuerSchueler().length ? '' : ' style="display:none;"')+'>'+bildIconHtml('nav-links','🔗',24)+'</button>'; }
   html += '</span>';
-  html += '<button class="btn btn-ghost btn-sm topbar-bell" id="settingsBtn" type="button" title="Einstellungen">⚙️<span class="topbar-badge" id="settingsBadge" hidden>0</span></button>';
+  html += '<button class="btn btn-ghost btn-sm topbar-bell" id="settingsBtn" type="button" title="Einstellungen">'+bildIconHtml('nav-einstellungen','⚙️',24)+'<span class="topbar-badge" id="settingsBadge" hidden>0</span></button>';
   html += '</span></div></div>';
   html += '<div class="push-popover" id="pushPopover" hidden></div>';
   if(isTeacher && !isLeitung()){ html += '<div class="todo-popover" id="todoPopover" hidden></div>'; }
@@ -30943,6 +30954,9 @@ var KZ_TILES = [
   { id:'raeume',  bereich:'orga', icon:'🚪', name:'Räume',               desc:'Was ist gerade frei? Bio-Zimmer, Turnhalle, Singsaal … für eine Lektion oder jede Woche reservieren.' }
 ];
 
+// Bildsymbole der Klassenzimmer-Kacheln (assets/icons/kz-<id>.webp); drei teilen sich ein Bild mit anderen Stellen.
+var KZ_BILD = { fragen:'nav-fragebox', aemtli:'nav-aemtli', pruefung:'kal-pruefung' };
+function kzIcon(t){ return bildIconHtml(KZ_BILD[t.id] || 'kz-'+t.id, t.icon, 56); }
 function kzReihenfolge(){
   layoutAusCache();
   return ordneNach(KZ_TILES.map(function(t){ return t.id; }), layout.ordnung.klassenzimmer);
@@ -30970,7 +30984,7 @@ function renderKlassenzimmer(){
     html += '<div class="kz-tiles" data-sortgruppe="klassenzimmer">';
     tiles.forEach(function(t){
       html += '<button class="kz-tile" data-tool="'+t.id+'" data-sort="'+t.id+'" data-ausblendbar="kz:'+t.id+'" type="button">';
-      html += '<div class="kz-tile-icon">'+t.icon+'</div>';
+      html += '<div class="kz-tile-icon">'+kzIcon(t)+'</div>';
       html += '<div><h3>'+esc(t.name)+'</h3><p>'+esc(t.desc)+'</p></div>';
       if(AKT_FREI[t.id] && aktFensterMoeglich() && !aktFensterAn()) html += '<span class="kz-tile-fenster" data-fenster="'+t.id+'" role="button" tabindex="0" title="In einem eigenen Fenster öffnen – läuft unabhängig weiter (z. B. auf den Beamer ziehen)" aria-label="'+esc(t.name)+' in eigenem Fenster öffnen">🪟</span>';
       html += '</button>';
