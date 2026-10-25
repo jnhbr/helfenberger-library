@@ -19,7 +19,7 @@
 // hat — sonst erscheint ein kleiner Hinweis «Neue Version». Vorher wartete
 // jeder Start auf den ganzen Download.
 
-var CACHE = 'hl-app-v4';
+var CACHE = 'hl-app-v5';
 var SHELL = 'index.html';
 
 var PRECACHE = [
@@ -89,6 +89,9 @@ function meldeNeu(neu){
 }
 // App-Hülle: aus dem Cache antworten und im Hintergrund auffrischen.
 function shellAusCache(event){
+  // Der Service Worker muss SOFORT (nicht erst nach dem Cache-Zugriff) um Lebenszeit bitten,
+  // sonst beendet ihn vor allem Safari nach der Antwort, bevor die neue Fassung geholt ist.
+  var fertig; event.waitUntil(new Promise(function(ok){ fertig = ok; }));
   return caches.open(CACHE).then(function(cache){
     return cache.match(SHELL).then(function(hit){
       var netz = fetch(SHELL, { cache: 'no-cache' }).then(function(res){
@@ -105,10 +108,10 @@ function shellAusCache(event){
           });
         }).then(function(){ return res; });
       });
-      if(hit){ event.waitUntil(netz.catch(function(){})); return hit; }
-      return netz;
+      if(hit){ netz.catch(function(){}).then(fertig); return hit; }
+      return netz.then(function(res){ fertig(); return res; }, function(err){ fertig(); throw err; });
     });
-  });
+  }, function(err){ fertig(); throw err; });
 }
 
 function cacheFirst(request){
