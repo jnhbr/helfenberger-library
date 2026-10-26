@@ -22278,7 +22278,9 @@ function spGroupOn(g){ return (sp.doc.ruleOff || []).indexOf(g) < 0; }
 
 function spRulesModal(){
   function optionsHtml(sel){
-    return ohneGaeste(sp.roster).map(function(s){
+    var gr = spGewaehlteGruppe();
+    var kinder = gr ? (sp.roster || []).filter(function(s){ return (gr.mitglieder || []).indexOf(s.uid) >= 0; }) : ohneGaeste(sp.roster);
+    return kinder.map(function(s){
       return '<option value="'+esc(s.uid)+'"'+(sel===s.uid?' selected':'')+'>'+esc(s.displayName)+'</option>';
     }).join('');
   }
@@ -22297,7 +22299,7 @@ function spRulesModal(){
   }
   function build(){
     var h = '';
-    h += '<h3>⚖️ Sitz-Regeln</h3>';
+    h += '<h3>⚖️ Sitz-Regeln'+(spGewaehlteGruppe() ? ' – 👥 '+esc(spGewaehlteGruppe().name||'Gruppe') : ' – Ganze Klasse')+'</h3>';
     h += '<p>Werden beim zufälligen Setzen berücksichtigt. Lässt sich eine Regel nicht erfüllen, wird die Variante mit den wenigsten Verstössen gewählt.</p>';
     h += '<div class="sp-rule-groups"><b>Gruppen verwenden:</b> ' + Object.keys(SP_RULE_GROUPS).map(function(g){
       var n = sp.doc.rules.filter(function(r){ return spRuleGroup(r) === g; }).length;
