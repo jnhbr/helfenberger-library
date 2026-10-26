@@ -21647,18 +21647,58 @@ function spTableById(id){
 }
 
 /* ---------- Speichern (entprellt) ---------- */
+/* Pro Gruppe eine eigene Sitzordnung: Tische/Möbel gelten für alle, Plätze, Regeln,
+   Abwesende, Geschlechts-Markierungen und Teilen sind pro Auswahl getrennt.
+   sp.doc hält immer die AKTIVE Ordnung; «Ganze Klasse» liegt in sp.doc.ganze,
+   die der Gruppen in sp.doc.plaene[gruppenId]. Gespeichert wird «Ganze Klasse»
+   weiter auf oberster Ebene (andere Stellen lesen sitzplan.seats/rules/absent). */
+var SP_PLAN_KEYS = ['seats','meta','rules','ruleOff','absent','genderMode','teilen'];
+function spPlanNimm(doc){
+  var o = {};
+  SP_PLAN_KEYS.forEach(function(k){ o[k] = doc[k]; });
+  return o;
+}
+function spPlanLeer(ganze){
+  var o = spPlanNimm(ganze);   // Geschlecht (meta), Abwesende und Modus gelten weiter, Plätze/Regeln nicht
+  o.seats = {}; o.rules = []; o.ruleOff = []; o.teilen = {};
+  o.meta = Object.assign({}, ganze.meta); o.absent = (ganze.absent || []).slice();
+  return o;
+}
+function spPlanSetze(plan){
+  SP_PLAN_KEYS.forEach(function(k){ sp.doc[k] = plan[k]; });
+}
+function spPlanWechseln(neu){
+  var alt = sp.doc.gruppeSel || '';
+  if(alt === neu) return;
+  if(alt) sp.doc.plaene[alt] = spPlanNimm(sp.doc); else sp.doc.ganze = spPlanNimm(sp.doc);
+  var ganze = sp.doc.ganze;
+  var ziel = neu ? (sp.doc.plaene[neu] || spPlanLeer(ganze)) : ganze;
+  spPlanSetze(ziel);
+  sp.doc.gruppeSel = neu;
+  sp.picked = null; sp.selected = null;
+}
+
 function spSave(){
   clearTimeout(sp.saveTimer);
   sp.saveTimer = setTimeout(function(){
     // Sitzplätze verwaister Tische aufräumen, damit das Dokument nicht wächst.
     var valid = {};
     spAllSeatIds().forEach(function(id){ valid[id] = true; });
-    Object.keys(sp.doc.seats).forEach(function(id){ if(!valid[id]) delete sp.doc.seats[id]; });
+    var aktiv = spPlanNimm(sp.doc);
+    var sel = sp.doc.gruppeSel || '';
+    var plaene = Object.assign({}, sp.doc.plaene);
+    if(sel) plaene[sel] = aktiv;
+    var ganze = sel ? sp.doc.ganze : aktiv;
+    Object.keys(plaene).forEach(function(g){
+      var sd = plaene[g].seats || {};
+      Object.keys(sd).forEach(function(id){ if(!valid[id]) delete sd[id]; });
+    });
+    Object.keys(ganze.seats).forEach(function(id){ if(!valid[id]) delete ganze.seats[id]; });
     setDoc(kdoc('klassenzimmer','sitzplan'), {
-      tables: sp.doc.tables, seats: sp.doc.seats, meta: sp.doc.meta,
-      rules: sp.doc.rules, ruleOff: sp.doc.ruleOff || [], gruppeSel: sp.doc.gruppeSel || '', absent: sp.doc.absent,
-      genderMode: sp.doc.genderMode, mirror: !!sp.doc.mirror,
-      teilen: sp.doc.teilen,
+      tables: sp.doc.tables, seats: ganze.seats, meta: ganze.meta,
+      rules: ganze.rules, ruleOff: ganze.ruleOff || [], gruppeSel: sel, plaene: plaene, absent: ganze.absent,
+      genderMode: ganze.genderMode, mirror: !!sp.doc.mirror,
+      teilen: ganze.teilen,
       raum: sp.raum || spRaumStandard(),
       updatedAt: serverTimestamp()
     }).catch(function(err){ console.error('Sitzplan konnte nicht gespeichert werden', err); toast('Sitzplan nicht gespeichert.'); });
@@ -21710,6 +21750,11 @@ function renderSitzplan(){
       mirror: !!(d && d.mirror),
       teilen: (d && d.teilen) ? Object.assign({}, d.teilen) : base.teilen
     };
+    sp.doc.plaene = (d && d.plaene && typeof d.plaene === 'object') ? Object.assign({}, d.plaene) : {};
+    sp.doc.ganze = spPlanNimm(sp.doc);
+    if(sp.doc.gruppeSel){
+      spPlanSetze(sp.doc.plaene[sp.doc.gruppeSel] || spPlanLeer(sp.doc.ganze));
+    }
     var v = res[2].exists() ? res[2].data() : null;
     sp.saved = (v && Array.isArray(v.plans)) ? v.plans : [];
     sp.loaded = true;
@@ -21933,7 +21978,7 @@ function wireSitzplan(){
     sp.doc.genderMode = e.target.value; spSave();
   });
   host.querySelector('#spGruppeSel').addEventListener('change', function(e){
-    sp.doc.gruppeSel = e.target.value; sp.picked = null; spSave(); paintSitzplan();
+    spPlanWechseln(e.target.value); spSave(); paintSitzplan();
   });
   host.querySelector('#spShuffle').addEventListener('click', spShuffleSeats);
   host.querySelector('#spRules').addEventListener('click', spRulesModal);
@@ -24144,7 +24189,7 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
-  {id:'2026-10-26-sitz-gruppe', datum:'2026-10-26', fuer:'lehrer', text:'Sitzplan: Neben «Zufällig setzen» kannst du eine deiner Gruppen wählen, dann werden nur deren Mitglieder gesetzt.'},
+  {id:'2026-10-26-sitz-gruppe', datum:'2026-10-26', fuer:'lehrer', text:'Sitzplan: Wähle oben eine deiner Gruppen – jede Gruppe hat ihre eigene Sitzordnung (Plätze, Regeln, Abwesende). Die Tische bleiben für alle gleich.'},
   {id:'2026-10-26-sitz-regelgruppen', datum:'2026-10-26', fuer:'lehrer', text:'Sitzplan: Im Fenster «⚖️ Regeln» lassen sich ganze Regelgruppen an- und abwählen, damit das Zufallssetzen nicht an unerfüllbaren Regeln scheitert.'},
   {id:'2026-10-27-alle-pruefungen', datum:'2026-10-27', fuer:'lehrer', text:'📝 Im Kalender gibt es den Knopf «Alle Prüfungen»: die Prüfungen aller Klassen und Lehrpersonen nach Woche. So siehst du, wenn sich bei jemandem die Prüfungen häufen.'},
   {id:'2026-10-27-sva-bereit', datum:'2026-10-27', fuer:'lehrer', text:'🎓 SVA › «Projekte der Klasse»: Grobkonzepte, die Schüler:innen als «bereit» markiert haben, stehen jetzt zuoberst und sind gleich aufgeklappt, mit allem, was sie geschrieben haben.'},
