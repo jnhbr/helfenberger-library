@@ -9175,25 +9175,29 @@ function verlaufMerken(){
   var r = state.route, n = r && r.name;
   if(!n || n === 'loading' || n === 'login' || !state.profile){ verlauf = {stapel:[], vor:[], akt:null, aktKey:'', sprung:false}; return; }
   var key = verlaufKey(r);
-  if(key === verlauf.aktKey){ verlauf.akt = r; return; }
+  if(key === verlauf.aktKey){ verlauf.akt = Object.assign({}, r); return; }
   if(verlauf.sprung) verlauf.sprung = false;                      // ←/→ haben die Stapel schon nachgeführt
-  else if(verlauf.akt){ verlauf.stapel.push(verlauf.akt); if(verlauf.stapel.length > 40) verlauf.stapel.shift(); verlauf.vor = []; }   // neue Seite: «vorwärts» verfällt
-  verlauf.akt = r; verlauf.aktKey = key;
+  else if(verlauf.akt){
+    // Kopie der verlassenen Seite (die Route wird teils direkt verändert); nie dieselbe Seite zweimal hintereinander.
+    if(!verlauf.stapel.length || verlaufKey(verlauf.stapel[verlauf.stapel.length - 1]) !== verlauf.aktKey) verlauf.stapel.push(verlauf.akt);
+    if(verlauf.stapel.length > 40) verlauf.stapel.shift();
+    verlauf.vor = [];                                              // neue Seite: «vorwärts» verfällt
+  }
+  verlauf.akt = Object.assign({}, r); verlauf.aktKey = key;
 }
-function verlaufZurueck(){
-  var r = verlauf.stapel.pop();
+function verlaufSprung(liste, gegen){
+  var r;
+  while((r = liste.pop()) && verlaufKey(r) === verlauf.aktKey){}   // Einträge, die der aktuellen Seite gleichen, überspringen
   if(!r) return;
-  if(verlauf.akt) verlauf.vor.push(verlauf.akt);
+  if(verlauf.akt) gegen.push(verlauf.akt);
   verlauf.sprung = true;
-  state.route = r; render();
+  state.route = Object.assign({}, r); render();
+  var b = document.getElementById('zurueckBtn'), v = document.getElementById('vorBtn');
+  if(b) b.hidden = !verlauf.stapel.length;
+  if(v) v.hidden = !verlauf.vor.length;
 }
-function verlaufVor(){
-  var r = verlauf.vor.pop();
-  if(!r) return;
-  if(verlauf.akt) verlauf.stapel.push(verlauf.akt);
-  verlauf.sprung = true;
-  state.route = r; render();
-}
+function verlaufZurueck(){ verlaufSprung(verlauf.stapel, verlauf.vor); }
+function verlaufVor(){ verlaufSprung(verlauf.vor, verlauf.stapel); }
 function goHome(){ state.route = {name:'home'}; render(); }
 // ✨ Fach-Kachel: kurz sichtbar eindrücken, dann öffnen (mit «Bewegung reduzieren» sofort).
 function bewegungReduziert(){ try{ return window.matchMedia('(prefers-reduced-motion: reduce)').matches; }catch(e){ return false; } }
@@ -9210,7 +9214,7 @@ function goSubject(id, folderId){
   // Innerhalb desselben Fachs nur den Inhalt neu zeichnen: die Firestore-
   // Listener hängen am ganzen Fach und müssen beim Wechsel in einen
   // Unterordner nicht neu aufgebaut werden.
-  if(sameSubject && document.getElementById('resourceList')){ renderFolderContents(); return; }
+  if(sameSubject && document.getElementById('resourceList')){ verlaufMerken(); renderFolderContents(); return; }
   render();
 }
 // Ein "resources"-Dokument mit externalUrl ist kein hochgeladener Übungsinhalt,
@@ -23974,6 +23978,7 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-10-26-zurueck-genau', datum:'2026-10-26', fuer:'alle', text:'← Der Zurück-Pfeil geht jetzt zuverlässig genau eine Seite zurück (auch beim Wechsel zwischen Ordnern).'},
   {id:'2026-10-25-fachfarbe', datum:'2026-10-25', fuer:'alle', text:'🧹 Auf den Fach-Kacheln steht die Übungsanzahl nicht mehr – es bleibt übersichtlicher. Termine und Ferien im Stundenplan haben jetzt eigene Bildchen.'},
   {id:'2026-10-25-weniger-knoepfe', datum:'2026-10-25', fuer:'lehrer', text:'🧹 Weniger Knöpfe bei den Übungen: Sichtbar bleiben «Öffnen» und «Als aktuell markieren». Zuweisen, Nur Lehrpersonen, Ausblenden und Empfehlen findest du unter «⋯» (der Haken zeigt, was gerade aktiv ist).'},
   {id:'2026-10-24-bausteine-ordner', datum:'2026-10-24', fuer:'lehrer', text:'🧱 Im Fach Sport liegt in jedem passenden Ordner (Spielen, Bewegen an Geräten, Laufen/Springen/Werfen und bei den Sportarten) eine Kachel «Bausteine …», die den Sportplaner gleich in dieser Kategorie öffnet.'},
