@@ -21616,6 +21616,11 @@ function spIsAbsent(uid){ return sp.doc.absent.indexOf(uid) >= 0; }
 function spActiveStudents(){
   return ohneGaeste(sp.roster).filter(function(s){ return !spIsAbsent(s.uid); });
 }
+// Die in der Sitzordnung gewählte Gruppe (null = ganze Klasse).
+function spGewaehlteGruppe(){
+  if(!sp.doc || !sp.doc.gruppeSel) return null;
+  return (sp.gruppen || []).filter(function(g){ return g.id === sp.doc.gruppeSel; })[0] || null;
+}
 function spIsGast(uid){ return !!gastFach(spStudentById(uid)); }
 // Ein Fach-Gast kann sich den Platz mit jemandem teilen: teilen[gastUid] = uid
 // der Person, die dort sitzt. Hängt an der Person, nicht am Platz — nach dem
@@ -21831,14 +21836,19 @@ function paintSitzplan(){
 
   /* Seitenliste */
   html += '<div class="sp-side">';
-  html += '<div class="sp-side-head">Klasse <span>'+spActiveStudents().length+' anwesend</span></div>';
+  var spGr = spGewaehlteGruppe();
+  var spListe = spGr
+    ? (sp.roster || []).filter(function(s){ return (spGr.mitglieder || []).indexOf(s.uid) >= 0; })
+    : ohneGaeste(sp.roster).concat(sp.roster.filter(function(s){ return gastFach(s); }));
+  var spAnwesend = spListe.filter(function(s){ return !spIsAbsent(s.uid); }).length;
+  html += '<div class="sp-side-head">'+(spGr ? '👥 '+esc(spGr.name||'Gruppe') : 'Klasse')+' <span>'+spAnwesend+' anwesend</span></div>';
   html += '<div class="sp-hint">'+(sp.picked
       ? 'Ausgewählt: <b>'+esc(spFullName(sp.picked))+'</b> — jetzt auf einen Platz tippen.'
       : 'Kind antippen, dann einen Platz antippen. Ein besetzter Platz gibt das Kind wieder frei. Möbel lassen sich frei verschieben.')+'</div>';
   html += '<div class="sp-people">';
   var spGastHead = false;
-  ohneGaeste(sp.roster).concat(sp.roster.filter(function(s){ return gastFach(s); })).forEach(function(s){
-    if(gastFach(s) && !spGastHead){
+  spListe.forEach(function(s){
+    if(!spGr && gastFach(s) && !spGastHead){
       spGastHead = true;
       html += '<div class="sp-people-gast-head" title="Werden beim zufälligen Setzen nie eingeplant. Auf einen besetzten Platz getippt, teilen sie sich den Platz.">👭 Gäste (nur von Hand, können einen Platz teilen)</div>';
     }
@@ -21854,7 +21864,7 @@ function paintSitzplan(){
     html += '</div></div>';
   });
   html += '</div>';
-  html += '<div class="sp-side-foot">'+free.length+' ohne Platz · '+spAllSeatIds().length+' Plätze</div>';
+  html += '<div class="sp-side-foot">'+(spGr ? spListe.filter(function(s){ return !spIsAbsent(s.uid) && !seated[s.uid]; }).length : free.length)+' ohne Platz · '+spAllSeatIds().length+' Plätze</div>';
   html += '</div>';
 
   html += '</div>';
@@ -21923,7 +21933,7 @@ function wireSitzplan(){
     sp.doc.genderMode = e.target.value; spSave();
   });
   host.querySelector('#spGruppeSel').addEventListener('change', function(e){
-    sp.doc.gruppeSel = e.target.value; spSave();
+    sp.doc.gruppeSel = e.target.value; sp.picked = null; spSave(); paintSitzplan();
   });
   host.querySelector('#spShuffle').addEventListener('click', spShuffleSeats);
   host.querySelector('#spRules').addEventListener('click', spRulesModal);
