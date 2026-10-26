@@ -21651,7 +21651,7 @@ function spSave(){
     Object.keys(sp.doc.seats).forEach(function(id){ if(!valid[id]) delete sp.doc.seats[id]; });
     setDoc(kdoc('klassenzimmer','sitzplan'), {
       tables: sp.doc.tables, seats: sp.doc.seats, meta: sp.doc.meta,
-      rules: sp.doc.rules, absent: sp.doc.absent,
+      rules: sp.doc.rules, ruleOff: sp.doc.ruleOff || [], gruppeSel: sp.doc.gruppeSel || '', absent: sp.doc.absent,
       genderMode: sp.doc.genderMode, mirror: !!sp.doc.mirror,
       teilen: sp.doc.teilen,
       raum: sp.raum || spRaumStandard(),
@@ -21698,6 +21698,8 @@ function renderSitzplan(){
       seats:  (d && d.seats) ? Object.assign({}, d.seats) : base.seats,
       meta:   (d && d.meta) ? Object.assign({}, d.meta) : base.meta,
       rules:  (d && Array.isArray(d.rules)) ? d.rules : base.rules,
+      ruleOff: (d && Array.isArray(d.ruleOff)) ? d.ruleOff : [],
+      gruppeSel: (d && d.gruppeSel) || '',
       absent: (d && Array.isArray(d.absent)) ? d.absent : base.absent,
       genderMode: (d && d.genderMode) || base.genderMode,
       mirror: !!(d && d.mirror),
@@ -21706,6 +21708,8 @@ function renderSitzplan(){
     var v = res[2].exists() ? res[2].data() : null;
     sp.saved = (v && Array.isArray(v.plans)) ? v.plans : [];
     sp.loaded = true;
+    sp.gruppen = sp.gruppen || [];
+    loadMeineGruppen().then(function(list){ sp.gruppen = list; if(state.route.name === 'sitzplan') paintSitzplan(); }).catch(function(err){ console.error(err); });
     // Leeres Zimmer: gleich die 11 Zweiertische in Reihen hinstellen.
     if(!sp.doc.tables.length){ spAutoLayout('reihen', true); return; }
     paintSitzplan();
@@ -21747,6 +21751,11 @@ function paintSitzplan(){
   html += '<select class="sp-select" id="spGenderMode">';
   [['egal','Geschlecht egal'],['gemischt','Tischpaare gemischt'],['gleich','Tischpaare gleich']].forEach(function(o){
     html += '<option value="'+o[0]+'"'+(sp.doc.genderMode===o[0]?' selected':'')+'>'+o[1]+'</option>';
+  });
+  html += '</select>';
+  html += '<select class="sp-select" id="spGruppeSel" title="Wer wird zufällig gesetzt?"><option value="">Ganze Klasse</option>';
+  (sp.gruppen || []).forEach(function(g){
+    html += '<option value="'+esc(g.id)+'"'+(sp.doc.gruppeSel===g.id?' selected':'')+'>👥 '+esc(g.name||'Gruppe')+' ('+(g.mitglieder||[]).length+')</option>';
   });
   html += '</select>';
   html += '<button class="btn btn-primary btn-sm" id="spShuffle" type="button">🎲 Zufällig setzen</button>';
@@ -21912,6 +21921,9 @@ function wireSitzplan(){
 
   host.querySelector('#spGenderMode').addEventListener('change', function(e){
     sp.doc.genderMode = e.target.value; spSave();
+  });
+  host.querySelector('#spGruppeSel').addEventListener('change', function(e){
+    sp.doc.gruppeSel = e.target.value; spSave();
   });
   host.querySelector('#spShuffle').addEventListener('click', spShuffleSeats);
   host.querySelector('#spRules').addEventListener('click', spRulesModal);
@@ -22195,6 +22207,20 @@ var SP_G_RULES = {
   nebenJ: {g:'m', muss:true,  opt:'muss neben Jungen',        txt:'neben einem Jungen'}
 };
 
+/* Regelgruppen: lassen sich einzeln abwählen (sp.doc.ruleOff), ohne die Regeln zu löschen. */
+var SP_RULE_GROUPS = {
+  paare:   {label:'Paare (nicht neben / soll neben)'},
+  platz:   {label:'Einzelplatz (allein / vorne)'},
+  nachbar: {label:'Nachbar Mädchen/Jungen'},
+  tisch:   {label:'Tischpaare gemischt/gleich'}
+};
+function spRuleGroup(r){
+  if(SP_G_RULES[r.t]) return 'nachbar';
+  if(r.t === 'allein' || r.t === 'vorne') return 'platz';
+  return 'paare';
+}
+function spGroupOn(g){ return (sp.doc.ruleOff || []).indexOf(g) < 0; }
+
 function spRulesModal(){
   function optionsHtml(sel){
     return ohneGaeste(sp.roster).map(function(s){
@@ -22211,13 +22237,18 @@ function spRulesModal(){
       else if(r.t === 'allein') txt = esc(a?a.displayName:'?') + ' <b>sitzt allein</b> am Tisch';
       else if(SP_G_RULES[r.t]) txt = esc(a?a.displayName:'?') + ' <b>' + SP_G_RULES[r.t].txt + '</b>';
       else txt = esc(a?a.displayName:'?') + ' <b>sitzt vorne</b>';
-      return '<div class="sp-rule"><span>'+txt+'</span><button class="btn btn-danger btn-sm" type="button" data-rule-del="'+i+'">Entfernen</button></div>';
+      return '<div class="sp-rule"'+(spGroupOn(spRuleGroup(r))?'':' style="opacity:.45"')+'><span>'+txt+'</span><button class="btn btn-danger btn-sm" type="button" data-rule-del="'+i+'">Entfernen</button></div>';
     }).join('');
   }
   function build(){
     var h = '';
     h += '<h3>⚖️ Sitz-Regeln</h3>';
     h += '<p>Werden beim zufälligen Setzen berücksichtigt. Lässt sich eine Regel nicht erfüllen, wird die Variante mit den wenigsten Verstössen gewählt.</p>';
+    h += '<div class="sp-rule-groups"><b>Gruppen verwenden:</b> ' + Object.keys(SP_RULE_GROUPS).map(function(g){
+      var n = sp.doc.rules.filter(function(r){ return spRuleGroup(r) === g; }).length;
+      var cnt = g === 'tisch' ? '' : ' ('+n+')';
+      return '<label style="display:inline-flex;gap:4px;align-items:center;margin:2px 10px 2px 0"><input type="checkbox" data-rgroup="'+g+'"'+(spGroupOn(g)?' checked':'')+'> '+SP_RULE_GROUPS[g].label+cnt+'</label>';
+    }).join('') + '</div>';
     h += '<div class="sp-rule-list" id="spRuleList">'+listHtml()+'</div>';
     h += '<div class="sp-rule-add">';
     h += '<select class="sp-select" id="spRuleType"><option value="nicht">darf nicht neben</option><option value="zusammen">soll neben</option><option value="allein">soll allein am Tisch sitzen</option><option value="vorne">soll vorne sitzen</option>' +
@@ -22253,6 +22284,15 @@ function spRulesModal(){
         spSave(); build(); paintSitzplan();
       });
     });
+    Array.prototype.forEach.call(document.querySelectorAll('[data-rgroup]'), function(cb){
+      cb.addEventListener('change', function(){
+        var g = cb.getAttribute('data-rgroup');
+        var off = (sp.doc.ruleOff || []).filter(function(x){ return x !== g; });
+        if(!cb.checked) off.push(g);
+        sp.doc.ruleOff = off;
+        spSave(); build();
+      });
+    });
     document.getElementById('spRuleClose').addEventListener('click', closeModal);
   }
   build();
@@ -22266,7 +22306,10 @@ function spRulesModal(){
 
 function spShuffleSeats(){
   var seatIds = spAllSeatIds();
-  var students = spActiveStudents().map(function(s){ return s.uid; });
+  var gruppe = sp.doc.gruppeSel ? (sp.gruppen || []).filter(function(g){ return g.id === sp.doc.gruppeSel; })[0] : null;
+  var students = (gruppe
+    ? (sp.roster || []).filter(function(s){ return (gruppe.mitglieder || []).indexOf(s.uid) >= 0 && !spIsAbsent(s.uid); })
+    : spActiveStudents()).map(function(s){ return s.uid; });
   if(!seatIds.length){ toast('Zuerst Zweiertische setzen.'); return; }
   if(students.length > seatIds.length){
     toast('Zu wenig Plätze: '+students.length+' Kinder, '+seatIds.length+' Plätze.');
@@ -22285,6 +22328,7 @@ function spShuffleSeats(){
 
   var notPairs = [], togetherPairs = [], frontKids = [], aloneKids = [], gRules = [];
   sp.doc.rules.forEach(function(r){
+    if(!spGroupOn(spRuleGroup(r))) return;
     if(SP_G_RULES[r.t]) gRules.push({uid:r.a, g:SP_G_RULES[r.t].g, muss:SP_G_RULES[r.t].muss});
     else if(r.t === 'nicht') notPairs.push([r.a, r.b]);
     else if(r.t === 'zusammen') togetherPairs.push([r.a, r.b]);
@@ -22325,7 +22369,7 @@ function spShuffleSeats(){
       var gleich = !!nb && spGender(nb) === r.g;
       if(r.muss ? !gleich : gleich) pen += r.muss ? 50 : 100;
     });
-    if(sp.doc.genderMode !== 'egal'){
+    if(sp.doc.genderMode !== 'egal' && spGroupOn('tisch')){
       spSeatTables().forEach(function(t){
         var u1 = assign[spSeatId(t.id,0)], u2 = assign[spSeatId(t.id,1)];
         if(!u1 || !u2) return;
@@ -24090,6 +24134,8 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-10-26-sitz-gruppe', datum:'2026-10-26', fuer:'lehrer', text:'Sitzplan: Neben «Zufällig setzen» kannst du eine deiner Gruppen wählen, dann werden nur deren Mitglieder gesetzt.'},
+  {id:'2026-10-26-sitz-regelgruppen', datum:'2026-10-26', fuer:'lehrer', text:'Sitzplan: Im Fenster «⚖️ Regeln» lassen sich ganze Regelgruppen an- und abwählen, damit das Zufallssetzen nicht an unerfüllbaren Regeln scheitert.'},
   {id:'2026-10-27-alle-pruefungen', datum:'2026-10-27', fuer:'lehrer', text:'📝 Im Kalender gibt es den Knopf «Alle Prüfungen»: die Prüfungen aller Klassen und Lehrpersonen nach Woche. So siehst du, wenn sich bei jemandem die Prüfungen häufen.'},
   {id:'2026-10-27-sva-bereit', datum:'2026-10-27', fuer:'lehrer', text:'🎓 SVA › «Projekte der Klasse»: Grobkonzepte, die Schüler:innen als «bereit» markiert haben, stehen jetzt zuoberst und sind gleich aufgeklappt, mit allem, was sie geschrieben haben.'},
   {id:'2026-10-26-pdf-handy', datum:'2026-10-26', fuer:'alle', text:'📄 PDFs (z. B. das Chemie-Lehrmittel) zeigen auf Handy und Tablet jetzt alle Seiten, nicht nur die erste.'},
