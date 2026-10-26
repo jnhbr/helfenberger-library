@@ -12093,6 +12093,7 @@ function openRueckmeldungen(reiter){
   document.getElementById('modalCancel').addEventListener('click', closeModal);
   var box = document.getElementById('rmInhalt');
   var filter = 'offen';
+  var rmCache = {};
 
   function ladeFehler(){ box.innerHTML = '<div class="empty-state" style="padding:10px;">Wird geladen …</div>'; }
 
@@ -12100,6 +12101,7 @@ function openRueckmeldungen(reiter){
     ladeFehler();
     rmLaden().then(function(list){
       if(!document.getElementById('rmInhalt')) return;
+      list.forEach(function(r){ rmCache[r.id] = r; });
       if(!jan){
         rmGesehenSetzen(list);
         box.innerHTML = list.length ? list.map(function(r){
@@ -12119,6 +12121,7 @@ function openRueckmeldungen(reiter){
                 '<button type="button" class="rm-knopf rm-ok'+(r.status === 'erledigt' ? ' rm-an' : '')+'" data-rmsetz="erledigt" title="Hat geklappt">✅</button>'+
                 '<button type="button" class="rm-knopf rm-nein'+(r.status === 'nicht' ? ' rm-an' : '')+'" data-rmsetz="nicht" title="Hat nicht geklappt">❌</button>'+
                 rmStatusHtml(r)+
+                '<button class="btn btn-ghost btn-sm" type="button" data-rmkopie="'+esc(r.id)+'" title="Vorschlag kopieren">📋 Kopieren</button>'+
                 '<button class="btn btn-ghost btn-sm rm-loeschen" type="button" data-rmweg="'+esc(r.id)+'" title="Löschen">🗑</button></div>'+
               '<div class="rm-begr-edit"'+(r.status === 'nicht' ? '' : ' hidden')+'>'+
                 '<textarea class="modal-input" rows="2" maxlength="2000" placeholder="Begründung: warum hat es nicht geklappt?">'+esc(r.begruendung || '')+'</textarea>'+
@@ -12156,6 +12159,14 @@ function openRueckmeldungen(reiter){
       var id = eintrag.getAttribute('data-rmid');
       var setz = e.target.closest('[data-rmsetz]');
       var edit = eintrag.querySelector('.rm-begr-edit');
+      var kop = e.target.closest('[data-rmkopie]');
+      if(kop){
+        var r0 = rmCache[id];
+        if(!r0) return;
+        textKopieren(rmArt(r0.art).name+(r0.fach ? ' (' + subjectName(r0.fach) + ')' : '')+' von '+(r0.vonName || '?')+(r0.klasse ? ' ('+klasseLabel(r0.klasse)+')' : '')+':\n'+r0.text,
+          function(){ toast('📋 Kopiert.'); });
+        return;
+      }
       if(setz){
         var st = setz.getAttribute('data-rmsetz');
         var schonAn = setz.classList.contains('rm-an');
