@@ -6227,7 +6227,7 @@ function wireCalendarEntryActions(container, entries, isTeacher, onChanged, rost
 // 📝 Alle Prüfungen (Lehrpersonen): die Prüfungen aller Klassen, nach Woche gruppiert, damit sich
 // Prüfungen mehrerer Lehrpersonen nicht in einer Woche häufen. Nur lesen; ein where() pro Klasse, Rest client-seitig.
 async function kalenderAllePruefungen(){
-  openModal('<h3>📝 Alle Prüfungen</h3><p class="sva-klein" style="color:var(--text-muted);font-size:13px;">Prüfungen aller Klassen und Lehrpersonen ab heute, nach Woche. Oben nach Klasse oder Gruppe filtern. Gelb: 3 oder mehr in einer Klasse; rot: 4 oder mehr in einer Woche.</p><div id="allePruef">Lädt …</div><div class="modal-actions"><button class="btn btn-primary" id="allePruefZu" type="button">Schliessen</button></div>', 'modal-wide');
+  openModal('<h3>📝 Alle Prüfungen</h3><p class="sva-klein" style="color:var(--text-muted);font-size:13px;">Prüfungen aller Klassen und Lehrpersonen ab heute, nach Woche. Oben nach Klasse oder Gruppe filtern (bei einer Klasse auch Gruppenprüfungen anderer Lehrpersonen, in denen Schüler:innen dieser Klasse sind). Gelb: 3 oder mehr in einer Klasse; rot: 4 oder mehr in einer Woche.</p><div id="allePruef">Lädt …</div><div class="modal-actions"><button class="btn btn-primary" id="allePruefZu" type="button">Schliessen</button></div>', 'modal-wide');
   document.getElementById('allePruefZu').addEventListener('click', closeModal);
   var el = document.getElementById('allePruef'), heute = todayStr(), liste = [];
   var klassen = KLASSEN.filter(function(k){ return k.art === 'klasse'; });
@@ -6245,15 +6245,24 @@ async function kalenderAllePruefungen(){
     '<optgroup label="Klasse">'+kls.map(function(k){ return '<option value="k:'+esc(k)+'">'+esc(k)+' · '+esc(klasseInfo(k).lp)+'</option>'; }).join('')+'</optgroup>'+
     (grs.length ? '<optgroup label="Gruppe">'+grs.map(function(g){ var q = g.split('|'); return '<option value="g:'+esc(g)+'">👥 '+esc(q[1])+' ('+esc(q[0])+')</option>'; }).join('')+'</optgroup>' : '')+
     '</select><div id="allePruefListe"></div>';
-  var zeichne = function(){
-    var f = document.getElementById('allePruefFilter').value;
-    var gewaehlt = liste.filter(function(x){ return !f || (f.charAt(0) === 'k' ? x.klasse === f.slice(2) : (x.klasse+'|'+x.e.gruppeName) === f.slice(2)); });
-    document.getElementById('allePruefListe').innerHTML = alleWochenHtml(gewaehlt);
+  // Klassenfilter: die Prüfungen der Klasse selbst plus Gruppenprüfungen anderer Seiten, in denen Schüler:innen dieser Klasse sind.
+  var rosterK = {};
+  var zeichne = async function(){
+    var f = document.getElementById('allePruefFilter').value, ziel = document.getElementById('allePruefListe');
+    var gewaehlt, uids = null;
+    if(f.charAt(0) === 'k'){
+      var k = f.slice(2);
+      if(!rosterK[k]){ ziel.textContent = 'Lädt …'; try{ rosterK[k] = (await svaRoster(k)).map(function(s){ return s.uid; }); }catch(err){ console.error(err); rosterK[k] = []; } }
+      if(document.getElementById('allePruefFilter').value !== f) return;
+      uids = rosterK[k];
+      gewaehlt = liste.filter(function(x){ return x.klasse === k || (x.e.mitglieder || []).some(function(u){ return uids.indexOf(u) >= 0; }); });
+    } else gewaehlt = liste.filter(function(x){ return !f || (x.klasse+'|'+x.e.gruppeName) === f.slice(2); });
+    ziel.innerHTML = alleWochenHtml(gewaehlt, f.charAt(0) === 'k' ? f.slice(2) : null, uids);
   };
   document.getElementById('allePruefFilter').addEventListener('change', zeichne);
   zeichne();
 }
-function alleWochenHtml(liste){
+function alleWochenHtml(liste, fuerKlasse, uids){
   var wochen = {}, reihenfolge = [];
   liste.forEach(function(x){
     var d = new Date(x.e.dueDate + 'T12:00:00'), mo = new Date(d); mo.setDate(d.getDate() - (d.getDay() + 6) % 7);
@@ -6271,7 +6280,7 @@ function alleWochenHtml(liste){
     return '<h4 style="margin:14px 0 4px;color:'+farbe+';">KW '+kw(w.mo)+' · '+fmtDueDate(key)+' – '+fmtDueDate(localDateStr(fr))+' · '+w.l.length+' Prüfung'+(w.l.length === 1 ? '' : 'en')+'</h4>'+
       '<table class="sva-tab">'+w.l.map(function(x){
         var f = x.e.subject ? subjectById(x.e.subject) : null;
-        return '<tr><td>'+esc(weekdayLabel(x.e.dueDate))+' '+fmtDueDate(x.e.dueDate)+'</td><td><b>'+esc(x.klasse)+'</b> · '+esc(x.lp)+(x.e.gruppeName ? ' · 👥 '+esc(x.e.gruppeName) : '')+'</td><td>'+(f ? esc(f.name)+': ' : '')+esc(x.e.title || 'Prüfung')+'</td></tr>';
+        return '<tr><td>'+esc(weekdayLabel(x.e.dueDate))+' '+fmtDueDate(x.e.dueDate)+'</td><td><b>'+esc(x.klasse)+'</b> · '+esc(x.lp)+(x.e.gruppeName ? ' · 👥 '+esc(x.e.gruppeName) : '')+(fuerKlasse && x.klasse !== fuerKlasse ? ' <span class="cal-gruppe-tag">'+(x.e.mitglieder || []).filter(function(u){ return uids.indexOf(u) >= 0; }).length+' aus '+esc(fuerKlasse)+'</span>' : '')+'</td><td>'+(f ? esc(f.name)+': ' : '')+esc(x.e.title || 'Prüfung')+'</td></tr>';
       }).join('')+'</table>';
   }).join('');
 }
