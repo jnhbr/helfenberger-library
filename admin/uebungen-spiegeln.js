@@ -10,7 +10,8 @@
  *
  * Quelle ist Jans Seite (G3b). Pro Zielseite (alle Dokumente unter klassen/ —
  * Klassen, FLP-, ISF- und Praktikums-Seiten):
- *  - Ordner: fehlende anlegen, geänderte (Name, Ort, Reihenfolge) nachführen.
+ *  - Ordner: fehlende anlegen, geänderte (Name, Ort, Reihenfolge) nachführen; gespiegelte Ordner, die
+ *    bei der Lehrperson leer und bei Jan nicht mehr da sind, werden entfernt.
  *  - Übungen (gleiche ID = Kopie): fehlende anlegen, geänderte nachführen
  *    (Inhalt, Titel, Fach, Ordner, Reihenfolge). «current» (rot markiert) bleibt
  *    Sache der jeweiligen Lehrperson. Eigene Übungen der Lehrpersonen werden nie
@@ -143,6 +144,28 @@ function ohneLokal(d) { const x = Object.assign({}, d); LOKAL.forEach(function (
         else console.log('   ' + k + ' · ' + (q.title || d.id) + ': ' + Object.keys(upd).join(', '));
       }
     });
+
+    // Leere Ordner aufräumen: gespiegelte Ordner (von Jan angelegt oder früher gespiegelt), die bei der Lehrperson
+    // leer sind und bei Jan nicht mehr vorkommen, werden entfernt. Der Fingerabdruck in
+    // stand.fol bleibt, so kommt der Ordner nicht wieder. Eigene Ordner der Lehrperson bleiben unberührt.
+    {
+      const quellOrdner = {}, janUid = {}; fol.forEach(function (d) { quellOrdner[d.id] = true; if (d.data().createdBy) janUid[d.data().createdBy] = true; });
+      let weiter = true;
+      while (weiter) {
+        weiter = false;
+        const belegt = {};
+        Object.keys(nachherK).forEach(function (id) { const f = nachherK[id].folderId; if (f) belegt[f] = true; });
+        Object.keys(hatF).forEach(function (id) { const p = hatF[id].parentId; if (p) belegt[p] = true; });
+        Object.keys(hatF).forEach(function (id) {
+          const gespiegelt = quellOrdner[id] || (altStand.fol && altStand.fol[id]) || (hatF[id].createdBy && janUid[hatF[id].createdBy]);
+          if (!gespiegelt || belegt[id] || quellOrdner[id]) return;
+          console.log('   ' + k + ' · leerer Ordner entfernt: ' + (hatF[id].name || id) + ' (' + (hatF[id].subject || '?') + ')');
+          n.ordner++; if (w) w.delete(kref.collection('folders').doc(id));
+          if (!stand.fol[id]) stand.fol[id] = { name: fp(hatF[id].name) };
+          delete hatF[id]; weiter = true;
+        });
+      }
+    }
 
     if (kkSets.length) {
       const alt = zk.exists ? (zk.data().sets || []) : [];

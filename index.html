@@ -6224,6 +6224,42 @@ function wireCalendarEntryActions(container, entries, isTeacher, onChanged, rost
   });
 }
 
+// 📝 Alle Prüfungen (Lehrpersonen): die Prüfungen aller Klassen, nach Woche gruppiert, damit sich
+// Prüfungen mehrerer Lehrpersonen nicht in einer Woche häufen. Nur lesen; ein where() pro Klasse, Rest client-seitig.
+async function kalenderAllePruefungen(){
+  openModal('<h3>📝 Alle Prüfungen</h3><p class="sva-klein" style="color:var(--text-muted);font-size:13px;">Prüfungen aller Klassen und Lehrpersonen ab heute, nach Woche. Gelb: 3 oder mehr in einer Klasse; rot: 4 oder mehr in einer Woche.</p><div id="allePruef">Lädt …</div><div class="modal-actions"><button class="btn btn-primary" id="allePruefZu" type="button">Schliessen</button></div>', 'modal-wide');
+  document.getElementById('allePruefZu').addEventListener('click', closeModal);
+  var el = document.getElementById('allePruef'), heute = todayStr(), liste = [];
+  var klassen = KLASSEN.filter(function(k){ return k.art === 'klasse'; });
+  await Promise.all(klassen.map(function(k){
+    return getDocs(query(kcolFor(k.id, 'calendarEntries'), where('type','==','pruefung'))).then(function(snap){
+      snap.forEach(function(d){ var e = d.data(); if(e.dueDate && e.dueDate >= heute && !e.private) liste.push({id:d.id, klasse:k.id, lp:k.lp, e:e}); });
+    }).catch(function(err){ console.error('Prüfungen ('+k.id+')', err); });
+  }));
+  if(!document.getElementById('allePruef')) return;
+  if(!liste.length){ el.textContent = 'Keine anstehenden Prüfungen eingetragen.'; return; }
+  liste.sort(function(a, b){ return a.e.dueDate.localeCompare(b.e.dueDate) || a.klasse.localeCompare(b.klasse); });
+  var wochen = {}, reihenfolge = [];
+  liste.forEach(function(x){
+    var d = new Date(x.e.dueDate + 'T12:00:00'), mo = new Date(d); mo.setDate(d.getDate() - (d.getDay() + 6) % 7);
+    var key = localDateStr(mo);
+    if(!wochen[key]){ wochen[key] = {mo:mo, l:[]}; reihenfolge.push(key); }
+    wochen[key].l.push(x);
+  });
+  var kw = function(mo){ var t = new Date(Date.UTC(mo.getFullYear(), mo.getMonth(), mo.getDate())); t.setUTCDate(t.getUTCDate() + 4 - (t.getUTCDay() || 7)); var y0 = new Date(Date.UTC(t.getUTCFullYear(), 0, 1)); return Math.ceil(((t - y0) / 86400000 + 1) / 7); };
+  el.innerHTML = reihenfolge.map(function(key){
+    var w = wochen[key], fr = new Date(w.mo); fr.setDate(w.mo.getDate() + 4);
+    var proKl = {}; w.l.forEach(function(x){ proKl[x.klasse] = (proKl[x.klasse] || 0) + 1; });
+    var maxKl = Math.max.apply(null, Object.keys(proKl).map(function(k){ return proKl[k]; }));
+    var farbe = w.l.length >= 4 ? '#B42318' : maxKl >= 3 ? '#7A5200' : 'var(--text)';
+    return '<h4 style="margin:14px 0 4px;color:'+farbe+';">KW '+kw(w.mo)+' · '+fmtDueDate(key)+' – '+fmtDueDate(localDateStr(fr))+' · '+w.l.length+' Prüfung'+(w.l.length === 1 ? '' : 'en')+'</h4>'+
+      '<table class="sva-tab">'+w.l.map(function(x){
+        var f = x.e.subject ? subjectById(x.e.subject) : null;
+        return '<tr><td>'+esc(weekdayLabel(x.e.dueDate))+' '+fmtDueDate(x.e.dueDate)+'</td><td><b>'+esc(x.klasse)+'</b> · '+esc(x.lp)+(x.e.gruppeName ? ' · 👥 '+esc(x.e.gruppeName) : '')+'</td><td>'+(f ? esc(f.name)+': ' : '')+esc(x.e.title || 'Prüfung')+'</td></tr>';
+      }).join('')+'</table>';
+  }).join('');
+}
+
 // Der Kalender lädt nur die letzten KAL_VERGANGEN_TAGE Tage und alles Kommende;
 // ältere Einträge erst auf Knopfdruck (kal.alle, gilt bis man den Kalender verlässt).
 var KAL_VERGANGEN_TAGE = 28;
@@ -6235,6 +6271,7 @@ function renderKalender(){
   html += '<h2>'+bildIconHtml('nav-kalender','📅',34)+' Kalender</h2>';
   html += '<div class="back-row"><button class="btn btn-primary btn-sm" id="calNewBtn" type="button">'+(isTeacher ? '+ Neuer Eintrag' : '+ Eigene Hausaufgabe eintragen')+'</button>'+
     (isTeacher && !isLeitung() ? '<button class="btn btn-ghost btn-sm" id="calGruppenBtn" type="button">👥 Gruppen</button>' : '')+
+    (isTeacher ? '<button class="btn btn-ghost btn-sm" id="calAllePruefBtn" type="button" title="Prüfungen aller Klassen und Lehrpersonen, nach Woche">📝 Alle Prüfungen</button>' : '')+
     '<button class="btn btn-ghost btn-sm" id="calIcsBtn" type="button" title="Termine als Kalenderdatei herunterladen">📅 In meinen Kalender</button></div>';
   html += '<div id="kalenderBody"><div class="empty-state">Wird geladen …</div></div>';
   renderChrome(html);
@@ -6243,6 +6280,8 @@ function renderKalender(){
   if(newBtn){ newBtn.addEventListener('click', function(){ uiCalendarEntryForm(null, renderKalender); }); }
   var grBtn = document.getElementById('calGruppenBtn');
   if(grBtn){ grBtn.addEventListener('click', function(){ openGruppenVerwaltung(renderKalender); }); }
+  var apBtn = document.getElementById('calAllePruefBtn');
+  if(apBtn){ apBtn.addEventListener('click', kalenderAllePruefungen); }
 
   var alle = kal.alle;
   Promise.all([loadMyCalendarEntries(alle ? null : addDaysStr(-KAL_VERGANGEN_TAGE)), isTeacher ? loadStudentRoster() : Promise.resolve(null), erledigtLoad(), earlybirdKalenderLaden()]).then(function(res){
@@ -14484,6 +14523,7 @@ function svaProjekte(){
   openModal('<h3>📋 SVA: Projekte der Klasse</h3><div class="sva-wahl"><label class="modal-label" for="svaPrKl">Klasse</label>'+svaKlassenWahl('svaPrKl', svaProj.klasse)+
     '<div class="sva-knoepfe" id="svaPrSicht"></div></div><div id="svaPr" class="sva-stand">Lädt …</div>'+
     '<div class="modal-actions"><span id="svaPrDruck" class="sva-knoepfe"></span><button class="btn btn-primary" id="svaPrZu" type="button">Schliessen</button></div>', 'modal-wide');
+  svaAchtung.cache = {};
   document.getElementById('svaPrZu').addEventListener('click', function(){ svaAchtung.cache = {}; closeModal(); if(state.route.name === 'subject' && state.route.subject === 'sva') svaAchtungZeigen(); });
   var sel = document.getElementById('svaPrKl');
   sel.addEventListener('change', function(){ svaProj.klasse = sel.value; svaProjLaden(); });
@@ -14524,12 +14564,15 @@ function svaProjZeichnen(){
   var pap = function(w){ return w.papier ? ' <span class="sva-chip papier">Papier</span>' : ''; };
   var html = '';
   if(svaProj.sicht === 'themen'){
+    // «bereit» (Schüler:in hat das Grobkonzept zum Besprechen freigegeben) steht zuoberst und ist gleich aufgeklappt.
+    var bereitOffen = function(x){ return !!(x.p && x.p.g.bereit && !(svaProj.rueck[x.s.uid] || {}).status); };
+    liste = liste.slice().sort(function(a, b){ return (bereitOffen(b) ? 1 : 0) - (bereitOffen(a) ? 1 : 0); });
     html = '<table class="sva-tab"><tr><th>Name</th><th>Thema</th><th>Produkt</th><th>Grobkonzept</th></tr>'+liste.map(function(x){
       var w = svaWerte(x, svaProj.papier);
       if(!x.p) return '<tr'+(w.papier ? '' : ' class="vorbei"')+'><td>'+name(x)+pap(w)+'</td><td>'+esc(w.thema || '–')+'</td><td>'+esc(w.produkt || '–')+'</td><td>'+(w.papier ? '' : 'noch nichts eingetragen')+svaPapierForm(x)+'</td></tr>';
       var g = x.p.g, n = SVA_GK_FELDER.filter(function(f){ return (g[f[0]] || '').trim(); }).length, r = svaProj.rueck[x.s.uid] || {};
       return '<tr><td>'+name(x)+'</td><td>'+esc(w.thema || '–')+'</td><td>'+esc(w.produkt || '–')+'</td><td>'+n+' / '+SVA_GK_FELDER.length+
-        (g.bereit ? ' <span class="sva-chip">bereit</span>' : '')+'<span data-rchip="'+esc(x.s.uid)+'">'+svaRueckChip(r)+'</span><details><summary>ansehen und rückmelden</summary>'+
+        (g.bereit ? ' <span class="sva-chip">bereit</span>' : '')+'<span data-rchip="'+esc(x.s.uid)+'">'+svaRueckChip(r)+'</span><details'+(bereitOffen(x) ? ' open' : '')+'><summary>ansehen und rückmelden</summary>'+
         SVA_GK_FELDER.map(function(f){ return '<p class="sva-klein"><b>'+esc(f[1])+'</b><br>'+(svaZeilen(g[f[0]]) || '–')+'</p>'; }).join('')+
         '<div class="sva-rueck" data-uid="'+esc(x.s.uid)+'"><b>Rückmeldung an '+name(x)+'</b> <span class="sva-klein">(erscheint bei ihr/ihm im Fach SVA)</span>'+
         '<select class="modal-input" data-rf="status"><option value="">– keine Rückmeldung –</option><option value="ok"'+(r.status === 'ok' ? ' selected' : '')+'>✅ besprochen – passt</option><option value="ueber"'+(r.status === 'ueber' ? ' selected' : '')+'>✏️ bitte überarbeiten</option></select>'+
@@ -24022,6 +24065,8 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-10-27-alle-pruefungen', datum:'2026-10-27', fuer:'lehrer', text:'📝 Im Kalender gibt es den Knopf «Alle Prüfungen»: die Prüfungen aller Klassen und Lehrpersonen nach Woche. So siehst du, wenn sich bei jemandem die Prüfungen häufen.'},
+  {id:'2026-10-27-sva-bereit', datum:'2026-10-27', fuer:'lehrer', text:'🎓 SVA › «Projekte der Klasse»: Grobkonzepte, die Schüler:innen als «bereit» markiert haben, stehen jetzt zuoberst und sind gleich aufgeklappt, mit allem, was sie geschrieben haben.'},
   {id:'2026-10-26-pdf-handy', datum:'2026-10-26', fuer:'alle', text:'📄 PDFs (z. B. das Chemie-Lehrmittel) zeigen auf Handy und Tablet jetzt alle Seiten, nicht nur die erste.'},
   {id:'2026-10-26-zurueck-genau', datum:'2026-10-26', fuer:'alle', text:'← Der Zurück-Pfeil geht jetzt zuverlässig genau eine Seite zurück (auch beim Wechsel zwischen Ordnern).'},
   {id:'2026-10-25-fachfarbe', datum:'2026-10-25', fuer:'alle', text:'🧹 Auf den Fach-Kacheln steht die Übungsanzahl nicht mehr – es bleibt übersichtlicher. Termine und Ferien im Stundenplan haben jetzt eigene Bildchen.'},
