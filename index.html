@@ -17849,6 +17849,49 @@ function renderFiguren(){
 // PDF aus Firestore: als Blob-URL im gleichen Viewer (inkl. Vollbild), dazu
 // «Neuer Tab» — iPad/iPhone zeigen PDFs im iframe teils nur eingeschränkt.
 var pdfViewerUrl = null;
+// Handy/Tablet: iOS und Android zeigen im iframe nur die erste PDF-Seite -> alle Seiten mit pdf.js untereinander zeichnen.
+function pdfTouchGeraet(){
+  return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+}
+function pdfSeitenAnzeigen(frame, blob){
+  var box = document.createElement('div');
+  box.id = 'resourceFrame';
+  box.style.cssText = 'width:100%;height:100%;overflow:auto;-webkit-overflow-scrolling:touch;background:#e5e7eb;padding:6px 0;';
+  box.innerHTML = '<div style="padding:20px;text-align:center;opacity:.7;">PDF wird geladen …</div>';
+  frame.parentNode.replaceChild(box, frame);
+  blob.arrayBuffer().then(function(buf){
+    return ladePdfJs().then(function(pdfjs){ return pdfjs.getDocument({data: new Uint8Array(buf)}).promise; });
+  }).then(function(pdf){
+    box.innerHTML = '';
+    var breite = Math.max(200, box.clientWidth - 12), dpr = Math.min(window.devicePixelRatio || 1, 2);
+    var seiten = [];
+    function zeichne(el){
+      if(el._fertig) return; el._fertig = true;
+      pdf.getPage(el._nr).then(function(page){
+        var vp = page.getViewport({scale: (breite * dpr) / page.getViewport({scale:1}).width});
+        el.width = vp.width; el.height = vp.height;
+        return page.render({canvasContext: el.getContext('2d'), viewport: vp}).promise;
+      }).catch(function(err){ console.error(err); });
+    }
+    var io = ('IntersectionObserver' in window) ? new IntersectionObserver(function(es){
+      es.forEach(function(e){ if(e.isIntersecting){ io.unobserve(e.target); zeichne(e.target); } });
+    }, {root: box, rootMargin: '600px 0px'}) : null;
+    var chain = Promise.resolve();
+    for(var i = 1; i <= pdf.numPages; i++){ (function(nr){
+      chain = chain.then(function(){ return pdf.getPage(nr); }).then(function(page){
+        var vp1 = page.getViewport({scale:1}), c = document.createElement('canvas');
+        c._nr = nr;
+        c.style.cssText = 'display:block;margin:0 auto 8px;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.25);width:'+breite+'px;height:'+Math.round(breite * vp1.height / vp1.width)+'px;';
+        box.appendChild(c);
+        if(io) io.observe(c); else zeichne(c);
+      });
+    })(i); }
+  }).catch(function(err){
+    console.error(err);
+    box.innerHTML = '<div class="empty-state">Dieses PDF konnte nicht angezeigt werden – tippe oben auf «Neuer Tab».</div>';
+  });
+  return box;
+}
 function renderPdfResource(r){
   if(pdfViewerUrl){ URL.revokeObjectURL(pdfViewerUrl); pdfViewerUrl = null; }
   var s = subjectById(r.subject);
@@ -17872,7 +17915,8 @@ function renderPdfResource(r){
     if(currentViewerResourceId !== r.id) return;
     pdfViewerUrl = URL.createObjectURL(blob);
     var frame = document.getElementById('resourceFrame'), tab = document.getElementById('pdfTabBtn');
-    if(frame) frame.src = pdfViewerUrl;
+    if(frame && pdfTouchGeraet()){ frame = pdfSeitenAnzeigen(frame, blob); }
+    else if(frame) frame.src = pdfViewerUrl;
     if(tab){ tab.href = pdfViewerUrl; tab.style.display = ''; }
     var pb = document.getElementById('pdfPrintBtn');
     if(pb){ pb.style.display = ''; pb.addEventListener('click', function(){ pdfDrucken(pdfViewerUrl); }); }
@@ -23978,6 +24022,7 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-10-26-pdf-handy', datum:'2026-10-26', fuer:'alle', text:'📄 PDFs (z. B. das Chemie-Lehrmittel) zeigen auf Handy und Tablet jetzt alle Seiten, nicht nur die erste.'},
   {id:'2026-10-26-zurueck-genau', datum:'2026-10-26', fuer:'alle', text:'← Der Zurück-Pfeil geht jetzt zuverlässig genau eine Seite zurück (auch beim Wechsel zwischen Ordnern).'},
   {id:'2026-10-25-fachfarbe', datum:'2026-10-25', fuer:'alle', text:'🧹 Auf den Fach-Kacheln steht die Übungsanzahl nicht mehr – es bleibt übersichtlicher. Termine und Ferien im Stundenplan haben jetzt eigene Bildchen.'},
   {id:'2026-10-25-weniger-knoepfe', datum:'2026-10-25', fuer:'lehrer', text:'🧹 Weniger Knöpfe bei den Übungen: Sichtbar bleiben «Öffnen» und «Als aktuell markieren». Zuweisen, Nur Lehrpersonen, Ausblenden und Empfehlen findest du unter «⋯» (der Haken zeigt, was gerade aktiv ist).'},
