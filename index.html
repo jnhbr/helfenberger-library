@@ -413,6 +413,7 @@
   /* 📮 Briefkasten */
   .bk-card{background:var(--surface);border:1px solid var(--border);border-left:5px solid #FFCC00;border-radius:var(--radius-sm);padding:12px 18px;box-shadow:var(--shadow);display:flex;align-items:center;gap:16px;flex-wrap:wrap;}
   .bk-card.bk-zu{border-left-color:var(--border);}
+  .bk-card.bk-versteckt{border-left-color:var(--border);border-style:dashed;border-left-style:solid;opacity:.78;}
   .bk-card.bk-abgegeben{background:var(--good-soft);border-color:var(--good);border-left-color:var(--good);}
   .bk-mini{width:44px;flex-shrink:0;}
   .bk-mini svg{display:block;width:100%;height:auto;}
@@ -4260,16 +4261,25 @@ function undoAusfuehren(){
     return;
   }
   undoLaeuft = true;
+  var undoFehlPfade = [];
   var teile = [];
   for(var i = 0; i < aktion.eintraege.length; i += 400) teile.push(aktion.eintraege.slice(i, i + 400));
   teile.reduce(function(p, teil){
     return p.then(function(){
       var b = fsWriteBatch(db);
       teil.forEach(function(e){ if(e.vorher) b.set(e.ref, e.vorher); else b.delete(e.ref); });
-      return b.commit();
+      // Ein einziges verweigertes Dokument kippt sonst den ganzen Batch: dann einzeln weiter, Rest wiederherstellen.
+      return b.commit().catch(function(err){
+        console.error('Rückgängig (Batch) – versuche einzeln', err);
+        return Promise.all(teil.map(function(e){
+          return (e.vorher ? fsSetDoc(e.ref, e.vorher) : fsDeleteDoc(e.ref)).catch(function(err2){
+            undoFehlPfade.push(e.ref.path); console.error('Rückgängig verweigert: '+e.ref.path, err2);
+          });
+        }));
+      });
     });
   }, Promise.resolve()).then(function(){
-    toast('↩️ Rückgängig gemacht.');
+    toast(undoFehlPfade.length ? '⚠️ Rückgängig nur teilweise: '+undoFehlPfade.length+' Eintrag/Einträge nicht erlaubt.' : '↩️ Rückgängig gemacht.');
     // Ansicht auffrischen – nicht in einer offenen Übung/Live-Ansicht (würde dort den Stand verlieren).
     if(['resource','quizplay','pruefung'].indexOf(state.route.name) < 0){
       var y = window.scrollY; render(); setTimeout(function(){ window.scrollTo(0, y); }, 0);
@@ -13412,6 +13422,7 @@ function bkFachLaden(subjectId){
 }
 // Für eine Gruppe aufgestellt: Schüler:innen sehen ihn nur, wenn sie dabei sind.
 function bkFuerMich(bk){
+  if(bk.versteckt && state.profile.role !== 'teacher' && !isLeitung()) return false;   // 🙈 vorbereitet, noch nicht eingeblendet
   if(state.profile.role === 'teacher' || isLeitung() || !bk.gruppeId) return true;
   return (state.bkMeineGruppen || []).some(function(g){ return g.id === bk.gruppeId; });
 }
@@ -13439,6 +13450,7 @@ function bkListeZeichnen(){
     var on = function(pre, fn){ var k = document.getElementById(pre + b.id); if(k) k.addEventListener('click', fn); };
     on('bkopen-', function(){ bkOeffnen(x.klasse, b); });
     on('bkleer-', function(){ bkLeerenStart(x.klasse, b); });
+    on('bkzeig-', function(){ bkEinblenden(x.klasse, b); });
     on('bkedit-', function(){ bkEditor(b); });
     on('bkdel-', function(){ bkLoeschenFragen(x.klasse, b); });
     bkKarteStatus(x, meiner);
@@ -13449,16 +13461,18 @@ function bkKarteHtml(x){
   var zu = bkZustand(b, state.user.uid) === 'zu';
   var sub = (b.frist ? 'Leerung: '+esc(bkZeitText(b.frist))+(b.fristArt === 'spaet' ? ' (danach verspätet)' : '') : 'Ohne Frist')+
     ' · '+esc(bkTypenText(b))+(b.proPerson && isTeacher ? ' · 📁 Ordner pro Person' : '');
-  var h = '<div class="bk-card'+(zu ? ' bk-zu' : '')+'" id="bk-'+esc(b.id)+'">'+
+  var h = '<div class="bk-card'+(zu ? ' bk-zu' : '')+(b.versteckt ? ' bk-versteckt' : '')+'" id="bk-'+esc(b.id)+'">'+
     '<span class="bk-mini" aria-hidden="true">'+bkSvg({mini:true, zu:zu})+'</span>'+
     '<div class="resource-info"><h4>'+esc(b.titel)+
+      (b.versteckt ? ' <span class="cal-gruppe-tag">🙈 ausgeblendet</span>' : '')+
       (b.gruppeName ? ' <span class="cal-gruppe-tag">👥 '+esc(b.gruppeName)+'</span>' : '')+
       (x.lp ? ' <span class="cal-gruppe-tag">'+esc(x.lp)+'</span>' : '')+
       (isTeacher && !meiner ? ' <span class="cal-gruppe-tag">von '+esc(b.ownerName || '?')+'</span>' : '')+'</h4>'+
       '<div class="bk-sub">'+sub+'</div><div class="bk-sub" id="bkstat-'+esc(b.id)+'"></div></div>'+
     '<div class="bk-actions">';
   if(meiner){
-    h += (bkKannLokal() ? '<button class="btn btn-primary btn-sm" id="bkleer-'+esc(b.id)+'" type="button">📬 Leeren</button>' : '')+
+    h += (b.versteckt ? '<button class="btn btn-primary btn-sm" id="bkzeig-'+esc(b.id)+'" type="button">👁 Einblenden</button>' : '')+
+      (bkKannLokal() && !b.versteckt ? '<button class="btn btn-primary btn-sm" id="bkleer-'+esc(b.id)+'" type="button">📬 Leeren</button>' : '')+
       '<button class="btn btn-ghost btn-sm" id="bkopen-'+esc(b.id)+'" type="button">👥 Abgaben</button>'+
       '<button class="btn btn-ghost btn-sm" id="bkedit-'+esc(b.id)+'" type="button">Bearbeiten</button>'+
       '<button class="btn btn-danger btn-sm" id="bkdel-'+esc(b.id)+'" type="button">Löschen</button>';
@@ -13691,6 +13705,8 @@ function bkEditor(existing){
         '<option value="spaet"'+(existing && existing.fristArt === 'spaet' ? ' selected' : '')+'>Nach der Frist noch möglich, als «verspätet» markiert</option></select>'+
       '<label class="bk-haken"><input type="checkbox" id="bkKalender"'+(existing ? (existing.kalenderId ? ' checked' : '') : ' checked')+'> 📅 Als Abgabe in den Kalender eintragen</label>'+
     '</div>'+
+    '<label class="bk-haken"><input type="checkbox" id="bkVersteckt"'+(existing && existing.versteckt ? ' checked' : '')+'> 🙈 Noch ausblenden (nur vorbereiten)</label>'+
+    '<p class="bk-klein bk-haken-hinweis">Die Schüler:innen sehen den Briefkasten und die Abgabe im Kalender erst, wenn du ihn mit «👁 Einblenden» freigibst.</p>'+
     (existing ? '<label class="bk-haken"><input type="checkbox" id="bkOffen"'+(existing.offen === false ? '' : ' checked')+'> Briefkasten ist offen</label>' : '')+
     '<div class="login-err" id="bkErr"></div>'+
     '<div class="modal-actions">'+
@@ -13785,6 +13801,7 @@ function bkEditor(existing){
     var gruppe = meineGruppen.filter(function(g){ return g.id === fuerEl.value; })[0] || null;
     var id = existing ? existing.id : 'bk_'+Date.now()+'_'+bkZufall(6);
     var mitKalender = !!frist && document.getElementById('bkKalender').checked;
+    var versteckt = document.getElementById('bkVersteckt').checked;
     var kalenderId = mitKalender ? ((existing && existing.kalenderId) || 'cal_'+Date.now()+'_'+bkZufall(6)) : null;
     var data = {
       titel: titel.slice(0, 80), ordner: ordner.slice(0, 80), subject: subjectId, fachName: s.name, typen: gewaehlt,
@@ -13792,7 +13809,7 @@ function bkEditor(existing){
       offen: existing ? document.getElementById('bkOffen').checked : true,
       gruppeId: gruppe ? gruppe.id : null, gruppeName: gruppe ? gruppe.name : '',
       proPerson: document.getElementById('bkProPerson').checked,
-      kalenderId: kalenderId, updatedAt: serverTimestamp()
+      kalenderId: kalenderId, kalenderGeplant: mitKalender, versteckt: versteckt, updatedAt: serverTimestamp()
     };
     if(!existing){
       data.folderId = state.route.folderId || null;
@@ -13805,7 +13822,7 @@ function bkEditor(existing){
       else await setDoc(bkRef(state.klasse, id), data);
       await setDoc(doc(db, 'lehrer', existing ? existing.ownerUid : state.user.uid, 'briefkaesten', id), verzEintrag, {merge:true})
         .catch(function(err){ console.warn('Briefkasten-Verzeichnis', err); });
-      if(mitKalender){
+      if(mitKalender && !versteckt){
         var eintrag = { type:'abgabe', subject:subjectId, title:data.titel, description:'📮 Abgabe über den Briefkasten in der Library', dueDate:localDateStr(new Date(frist)),
           resourceId:'', resourceTitle:'', resources:[], briefkastenId:id };
         if(gruppe){ eintrag.gruppeId = gruppe.id; eintrag.gruppeName = gruppe.name; eintrag.mitglieder = (gruppe.mitglieder || []).slice(); }
@@ -13816,13 +13833,29 @@ function bkEditor(existing){
         await deleteDoc(kdoc('calendarEntries', existing.kalenderId)).catch(function(err){ console.warn('Kalendereintrag', err); });
       }
       closeModal();
-      toast(existing ? 'Briefkasten gespeichert.' : 'Briefkasten aufgestellt.');
+      toast(versteckt ? 'Briefkasten vorbereitet – noch ausgeblendet.' : existing ? 'Briefkasten gespeichert.' : 'Briefkasten aufgestellt.');
     }catch(err){
       if(err && err.code === 'klasse/abgebrochen') return;
       console.error(err);
       fehler('Konnte nicht gespeichert werden.');
     }
   });
+}
+// 🙈 → 👁: vorbereiteten Briefkasten freigeben; erst jetzt erscheint die Abgabe im Kalender der Schüler:innen.
+async function bkEinblenden(klasse, b){
+  try{
+    if(b.kalenderId && b.kalenderGeplant !== false && b.frist){
+      var eintrag = { type:'abgabe', subject:b.subject, title:b.titel, description:'📮 Abgabe über den Briefkasten in der Library', dueDate:localDateStr(new Date(b.frist)),
+        resourceId:'', resourceTitle:'', resources:[], briefkastenId:b.id, createdAt:serverTimestamp(), createdBy:state.user.uid };
+      if(b.gruppeId){
+        var gr = (await loadMeineGruppen().catch(function(){ return []; })).filter(function(g){ return g.id === b.gruppeId; })[0];
+        eintrag.gruppeId = b.gruppeId; eintrag.gruppeName = b.gruppeName || (gr && gr.name) || ''; eintrag.mitglieder = gr ? (gr.mitglieder || []).slice() : [];
+      }
+      await fsSetDoc(kdocFor(klasse, 'calendarEntries', b.kalenderId), eintrag, {merge:true});
+    }
+    await fsUpdateDoc(bkRef(klasse, b.id), {versteckt:false, updatedAt:serverTimestamp()});
+    toast('Eingeblendet'+(b.kalenderId && b.frist ? ' – die Abgabe steht jetzt im Kalender.' : '.'));
+  }catch(err){ console.error(err); toast('Konnte nicht eingeblendet werden.'); }
 }
 function bkLoeschenFragen(klasse, bk){
   uiConfirm('Briefkasten «'+bk.titel+'» abbauen?',
@@ -24361,6 +24394,7 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-10-27-bk-ausblenden', datum:'2026-10-27', fuer:'lehrer', text:'📮 Briefkästen kannst du jetzt nur vorbereiten und ausblenden («🙈 Noch ausblenden»). Mit «👁 Einblenden» sehen die Schüler:innen den Briefkasten – und erst dann steht die Abgabe in ihrem Kalender.'},
   {id:'2026-10-27-schwierigkeit-waehlen', datum:'2026-10-27', fuer:'lehrer', text:'🎚️ Schwierigkeit wählbar: Vor jedem Klassen-Quiz und jedem Spiel kannst du gemischt, nur leicht, nur mittel, nur schwer oder mittel + schwer wählen. Im 🏆 Grossen Preis folgt die Schwierigkeit jetzt den Punkten: 100 leicht, 500 schwer. Alle 🎲 Trivia-Quizze haben jetzt Stufen und 10 bis 30 zusätzliche, deutlich schwierigere Fragen (auch Nischenfragen, z. B. bei Disney). Beim Bearbeiten eines Klassen-Quiz bleiben Stufe und Kategorie der Fragen erhalten.'},
   {id:'2026-10-27-live-mehrere-klassen', datum:'2026-10-27', fuer:'lehrer', text:'👥 Live-Runden für mehrere Klassen, deine Fach-Gruppen (z. B. Mathe) oder einzelne Schüler:innen: ☁️ Wortwolke, 📊 Blitzumfrage, 🎮 Klassen-Quiz, 💰 Millionär und die Spiele (Schätzmeister, Bingo, Buzzer …) erscheinen bei allen Gewählten, auch in anderen Klassen, und die Antworten laufen am Beamer zusammen. Gewählt wird über «👥 Wer macht mit?» – im Klassenzimmer oben, im Start-Dialog von Wortwolke, Umfrage und Quiz und auf der Millionär-Seite. Dieselbe Auswahl gilt für Zufall, Gruppen & Partner. Startest du etwas direkt aus einem Fach-Ordner oder einer Planung, fragt vorher ein Dialog «Für wen?».'},
   {id:'2026-10-27-methodenkoffer', datum:'2026-10-27', fuer:'lehrer', text:'🧰 Der Methodenkoffer liegt als ein Ordner unter «Zusatzmaterial», nach Lektion sortiert (L2 vor L17).'},
