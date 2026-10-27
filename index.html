@@ -2310,6 +2310,7 @@
   .sk-lv-alle select{width:auto;flex:1;min-width:200px;margin:0;}
   .sk-lv-liste{display:flex;flex-direction:column;gap:6px;max-height:calc(44vh/var(--lz,1));overflow:auto;border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px;}
   .sk-lv-row{display:grid;grid-template-columns:1fr minmax(180px,300px);gap:10px;align-items:center;font-size:14px;}
+  .sk-lv-row[hidden]{display:none;}
   .sk-lv-row small{display:block;color:var(--text-muted);font-size:12px;}
   .sk-lv-row select{margin:0;padding:6px 8px;}
   .sk-papier-in{width:84px;display:inline-block;margin:0 4px 0 0;padding:5px 8px;}
@@ -23124,7 +23125,7 @@ function quizEmptyQuestion(){ return { q:'', a:['','','',''], c:0, sec:25 }; }
 
 function openQuizEditor(existing, ablage, onDone){
   var data = existing
-    ? { id:existing.id, title:existing.title||'', subject:existing.subject||'', folderId:existing.folderId||null, questions:(existing.questions||[]).map(function(x){ return {q:x.q||'', a:(x.a||['','','','']).slice(), c:x.c||0, sec:x.sec||25}; }) }
+    ? { id:existing.id, title:existing.title||'', subject:existing.subject||'', folderId:existing.folderId||null, questions:(existing.questions||[]).map(function(x){ return {q:x.q||'', a:(x.a||['','','','']).slice(), c:x.c||0, sec:x.sec||25, st:x.st||0, kat:x.kat||''}; }) }
     : { id:null, title:'', subject:(ablage && ablage.fach)||'', folderId:(ablage && ablage.ordner)||null, questions:[quizEmptyQuestion()] };
 
   function build(){
@@ -23213,7 +23214,10 @@ function openQuizEditor(existing, ablage, onDone){
       var payload = {
         title: data.title, subject: data.subject, folderId: data.subject ? (data.folderId || null) : null,
         questions: data.questions.map(function(q){
-          return { q:q.q.trim(), a:q.a.map(function(x){ return x.trim(); }), c:q.c, sec:q.sec };
+          var o = { q:q.q.trim(), a:q.a.map(function(x){ return x.trim(); }), c:q.c, sec:q.sec };
+          if(q.st) o.st = q.st;
+          if(q.kat) o.kat = q.kat;
+          return o;
         }),
         createdBy: state.profile.displayName
       };
@@ -23274,6 +23278,7 @@ function quizStartDialog(quiz){
   h += '<label class="modal-label">Wer spielt?</label><select id="qzTeams" class="modal-input"><option value="0">Jede:r für sich (Rangliste mit Namen)</option>';
   [2, 3, 4, 5, 6].forEach(function(t){ h += '<option value="'+t+'"'+(t === std ? ' selected' : '')+'>'+t+' Teams – zufällig verteilt, es zählt der Team-Durchschnitt</option>'; });
   h += '</select>';
+  h += stWahlHtml('qzStufe', (quiz.questions || []).map(function(x){ return {st:x.st}; }));
   if(runden.length){
     h += '<label class="modal-label">Wie viele Fragen?</label><select id="qzRunde" class="modal-input">';
     runden.forEach(function(r){ h += '<option value="'+r+'"'+(n > 20 && r === 20 ? ' selected' : '')+'>'+r+' Fragen – zuerst die, die diese Klasse noch nicht hatte</option>'; });
@@ -23316,12 +23321,15 @@ function quizStartDialog(quiz){
     var t = +document.getElementById('qzTeams').value || 0;
     var r = runden.length ? +document.getElementById('qzRunde').value || 0 : 0;
     lsSet(LIB_PREFIX + 'quiz_teams', String(t));
+    var sw = document.getElementById('qzStufe').value; stMerken(sw);
     var kSel = document.getElementById('qzKlasse');
     closeModal();
     var kz = kSel ? (kSel.value || null) : null;
-    if(!r){ startQuizSession(quiz, t, kz); return; }
+    var qz = sw === 'alle' ? quiz : Object.assign({}, quiz, {questions:stFiltern(quiz.questions || [], sw)});
+    if(!qz.questions.length){ toast('In dieser Stufe gibt es keine Fragen.'); return; }
+    if(!r || r >= qz.questions.length){ startQuizSession(qz, t, kz); return; }
     (gestellt ? Promise.resolve(gestellt) : quizGestelltLaden(kz)).then(function(g){
-      startQuizSession(quizRundeZiehen(quiz, g, r), t, kz);
+      startQuizSession(quizRundeZiehen(qz, g, r), t, kz);
     });
   });
 }
@@ -24353,6 +24361,7 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-10-27-schwierigkeit-waehlen', datum:'2026-10-27', fuer:'lehrer', text:'🎚️ Schwierigkeit wählbar: Vor jedem Klassen-Quiz und jedem Spiel kannst du gemischt, nur leicht, nur mittel, nur schwer oder mittel + schwer wählen. Im 🏆 Grossen Preis folgt die Schwierigkeit jetzt den Punkten: 100 leicht, 500 schwer. Beim Bearbeiten eines Klassen-Quiz bleiben Stufe und Kategorie der Fragen erhalten.'},
   {id:'2026-10-27-live-mehrere-klassen', datum:'2026-10-27', fuer:'lehrer', text:'👥 Live-Runden für mehrere Klassen, deine Fach-Gruppen (z. B. Mathe) oder einzelne Schüler:innen: ☁️ Wortwolke, 📊 Blitzumfrage, 🎮 Klassen-Quiz, 💰 Millionär und die Spiele (Schätzmeister, Bingo, Buzzer …) erscheinen bei allen Gewählten, auch in anderen Klassen, und die Antworten laufen am Beamer zusammen. Gewählt wird über «👥 Wer macht mit?» – im Klassenzimmer oben, im Start-Dialog von Wortwolke, Umfrage und Quiz und auf der Millionär-Seite. Dieselbe Auswahl gilt für Zufall, Gruppen & Partner. Startest du etwas direkt aus einem Fach-Ordner oder einer Planung, fragt vorher ein Dialog «Für wen?».'},
   {id:'2026-10-27-methodenkoffer', datum:'2026-10-27', fuer:'lehrer', text:'🧰 Der Methodenkoffer liegt als ein Ordner unter «Zusatzmaterial», nach Lektion sortiert (L2 vor L17).'},
   {id:'2026-10-27-methodenmaterial', datum:'2026-10-27', fuer:'lehrer', text:'🧰 Methodenmaterial im Fach: Schilder, Rollenkarten, Raster und Karten stehen einzeln unter «Zusatzmaterial» (nur für Lehrpersonen, als druckbares PDF) – mit Lektion und der Menge pro Schüler:in/Paar/Gruppe.'},
@@ -26202,6 +26211,30 @@ function mioNorm(q, antworten, richtig, st, fix, kat){
 function mioAusQuiz(quiz){
   return ((quiz && quiz.questions) || []).map(function(x){ return mioNorm(x.q, x.a, x.c || 0, x.st, false, x.kat); }).filter(Boolean);
 }
+
+/* 🎚️ Schwierigkeit wählbar (27.10.2026): Jede Frage hat eine Stufe (st 1 leicht · 2 mittel · 3 schwer).
+   Bei Quizzen und Spielen kann die Lehrperson vor dem Start die Stufen einschränken. */
+var ST_WAHL = [
+  {id:'alle', name:'Gemischt (alle Stufen)', st:[1, 2, 3]},
+  {id:'1',    name:'🟢 Nur leicht',            st:[1]},
+  {id:'2',    name:'🟡 Nur mittel',            st:[2]},
+  {id:'3',    name:'🔴 Nur schwer',            st:[3]},
+  {id:'23',   name:'🟡🔴 Mittel und schwer',   st:[2, 3]}
+];
+function stWahlHtml(id, fragen){
+  var cur = lsGet(LIB_PREFIX + 'st_wahl') || 'alle', n = [0, 0, 0, 0];
+  fragen.forEach(function(f){ n[f.st >= 1 && f.st <= 3 ? f.st : 2]++; });
+  return '<label class="modal-label">Schwierigkeit</label><select id="'+id+'" class="modal-input">'+ST_WAHL.map(function(w){
+    var z = w.st.reduce(function(a, s){ return a + n[s]; }, 0);
+    return '<option value="'+w.id+'"'+(w.id === cur ? ' selected' : '')+'>'+w.name+' ('+z+' Fragen)</option>';
+  }).join('')+'</select>';
+}
+function stFiltern(fragen, wahl){
+  var w = ST_WAHL.filter(function(x){ return x.id === wahl; })[0];
+  if(!w || w.id === 'alle') return fragen;
+  return fragen.filter(function(f){ return w.st.indexOf(f.st >= 1 && f.st <= 3 ? f.st : 2) >= 0; });
+}
+function stMerken(wahl){ lsSet(LIB_PREFIX + 'st_wahl', wahl); }
 function mioStZahl(fragen){
   var n = [0, 0, 0, 0];
   fragen.forEach(function(f){ n[f.st] = (n[f.st] || 0) + 1; });
@@ -27114,11 +27147,14 @@ function spielWahl(titel, fragen){
     h += '<button class="sp-wahl-knopf" data-spw="'+k+'" type="button"'+(zuWenig ? ' disabled title="Braucht mindestens '+A.min+' Fragen"' : '')+'>'+
       '<span class="sp-wahl-icon">'+A.icon+'</span><span><b>'+esc(A.name)+'</b><small>'+A.wo+' · '+esc(zuWenig ? 'braucht mindestens '+A.min+' Fragen' : A.kurz)+'</small></span></button>';
   });
-  h += '</div><div class="modal-actions"><button class="btn btn-ghost btn-sm" id="modalCancel" type="button">Abbrechen</button></div>';
+  h += '</div>'+stWahlHtml('spwStufe', fragen)+'<div class="modal-actions"><button class="btn btn-ghost btn-sm" id="modalCancel" type="button">Abbrechen</button></div>';
   openModal(h, 'modal-wide');
   document.getElementById('modalCancel').addEventListener('click', closeModal);
   Array.prototype.forEach.call(modalEl.querySelectorAll('[data-spw]'), function(b){
-    b.addEventListener('click', function(){ closeModal(); spielStarten(b.getAttribute('data-spw'), titel, fragen); });
+    b.addEventListener('click', function(){
+      var sw = document.getElementById('spwStufe').value, fr = stFiltern(fragen, sw);
+      stMerken(sw); closeModal(); spielStarten(b.getAttribute('data-spw'), titel, fr);
+    });
   });
 }
 // Fragen für ein Spiel wählen: ein oder mehrere Spiel-Sets / Klassen-Quizze
@@ -27145,6 +27181,8 @@ function spielQuelle(art){
           '<small>'+s.fragen.length+' Fragen'+(s.set ? ' · '+mioStText(s.fragen) : '')+'</small></span></label>'};
       }))+'</div>';
     } else h += '<div class="empty-state">Noch kein Spiel-Set und kein Klassen-Quiz. Lege ein Set an oder hole die Fragen aus einer Übung.</div>';
+    var alleFr = []; sets.forEach(function(x){ alleFr = alleFr.concat(x.fragen); });
+    if(sets.length) h += stWahlHtml('spqStufe', alleFr);
     h += '<p class="pr-hinweis" id="spqZahl"></p>';
     h += '<div class="modal-actions" style="flex-wrap:wrap;"><button class="btn btn-ghost btn-sm" id="modalCancel" type="button">Abbrechen</button>'+
       '<button class="btn btn-ghost btn-sm" id="spqNeu" type="button">➕ Neues Set</button>'+
@@ -27158,7 +27196,8 @@ function spielQuelle(art){
     function fragenJetzt(){
       var out = [];
       gewaehlt().forEach(function(s){ s.fragen.forEach(function(f){ out.push(Object.assign({}, f, {kat:f.kat || s.titel})); }); });
-      return out;
+      var sel = document.getElementById('spqStufe');
+      return sel ? stFiltern(out, sel.value) : out;
     }
     function zaehlen(){
       var n = fragenJetzt().length, z = document.getElementById('spqZahl');
@@ -27166,6 +27205,8 @@ function spielQuelle(art){
       document.getElementById('spqOk').disabled = n < A.min;
     }
     Array.prototype.forEach.call(modalEl.querySelectorAll('[data-spq]'), function(c){ c.addEventListener('change', zaehlen); });
+    var stSel = document.getElementById('spqStufe');
+    if(stSel) stSel.addEventListener('change', function(){ stMerken(stSel.value); zaehlen(); });
     document.getElementById('modalCancel').addEventListener('click', closeModal);
     document.getElementById('spqNeu').addEventListener('click', function(){ closeModal(); state.route = {name:'million'}; render(); openMioEditor(null); });
     document.getElementById('spqUebung').addEventListener('click', function(){ openMioAusUebung(function(titel, fragen){ spielStarten(art, titel, fragen); }); });
@@ -28764,8 +28805,28 @@ function tspKlick(sp, a, b){
 /* ---------- 🏆 Der grosse Preis ---------- */
 
 // Brett bauen: Spalten = Kategorien (kat der Fragen bzw. die gewählten Sets) mit
-// mindestens drei Fragen; sonst gleichmässig gemischte «Mix»-Spalten. In jeder
-// Spalte von leicht nach schwer, 100 Punkte pro Zeile.
+// mindestens drei Fragen; sonst gleichmässig gemischte «Mix»-Spalten. 100 Punkte
+// pro Zeile; die Schwierigkeit folgt den Punkten (27.10.2026): oberste Zeile
+// leicht, unterste schwer, dazwischen mittel – jede Zeile zieht eine Frage ihrer
+// Stufe (st 1/2/3) und weicht nur auf die nächstliegende Stufe aus, wenn keine da ist.
+function preisStufeZeile(r, reihen){
+  if(reihen <= 1) return 2;
+  if(r === reihen - 1) return 3;
+  return 1 + Math.floor(r * 3 / reihen);
+}
+function preisZiehen(pool, reihen){
+  var rest = pruefMischen(pool, Math.random), wahl = [];
+  for(var r = 0; r < reihen; r++){
+    var ziel = preisStufeZeile(r, reihen), best = -1, bd = 99;
+    rest.forEach(function(f, i){
+      var st = f.st >= 1 && f.st <= 3 ? f.st : 2, d = Math.abs(st - ziel) + (st < ziel && r > 0 ? 0.25 : 0);
+      if(d < bd){ bd = d; best = i; }
+    });
+    if(best < 0) break;
+    wahl.push(rest.splice(best, 1)[0]);
+  }
+  return wahl.sort(function(a, b){ return (a.st || 2) - (b.st || 2); });
+}
 function preisBrett(fragen){
   var gruppen = {}, namen = [];
   fragen.forEach(function(f){
@@ -28775,20 +28836,20 @@ function preisBrett(fragen){
   });
   var gute = namen.filter(function(k){ return gruppen[k].length >= 3; }).sort(function(a, b){ return gruppen[b].length - gruppen[a].length; }).slice(0, 6);
   var spalten = [], reihen;
-  var nachStufe = function(liste){ return pruefMischen(liste, Math.random).sort(function(a, b){ return a.st - b.st; }); };
   if(gute.length >= 2){
     reihen = Math.min(5, Math.min.apply(null, gute.map(function(k){ return gruppen[k].length; })));
-    gute.forEach(function(k){
-      var l = nachStufe(gruppen[k]), wahl = [];
-      for(var i = 0; i < reihen; i++) wahl.push(l[Math.round(i * (l.length - 1) / Math.max(1, reihen - 1))]);
-      spalten.push({name:k, fragen:wahl.filter(function(x, i, arr){ return arr.indexOf(x) === i; })});
-    });
+    gute.forEach(function(k){ spalten.push({name:k, fragen:preisZiehen(gruppen[k], reihen)}); });
     reihen = Math.min.apply(null, spalten.map(function(s){ return s.fragen.length; }));
   } else {
-    var alle = nachStufe(fragen), n = Math.max(2, Math.min(5, Math.floor(alle.length / 3)));
-    reihen = Math.min(5, Math.floor(alle.length / n));
-    for(var c = 0; c < n; c++) spalten.push({name:'Mix ' + 'ABCDE'[c], fragen:[]});
-    alle.slice(0, n * reihen).forEach(function(f, i){ spalten[i % n].fragen.push(f); });
+    var n = Math.max(2, Math.min(5, Math.floor(fragen.length / 3)));
+    reihen = Math.min(5, Math.floor(fragen.length / n));
+    var rest = fragen.slice();
+    for(var c = 0; c < n; c++){
+      var sp = preisZiehen(rest, reihen);
+      sp.forEach(function(f){ rest.splice(rest.indexOf(f), 1); });
+      spalten.push({name:'Mix ' + 'ABCDE'[c], fragen:sp});
+    }
+    reihen = Math.min.apply(null, spalten.map(function(s){ return s.fragen.length; }));
   }
   var zellen = spalten.map(function(s){
     return s.fragen.slice(0, reihen).map(function(f, r){ return {q:f.q, a:f.a, c:f.c, fix:f.fix, wert:(r + 1) * 100, risiko:false, weg:false, wer:null}; });
