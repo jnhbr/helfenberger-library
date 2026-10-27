@@ -294,12 +294,12 @@
   .sva-chip.gelb{background:#FFF1C2;color:#7A5200;} .sva-chip.ok{background:#DDF1E4;color:#1B6B3F;} .sva-chip.papier{background:#EDE6D6;color:#5C4A22;}
   .sva-achtung{border:1px solid #F3C9C2;background:#FFF7F5;border-radius:10px;padding:10px 14px;} .sva-achtung.ruhig{border-color:var(--border);background:transparent;color:var(--text-muted);font-size:14px;}
   .sva-achtung summary{cursor:pointer;} .sva-achtung ul{margin:6px 0 2px;padding-left:20px;} .sva-achtung li{margin:5px 0;line-height:1.9;} .sva-achtung p{margin:6px 0 0;}
-  .sva-detailzeile[hidden]{display:none;} .sva-detailzeile td{background:rgba(0,0,0,.03);padding:12px;white-space:normal;}
-  .sva-detail{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(0,1fr);gap:14px;align-items:start;} @media(max-width:760px){.sva-detail{grid-template-columns:1fr;}}
-  .sva-gk{display:grid;grid-template-columns:1fr 1fr;gap:8px;} @media(max-width:760px){.sva-gk{grid-template-columns:1fr;}}
-  .sva-gkf{background:var(--surface,#fff);border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:14px;line-height:1.45;overflow-wrap:anywhere;} .sva-gkf.leer{color:var(--text-muted);background:transparent;border-style:dashed;}
+  .sva-detailzeile[hidden]{display:none;} .sva-tab .sva-detailzeile td{background:rgba(0,0,0,.03);padding:12px;white-space:normal;max-width:0;}
+  .sva-detail{display:flex;flex-direction:column;gap:12px;}
+  .sva-gk{display:flex;flex-direction:column;gap:8px;}
+  .sva-gkf{background:var(--surface,#fff);border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:15px;line-height:1.5;overflow-wrap:anywhere;white-space:normal;} .sva-gkf.leer{color:var(--text-muted);background:transparent;border-style:dashed;}
   .sva-gkl{display:block;font-size:11.5px;font-weight:800;text-transform:uppercase;letter-spacing:.03em;color:var(--text-muted);margin-bottom:2px;}
-  .sva-detail .sva-rueck{margin-top:0;position:sticky;top:0;background:var(--surface,#fff);border-style:solid;}
+  .sva-detail .sva-rueck{margin-top:0;background:var(--surface,#fff);border-style:solid;}
   .sva-rueck{margin-top:10px;padding:10px;border:1px dashed var(--border);border-radius:8px;display:flex;flex-direction:column;gap:6px;align-items:flex-start;} .sva-rueck .modal-input{width:100%;}
   .sva-pform{display:grid;grid-template-columns:1fr 1fr;gap:6px 10px;margin:8px 0;} .sva-pform label.breit{grid-column:1 / -1;} .sva-pform .modal-input{width:100%;}
   .sva-rueckbox{border-radius:10px;padding:10px 14px;background:#E9F6EE;border:1px solid #BFE3CC;} .sva-rueckbox.ueber{background:#FFF4D6;border-color:#EBD08A;}
@@ -15703,12 +15703,69 @@ function ordnerNebenAufgaben(f){
   batch.commit().catch(function(err){ console.error(err); nebenSchonDran[f.id] = false; });
 }
 
-// Löschen bewusst nur, wenn wirklich nichts mehr drin ist — so kann nie
-// versehentlich eine ganze Übungssammlung mitverschwinden.
+// Ordner löschen: leer = einfache Rückfrage; mit Inhalt = ausdrückliche zweite Rückfrage,
+// dann wandern Ordner + Übungen weg. Während 60 s lässt sich alles mit Ctrl+Z (⌘Z) zurückholen
+// (die Übungs-Inhalte werden erst nach Ablauf wirklich entfernt). Zusatzmaterial (Quiz usw.)
+// bleibt erhalten und liegt ohne seinen Ordner auf der Fach-Hauptebene.
+var ordnerUndo = null;
+function ordnerUndoAusfuehren(){
+  var u = ordnerUndo; if(!u) return;
+  ordnerUndo = null; clearTimeout(u.timer);
+  var ops = u.folders.map(function(x){ return ['folders', x]; }).concat(u.resources.map(function(x){ return ['resources', x]; }));
+  var chunks = [];
+  for(var i = 0; i < ops.length; i += 400) chunks.push(ops.slice(i, i + 400));
+  Promise.all(chunks.map(function(c){
+    var batch = writeBatch(db);
+    c.forEach(function(o){ batch.set(kdoc(o[0], o[1].id), o[1].data); });
+    return batch.commit();
+  })).then(function(){ toast('Ordner «'+u.name+'» wiederhergestellt.'); })
+    .catch(function(err){ console.error(err); toast('Wiederherstellen fehlgeschlagen.'); });
+}
+document.addEventListener('keydown', function(e){
+  if(!ordnerUndo || e.shiftKey || e.altKey || !(e.ctrlKey || e.metaKey) || (e.key || '').toLowerCase() !== 'z') return;
+  var t = e.target, tag = t && t.tagName;
+  if(tag === 'INPUT' || tag === 'TEXTAREA' || (t && t.isContentEditable)) return;
+  e.preventDefault();
+  ordnerUndoAusfuehren();
+});
+async function ordnerMitInhaltLoeschen(f){
+  var fids = subtreeIds(f.id);
+  var res = state.resources.filter(function(r){ return !r.kzm && !r.virtual && fids.indexOf(r.folderId || null) >= 0; });
+  try{
+    var snaps = await Promise.all(fids.map(function(id){ return getDoc(kdoc('folders', id)); })
+      .concat(res.map(function(r){ return getDoc(kdoc('resources', r.id)); })));
+    var folders = [], resources = [];
+    snaps.forEach(function(d, i){
+      if(!d.exists()) return;
+      (i < fids.length ? folders : resources).push({id:d.id, data:d.data()});
+    });
+    var ops = folders.map(function(x){ return kdoc('folders', x.id); }).concat(resources.map(function(x){ return kdoc('resources', x.id); }));
+    for(var i = 0; i < ops.length; i += 400){
+      var batch = writeBatch(db);
+      ops.slice(i, i + 400).forEach(function(ref){ batch.delete(ref); });
+      await batch.commit();
+    }
+    if(ordnerUndo){ clearTimeout(ordnerUndo.timer); ordnerUndo.abschluss(); }
+    var u = { name:f.name, folders:folders, resources:resources };
+    u.abschluss = function(){
+      resources.forEach(function(x){
+        var r = Object.assign({id:x.id}, x.data);
+        indexWeg(r.id, state.klasse);
+        deleteContentIfUnused(resourceContentId(r), r.id);
+        if(r.prevContentId) deleteContentIfUnused(r.prevContentId, r.id);
+      });
+    };
+    u.timer = setTimeout(function(){ if(ordnerUndo === u) ordnerUndo = null; u.abschluss(); }, 60000);
+    ordnerUndo = u;
+    toast('Ordner «'+f.name+'» gelöscht. Ctrl+Z (⌘Z) macht es 1 Minute lang rückgängig.');
+  }catch(err){
+    console.error(err);
+    toast('Löschen fehlgeschlagen.');
+  }
+}
+
 function askDeleteFolder(f){
   var c = subtreeCounts(f.id);
-  // Zusatzmaterial (Quiz, Umfragen, Wortwolken, Karteikarten, Prüfungen) zählt auch zum Inhalt:
-  // Ohne seinen Ordner fiele es auf die Fach-Hauptebene.
   kzmLoad(true).then(function(){
     var ids = subtreeIds(f.id);
     var zusatz = kzmItems().filter(function(it){ return it.ordner && ids.indexOf(it.ordner) >= 0; }).length;
@@ -15716,9 +15773,16 @@ function askDeleteFolder(f){
       var was = [];
       if(c.folders) was.push(c.folders+' Unterordner');
       if(c.resources) was.push(c.resources+' Übung'+(c.resources===1?'':'en'));
-      if(zusatz) was.push(zusatz+' Stück Zusatzmaterial (Quiz, Umfragen, Wortwolken, Karteikarten oder Prüfungen)');
-      uiInfo('Ordner ist nicht leer',
-        '«'+f.name+'» enthält noch '+was.join(' und ')+'. Verschiebe den Inhalt zuerst woandershin (Knopf «Verschieben» bzw. «📁 Ablegen») oder lösche ihn, dann lässt sich der Ordner löschen.');
+      if(zusatz) was.push(zusatz+' Stück Zusatzmaterial');
+      uiConfirm('Ordner mit Inhalt löschen?',
+        '«'+f.name+'» enthält noch '+was.join(' und ')+'. '+
+        ((c.folders || c.resources) ? 'Der Ordner'+(c.folders ? ' samt Unterordnern' : '')+(c.resources ? ' und alle Übungen darin' : '')+' wird gelöscht. ' : '')+
+        (zusatz ? 'Zusatzmaterial (Quiz, Umfragen, Karteikarten usw.) bleibt erhalten und liegt danach auf der Hauptebene. ' : '')+
+        'Mit Ctrl+Z (⌘Z) kannst du es danach 1 Minute lang rückgängig machen.',
+        'Ja, endgültig löschen', function(){
+          // zweite Rückfrage, damit es nie aus Versehen passiert
+          uiConfirm('Wirklich sicher?', '«'+f.name+'» wird jetzt samt Inhalt gelöscht.', 'Ja, löschen', function(){ ordnerMitInhaltLoeschen(f); }, true);
+        }, true);
       return;
     }
     uiConfirm('Ordner löschen?', '«'+f.name+'» ist leer und wird entfernt.', 'Löschen', function(){
@@ -16105,7 +16169,7 @@ function folienLaden(){
   if(window.FolienKonverter) return Promise.resolve(window.FolienKonverter);
   return new Promise(function(resolve, reject){
     var sc = document.createElement('script');
-    sc.src = 'folien.js?v=1';   // Service Worker liefert Dateien aus dem Cache: bei jeder Änderung an folien.js die Nummer erhöhen
+    sc.src = 'folien.js?v=2';   // Service Worker liefert Dateien aus dem Cache: bei jeder Änderung an folien.js die Nummer erhöhen
     sc.onload = function(){ resolve(window.FolienKonverter); };
     sc.onerror = function(){ reject(new Error('Der PowerPoint-Umwandler konnte nicht geladen werden (Internet?).')); };
     document.head.appendChild(sc);
@@ -24214,6 +24278,7 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-10-27-ordner-loeschen', datum:'2026-10-27', fuer:'lehrer', text:'Ordner lassen sich jetzt auch mit Inhalt löschen (zweimal bestätigen). Mit Ctrl+Z (⌘Z) holst du sie 1 Minute lang zurück.'},
   {id:'2026-10-26-sitz-gruppe', datum:'2026-10-26', fuer:'lehrer', text:'Sitzplan: Wähle oben eine deiner Gruppen – jede Gruppe hat ihre eigene Sitzordnung (Plätze, Regeln, Abwesende). Die Tische bleiben für alle gleich.'},
   {id:'2026-10-26-sitz-regelgruppen', datum:'2026-10-26', fuer:'lehrer', text:'Sitzplan: Im Fenster «⚖️ Regeln» lassen sich ganze Regelgruppen an- und abwählen, damit das Zufallssetzen nicht an unerfüllbaren Regeln scheitert.'},
   {id:'2026-10-27-stundenplan-pruefung', datum:'2026-10-27', fuer:'alle', text:'📝 Im Stundenplan steht bei der Lektion jetzt eine kleine rote Pille «Prüfung», wenn im Kalender an diesem Tag eine Prüfung in diesem Fach eingetragen ist.'},
@@ -34252,7 +34317,11 @@ function lphMelden(heartbeat, erzwungenRaus){
   else if(lph.drin !== false && !drin){ data.raus = increment(1); data.rausSeit = serverTimestamp(); }
   lph.drin = drin;
   fsSetDoc(doc(db, 'lernphasen', lph.aktiv.id, 'praesenz', state.user.uid), data, {merge:true})
-    .catch(function(err){ console.error('Lernphase: Meldung', err); });
+    .catch(function(err){
+      // Lernphase eben beendet oder Person entfernt: kein Fehler, nur Stand neu holen (stoppt das Melden).
+      if(err && err.code === 'permission-denied'){ console.warn('Lernphase: Meldung abgelehnt', err.code); lphNachfragen(); return; }
+      console.error('Lernphase: Meldung', err);
+    });
 }
 function lphWechsel(){ lphMelden(false); }
 // Ein Klick in eine Übung (iframe) löst am Fenster «blur» aus, obwohl die

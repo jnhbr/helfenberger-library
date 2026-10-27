@@ -458,7 +458,28 @@ var DECK_JS = '(' + function(){
     refPaint(); refZeit();
     // Dieses Fenster zeigt der Klasse nur die Folie: Notizen zu, Vollbild an
     $('fl-notes').style.display = 'none'; $('fl-notizen').classList.remove('on');
-    if(!istVoll()) voll();
+    zweiBildschirme();
+  }
+  // Wie PowerPoint: Referentenansicht automatisch auf den Laptop-Bildschirm, Folien im Vollbild auf den Beamer.
+  // Braucht Chrome/Edge (Fensterverwaltung, beim ersten Mal einmal «Zulassen») und erweiterten Desktop (nicht gespiegelt).
+  function zweiBildschirme(){
+    var P = null; try{ P = window.parent !== window ? window.parent : null; }catch(e){}
+    var W = P || window;
+    if(!W.getScreenDetails){ if(!istVoll()) voll(); return; }
+    W.getScreenDetails().then(function(det){
+      var sc = det.screens;
+      if(sc.length < 2){ if(!istVoll()) voll(); return; }
+      var laptop = sc.filter(function(x){ return x.isInternal; })[0] || det.primaryScreen || sc[0];
+      var beamer = sc.filter(function(x){ return x !== laptop; })[0];
+      if(pw && !pw.closed){
+        try{ pw.moveTo(laptop.availLeft, laptop.availTop); pw.resizeTo(laptop.availWidth, laptop.availHeight); }catch(e){}
+      }
+      var el = null;
+      try{ el = P ? P.document.getElementById('frameWrap') : null; }catch(e){}
+      el = el || document.documentElement;
+      var pr = el.requestFullscreen ? el.requestFullscreen({ screen: beamer }) : Promise.reject();
+      pr.catch(function(){ if(!istVoll()) voll(); });
+    }).catch(function(){ if(!istVoll()) voll(); });
   }
   function blackout(){ schwarz = !schwarz; $('fl-schwarz').style.display = schwarz ? 'block' : 'none'; if(pw && !pw.closed) pw.document.getElementById('r-s').classList.toggle('on', schwarz); }
   function notizenSeite(an){
