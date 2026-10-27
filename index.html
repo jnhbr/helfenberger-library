@@ -24361,7 +24361,7 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
-  {id:'2026-10-27-schwierigkeit-waehlen', datum:'2026-10-27', fuer:'lehrer', text:'🎚️ Schwierigkeit wählbar: Vor jedem Klassen-Quiz und jedem Spiel kannst du gemischt, nur leicht, nur mittel, nur schwer oder mittel + schwer wählen. Im 🏆 Grossen Preis folgt die Schwierigkeit jetzt den Punkten: 100 leicht, 500 schwer. Beim Bearbeiten eines Klassen-Quiz bleiben Stufe und Kategorie der Fragen erhalten.'},
+  {id:'2026-10-27-schwierigkeit-waehlen', datum:'2026-10-27', fuer:'lehrer', text:'🎚️ Schwierigkeit wählbar: Vor jedem Klassen-Quiz und jedem Spiel kannst du gemischt, nur leicht, nur mittel, nur schwer oder mittel + schwer wählen. Im 🏆 Grossen Preis folgt die Schwierigkeit jetzt den Punkten: 100 leicht, 500 schwer. Alle 🎲 Trivia-Quizze haben jetzt Stufen und 10 bis 30 zusätzliche, deutlich schwierigere Fragen (auch Nischenfragen, z. B. bei Disney). Beim Bearbeiten eines Klassen-Quiz bleiben Stufe und Kategorie der Fragen erhalten.'},
   {id:'2026-10-27-live-mehrere-klassen', datum:'2026-10-27', fuer:'lehrer', text:'👥 Live-Runden für mehrere Klassen, deine Fach-Gruppen (z. B. Mathe) oder einzelne Schüler:innen: ☁️ Wortwolke, 📊 Blitzumfrage, 🎮 Klassen-Quiz, 💰 Millionär und die Spiele (Schätzmeister, Bingo, Buzzer …) erscheinen bei allen Gewählten, auch in anderen Klassen, und die Antworten laufen am Beamer zusammen. Gewählt wird über «👥 Wer macht mit?» – im Klassenzimmer oben, im Start-Dialog von Wortwolke, Umfrage und Quiz und auf der Millionär-Seite. Dieselbe Auswahl gilt für Zufall, Gruppen & Partner. Startest du etwas direkt aus einem Fach-Ordner oder einer Planung, fragt vorher ein Dialog «Für wen?».'},
   {id:'2026-10-27-methodenkoffer', datum:'2026-10-27', fuer:'lehrer', text:'🧰 Der Methodenkoffer liegt als ein Ordner unter «Zusatzmaterial», nach Lektion sortiert (L2 vor L17).'},
   {id:'2026-10-27-methodenmaterial', datum:'2026-10-27', fuer:'lehrer', text:'🧰 Methodenmaterial im Fach: Schilder, Rollenkarten, Raster und Karten stehen einzeln unter «Zusatzmaterial» (nur für Lehrpersonen, als druckbares PDF) – mit Lektion und der Menge pro Schüler:in/Paar/Gruppe.'},
@@ -32312,7 +32312,7 @@ function kzmMaterialZeichnen(){
    Eine .json-Datei mit fertig vorbereitetem Material (z. B. aus einer
    Unterrichtsplanung) legt alles auf einmal in einen Ordner:
      {format:'library-material-1', titel, fach, ordner:'Name des Zielordners',
-      quizze:[{titel, text:'Quiz aus Text'} | {titel, fragen:[{q, a:[…], c, sec}]}],
+      quizze:[{titel, text:'Quiz aus Text'} | {titel, fragen:[{q, a:[…], c, sec, st:1|2|3 (freiwillig), kat (freiwillig)}]}],
       millionaer:[{titel, fragen:[{q, a:[2–4 Antworten], c, st: 1 leicht | 2 mittel | 3 schwer, kat:'Kategorie'}]}],
         (= Spiel-Set: auch für Bingo, Buzzer, Der grosse Preis, Drei gewinnt, Schiffe versenken; kat ist freiwillig)
       schaetzen:[{titel, fragen:[{q, w: Zahl, e:'Einheit'}]}],
@@ -32344,7 +32344,10 @@ function kzmPaketNorm(p){
   (Array.isArray(p.quizze) ? p.quizze : []).forEach(function(q){
     var fragen = Array.isArray(q.fragen) ? q.fragen.map(function(f){
       var a = (f.a || []).slice(0, 4).map(function(x){ return str(x, 120); });
-      return {q:str(f.q), a:a, c:Math.max(0, Math.min(a.length - 1, +f.c || 0)), sec:Math.max(5, Math.min(180, +f.sec || 25))};
+      var o = {q:str(f.q), a:a, c:Math.max(0, Math.min(a.length - 1, +f.c || 0)), sec:Math.max(5, Math.min(180, +f.sec || 25))};
+      if(+f.st >= 1 && +f.st <= 3) o.st = Math.round(+f.st);
+      if(str(f.kat)) o.kat = str(f.kat, 40);
+      return o;
     }) : quizAusText(q.text);
     fragen = fragen.filter(function(f){ return f.q && f.a.filter(Boolean).length >= 2; });
     if(str(q.titel) && fragen.length) out.stuecke.push({typ:'quiz', titel:str(q.titel, 80), unter:str(q.unterordner, 60), daten:fragen});
