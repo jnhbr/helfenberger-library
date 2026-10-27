@@ -3582,7 +3582,7 @@
   :root[data-design="neu"] .stp-cell.termin{outline:none;}
   :root[data-design="neu"] .stp-cell.jetzt{background:color-mix(in srgb, var(--c) 34%, var(--surface));box-shadow:0 0 0 3px var(--c);animation:none;}
   :root[data-design="neu"] .stp-cell:not(.edit) .stp-eigen-tag:not(.stp-pin){display:none;}
-  .stp-pr{align-self:flex-start;margin-top:2px;background:#E63950;color:#fff;border-radius:999px;font-size:10.5px;font-weight:800;padding:1px 8px;line-height:1.5;white-space:nowrap;}
+  .stp-pr{align-self:flex-start;margin-top:2px;background:#E63950;color:#fff;border-radius:999px;font-size:10.5px;font-weight:800;padding:1px 8px;line-height:1.5;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis;}
   .stp-slot2{grid-row:span 2;}
   .stp-mehr{left:auto;right:0;min-width:300px;}
   .stp-lpwahl-l{display:flex;flex-direction:column;gap:6px;padding:8px;font-weight:700;font-size:13px;}
@@ -4642,6 +4642,7 @@ function calendarEntryLineHtml(e, isTeacher, roster){
     (e.private ? ' <span class="cal-private-tag" title="Diesen Eintrag siehst nur du">🔒 nur für dich</span>' : '')+
     (isTeacher && e.nurOffen && hasSubmissionChecklist(e.type) ? ' <span class="cal-gruppe-tag" title="Verlängert: nur noch sichtbar für die, die in der Abgabe-Checkliste noch nicht abgehakt sind">⏰ nur noch Offene</span>' : '')+'</div>';
   html += '<div class="cal-entry-text">'+esc(e.title)+'</div>';
+  if(e.type === 'pruefung' && e.schreibenIn){ html += '<div class="cal-entry-desc">📍 Geschrieben '+(e.schreibenIn === 'frei' ? 'in einer freien Lektion (z. B. ISF)' : 'in der Lektion «'+esc(subjectName(e.schreibenIn))+'»')+'</div>'; }
   if(e.description){ html += '<div class="cal-entry-desc">'+esc(e.description)+'</div>'; }
   var links = calendarEntryResources(e);
   if(links.length){
@@ -4756,6 +4757,7 @@ function uiCalendarEntryForm(existing, onSaved){
     (isPrivate ? '' : '<label class="modal-label">Für</label><select id="calFuer"></select><div class="cal-fuer-hint" id="calFuerHint"></div>')+
     '<label class="modal-label">Titel</label><input type="text" id="calTitle" maxlength="120" value="'+esc(existing?existing.title:'')+'" placeholder="z.B. Seite 42, Aufgabe 3–5">'+
     '<label class="modal-label">Datum</label><input type="date" id="calDate" value="'+esc(existing?existing.dueDate:todayStr())+'">'+
+    '<div id="calWoWrap" hidden><label class="modal-label">Wo wird die Prüfung geschrieben?</label><select id="calWo"></select><div class="cal-fuer-hint" id="calWoHint"></div></div>'+
     (existing && !isPrivate && hasSubmissionChecklist(existing.type)
       ? '<label class="modal-label" id="calNurOffenWrap" style="display:flex;gap:8px;align-items:flex-start;font-weight:normal;"><input type="checkbox" id="calNurOffen"'+(existing.nurOffen ? ' checked' : '')+' style="width:auto;margin-top:3px;">'+
         '<span>⏰ Verlängert: nur noch für die sichtbar, die in der Abgabe-Checkliste noch nicht abgehakt sind ('+abgegebenAnzahl(existing)+' abgehakt)</span></label>'
@@ -4857,6 +4859,46 @@ function uiCalendarEntryForm(existing, onSaved){
     }
   }
 
+  // 📝 Prüfung in einem anderen Fach oder einer freien Lektion schreiben (z. B. Geschichte-Prüfung in der Geografie-Lektion).
+  var woWrap = document.getElementById('calWoWrap'), woEl = document.getElementById('calWo'), woHint = document.getElementById('calWoHint');
+  var woWunsch = existing && existing.schreibenIn ? existing.schreibenIn : '';
+  function woFuellen(){
+    var istPr = document.getElementById('calType').value === 'pruefung';
+    woWrap.hidden = !istPr;
+    if(!istPr) return;
+    var datum = document.getElementById('calDate').value, fach = subjectEl.value;
+    var lektionen = [];   // [{f, name, nr}]
+    if(stp.geladen && stp.klasseName === seiteId && datum && rbuTag(datum) < 5){
+      var plan = stpPlanRoh('klasse'), tag = rbuTag(datum);
+      stpZeilen(plan).forEach(function(r){
+        var info = stpInfo(plan.zelle(stpKey(tag, r.s)));
+        var c = plan.zelle(stpKey(tag, r.s));
+        if(info && info.fachId && c && c.f) lektionen.push({f:c.f, name:info.name, nr:r.nr});
+      });
+    }
+    var h = '<option value="">'+(fach ? 'Normal, in der Lektion «'+esc(subjectName(fach))+'»' : 'Normal (kein Fach gewählt)')+'</option>', gesehen = {};
+    lektionen.forEach(function(l){
+      if(l.f === fach || gesehen[l.f]) return;
+      gesehen[l.f] = true;
+      h += '<option value="'+esc(l.f)+'">In der Lektion «'+esc(l.name)+'» (Lektion '+esc(l.nr)+')</option>';
+    });
+    h += '<option value="frei">In einer freien Lektion (z. B. ISF)</option>';
+    if(woWunsch && woWunsch !== 'frei' && !gesehen[woWunsch]) h += '<option value="'+esc(woWunsch)+'">In der Lektion «'+esc(subjectName(woWunsch))+'» (bisher)</option>';
+    woEl.innerHTML = h;
+    woEl.value = woWunsch && woEl.querySelector('option[value="'+woWunsch+'"]') ? woWunsch : '';
+    var hatFach = !fach || lektionen.some(function(l){ return l.f === fach; });
+    woHint.textContent = stp.geladen && stp.klasseName === seiteId && datum && rbuTag(datum) < 5 && !hatFach
+      ? '⚠️ «'+subjectName(fach)+'» hat die Klasse an diesem Tag nicht – wähle eine Lektion oder eine freie Lektion.' : '';
+  }
+  woEl.addEventListener('change', function(){ woWunsch = woEl.value; });
+  document.getElementById('calType').addEventListener('change', woFuellen);
+  document.getElementById('calDate').addEventListener('change', woFuellen);
+  subjectEl.addEventListener('change', woFuellen);
+  woFuellen();
+  if(!stp.geladen || stp.klasseName !== seiteId){
+    if(seiteId === state.klasse) stpLaden().then(woFuellen).catch(function(err){ console.error(err); });
+  }
+
   document.getElementById('modalOk').addEventListener('click', async function(){
     var errEl = document.getElementById('calErr');
     errEl.classList.remove('show');
@@ -4872,6 +4914,8 @@ function uiCalendarEntryForm(existing, onSaved){
     if(!title){ errEl.textContent='Bitte einen Titel eingeben.'; errEl.classList.add('show'); titleEl.focus(); return; }
     if(!dueDate){ errEl.textContent='Bitte ein Datum wählen.'; errEl.classList.add('show'); return; }
     var data = { type:type, subject:subject, title:title.slice(0,120), description:description.slice(0,500), dueDate:dueDate, resourceId:resourceId, resourceTitle:resourceTitle, resources:resources };
+    var woWert = type === 'pruefung' ? woEl.value : '';
+    if(woWert) data.schreibenIn = woWert; else if(existing) data.schreibenIn = deleteField();
     if(nurOffenEl) data.nurOffen = nurOffenEl.checked && hasSubmissionChecklist(type) ? true : deleteField();
     if(fuerEl){
       var gid = fuerEl.value;
@@ -24278,9 +24322,11 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-10-27-sikore-ganze-klasse', datum:'2026-10-27', fuer:'lehrer', text:'SIKORE-Prüfung: Bei «Ganze Klasse» erscheinen nur noch die Schüler:innen deiner Klasse – Gäste aus Parallelklassen sind nur dabei, wenn du unter «Für» eine 👥 Gruppe wählst.'},
   {id:'2026-10-27-ordner-loeschen', datum:'2026-10-27', fuer:'lehrer', text:'Ordner lassen sich jetzt auch mit Inhalt löschen (zweimal bestätigen). Mit Ctrl+Z (⌘Z) holst du sie 1 Minute lang zurück.'},
   {id:'2026-10-26-sitz-gruppe', datum:'2026-10-26', fuer:'lehrer', text:'Sitzplan: Wähle oben eine deiner Gruppen – jede Gruppe hat ihre eigene Sitzordnung (Plätze, Regeln, Abwesende). Die Tische bleiben für alle gleich.'},
   {id:'2026-10-26-sitz-regelgruppen', datum:'2026-10-26', fuer:'lehrer', text:'Sitzplan: Im Fenster «⚖️ Regeln» lassen sich ganze Regelgruppen an- und abwählen, damit das Zufallssetzen nicht an unerfüllbaren Regeln scheitert.'},
+  {id:'2026-10-27-pruefung-wo', datum:'2026-10-27', fuer:'lehrer', text:'📝 Prüfung in einem anderen Fach schreiben: Beim Kalender-Eintrag «Prüfung» wählst du unter «Wo wird die Prüfung geschrieben?» eine andere Lektion dieses Tages (z. B. Geschichte-Prüfung in der Geografie) oder «in einer freien Lektion (z. B. ISF)». Hat die Klasse das Fach an dem Tag nicht, warnt dich das Feld. Im Stundenplan steht die Pille dann in der gewählten Lektion.'},
   {id:'2026-10-27-stundenplan-pruefung', datum:'2026-10-27', fuer:'alle', text:'📝 Im Stundenplan steht bei der Lektion jetzt eine kleine rote Pille «Prüfung», wenn im Kalender an diesem Tag eine Prüfung in diesem Fach eingetragen ist.'},
   {id:'2026-10-27-alle-pruefungen', datum:'2026-10-27', fuer:'lehrer', text:'📝 Im Kalender gibt es den Knopf «Alle Prüfungen»: die Prüfungen aller Klassen und Lehrpersonen nach Woche. So siehst du, wenn sich bei jemandem die Prüfungen häufen.'},
   {id:'2026-10-27-sva-bereit', datum:'2026-10-27', fuer:'lehrer', text:'🎓 SVA › «Projekte der Klasse»: Grobkonzepte, die Schüler:innen als «bereit» markiert haben, stehen jetzt zuoberst und sind gleich aufgeklappt, mit allem, was sie geschrieben haben.'},
@@ -39958,6 +40004,8 @@ async function sikoreEditor(p){
   }catch(err){ console.error(err); }
   if(token !== prEditorToken) return;   // inzwischen wurde eine andere Art gewählt
   roster.sort(function(a, b){ return (a.displayName || a.username || '').localeCompare(b.displayName || b.username || '', 'de'); });
+  var gastUids = {};
+  roster.forEach(function(s){ if(gastFach(s)) gastUids[s.uid] = 1; });
   var levels = Object.assign({}, (p && p.levels) || {});
   if(neu) roster.forEach(function(s){ if(vorschlag[s.uid]) levels[s.uid] = vorschlag[s.uid].neu; });
   var skw = JSON.parse(JSON.stringify(pruefSkala(p || {})));
@@ -40005,7 +40053,8 @@ async function sikoreEditor(p){
   function fuerAnwenden(){
     var g = pruefFuerGruppe();
     Array.prototype.forEach.call(document.querySelectorAll('.sk-lv-row'), function(row){
-      var drin = !g || (g.mitglieder || []).indexOf(row.getAttribute('data-uid')) >= 0;
+      var u = row.getAttribute('data-uid');
+      var drin = g ? (g.mitglieder || []).indexOf(u) >= 0 : !gastUids[u];   // Ganze Klasse: keine Gäste aus Parallelklassen
       row.hidden = !drin;
       var sel = row.querySelector('select');
       if(!drin && sel && !sel.disabled) sel.value = '';
@@ -47205,8 +47254,17 @@ function stpLaden(){
 // Prüfung (Kalender-Eintrag) dieses Fachs an diesem Datum, sonst null.
 function stpPruefung(datum, c){
   if(!c || !c.f || !stp.pruefungen) return null;
-  for(var i = 0; i < stp.pruefungen.length; i++){ var e = stp.pruefungen[i]; if(e.dueDate === datum && e.subject === c.f) return e; }
+  for(var i = 0; i < stp.pruefungen.length; i++){ var e = stp.pruefungen[i]; if(e.dueDate === datum && (e.schreibenIn ? e.schreibenIn === c.f : e.subject === c.f)) return e; }
   return null;
+}
+// Prüfungen dieses Datums, die in einer freien Lektion geschrieben werden.
+function stpPruefungFrei(datum){
+  return (stp.pruefungen || []).filter(function(e){ return e.dueDate === datum && e.schreibenIn === 'frei'; });
+}
+function stpPruefPille(e, c){
+  var anders = c && e.schreibenIn && e.subject !== c.f;
+  var txt = c ? (anders ? subjectName(e.subject)+'-Prüfung' : 'Prüfung') : subjectName(e.subject)+'-Prüfung möglich';
+  return '<span class="stp-pr" title="Prüfung: '+esc(e.title || '')+'">📝 '+esc(txt)+'</span>';
 }
 function stpVorladen(){ stpLaden().then(renderStpJetzt); }
 
@@ -47550,10 +47608,10 @@ function stpZeichnen(){
       var sub = [kl || '', c.zi || '', c.lp || ''].filter(Boolean).join(' · ');
       if(sub) inner += '<span class="stp-sub">'+esc(sub)+'</span>';
       var prf = !vorlage && !a.ferien && !(a.termin && !a.par) ? stpPruefung(stpDatum(tag), c) : null;
-      if(prf) inner += '<span class="stp-pr" title="Prüfung: '+esc(prf.title || '')+'">📝 Prüfung</span>';
+      if(prf) inner += stpPruefPille(prf, c);
       inner += '</span>';
     } else if(c && c.frei){
-      inner += '<span class="stp-txt"><span class="stp-name">🌴 '+(a.termin ? 'Fällt aus' : 'Frei')+'</span>'+(a.termin && c.t ? '<span class="stp-sub">'+esc(c.t)+'</span>' : '')+'</span>';
+      inner += '<span class="stp-txt"><span class="stp-name">🌴 '+(a.termin ? 'Fällt aus' : 'Frei')+'</span>'+(a.termin && c.t ? '<span class="stp-sub">'+esc(c.t)+'</span>' : '')+(!vorlage && !a.termin && !a.ferien ? stpPruefungFrei(stpDatum(tag)).map(function(e){ return stpPruefPille(e, null); }).join('') : '')+'</span>';
     } else if(stp.bearbeiten){
       inner += '<span class="stp-plus">＋</span>';
     } else if(a.ferien){
