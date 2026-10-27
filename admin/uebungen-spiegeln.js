@@ -4,6 +4,9 @@
  *   node uebungen-spiegeln.js           (spiegeln)
  *   node uebungen-spiegeln.js --probe   (nur anzeigen, was passieren würde)
  *
+ * SEIT 27.10.2026: legt NICHTS Neues mehr an. Neues Material kommt nur noch über «Empfehlen an …»
+ * (Einstellungen › Empfohlen); gespiegelt werden nur noch bereits vorhandene Kopien bei Änderungen.
+ *
  * Läuft jede Nacht als GitHub Action (.github/workflows/uebungen-spiegeln.yml im
  * Live-Repo) und kann dort auch von Hand gestartet werden. Bleibt dauerhaft an:
  * Jan will, dass seine Inhalte immer zu allen Lehrpersonen gelangen.
@@ -104,11 +107,7 @@ function ohneLokal(d) { const x = Object.assign({}, d); LOKAL.forEach(function (
 
     fol.forEach(function (d) {
       const q = d.data(), z = hatF[d.id];
-      if (!z) {
-        if (altStand.fol && altStand.fol[d.id]) return;   // von der Lehrperson gelöscht
-        n.ordner++; if (w) w.set(kref.collection('folders').doc(d.id), q);
-        stand.fol[d.id] = felderAbgleichen(q, q, null, {}); return;
-      }
+      if (!z) return;   // seit 27.10.2026: nichts Neues anlegen (nur Empfehlungen), nur Vorhandenes nachführen
       const upd = {}, qf = {};
       ['name', 'parentId', 'order', 'subject'].forEach(function (f) { qf[f] = q[f] === undefined ? null : q[f]; });
       stand.fol[d.id] = felderAbgleichen(qf, z, stand.fol[d.id] || null, upd);
@@ -122,15 +121,7 @@ function ohneLokal(d) { const x = Object.assign({}, d); LOKAL.forEach(function (
       q.originKlasse = QUELLE;
       q.originVersion = typeof d.data().version === 'number' ? d.data().version : 0;
       if (!z) {
-        if (altStand.res && altStand.res[d.id]) return;   // von der Lehrperson gelöscht
-        stand.res[d.id] = felderAbgleichen(q, q, null, {});
-        nachherK[d.id] = q;
-        n.neu++;
-        if (w) {
-          w.set(kref.collection('resources').doc(d.id), q);
-          w.set(db.collection('uebungsIndex').doc(d.id), { klassen: admin.firestore.FieldValue.arrayUnion(QUELLE, k) }, { merge: true });
-        }
-        return;
+        return;   // nichts Neues anlegen (nur Empfehlungen)
       }
       const upd = {};
       stand.res[d.id] = felderAbgleichen(q, z, stand.res[d.id] || null, upd);
@@ -172,7 +163,7 @@ function ohneLokal(d) { const x = Object.assign({}, d); LOKAL.forEach(function (
       const neu = alt.slice();
       kkSets.forEach(function (s) {
         const i = neu.findIndex(function (x) { return x.id === s.id; });
-        if (i < 0) { if (altStand.kk && altStand.kk[s.id]) return; neu.push(s); n.kk++; stand.kk[s.id] = fp(s); }
+        if (i < 0) return;
         else if (gleich(neu[i], s)) stand.kk[s.id] = fp(s);
         else if (stand.kk[s.id] && stand.kk[s.id] === fp(neu[i])) { neu[i] = s; n.kk++; stand.kk[s.id] = fp(s); }
         else lokal++;
@@ -184,11 +175,7 @@ function ohneLokal(d) { const x = Object.assign({}, d); LOKAL.forEach(function (
       const hatQ = {}; zq.forEach(function (d) { hatQ[d.id] = d.data(); });
       quizze.forEach(function (d) {
         const q = Object.assign({}, d.data(), { originKlasse: QUELLE }), z = hatQ[d.id];
-        if (!z) {
-          if (altStand.quiz && altStand.quiz[d.id]) return;   // von der Lehrperson gelöscht
-          n.quiz++; if (w) w.set(kref.collection('quizzes').doc(d.id), q);
-          stand.quiz[d.id] = felderAbgleichen(q, q, null, {}); return;
-        }
+        if (!z) return;   // nichts Neues anlegen (nur Empfehlungen)
         const upd = {};
         stand.quiz[d.id] = felderAbgleichen(q, z, stand.quiz[d.id] || null, upd);
         Object.keys(q).forEach(function (f) { if (NUR_NEU.indexOf(f) < 0 && !gleich(q[f], z[f]) && !(f in upd)) lokal++; });
@@ -203,7 +190,7 @@ function ohneLokal(d) { const x = Object.assign({}, d); LOKAL.forEach(function (
         let geaendert = false;
         vorlagen[t].forEach(function (x) {
           const i = neu.findIndex(function (y) { return y && y.id === x.id; });
-          if (i < 0) { if (altStand[t] && altStand[t][x.id]) return; neu.push(x); n.vorl++; geaendert = true; stand[t][x.id] = fp(x); }
+          if (i < 0) return;
           else if (gleich(neu[i], x)) stand[t][x.id] = fp(x);
           else if (stand[t][x.id] && stand[t][x.id] === fp(neu[i])) { neu[i] = x; n.vorl++; geaendert = true; stand[t][x.id] = fp(x); }
           else lokal++;

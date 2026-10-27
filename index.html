@@ -10339,7 +10339,7 @@ var KIB_WISSEN = [
   {id:'lp-speicher', fuer:'lp', f:'Wie viel Speicher habe ich?', w:'speicher voll platz gb kontingent speicherplatz', ziel:'einstellungen',
    a:'Jede Lehrperson hat 1 GB. Die Anzeige steht unter ⚙️ Einstellungen › «💾 Mein Speicher».\nIst der Speicher voll: alte Übungen oder PDFs löschen oder grosse Dateien als «🔗 Link» ablegen. Kopien von Übungen anderer belegen keinen zusätzlichen Speicher.'},
   {id:'lp-teilen', fuer:'lp', f:'Wie teile ich Übungen mit anderen Lehrpersonen?', w:'teilen empfehlen empfohlen duplizieren aktualisieren kopie kopieren übernehmen kollegen andere lehrpersonen stern', ziel:'einstellungen',
-   a:'«☆ Empfehlen» bei einer Übung schlägt sie allen anderen Lehrpersonen vor.\nEmpfehlungen der anderen findest du unter ⚙️ Einstellungen › «⭐ Von Lehrern empfohlen». Mit 📥 Duplizieren kommt eine Kopie auf deine Seite, 🔄 Aktualisieren holt eine neue Fassung. Die gleichen Knöpfe erscheinen auch direkt auf einer fremden Seite.'},
+   a:'«☆ Empfehlen an …» (bei Übungen und unter 🗃️ Unterrichtsmaterial) schlägt es den Lehrpersonen vor, die du ankreuzt.\nEmpfehlungen der anderen findest du unter ⚙️ Einstellungen › «⭐ Von Lehrern empfohlen». Mit 📥 Duplizieren kommt eine Kopie auf deine Seite, 🔄 Aktualisieren holt eine neue Fassung. Die gleichen Knöpfe erscheinen auch direkt auf einer fremden Seite.'},
   {id:'lp-klasse', fuer:'lp', f:'Wie wechsle ich in eine andere Klasse?', w:'klasse wechseln andere klasse seite fremde gelbes band richtige klasse meine seiten zurück eigene',
    a:'Mit dem Knopf «🏫 Klasse ▾» in der Leiste. Zuoberst steht deine eigene Seite, darunter alle Klassen; im Suchfeld findest du jede Klasse oder Lehrperson.\nEin gelbes Band zeigt, dass du nicht auf deiner eigenen Seite bist. Bevor dort etwas gespeichert wird, fragt die Library nach («Richtige Klasse?»).'},
   {id:'lp-falsch', fuer:'lp', f:'Ich habe in einer falschen Klasse etwas geändert.', w:'versehen falsch falsche klasse geändert rückgängig aus versehen',
@@ -11732,7 +11732,9 @@ async function loadKlassenAbgleich(force){
       liste.push({ r:Object.assign({quelle:k.id}, r), heim:own[id] || null, art:art });
     });
   });
-  function ts(r){ var t = r.replacedAt || r.uploadedAt; return t && t.toDate ? t.toDate().getTime() : 0; }
+  // «Empfehlen an …» (seit 27.10.2026): klassen/{k}/appMeta/empfehlungen.e[typ_id] = {typ,id,titel,fach,an:[Seiten]}.
+  try { await empfAnhaengen(home, own, hidden, liste, seen); } catch(err){ console.error('Empfehlungen laden', err); }
+  function ts(r){ var t = r.replacedAt || r.uploadedAt; return t && t.toDate ? t.toDate().getTime() : (r.empfAt || 0); }
   liste.sort(function(a,b){ return ts(b.r) - ts(a.r); });
   var data = { liste:liste, own:own };
   settingsCache = { at:Date.now(), klasse:home, data:data };
@@ -11776,6 +11778,143 @@ async function uebungZuMir(r, quelle, heim){
     toast('«'+(heim.title || heim.fileName)+'» ist in '+klasseLabel(home)+' jetzt auf dem neuen Stand.');
   }
   inhaltSchutzNachfuehren(r);
+  settingsCache.at = 0;
+}
+
+
+/* ---------- ⭐ Empfehlen an … (seit 27.10.2026) ----------
+   Jans Material wird nicht mehr automatisch in alle Seiten gespiegelt (nur schon vorhandene
+   Kopien werden nachgeführt). Neues kommt per Empfehlung: bei Übung, Quiz, Spiel-/Schätz-Set,
+   Karteikarten, Wortwolke und Blitzumfrage «☆ Empfehlen» → Häkchen bei den Lehrpersonen, die es
+   bekommen sollen. Gespeichert in klassen/{eigene Seite}/appMeta/empfehlungen:
+   e[typ_id] = {typ, id, titel, fach, an:[Seiten-IDs], at}. typ 'res' = Übung, sonst Typ aus KZM_TYPEN.
+   Die Empfänger sehen es unter ⚙️ «⭐ Von Lehrern empfohlen» und übernehmen es dort. */
+function empfKey(typ, id){ return typ + '_' + id; }
+function empfRef(klasse){ return kdocFor(klasse, 'appMeta', 'empfehlungen'); }
+function empfName(k){ return k.art === 'klasse' ? k.id + ' · ' + k.lp : klasseLabel(k.id); }
+function empfFp(o){
+  var skip = {id:1, folderId:1, ordner:1, createdAt:1, updatedAt:1, originKlasse:1, uploadedAt:1, uploadedBy:1, createdBy:1};
+  function norm(v){
+    if(Array.isArray(v)) return v.map(norm);
+    if(v && typeof v === 'object' && !(v.toDate)){ var x = {}; Object.keys(v).sort().forEach(function(k){ if(!skip[k]) x[k] = norm(v[k]); }); return x; }
+    return v === undefined ? null : v;
+  }
+  var t = JSON.stringify(norm(o)), h = 5381;
+  for(var i = 0; i < t.length; i++) h = ((h * 33) ^ t.charCodeAt(i)) >>> 0;
+  return 'f' + h.toString(36) + t.length;
+}
+function empfDialog(typ, id, titel, fach, legacyAlle){
+  var sender = state.klasse;
+  getDoc(empfRef(sender)).catch(function(){ return null; }).then(function(snap){
+    var e = (snap && snap.exists() && snap.data().e) || {};
+    var key = empfKey(typ, id);
+    var ziele = KLASSEN.filter(function(k){ return k.id !== sender; });
+    var cur = e[key] && Array.isArray(e[key].an) ? e[key].an : (legacyAlle ? ziele.map(function(k){ return k.id; }) : []);
+    var gruppen = [['Klassen', 'klasse'], ['Fachlehrpersonen', 'flp'], ['ISF', 'isf'], ['Praktikum / Zivi', 'praktikum']];
+    var h = '<h3>⭐ Empfehlen an …</h3><p class="pr-hinweis"><b>'+esc(titel)+'</b><br>Wer soll es unter ⚙️ «Von Lehrern empfohlen» sehen? Nichts wird ungefragt kopiert.</p>';
+    h += '<div class="modal-actions" style="justify-content:flex-start;margin:0 0 6px;"><button class="btn btn-ghost btn-sm" id="empfAlle" type="button">Alle</button><button class="btn btn-ghost btn-sm" id="empfKeine" type="button">Keine</button></div>';
+    h += '<div id="empfListe" style="max-height:50vh;overflow:auto;">';
+    gruppen.forEach(function(g){
+      var liste = ziele.filter(function(k){ return k.art === g[1]; });
+      if(!liste.length) return;
+      h += '<div class="section-label">'+esc(g[0])+'</div>';
+      liste.forEach(function(k){
+        h += '<label style="display:flex;gap:8px;align-items:center;padding:4px 0;"><input type="checkbox" data-empf="'+esc(k.id)+'"'+(cur.indexOf(k.id) >= 0 ? ' checked' : '')+'> '+esc(empfName(k))+'</label>';
+      });
+    });
+    h += '</div><div class="modal-actions"><button class="btn btn-ghost btn-sm" id="empfAbbr" type="button">Abbrechen</button><button class="btn btn-primary btn-sm" id="empfOk" type="button">Speichern</button></div>';
+    openModal(h);
+    function boxen(){ return Array.prototype.slice.call(document.querySelectorAll('#empfListe [data-empf]')); }
+    document.getElementById('empfAlle').addEventListener('click', function(){ boxen().forEach(function(b){ b.checked = true; }); });
+    document.getElementById('empfKeine').addEventListener('click', function(){ boxen().forEach(function(b){ b.checked = false; }); });
+    document.getElementById('empfAbbr').addEventListener('click', closeModal);
+    document.getElementById('empfOk').addEventListener('click', function(){
+      var an = boxen().filter(function(b){ return b.checked; }).map(function(b){ return b.getAttribute('data-empf'); });
+      var ok = document.getElementById('empfOk'); ok.disabled = true;
+      var p;
+      if(an.length) p = setDoc(empfRef(sender), { e: (function(){ var o = {}; o[key] = { typ:typ, id:id, titel:String(titel || '').slice(0, 120), fach:fach || '', an:an, at:Date.now() }; return o; })() }, { merge:true });
+      else { var u = {}; u['e.' + key] = deleteField(); p = updateDoc(empfRef(sender), u).catch(function(){}); }
+      p.then(function(){
+        if(typ === 'res' && legacyAlle) return updateDoc(kdoc('resources', id), { empfohlen:false });
+      }).then(function(){
+        closeModal(); settingsCache.at = 0;
+        toast(an.length ? '«'+titel+'» wird '+an.length+' Seite'+(an.length === 1 ? '' : 'n')+' empfohlen.' : 'Empfehlung zurückgenommen.');
+      }).catch(function(err){ console.error(err); ok.disabled = false; toast('Hat nicht geklappt.'); });
+    });
+  });
+}
+// Empfehlungen an mich einsammeln und an `liste` anhängen (gleiche Form wie bei den Übungen, plus typ).
+async function empfAnhaengen(home, own, hidden, liste, seen){
+  var andere = KLASSEN.filter(function(k){ return k.id !== home; });
+  var snaps = await Promise.all(andere.map(function(k){ return getDoc(empfRef(k.id)).catch(function(){ return null; }); }));
+  var treffer = [];
+  snaps.forEach(function(sn, i){
+    if(!sn || !sn.exists()) return;
+    var e = sn.data().e || {};
+    Object.keys(e).forEach(function(key){ var x = e[key]; if(x && Array.isArray(x.an) && x.an.indexOf(home) >= 0) treffer.push({ k:andere[i].id, x:x }); });
+  });
+  if(!treffer.length) return;
+  var ownQ = null, ownKk = null, ownV = null, cache = {};
+  async function dok(k, name, id){ var c = k + '/' + name + '/' + id; if(!(c in cache)) cache[c] = await getDoc(kdocFor(k, name, id)).catch(function(){ return null; }); return cache[c]; }
+  async function ownQuizzes(){ if(!ownQ){ ownQ = {}; var sn = await getDocs(kcolFor(home, 'quizzes')); sn.forEach(function(d){ ownQ[d.id] = d.data(); }); } return ownQ; }
+  async function ownKkSets(){ if(!ownKk){ var sn = await dok(home, 'klasseninfo', 'karteikarten'); ownKk = (sn && sn.exists() && sn.data().sets) || []; } return ownKk; }
+  async function ownVorl(){ if(!ownV){ var sn = await dok(home, 'klassenzimmer', 'vorlagen'); ownV = (sn && sn.exists() && sn.data()) || {}; } return ownV; }
+  for(var t of treffer){
+    var x = t.x, id = x.id, key = empfKey(x.typ, id), k = t.k;
+    if(x.typ === 'res'){
+      if(seen[id]) continue;
+      var sn = await dok(k, 'resources', id);
+      if(!sn || !sn.exists()) continue;
+      var r = Object.assign({id:id}, sn.data());
+      var art = heimAbgleich(r, own[id]);
+      if(!art || hidden[id] === true || hidden[id] === resourceContentId(r)) continue;
+      seen[id] = true;
+      liste.push({ r:Object.assign({quelle:k, empfAt:x.at}, r), heim:own[id] || null, art:art });
+      continue;
+    }
+    var quelle = null, heim = null, subj = '', titel = x.titel;
+    if(x.typ === 'quiz' || x.typ === 'million' || x.typ === 'schaetz'){
+      var qs = await dok(k, 'quizzes', id); if(!qs || !qs.exists()) continue;
+      quelle = qs.data(); heim = (await ownQuizzes())[id] || null; subj = quelle.subject || ''; titel = quelle.title || titel;
+    } else if(x.typ === 'kk'){
+      var ks = await dok(k, 'klasseninfo', 'karteikarten');
+      quelle = ks && ks.exists() ? (ks.data().sets || []).filter(function(s){ return s.id === id; })[0] : null; if(!quelle) continue;
+      heim = (await ownKkSets()).filter(function(s){ return s.id === id; })[0] || null; subj = quelle.fach || ''; titel = quelle.titel || titel;
+    } else if(x.typ === 'wolke' || x.typ === 'umfrage'){
+      var vs = await dok(k, 'klassenzimmer', 'vorlagen'), feld = x.typ === 'wolke' ? 'wolken' : 'umfragen';
+      quelle = vs && vs.exists() ? (vs.data()[feld] || []).filter(function(v){ return v && v.id === id; })[0] : null; if(!quelle) continue;
+      heim = ((await ownVorl())[feld] || []).filter(function(v){ return v && v.id === id; })[0] || null; subj = quelle.fach || '';
+      titel = quelle.titel || quelle.frage || titel;
+    } else continue;
+    var fp = empfFp(quelle), art2 = !heim ? 'neu' : (empfFp(heim) === fp ? null : 'anders');
+    if(!art2 || hidden[key] === true || hidden[key] === fp) continue;
+    liste.push({ typ:x.typ, fp:fp, quelleObj:quelle, r:{ id:id, title:titel, subject:subj, quelle:k, empfAt:x.at }, heim:heim, art:art2 });
+  }
+}
+// Material (Quiz, Set, Karteikarten, Wortwolke, Umfrage) aus Empfehlung in die eigene Seite holen.
+async function empfUebernehmen(e){
+  var home = heimKlasse(), q = e.quelleObj, id = e.r.id, neu = !e.heim;
+  if(e.typ === 'quiz' || e.typ === 'million' || e.typ === 'schaetz'){
+    var d = Object.assign({}, q); delete d.id;
+    d.originKlasse = e.r.quelle;
+    if(neu){ d.folderId = null; d.createdAt = serverTimestamp(); } else { delete d.folderId; delete d.createdAt; }
+    await setDoc(kdocFor(home, 'quizzes', id), d, { merge:true });
+    kzm.quizzes = null;
+  } else if(e.typ === 'kk'){
+    var ref = kdocFor(home, 'klasseninfo', 'karteikarten'), sn = await getDoc(ref);
+    var sets = (sn.exists() && sn.data().sets || []).slice(), i = sets.findIndex(function(s){ return s.id === id; });
+    if(i < 0) sets.push(Object.assign({}, q, { ordner:null })); else sets[i] = Object.assign({}, q, { ordner:sets[i].ordner || null });
+    await setDoc(ref, { sets:sets, updatedAt:serverTimestamp() }, { merge:true });
+    kkDaten.sets = null;
+  } else {
+    var feld = e.typ === 'wolke' ? 'wolken' : 'umfragen', vref = kdocFor(home, 'klassenzimmer', 'vorlagen'), vs = await getDoc(vref);
+    var arr = (vs.exists() && vs.data()[feld] || []).slice(), j = arr.findIndex(function(v){ return v && v.id === id; });
+    if(j < 0) arr.push(Object.assign({}, q, { ordner:null })); else arr[j] = Object.assign({}, q, { ordner:arr[j].ordner || null });
+    var upd = { updatedAt:serverTimestamp() }; upd[feld] = arr;
+    await setDoc(vref, upd, { merge:true });
+    kzm.quizzes = null;
+  }
+  toast('«'+e.r.title+'» ist jetzt bei dir ('+klasseLabel(home)+').');
   settingsCache.at = 0;
 }
 
@@ -12443,9 +12582,10 @@ function paintSettingsAbgleich(force){
       '</select>' : '';
     vEl.innerHTML = filterHtml + (sichtbar.length ? sichtbar.map(function(x){
       var e = x.e, i = x.i, r = e.r;
-      return '<div class="settings-row"><div class="grow"><b>'+esc(r.title || r.fileName)+'</b>'+
-        '<small>'+esc(subjectName(r.subject))+' · von '+esc(klasseInfo(r.quelle).lp)+(istKlasse(r.quelle) ? ' ('+esc(r.quelle)+')' : '')+(e.art === 'anders' ? ' · neue Fassung' : '')+'</small></div>'+
-        '<button class="btn btn-ghost btn-sm" type="button" data-v-open="'+i+'" title="Ansehen">👁️</button>'+
+      var tp = e.typ ? KZM_TYPEN[e.typ] : null;
+      return '<div class="settings-row"><div class="grow"><b>'+(tp ? tp.icon+' ' : '')+esc(r.title || r.fileName)+'</b>'+
+        '<small>'+(tp ? esc(tp.name)+' · ' : '')+esc(r.subject ? kzmFachName(r.subject) : 'Ohne Fach')+' · von '+esc(klasseInfo(r.quelle).lp)+(istKlasse(r.quelle) ? ' ('+esc(r.quelle)+')' : '')+(e.art === 'anders' ? ' · neue Fassung' : '')+'</small></div>'+
+        (tp ? '' : '<button class="btn btn-ghost btn-sm" type="button" data-v-open="'+i+'" title="Ansehen">👁️</button>')+
         '<button class="btn btn-ghost btn-sm" type="button" data-v-hide="'+i+'">Ausblenden</button>'+
         '<button class="btn btn-primary btn-sm" type="button" data-v-add="'+i+'">'+(e.art === 'neu' ? '📥 Duplizieren' : '🔄 Aktualisieren')+'</button></div>';
     }).join('') : '<div class="empty-state" style="padding:10px;">'+(d.liste.length ? 'In diesem Fach gibt es keine neuen Empfehlungen.' : 'Keine neuen Empfehlungen.')+'</div>');
@@ -12468,12 +12608,12 @@ function paintSettingsAbgleich(force){
     }
     wire('data-v-hide', function(i){
       var r = d.liste[i].r;
-      var patch = {}; patch[r.id] = resourceContentId(r);
+      var patch = {}; patch[d.liste[i].typ ? empfKey(d.liste[i].typ, r.id) : r.id] = d.liste[i].typ ? d.liste[i].fp : resourceContentId(r);
       return setDoc(kdocFor(heimKlasse(), 'appMeta', 'vorschlaege'), { hidden: patch }, {merge:true});
     });
     wire('data-v-add', function(i){
       var e = d.liste[i];
-      return uebungZuMir(e.r, e.r.quelle, e.heim);
+      return e.typ ? empfUebernehmen(e) : uebungZuMir(e.r, e.r.quelle, e.heim);
     });
     modalEl.querySelectorAll('[data-v-open]').forEach(function(btn){
       btn.addEventListener('click', function(){
@@ -13451,6 +13591,7 @@ function bkListeZeichnen(){
     on('bkopen-', function(){ bkOeffnen(x.klasse, b); });
     on('bkleer-', function(){ bkLeerenStart(x.klasse, b); });
     on('bkzeig-', function(){ bkEinblenden(x.klasse, b); });
+    on('bkhide-', function(){ bkAusblenden(x.klasse, b); });
     on('bkedit-', function(){ bkEditor(b); });
     on('bkdel-', function(){ bkLoeschenFragen(x.klasse, b); });
     bkKarteStatus(x, meiner);
@@ -13474,6 +13615,7 @@ function bkKarteHtml(x){
     h += (b.versteckt ? '<button class="btn btn-primary btn-sm" id="bkzeig-'+esc(b.id)+'" type="button">👁 Einblenden</button>' : '')+
       (bkKannLokal() && !b.versteckt ? '<button class="btn btn-primary btn-sm" id="bkleer-'+esc(b.id)+'" type="button">📬 Leeren</button>' : '')+
       '<button class="btn btn-ghost btn-sm" id="bkopen-'+esc(b.id)+'" type="button">👥 Abgaben</button>'+
+      (!b.versteckt && b.kalenderId ? '<button class="btn btn-ghost btn-sm" id="bkhide-'+esc(b.id)+'" type="button">🙈 Ausblenden</button>' : '')+
       '<button class="btn btn-ghost btn-sm" id="bkedit-'+esc(b.id)+'" type="button">Bearbeiten</button>'+
       '<button class="btn btn-danger btn-sm" id="bkdel-'+esc(b.id)+'" type="button">Löschen</button>';
   } else {
@@ -13856,6 +13998,14 @@ async function bkEinblenden(klasse, b){
     await fsUpdateDoc(bkRef(klasse, b.id), {versteckt:false, updatedAt:serverTimestamp()});
     toast('Eingeblendet'+(b.kalenderId && b.frist ? ' – die Abgabe steht jetzt im Kalender.' : '.'));
   }catch(err){ console.error(err); toast('Konnte nicht eingeblendet werden.'); }
+}
+// 👁 → 🙈: versehentlich eingeblendet oder noch nicht bereit – Briefkasten und Kalender-Abgabe verschwinden wieder für die Schüler:innen.
+async function bkAusblenden(klasse, b){
+  try{
+    await fsUpdateDoc(bkRef(klasse, b.id), {versteckt:true, kalenderGeplant:!!(b.kalenderId && b.frist), updatedAt:serverTimestamp()});
+    if(b.kalenderId) await fsDeleteDoc(kdocFor(klasse, 'calendarEntries', b.kalenderId)).catch(function(err){ console.warn('Kalendereintrag', err); });
+    toast('Ausgeblendet – Briefkasten und Abgabe im Kalender sind für die Schüler:innen weg.');
+  }catch(err){ console.error(err); toast('Konnte nicht ausgeblendet werden.'); }
 }
 function bkLoeschenFragen(klasse, bk){
   uiConfirm('Briefkasten «'+bk.titel+'» abbauen?',
@@ -15603,10 +15753,7 @@ function renderFolderContents(){
     });
     var empBtn = document.getElementById('emp-'+r.id);
     if(empBtn) empBtn.addEventListener('click', function(){
-      empBtn.disabled = true;
-      updateDoc(kdoc('resources', r.id), { empfohlen: !r.empfohlen })
-        .then(function(){ toast(r.empfohlen ? 'Empfehlung zurückgenommen.' : '«'+(r.title || r.fileName)+'» wird den anderen Lehrpersonen empfohlen.'); })
-        .catch(function(err){ console.error(err); empBtn.disabled = false; toast('Hat nicht geklappt.'); });
+      empfDialog('res', r.id, r.title || r.fileName || 'Übung', r.subject, !!r.empfohlen);
     });
   });
   if(isTeacher) paintHeimButtons(realResources);
@@ -16085,7 +16232,7 @@ function resourceCardHtml(r, index, total, isTeacher){
     if(!r.externalUrl) html += '<button class="btn btn-sm btn-lehrer'+(lp?' active':'')+'" id="lp-'+r.id+'" type="button" title="'+(lp?'Wieder für alle sichtbar machen':'Nur für Lehrpersonen sichtbar machen (z. B. Unterrichtsplanung)')+'">'+(lp?'🔓 Für alle sichtbar machen':'🔒 Nur Lehrpersonen')+'</button>';
     if(!lp) html += '<button class="btn btn-sm btn-lehrer'+(aus?' active':'')+'" id="aus-'+r.id+'" type="button" title="'+(aus?'Wieder für die Klasse einblenden (z. B. wenn das Thema durch ist)':'Für die Klasse ausblenden (z. B. Lösungsdossier, bis das Thema durch ist)')+'">'+(aus?'👁 Einblenden':'🙈 Ausblenden')+'</button>';
     if(heimKlasse() && !isFremdeKlasse()){
-      html += '<button class="btn btn-sm btn-empfohlen'+(r.empfohlen?' active':'')+'" id="emp-'+r.id+'" type="button" title="'+(r.empfohlen?'Wird anderen Lehrpersonen unter ⚙️ empfohlen – antippen, um die Empfehlung zurückzunehmen':'Anderen Lehrpersonen unter ⚙️ «Von Lehrern empfohlen» vorschlagen')+'">'+(r.empfohlen?'⭐ Empfohlen':'☆ Empfehlen')+'</button>';
+      html += '<button class="btn btn-sm btn-empfohlen'+(r.empfohlen?' active':'')+'" id="emp-'+r.id+'" type="button" title="'+'Ausgewählten Lehrpersonen unter ⚙️ «Von Lehrern empfohlen» vorschlagen (Häkchen pro Lehrperson)'+'">'+(r.empfohlen?'⭐ Empfohlen':'☆ Empfehlen an …')+'</button>';
     }
     html += '<button class="btn btn-ghost btn-sm" id="rrename-'+r.id+'" type="button">Umbenennen</button>';
     if(!r.externalUrl){
@@ -24394,6 +24541,8 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-10-27-bk-wieder-ausblenden', datum:'2026-10-27', fuer:'lehrer', text:'🙈 Briefkasten versehentlich eingeblendet? Mit «🙈 Ausblenden» auf der Karte ist er für die Schüler:innen wieder weg, samt Abgabe im Kalender – einblenden kannst du ihn jederzeit neu.'},
+  {id:'2026-10-27-empfehlen-an', datum:'2026-10-27', fuer:'lehrer', text:'⭐ Material teilen geht neu per «Empfehlen an …»: Bei Übungen, Quizzen, Spiel-Sets, Karteikarten, Wortwolken und Blitzumfragen (🗃️ Unterrichtsmaterial) setzt du Häkchen bei den Lehrpersonen, die es bekommen sollen. Sie übernehmen es unter ⚙️ «Von Lehrern empfohlen». Neues Material wird nicht mehr automatisch in alle Seiten kopiert; schon vorhandene Kopien werden bei Änderungen weiter nachgeführt.'},
   {id:'2026-10-27-bk-ausblenden', datum:'2026-10-27', fuer:'lehrer', text:'📮 Briefkästen kannst du jetzt nur vorbereiten und ausblenden («🙈 Noch ausblenden»). Mit «👁 Einblenden» sehen die Schüler:innen den Briefkasten – und erst dann steht die Abgabe in ihrem Kalender.'},
   {id:'2026-10-27-schwierigkeit-waehlen', datum:'2026-10-27', fuer:'lehrer', text:'🎚️ Schwierigkeit wählbar: Vor jedem Klassen-Quiz und jedem Spiel kannst du gemischt, nur leicht, nur mittel, nur schwer oder mittel + schwer wählen. Im 🏆 Grossen Preis folgt die Schwierigkeit jetzt den Punkten: 100 leicht, 500 schwer. Alle 🎲 Trivia-Quizze haben jetzt Stufen und 10 bis 30 zusätzliche, deutlich schwierigere Fragen (auch Nischenfragen, z. B. bei Disney). Beim Bearbeiten eines Klassen-Quiz bleiben Stufe und Kategorie der Fragen erhalten.'},
   {id:'2026-10-27-live-mehrere-klassen', datum:'2026-10-27', fuer:'lehrer', text:'👥 Live-Runden für mehrere Klassen, deine Fach-Gruppen (z. B. Mathe) oder einzelne Schüler:innen: ☁️ Wortwolke, 📊 Blitzumfrage, 🎮 Klassen-Quiz, 💰 Millionär und die Spiele (Schätzmeister, Bingo, Buzzer …) erscheinen bei allen Gewählten, auch in anderen Klassen, und die Antworten laufen am Beamer zusammen. Gewählt wird über «👥 Wer macht mit?» – im Klassenzimmer oben, im Start-Dialog von Wortwolke, Umfrage und Quiz und auf der Millionär-Seite. Dieselbe Auswahl gilt für Zufall, Gruppen & Partner. Startest du etwas direkt aus einem Fach-Ordner oder einer Planung, fragt vorher ein Dialog «Für wen?».'},
@@ -24853,7 +25002,7 @@ function einfuehrungSeiten(){
     ['👋', 'Willkommen in der Library', 'Übungen, Hausaufgaben, Stundenplan und Werkzeuge für den Unterricht – für deine Klasse bzw. (FLP, ISF) für deine eigene Seite. Deine Schüler:innen melden sich mit Vorname oder Schul-Kürzel und ihrem Passwort an.'],
     ['📚', 'Übungen und PDFs ablegen', 'Fach öffnen und die HTML-Übung oder das PDF (max. 4 MB) ins Feld ziehen – oder «🔗 Link hinzufügen». Mit Ordnern sortieren. Du hast 1 GB Speicher (Anzeige unter ⚙️ Einstellungen).'],
     ['📅', 'Kalender und 👥 Gruppen', 'Im 📅 Kalender Hausaufgaben, Prüfungen und Erinnerungen eintragen und Übungen oder PDFs verlinken. Unter «👥 Gruppen» stellst du Schüler:innen aus mehreren Klassen zusammen und wählst die Gruppe beim Eintrag unter «Für».'],
-    ['🏫', 'Andere Seiten und ⭐ Empfehlungen', 'Mit 🏫 in der Leiste schaust du bei anderen Klassen und Lehrpersonen hinein (gelbes Band = nicht deine Seite). «☆ Empfehlen» schlägt eine Übung allen vor; Vorschläge der anderen übernimmst du unter ⚙️ Einstellungen.'],
+    ['🏫', 'Andere Seiten und ⭐ Empfehlungen', 'Mit 🏫 in der Leiste schaust du bei anderen Klassen und Lehrpersonen hinein (gelbes Band = nicht deine Seite). «☆ Empfehlen an …» schlägt Material den angekreuzten Lehrpersonen vor; Vorschläge der anderen übernimmst du unter ⚙️ Einstellungen.'],
     ['🎯', 'Klassenzimmer', '«Klassenzimmer» in der Leiste öffnet die Beamer-Werkzeuge: Sitzplan, Klassen-Quiz, Blitzumfrage, Online-Prüfungen, Würfel, Glücksrad, Energizer und mehr.'],
     ['❓', 'Hilfe', 'Die ausführliche Anleitung: <a href="'+HILFE_URL+'" target="_blank" rel="noopener">Hilfe für Lehrpersonen öffnen</a>. Was neu ist, steht unter 🆕. Diese Einführung findest du jederzeit wieder unter ⚙️ Einstellungen.']
   ];
@@ -32318,6 +32467,7 @@ function kzmMaterialZeichnen(){
       '<button class="btn btn-primary btn-sm" data-kzmstart="'+key+'" type="button">'+(it.typ === 'kk' ? '🗂️ Öffnen' : it.typ === 'pruefung' ? '📝 Öffnen' : '▶︎ Starten')+'</button>'+
       (it.typ === 'kk' ? '<button class="btn btn-ghost btn-sm" data-kzmueb="'+key+'" type="button">📊</button>' : '')+
       (it.typ === 'pruefung' ? '' : '<button class="btn btn-ghost btn-sm" data-kzmed="'+key+'" type="button">✏️ Bearbeiten</button>')+
+      (it.typ !== 'pruefung' && heimKlasse() && !isFremdeKlasse() ? '<button class="btn btn-ghost btn-sm" data-kzmemp="'+key+'" type="button" title="Ausgewählten Lehrpersonen empfehlen">☆ Empfehlen an …</button>' : '')+
       '<button class="btn btn-ghost btn-sm" data-kzmmv="'+key+'" type="button">📁 Ablegen</button></div></div>';
   });
   box.innerHTML = h;
@@ -32339,6 +32489,7 @@ function kzmMaterialZeichnen(){
     else if(b.hasAttribute('data-kzmed')) kzmBearbeiten(it(b, 'data-kzmed'));
     else if(b.hasAttribute('data-kzmmv')){ var x = it(b, 'data-kzmmv'); if(x) kzmAblegenDialog(x); }
     else if(b.hasAttribute('data-kzmueb')){ var y = it(b, 'data-kzmueb'); if(y) kkUebersicht(y.raw); }
+    else if(b.hasAttribute('data-kzmemp')){ var z = it(b, 'data-kzmemp'); if(z) empfDialog(z.typ, z.id, z.titel, z.fach); }
   };
 }
 
