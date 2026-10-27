@@ -5178,7 +5178,7 @@ function mitKnopfVerdrahten(btn, onChange){
     });
   });
 }
-function mitDialog(onChange){
+function mitDialog(onChange, onCancel){
   var w = mitWahlNorm(JSON.parse(JSON.stringify(mitWahl())));
   var alleLaden = null, lauf = 0;
   function alleSchueler(){
@@ -5188,7 +5188,7 @@ function mitDialog(onChange){
     return alleLaden;
   }
   var h = '<h3>👥 Wer macht mit?</h3>';
-  h += '<p style="margin:0 0 10px;color:var(--text-muted);font-size:13.5px;">Gilt für 🎡 Glücksrad, 🎲 Wer ist dran?, 👥 Gruppen &amp; Partner und die Flüsterliste der ⏱ Ruhephase – auf diesem Gerät, solange du auf der Seite '+esc(klasseLabel())+' bist.</p>';
+  h += '<p style="margin:0 0 10px;color:var(--text-muted);font-size:13.5px;">Gilt für 🎡 Glücksrad, 🎲 Wer ist dran?, 👥 Gruppen &amp; Partner, die Flüsterliste der ⏱ Ruhephase sowie ☁️ Wortwolke und 📊 Blitzumfrage (dort erscheint die Runde bei allen Gewählten) – auf diesem Gerät, solange du auf der Seite '+esc(klasseLabel())+' bist.</p>';
   h += '<div class="section-label" style="margin:0 0 6px;">Ganze Klassen</div><div class="mit-wahl" id="mitKlassen"></div>';
   h += '<div id="mitGruppenTeil" hidden><div class="section-label" style="margin:14px 0 6px;">👥 Meine Gruppen</div><div class="mit-wahl" id="mitGruppen"></div></div>';
   h += '<div class="section-label" style="margin:14px 0 6px;">Einzelne dazunehmen</div>';
@@ -5269,7 +5269,7 @@ function mitDialog(onChange){
     }
   });
   sucheEl.addEventListener('input', suchen);
-  document.getElementById('mitAbbr').addEventListener('click', closeModal);
+  document.getElementById('mitAbbr').addEventListener('click', function(){ closeModal(); if(onCancel) onCancel(); });
   document.getElementById('mitReset').addEventListener('click', function(){ w = mitWahlNorm({quellen:['']}); sucheEl.value = ''; suchen(); malen(); });
   document.getElementById('mitOk').addEventListener('click', function(){
     // «Heute nicht dabei» nur für Leute behalten, die überhaupt in der Auswahl sind.
@@ -11749,6 +11749,7 @@ async function uebungZuMir(r, quelle, heim){
     if(r.externalUrl) copy.externalUrl = r.externalUrl;
     if(r.pdf) copy.pdf = true;
     if(r.folien) copy.folien = true;
+    if(r.methode) copy.methode = r.methode;
     // Ein Lehrer-HTML bleibt auch als Kopie eines (sonst sähe die Klasse es).
     if(istLehrerHtml(r)) copy.nurLehrer = true;
     await setDoc(ref, copy);
@@ -15586,6 +15587,7 @@ function renderFolderContents(){
    immer im DOM (nur versteckt), damit die Knöpfe normal verdrahtet werden. */
 var ZUSATZ_ARTEN = {
   folien:    {icon:'🎞️', name:'PPP Folien'},
+  methode: {icon:'🧰', name:'Methodenkoffer'},
   pruefung:{icon:'📝', name:'Prüfungen'},
   kk:      {icon:'🗂️', name:'Karteikarten'},
   quiz:    {icon:'🎮', name:'Klassen-Quizze'},
@@ -15596,6 +15598,7 @@ var ZUSATZ_ARTEN = {
 };
 var zusatzOffen = {};   // «Fach|Ordner|Art» → aufgeklappt (nur für diese Sitzung)
 function zusatzArt(r){
+  if(r.methode || /^🧰/.test(String(r.title || ''))) return 'methode';
   if(r.folien) return 'folien';
   if(r.kk && r.ausOrdner) return 'kk';
   if(r.kzm && ZUSATZ_ARTEN[r.kzm.typ]) return r.kzm.typ;
@@ -15608,7 +15611,14 @@ function zusatzHtml(liste, subjectId, here){
     var teil = liste.filter(function(r){ return zusatzArt(r) === art; });
     if(!teil.length) return;
     var titel = function(r){ return String(r.title || '').replace(/^\S+\s/, ''); };
-    teil.sort(function(a, b){ return titel(a).localeCompare(titel(b), 'de', {numeric:true}); });
+    teil.sort(function(a, b){
+      if(art === 'methode'){
+        // nach Lektion (L2 vor L17), egal wann hochgeladen
+        var lek = function(r){ var m = /\bL\s?(\d+)/.exec((r.methode && r.methode.lektion) || '') || /\bL\s?(\d+)/.exec(String(r.title || '')); return m ? +m[1] : 999; };
+        if(lek(a) !== lek(b)) return lek(a) - lek(b);
+      }
+      return titel(a).localeCompare(titel(b), 'de', {numeric:true});
+    });
     var karten = teil.map(function(r){ return resourceCardHtml(r, -1, 0, false); }).join('');
     if(teil.length < 2){ html += karten; return; }
     var key = subjectId + '|' + (here || '') + '|' + art, offen = !!zusatzOffen[key], A = ZUSATZ_ARTEN[art];
@@ -16026,7 +16036,7 @@ function resourceCardHtml(r, index, total, isTeacher){
   }
   if(!lp && !r.folien) html += '<div class="resource-ring" style="--p:0" title="Fortschritt"><span id="pbar-'+r.id+'">–</span></div>';
   html += '<div class="resource-info"><h4>'+esc(r.title || r.fileName)+(r.current?' <span class="chip-current">Aktuell</span>':'')+(lp?' <span class="chip-lehrer">🔒 Nur Lehrpersonen</span>':'')+(aus?' <span class="chip-lehrer">🙈 Ausgeblendet</span>':'')+niveauChipHtml(r, isTeacher)+'</h4>';
-  var metaStart = lp && r.folien ? '🎞️ Folien · nur Lehrpersonen · Notizen + 🎤 Referentenansicht' : lp && r.pdf ? '📄 Lehrer-PDF · für Schüler:innen unsichtbar' : lp ? 'Lehrer-HTML · für Schüler:innen unsichtbar' : r.pdf ? '📄 PDF' : r.folien ? '🎞️ Folien · ▶ Präsentieren, Notizen nur für Lehrpersonen' : r.externalUrl ? '🔗 Link · öffnet in neuem Tab' : 'Noch nicht geübt';
+  var metaStart = r.methode ? '🧰 Methodenmaterial · ' + (r.methode.lektion ? esc(r.methode.lektion) + ' · ' : '') + (r.methode.menge ? esc(r.methode.menge) + ' · ' : '') + 'nur Lehrpersonen, zum Drucken' : lp && r.folien ? '🎞️ Folien · nur Lehrpersonen · Notizen + 🎤 Referentenansicht' : lp && r.pdf ? '📄 Lehrer-PDF · für Schüler:innen unsichtbar' : lp ? 'Lehrer-HTML · für Schüler:innen unsichtbar' : r.pdf ? '📄 PDF' : r.folien ? '🎞️ Folien · ▶ Präsentieren, Notizen nur für Lehrpersonen' : r.externalUrl ? '🔗 Link · öffnet in neuem Tab' : 'Noch nicht geübt';
   if(aus) metaStart = 'Für Schüler:innen ausgeblendet · ' + metaStart;
   html += '<div class="resource-meta" id="pmeta-'+r.id+'">'+metaStart+(uploaded?' · hinzugefügt am '+uploaded:'')+'</div>';
   html += '</div>';
@@ -22942,7 +22952,7 @@ function openStreakModal(){
    Kinder können ihren eigenen Punktestand nicht selbst setzen. */
 
 var QUIZ_SESSION = ['quizSessions', 'aktiv'];
-var quizLive = { klasse:null, session:null, unsub:null, overlay:null, unsubAnswers:null, unsubPlayers:null, tick:null, answered:{}, players:[], sig:null, busy:{} };
+var quizLive = { ziel:null, klasse:null, session:null, unsub:null, overlay:null, unsubAnswers:null, unsubPlayers:null, tick:null, answered:{}, players:[], sig:null, busy:{} };
 
 /* Kurzer Klickschutz fuer die Knoepfe am Beamer: er ueberbrueckt nur den Moment,
    bis Firestore die Aenderung zurueckspiegelt. Bewusst zeitbasiert und nicht an
@@ -22966,7 +22976,19 @@ function quizWatcherUmstellen(klasse){
   quizLive.session = null;
   startQuizWatcher();
 }
-function quizIsRunning(s){ return !!(s && s.state && s.state !== 'idle'); }
+function quizIsRunning(s){ return !!(s && s.state && s.state !== 'idle' && liveFuerMich(s)); }
+// Das Quiz kann in mehreren Klassen zugleich laufen (siehe liveZielLaden): geschrieben wird in jede,
+// gelesen werden Antworten und Spieler aller beteiligten Klassen.
+function quizZiel(){ return quizLive.ziel || (quizLive.session && quizLive.session.klassen ? quizLive.session : null); }
+function quizSetDoc(data, opts){
+  var ks = liveKlassen(quizZiel() || { klassen:[quizK()] });
+  return Promise.all(ks.map(function(k){
+    return setDoc(doc(db, 'klassen', k, QUIZ_SESSION[0], QUIZ_SESSION[1]), data, opts).catch(function(err){
+      if(k === quizK()) throw err;
+      console.error('Quiz in '+k, err);
+    });
+  }));
+}
 
 /* Der Countdown darf NICHT aus s.startedAt minus der eigenen Uhr gerechnet
    werden: startedAt kommt vom Lehrergerät, und die Uhren der Schulgeräte gehen
@@ -23260,16 +23282,19 @@ function quizStartDialog(quiz){
   }
   if(state.profile && (state.profile.role === 'teacher' || isLeitung())){
     var kwahl = function(art){ return KLASSEN.filter(function(k){ return art === 'klasse' ? k.art === 'klasse' : k.art !== 'klasse'; }).map(function(k){
-      return '<option value="'+esc(k.id)+'"'+(k.id === state.klasse ? ' selected' : '')+'>'+esc(k.art === 'klasse' ? k.id+' · '+k.lp : k.lp+(k.art === 'isf' ? ' · ISF' : k.art === 'flp' ? ' · FLP' : ' · Praktikum'))+'</option>'; }).join(''); };
-    h += '<label class="modal-label">Für welche Klasse / Gruppe?</label><select id="qzKlasse" class="modal-input"><optgroup label="Klassen">'+kwahl('klasse')+'</optgroup><optgroup label="Fachlehrpersonen, ISF, Praktikum">'+kwahl('seite')+'</optgroup></select>'+
-      '<p class="pr-hinweis">Die Schüler:innen dieser Klasse sehen oben «Quiz läuft — mitmachen».</p>';
+      return '<option value="'+esc(k.id)+'">'+esc(k.art === 'klasse' ? k.id+' · '+k.lp : k.lp+(k.art === 'isf' ? ' · ISF' : k.art === 'flp' ? ' · FLP' : ' · Praktikum'))+'</option>'; }).join(''); };
+    h += '<label class="modal-label">Für welche Klasse / Gruppe?</label><select id="qzKlasse" class="modal-input"><option value="" selected>👥 Wer macht mit? ('+esc(mitKurz())+')</option><optgroup label="Klassen">'+kwahl('klasse')+'</optgroup><optgroup label="Fachlehrpersonen, ISF, Praktikum">'+kwahl('seite')+'</optgroup></select>'+
+      '<p class="pr-hinweis">Die Schüler:innen sehen oben «Quiz läuft — mitmachen». «👥 Wer macht mit?» nimmt die Auswahl für Klassen, Fach-Gruppen (z. B. Mathe) und Einzelne – auch mehrere Klassen zugleich. '+
+      '<button class="btn btn-ghost btn-sm" id="qzMit" type="button">👥 Auswahl ändern</button></p>';
   }
   h += '<div class="modal-actions"><button class="btn btn-ghost btn-sm" id="modalCancel" type="button">Abbrechen</button>'+
     '<button class="btn btn-primary btn-sm" id="qzGo" type="button">▶︎ Quiz starten</button></div>';
   openModal(h);
   var kSelEl = document.getElementById('qzKlasse');
+  var qzMit = document.getElementById('qzMit');
+  if(qzMit) qzMit.addEventListener('click', function(){ mitDialog(function(){ quizStartDialog(quiz); }, function(){ quizStartDialog(quiz); }); });
   function infoLaden(){
-    var kl = kSelEl ? kSelEl.value : null;
+    var kl = kSelEl ? (kSelEl.value || state.klasse) : null;
     gestellt = null;
     quizGestelltLaden(kl).then(function(g){
       if((kSelEl ? kSelEl.value : null) !== kl) return;
@@ -23293,7 +23318,7 @@ function quizStartDialog(quiz){
     lsSet(LIB_PREFIX + 'quiz_teams', String(t));
     var kSel = document.getElementById('qzKlasse');
     closeModal();
-    var kz = kSel ? kSel.value : null;
+    var kz = kSel ? (kSel.value || null) : null;
     if(!r){ startQuizSession(quiz, t, kz); return; }
     (gestellt ? Promise.resolve(gestellt) : quizGestelltLaden(kz)).then(function(g){
       startQuizSession(quizRundeZiehen(quiz, g, r), t, kz);
@@ -23365,7 +23390,7 @@ function quizTeamsNachfuehren(neuMischen){
   var uids = quizLive.players.map(function(p){ return p.uid; });
   var fehlt = uids.filter(function(u){ return typeof (s.teams || {})[u] !== 'number'; });
   if(neuMischen ? !uids.length : (!fehlt.length || quizBusy('teams'))) return;
-  setDoc(quizSessionRef(), { teams: teamsVerteilen(uids, s.teamN, neuMischen ? null : s.teams), updatedAt: serverTimestamp() }, {merge:true})
+  quizSetDoc({ teams: teamsVerteilen(uids, s.teamN, neuMischen ? null : s.teams), updatedAt: serverTimestamp() }, {merge:true})
     .catch(function(err){ console.error(err); });
 }
 function quizTeamsHtml(s, mitPunkten){
@@ -23380,19 +23405,22 @@ function startQuizSession(quiz, teamN, klasse){
   teamN = Math.max(0, Math.min(TEAM_FARBEN.length, +teamN || 0));
   if(klasse && klasse !== quizK()) quizWatcherUmstellen(klasse);
   quizLive.busy = {}; quizLive.sig = null; quizClock.key = '';
+  // Mit ausdrücklicher Klasse (alter Weg) nur diese; sonst die Auswahl «Wer macht mit?».
+  var zielP = klasse ? Promise.resolve({ klassen:[klasse], nur:null }) : liveZielLaden();
   /* Reihenfolge ist wichtig: ZUERST die Spieler und Antworten der letzten Runde
      wegräumen, ERST DANN die Lobby öffnen. Früher war es umgekehrt - wer schnell
      auf «mitmachen» tippte, fand noch den alten Eintrag vom letzten Quiz, schrieb
      darum keinen neuen, und Sekunden später löschte das Aufräumen genau diesen
      Eintrag. Auf dem Schülergerät stand «Du bist dabei!», am Beamer fehlte die
      Person (z.B. nur 9 von 15). */
-  setDoc(quizSessionRef(), { state:'idle', question:null, updatedAt: serverTimestamp() }, {merge:true}).then(function(){
-    return Promise.all([
-      getDocs(quizPlayersCol()).then(function(s){ var b = writeBatch(db); s.forEach(function(d){ b.delete(d.ref); }); return b.commit(); }),
-      getDocs(quizAnswersCol()).then(function(s){ var b = writeBatch(db); s.forEach(function(d){ b.delete(d.ref); }); return b.commit(); })
-    ]);
+  zielP.then(function(ziel){
+    quizLive.ziel = ziel;
+    return quizSetDoc({ state:'idle', question:null, updatedAt: serverTimestamp() }, {merge:true});
   }).then(function(){
-    return setDoc(quizSessionRef(), {
+    var ks = quizLive.ziel.klassen;
+    return Promise.all([liveAntwortenLoeschen(QUIZ_SESSION[1], ks, 'spieler'), liveAntwortenLoeschen(QUIZ_SESSION[1], ks, 'antworten')]);
+  }).then(function(){
+    return liveSetzen(QUIZ_SESSION[1], quizLive.ziel, {
       quizId: quiz.id, title: quiz.title, state:'lobby', qIndex:-1,
       totalQ: (quiz.questions||[]).length, question:null, sec:0, startedAt:0,
       correctIndex:-1, stats:[], teamN: teamN, teams:{}, updatedAt: serverTimestamp()
@@ -23415,7 +23443,8 @@ function openQuizHost(quiz){
     quizLive.sig = null;
     quizLive.busy = {};
     quizLive.overlay = null;
-    setDoc(quizSessionRef(), { state:'idle', question:null, updatedAt: serverTimestamp() }, {merge:true}).catch(function(){});
+    quizSetDoc({ state:'idle', question:null, updatedAt: serverTimestamp() }, {merge:true}).catch(function(){});
+    quizLive.ziel = null;
     if(quizLive.klasse) quizWatcherUmstellen(null);
   }, 'kz-overlay-quiz');
 
@@ -23426,16 +23455,19 @@ function openQuizHost(quiz){
   });
 
   quizLive.answered = {};
-  quizLive.unsubAnswers = onSnapshot(quizAnswersCol(), function(snap){
-    quizLive.answered = {};
-    snap.forEach(function(d){ quizLive.answered[d.id] = d.data(); });
-    paintQuizHost(quiz);
-  });
-  quizLive.unsubPlayers = onSnapshot(quizPlayersCol(), function(snap){
-    quizLive.players = [];
-    snap.forEach(function(d){ quizLive.players.push(Object.assign({uid:d.id}, d.data())); });
-    paintQuizHost(quiz);
-  });
+  var offen = [
+    liveAntwortenLesen(QUIZ_SESSION[1], quizZiel(), function(list){
+      quizLive.answered = {};
+      list.forEach(function(a){ quizLive.answered[a.uid] = a; });
+      paintQuizHost(quiz);
+    }),
+    liveAntwortenLesen(QUIZ_SESSION[1], quizZiel(), function(list){
+      quizLive.players = list;
+      paintQuizHost(quiz);
+    }, 'spieler')
+  ];
+  quizLive.unsubAnswers = offen[0];
+  quizLive.unsubPlayers = offen[1];
   // Die Knoepfe haengen NICHT mehr einzeln am Listener, sondern an der Buehne:
   // ein Neuzeichnen (z.B. weil gerade jemand geantwortet hat) hat die Knopf-
   // Elemente zwischen Drücken und Loslassen ersetzt - dann kam gar kein Klick
@@ -23647,7 +23679,7 @@ function quizNextStep(quiz){
   var questions = quiz.questions || [];
   if(nextIndex >= questions.length){
     var lb = s.teamN ? quizTeamRang(s, quizLive.players) : quizLeaderboard();
-    setDoc(quizSessionRef(), {
+    quizSetDoc({
       state:'ende', question:null,
       final: lb.map(function(p){ var e = { uid:p.uid, name:p.name||'?', score:p.score||0 }; if(s.teamN) e.team = p.team; return e; }),
       revealRank: quizTopCount(lb) + 1,   // noch ist nichts verkuendet
@@ -23657,7 +23689,7 @@ function quizNextStep(quiz){
   }
   var q = questions[nextIndex];
   quizLive.busy.reveal = 0;   // fuer die neue Frage darf sofort wieder aufgeloest werden
-  setDoc(quizSessionRef(), {
+  quizSetDoc({
     state:'frage', qIndex: nextIndex,
     question: { text: q.q, answers: q.a },
     sec: q.sec || 25, startedAt: Date.now(), stopped:false, stopLeft:0,
@@ -23673,7 +23705,7 @@ function quizStopTime(){
   if(quizBusy('stop')) return;
   var s = quizLive.session || {};
   if(s.state !== 'frage' || s.stopped) return;
-  setDoc(quizSessionRef(), { stopped:true, stopLeft: quizSecondsLeft(s), updatedAt: serverTimestamp() }, {merge:true})
+  quizSetDoc({ stopped:true, stopLeft: quizSecondsLeft(s), updatedAt: serverTimestamp() }, {merge:true})
     .catch(function(err){ console.error(err); toast('Zeit konnte nicht gestoppt werden.'); });
 }
 
@@ -23685,7 +23717,7 @@ function quizRevealNextRank(){
   if(s.state !== 'ende') return;
   var rr = quizRevealRank(s);
   if(rr <= 1) return;
-  setDoc(quizSessionRef(), { revealRank: rr - 1, updatedAt: serverTimestamp() }, {merge:true})
+  quizSetDoc({ revealRank: rr - 1, updatedAt: serverTimestamp() }, {merge:true})
     .catch(function(err){ console.error(err); toast('Der nächste Platz konnte nicht angezeigt werden.'); });
 }
 
@@ -23709,21 +23741,20 @@ function quizReveal(quiz){
   // die Klasse starrte solange auf die Frage. Für "richtig oder falsch" braucht
   // ein Schülergerät ohnehin nur correctIndex; Balken und Punkte kommen gleich
   // danach nach.
-  setDoc(quizSessionRef(), {
+  quizSetDoc({
     state:'aufloesung', correctIndex: q.c, stats: [0,0,0,0], updatedAt: serverTimestamp()
   }, {merge:true}).catch(function(err){ console.error(err); toast('Auflösen fehlgeschlagen.'); });
 
-  getDocs(quizAnswersCol()).then(function(snap){
+  liveAntwortenHolen(QUIZ_SESSION[1], quizZiel() || { klassen:[quizK()] }).then(function(antworten){
     var stats = [0,0,0,0];
     var updates = [];
     var byUid = {};
     quizLive.players.forEach(function(p){ byUid[p.uid] = p; });
 
-    snap.forEach(function(d){
-      var a = d.data();
+    antworten.forEach(function(a){
       if(a.qIndex !== qIndex) return;
       if(typeof a.choice === 'number' && a.choice >= 0 && a.choice < 4) stats[a.choice]++;
-      var player = byUid[d.id];
+      var player = byUid[a.uid];
       var gained = 0;
       if(a.choice === q.c){
         // Grundpunkte plus Tempo-Bonus — schnell und richtig lohnt sich.
@@ -23736,7 +23767,7 @@ function quizReveal(quiz){
         gained = 500 + Math.round(500 * (1 - usedSec/sec));
       }
       updates.push({
-        uid: d.id,
+        uid: a.uid, k: a.k,
         name: (player && player.name) || a.name || '?',
         score: ((player && player.score) || 0) + gained,
         correct: ((player && player.correct) || 0) + (gained > 0 ? 1 : 0),
@@ -23746,10 +23777,10 @@ function quizReveal(quiz){
 
     var batch = writeBatch(db);
     updates.forEach(function(u){
-      batch.set(doc(quizPlayersCol(), u.uid), { name:u.name, score:u.score, correct:u.correct, lastGain:u.gained, lastQ:qIndex }, {merge:true});
+      batch.set(doc(db, 'klassen', u.k, QUIZ_SESSION[0], QUIZ_SESSION[1], 'spieler', u.uid), { name:u.name, score:u.score, correct:u.correct, lastGain:u.gained, lastQ:qIndex }, {merge:true});
     });
     return batch.commit().then(function(){
-      return setDoc(quizSessionRef(), { stats: stats, updatedAt: serverTimestamp() }, {merge:true});
+      return quizSetDoc({ stats: stats, updatedAt: serverTimestamp() }, {merge:true});
     });
   }).catch(function(err){ console.error(err); toast('Punkte konnten nicht verrechnet werden.'); });
 }
@@ -24322,6 +24353,9 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-10-27-live-mehrere-klassen', datum:'2026-10-27', fuer:'lehrer', text:'👥 Live-Runden für mehrere Klassen, deine Fach-Gruppen (z. B. Mathe) oder einzelne Schüler:innen: ☁️ Wortwolke, 📊 Blitzumfrage, 🎮 Klassen-Quiz, 💰 Millionär und die Spiele (Schätzmeister, Bingo, Buzzer …) erscheinen bei allen Gewählten, auch in anderen Klassen, und die Antworten laufen am Beamer zusammen. Gewählt wird über «👥 Wer macht mit?» – im Klassenzimmer oben, im Start-Dialog von Wortwolke, Umfrage und Quiz und auf der Millionär-Seite. Dieselbe Auswahl gilt für Zufall, Gruppen & Partner. Startest du etwas direkt aus einem Fach-Ordner oder einer Planung, fragt vorher ein Dialog «Für wen?».'},
+  {id:'2026-10-27-methodenkoffer', datum:'2026-10-27', fuer:'lehrer', text:'🧰 Der Methodenkoffer liegt als ein Ordner unter «Zusatzmaterial», nach Lektion sortiert (L2 vor L17).'},
+  {id:'2026-10-27-methodenmaterial', datum:'2026-10-27', fuer:'lehrer', text:'🧰 Methodenmaterial im Fach: Schilder, Rollenkarten, Raster und Karten stehen einzeln unter «Zusatzmaterial» (nur für Lehrpersonen, als druckbares PDF) – mit Lektion und der Menge pro Schüler:in/Paar/Gruppe.'},
   {id:'2026-10-27-sikore-ganze-klasse', datum:'2026-10-27', fuer:'lehrer', text:'SIKORE-Prüfung: Bei «Ganze Klasse» erscheinen nur noch die Schüler:innen deiner Klasse – Gäste aus Parallelklassen sind nur dabei, wenn du unter «Für» eine 👥 Gruppe wählst.'},
   {id:'2026-10-27-ordner-loeschen', datum:'2026-10-27', fuer:'lehrer', text:'Ordner lassen sich jetzt auch mit Inhalt löschen (zweimal bestätigen). Mit Ctrl+Z (⌘Z) holst du sie 1 Minute lang zurück.'},
   {id:'2026-10-26-sitz-gruppe', datum:'2026-10-26', fuer:'lehrer', text:'Sitzplan: Wähle oben eine deiner Gruppen – jede Gruppe hat ihre eigene Sitzordnung (Plätze, Regeln, Abwesende). Die Tische bleiben für alle gleich.'},
@@ -25348,8 +25382,13 @@ var UMFRAGE_MODI = {
    Runden ohne «lebt» (vor dieser Änderung oder von der Live-Seite gestartet):
    höchstens 3 Stunden ab Start. */
 var LIVE_HERZ_MS = 60000, LIVE_ALT_MS = 600000, LIVE_OHNE_HERZ_MS = 3 * 3600000;
+// Nur für die Gewählten (Gruppe, einzelne Schüler:innen): alle anderen sehen die Runde nicht.
+function liveFuerMich(s){
+  return !(s && Array.isArray(s.nur) && state.user && state.profile && state.profile.role !== 'teacher' && s.nur.indexOf(state.user.uid) < 0);
+}
 function liveRundeFrisch(s){
   if(!s || !s.aktiv) return false;
+  if(!liveFuerMich(s)) return false;
   if(s.lebt) return Date.now() - s.lebt < LIVE_ALT_MS;
   return !s.startedAt || Date.now() - s.startedAt < LIVE_OHNE_HERZ_MS;
 }
@@ -25361,6 +25400,100 @@ function liveHerzStart(ref, sessionFn){
   schlag();
   return setInterval(schlag, LIVE_HERZ_MS);
 }
+/* ---------- 👥 Live-Runden für mehrere Klassen, Gruppen und einzelne Personen ----------
+   Wunsch von Frau Strebel (27.10.2026): Startet eine Lehrperson eine Wortwolke
+   o. ä., sah die Klasse einer anderen Lehrperson sie nicht. Jetzt gilt die Auswahl
+   «👥 Wer macht mit?» (Klassen, eigene Fach-Gruppen wie Mathe, Einzelne). Die Runde
+   wird in das Dokument jeder beteiligten Klasse geschrieben (klassen/{k}/quizSessions/{name},
+   Feld klassen = alle beteiligten, Feld nur = uids der Gewählten oder null = ganze Klasse).
+   Die Schüler:innen hören wie bisher nur ihre eigene Klasse und antworten dort; das
+   Lehrergerät liest die Antworten aller beteiligten Klassen und führt sie zusammen.
+   Lehrpersonen dürfen schon heute in jeder Klasse quizSessions schreiben und lesen. */
+function liveZielLaden(){
+  var w = mitWahl();
+  var standard = w.quellen.length === 1 && w.quellen[0] === '' && !w.plus.length && !w.minus.length;
+  return mitRoster().then(function(list){
+    var kl = {}; kl[state.klasse] = 1;
+    list.forEach(function(x){ if(x.klasse) kl[x.klasse] = 1; });
+    return { klassen:Object.keys(kl), nur: standard ? null : list.map(function(x){ return x.uid; }),
+      // nur auf dem Lehrergerät (Wartelobby, Anzeige), nicht in Firestore
+      liste: standard ? null : list.map(function(x){ return { uid:x.uid, displayName:x.displayName }; }), text: mitKurz() };
+  }).catch(function(err){ console.error('Live-Ziel', err); return { klassen:[state.klasse], nur:null, liste:null, text:'' }; });
+}
+function liveKlassen(o){ return (o && o.klassen && o.klassen.length) ? o.klassen : [state.klasse]; }
+function liveDocFuer(name, k){ return doc(db, 'klassen', k, 'quizSessions', name); }
+function liveSetzen(name, ziel, daten){
+  return Promise.all(ziel.klassen.map(function(k){
+    return setDoc(liveDocFuer(name, k), Object.assign({ klassen:ziel.klassen, nur:ziel.nur }, daten));
+  }));
+}
+// Änderung an alle beteiligten Klassen; ein Fehler in einer fremden Klasse stoppt die anderen nicht
+// (nur ein Fehler in der eigenen Klasse wird weitergegeben, damit die Hinweise wie bisher erscheinen).
+function liveSchreiben(name, o, daten){
+  return Promise.all(liveKlassen(o).map(function(k){
+    return updateDoc(liveDocFuer(name, k), daten).catch(function(err){
+      if(k === state.klasse) throw err;
+      console.error('Live-Runde '+name+' in '+k, err);
+    });
+  }));
+}
+function liveSchreibenStill(name, o, daten){ return liveSchreiben(name, o, daten).catch(function(){}); }
+function liveAntwortenLoeschen(name, klassen, sub){
+  return Promise.all(klassen.map(function(k){
+    return getDocs(collection(db, 'klassen', k, 'quizSessions', name, sub || 'antworten')).then(function(snap){
+      if(snap.empty) return null;
+      var batch = writeBatch(db);
+      snap.forEach(function(d){ batch.delete(d.ref); });
+      return batch.commit();
+    });
+  }));
+}
+// Antworten (oder Spieler) aller beteiligten Klassen zusammen; k = Klasse der Person.
+// Gibt die Abmelde-Funktion zurück.
+function liveAntwortenLesen(name, o, cb, sub){
+  var teile = {}, offen = [];
+  liveKlassen(o).forEach(function(k){
+    offen.push(onSnapshot(collection(db, 'klassen', k, 'quizSessions', name, sub || 'antworten'), function(snap){
+      var l = [];
+      snap.forEach(function(d){ l.push(Object.assign({uid:d.id, k:k}, d.data())); });
+      teile[k] = l;
+      cb([].concat.apply([], Object.keys(teile).map(function(x){ return teile[x]; })));
+    }, function(err){ console.error(err); }));
+  });
+  return function(){ offen.forEach(function(u){ u(); }); };
+}
+function liveAntwortenHolen(name, o){
+  return Promise.all(liveKlassen(o).map(function(k){
+    return getDocs(collection(db, 'klassen', k, 'quizSessions', name, 'antworten')).then(function(snap){
+      var l = []; snap.forEach(function(d){ l.push(Object.assign({uid:d.id, k:k}, d.data())); }); return l;
+    });
+  })).then(function(t){ return [].concat.apply([], t); });
+}
+function liveHerzAlle(name, objFn){
+  var schlag = function(){
+    var o = objFn();
+    if(o && o.aktiv) liveSchreibenStill(name, o, { lebt:Date.now() });
+  };
+  schlag();
+  return setInterval(schlag, LIVE_HERZ_MS);
+}
+// Zeile «Wer macht mit?» in den Start-Dialogen. Der Auswahl-Dialog ersetzt den Start-Dialog;
+// danach zeichnet neuZeichnen ihn mit dem Entwurf wieder.
+function liveZielZeileHtml(){
+  return '<label class="modal-label" style="margin-top:12px;">Wer macht mit?</label>'+
+    '<div style="margin-bottom:4px;">'+mitKnopfHtml('liveMit')+'</div>'+
+    '<p class="kk-ed-info">Klassen, deine Fach-Gruppen (z. B. Mathe) oder einzelne Schüler:innen – die Runde erscheint bei allen Gewählten, auch in anderen Klassen. Dieselbe Auswahl gilt für 🎲 Zufall &amp; Co.</p>';
+}
+function liveZielVerdrahten(vorher, neuZeichnen){
+  var btn = document.getElementById('liveMit');
+  if(!btn) return;
+  mitGruppenLaden().then(function(){ if(btn.isConnected) btn.querySelector('span').textContent = mitKurz(); });
+  btn.addEventListener('click', function(){ vorher(); mitDialog(neuZeichnen, neuZeichnen); });
+}
+function liveZielInfoHtml(cls, sp){
+  return sp && sp.zielText && sp.ziel && (sp.ziel.nur || sp.ziel.klassen.length > 1) ? '<div class="'+cls+'">👥 Läuft für: '+esc(sp.zielText)+'</div>' : '';
+}
+function liveZielNZahl(s, standardN){ return s && Array.isArray(s.nur) ? s.nur.length : standardN; }
 // Auf den Schülergeräten verschwindet der Knopf auch ohne neuen Schnappschuss.
 setInterval(function(){
   if(!state.profile) return;
@@ -25369,7 +25502,7 @@ setInterval(function(){
   if(wolke.voteOpen && !wolkeLaeuft(wolke.session)) paintWolkeVote();
 }, LIVE_HERZ_MS);
 
-var umfrage = { session:null, unsub:null, unsubAnswers:null, answers:[], overlay:null, sig:null, voteOpen:false, myChoice:null, herz:null };
+var umfrage = { ziel:null, session:null, unsub:null, unsubAnswers:null, answers:[], overlay:null, sig:null, voteOpen:false, myChoice:null, herz:null };
 
 function umfrageRef(){ return kdoc('quizSessions', 'umfrage'); }
 function umfrageAnswersCol(){ return kcol('quizSessions', 'umfrage', 'antworten'); }
@@ -25510,6 +25643,7 @@ function openUmfrageSetup(vorlage, ablage){
       h += '</div>';
     });
     if(entwurf.fragen.length < UMFRAGE_MAX_FRAGEN) h += '<div class="back-row" style="margin:10px 0 0;"><button class="btn btn-ghost btn-sm" id="ufFrageAdd" type="button">+ Weitere Frage in dieser Umfrage</button></div>';
+    h += liveZielZeileHtml();
     h += '<label class="modal-label" style="margin-top:12px;">Ablegen (fürs Speichern)</label>' + kzmAblageHtml(ab.fach, ab.ordner);
     h += '<div class="modal-actions">'+(vorlage ? '<button class="btn btn-danger btn-sm" id="ufDel" type="button">Löschen</button>' : '')
        + '<button class="btn btn-ghost btn-sm" id="ufCancel" type="button">Abbrechen</button>'
@@ -25550,6 +25684,7 @@ function openUmfrageSetup(vorlage, ablage){
     klick('[data-fdel]', function(b){ if(entwurf.fragen.length > 1) entwurf.fragen.splice(+b.getAttribute('data-fdel'), 1); });
     klick('[data-fup]', function(b){ var i = +b.getAttribute('data-fup'); if(i > 0){ var t = entwurf.fragen[i-1]; entwurf.fragen[i-1] = entwurf.fragen[i]; entwurf.fragen[i] = t; } });
     klick('[data-fdown]', function(b){ var i = +b.getAttribute('data-fdown'); if(i < entwurf.fragen.length - 1){ var t = entwurf.fragen[i+1]; entwurf.fragen[i+1] = entwurf.fragen[i]; entwurf.fragen[i] = t; } });
+    liveZielVerdrahten(readBack, build);
     klick('#ufFrageAdd', function(){ if(entwurf.fragen.length < UMFRAGE_MAX_FRAGEN) entwurf.fragen.push({frage:'', optionen:['','','',''], peer:false}); });
     document.getElementById('ufCancel').addEventListener('click', closeModal);
     Array.prototype.forEach.call(modalEl.querySelectorAll('[data-kzmvorlage]'), function(b){
@@ -25594,11 +25729,14 @@ function umfrageStart(frage, optionen, peer){ umfrageStartSerie([{frage:frage, o
 // ergebnisse[] (nur fürs 📊 am Beamer).
 function umfrageStartSerie(fragen, titel){
   var f = fragen[0];
-  umfrageClearAnswers().then(function(){
-    return setDoc(umfrageRef(), {
-      aktiv:true, frage:f.frage, optionen:f.optionen, peer:!!f.peer,
-      runde:1, ergebnis1:null, zeigen:false, startedAt:Date.now(), lebt:Date.now(),
-      serie:fragen, idx:0, titel:titel || '', ergebnisse:[]
+  liveZielLaden().then(function(ziel){
+    umfrage.ziel = ziel;
+    return liveAntwortenLoeschen('umfrage', ziel.klassen).then(function(){
+      return liveSetzen('umfrage', ziel, {
+        aktiv:true, frage:f.frage, optionen:f.optionen, peer:!!f.peer,
+        runde:1, ergebnis1:null, zeigen:false, startedAt:Date.now(), lebt:Date.now(),
+        serie:fragen, idx:0, titel:titel || '', ergebnisse:[]
+      });
     });
   }).then(function(){
     umfrage.uebersicht = false;
@@ -25615,8 +25753,8 @@ function umfrageNaechste(s){
   var idx = (s.idx || 0) + 1; if(idx >= serie.length) return;
   var erg = (s.ergebnisse || []).slice(); erg[s.idx || 0] = umfrageErgebnisJetzt(s);
   var f = serie[idx];
-  umfrageClearAnswers().then(function(){
-    return updateDoc(umfrageRef(), { frage:f.frage, optionen:f.optionen, peer:!!f.peer, runde:1, ergebnis1:null, zeigen:false,
+  liveAntwortenLoeschen('umfrage', liveKlassen(s)).then(function(){
+    return liveSchreiben('umfrage', s, { frage:f.frage, optionen:f.optionen, peer:!!f.peer, runde:1, ergebnis1:null, zeigen:false,
       startedAt:Date.now(), lebt:Date.now(), idx:idx, ergebnisse:erg });
   }).catch(function(err){ console.error(err); toast('Nächste Frage konnte nicht gestartet werden.'); });
 }
@@ -25655,18 +25793,18 @@ function openUmfrageHost(){
     umfrage.uebersicht = false;
     // Die Runde wird beim Schliessen beendet, damit auf den Schülergeräten
     // nicht der Abstimmen-Knopf stehen bleibt.
-    updateDoc(umfrageRef(), { aktiv:false }).catch(function(){});
+    liveSchreibenStill('umfrage', umfrage.session && umfrage.session.klassen ? umfrage.session : umfrage.ziel, { aktiv:false });
+    umfrage.ziel = null;
   }, 'kz-overlay-beamer');
   umfrage.overlay.el.querySelector('#ufClose').addEventListener('click', function(){ umfrage.overlay.close(); });
-  umfrage.herz = liveHerzStart(umfrageRef(), function(){ return umfrage.session; });
+  umfrage.herz = liveHerzAlle('umfrage', function(){ return umfrage.session; });
 
   klasseRosterLoad().then(function(){ umfrage.sig = null; paintUmfrageHost(); }).catch(function(){});
   if(!umfrage.unsubAnswers){
-    umfrage.unsubAnswers = onSnapshot(umfrageAnswersCol(), function(snap){
-      umfrage.answers = [];
-      snap.forEach(function(d){ umfrage.answers.push(Object.assign({uid:d.id}, d.data())); });
+    umfrage.unsubAnswers = liveAntwortenLesen('umfrage', umfrage.ziel || umfrage.session, function(list){
+      umfrage.answers = list;
       paintUmfrageHost();
-    }, function(err){ console.error(err); });
+    });
   }
   paintUmfrageHost();
 }
@@ -25726,7 +25864,7 @@ function paintUmfrageHost(){
   stage.innerHTML = h;
 
   stage.querySelector('#ufToggle').addEventListener('click', function(){
-    updateDoc(umfrageRef(), { zeigen: !s.zeigen }).catch(function(err){ console.error(err); });
+    liveSchreiben('umfrage', s, { zeigen: !s.zeigen }).catch(function(err){ console.error(err); });
   });
   var r2 = stage.querySelector('#ufRunde2');
   if(r2){
@@ -25734,8 +25872,8 @@ function paintUmfrageHost(){
       // Runde 1 festhalten, bevor die Stimmen gelöscht werden — sonst wäre der
       // Vorher/Nachher-Vergleich weg.
       var keep = umfrageCounts(1);
-      umfrageClearAnswers().then(function(){
-        return updateDoc(umfrageRef(), { runde:2, ergebnis1:keep, zeigen:false, startedAt:Date.now() });
+      liveAntwortenLoeschen('umfrage', liveKlassen(s)).then(function(){
+        return liveSchreiben('umfrage', s, { runde:2, ergebnis1:keep, zeigen:false, startedAt:Date.now() });
       }).catch(function(err){ console.error(err); toast('Runde 2 konnte nicht gestartet werden.'); });
     });
   }
@@ -25822,7 +25960,9 @@ var mio = { session:null, unsub:null, unsubAnswers:null, answers:[], overlay:nul
 
 function mioRef(){ return kdoc('quizSessions', 'million'); }
 function mioAnswersCol(){ return kcol('quizSessions', 'million', 'antworten'); }
-function mioLaeuft(s){ return !!(s && s.aktiv); }
+function mioLaeuft(s){ return !!(s && s.aktiv && liveFuerMich(s)); }
+function mioZiel(){ return mio.spiel && mio.spiel.ziel ? mio.spiel.ziel : mio.session; }
+function mioListe(){ return (mio.spiel && mio.spiel.zielListe) || ohneGaeste(klasseRoster.list); }
 function mioAttr(s){ return esc(s).replace(/"/g, '&quot;'); }
 // Kurzer Klickschutz, zeitbasiert (siehe quizBusy).
 function mioBusy(key){
@@ -26153,13 +26293,14 @@ function renderMioVerwaltung(){
     'Bei Gleichstand gibt es eine Stichwahl unter den meistgewählten Antworten – steht es dann immer noch gleich, bekommt ein zufällig gezogenes Kind das Veto und entscheidet allein.</p>';
   html += '<div class="back-row" style="flex-wrap:wrap;"><button class="btn btn-primary btn-sm" id="mioNeu" type="button">➕ Neues Set</button>'+
     '<button class="btn btn-ghost btn-sm" id="mioUebung" type="button">📚 Aus einer Übung</button>'+
-    '<button class="btn btn-ghost btn-sm" id="mioImport" type="button">📥 Importieren</button></div>';
+    '<button class="btn btn-ghost btn-sm" id="mioImport" type="button">📥 Importieren</button> '+mitKnopfHtml('mioMit')+'</div>';
   html += '<div id="mioListe"><div class="empty-state">Wird geladen …</div></div>';
   renderChrome(html);
   document.getElementById('backBtn').addEventListener('click', function(){ state.route = {name:'klassenzimmer'}; render(); });
   document.getElementById('mioNeu').addEventListener('click', function(){ openMioEditor(null); });
   document.getElementById('mioUebung').addEventListener('click', openMioAusUebung);
   document.getElementById('mioImport').addEventListener('click', openMioImport);
+  mitKnopfVerdrahten(document.getElementById('mioMit'), function(){});
   mioListeLaden();
 }
 
@@ -26201,7 +26342,7 @@ function mioListeLaden(){
     host.onclick = function(e){
       var b = e.target.closest('button'); if(!b || !host.contains(b)) return;
       if(b.id === 'mioFort'){ mioFortsetzen(); return; }
-      if(b.id === 'mioAlt'){ spielMerken('mio', null); updateDoc(mioRef(), {aktiv:false}).then(mioListeLaden).catch(function(err){ console.error(err); }); return; }
+      if(b.id === 'mioAlt'){ spielMerken('mio', null); liveSchreiben('million', mio.session, {aktiv:false}).then(mioListeLaden).catch(function(err){ console.error(err); }); return; }
       var finde = function(attr){ var id = b.getAttribute(attr); return alle.filter(function(x){ return x.id === id; })[0]; };
       var q;
       if((q = finde('data-mspiel'))) openMioSetup(q.title, mioAusQuiz(q));
@@ -26544,7 +26685,7 @@ function mioTon(art){
 }
 function mioSchreiben(d){
   mioMerken();
-  return updateDoc(mioRef(), Object.assign({updatedAt:serverTimestamp()}, d))
+  return liveSchreiben('million', mioZiel(), Object.assign({updatedAt:serverTimestamp()}, d))
     .catch(function(err){ console.error(err); toast('Das Spiel konnte nicht gespeichert werden – Verbindung prüfen.'); });
 }
 
@@ -26556,12 +26697,13 @@ function mioStart(titel, fragen, opt){
     joker:{fifty:!!opt.joker.fifty, tausch:!!opt.joker.tausch, chance:!!opt.joker.chance} };
   mio.busy = {}; mio.sig = null; mio.clock.key = '';
   // Erst die Stimmen des letzten Spiels wegräumen, DANN die Lobby öffnen (siehe startQuizSession).
-  getDocs(mioAnswersCol()).then(function(snap){
-    if(snap.empty) return null;
-    var b = writeBatch(db); snap.forEach(function(d){ b.delete(d.ref); }); return b.commit();
-  }).then(function(){
+  liveZielLaden().then(function(ziel){
     if(mio.spiel !== sp) return null;
-    return setDoc(mioRef(), { aktiv:true, spielId:sp.spielId, titel:sp.titel, phase:'lobby', runde:0, nr:0,
+    sp.ziel = { klassen:ziel.klassen, nur:ziel.nur }; sp.zielListe = ziel.liste; sp.zielText = ziel.text;
+    return liveAntwortenLoeschen('million', ziel.klassen).then(function(){ return ziel; });
+  }).then(function(ziel){
+    if(mio.spiel !== sp || !ziel) return null;
+    return liveSetzen('million', ziel, { aktiv:true, spielId:sp.spielId, titel:sp.titel, phase:'lobby', runde:0, nr:0,
       stufen:sp.stufen, betraege:mioBetraege(sp.stufen), pos:0, leben:sp.leben, lebenMax:opt.leben, joker:sp.joker,
       frage:'', optionen:[], weg:[], kandidaten:null, sec:opt.sec, startedAt:0, vetoUid:null, vetoName:null,
       wahl:null, durch:null, zaehlung:null, zaehlung1:null, richtig:null, ok:null, grund:null, updatedAt:serverTimestamp() });
@@ -26574,12 +26716,13 @@ function openMioHost(){
   var html = '<div class="kz-bar"><div class="kz-bar-title">💰 Wer wird Millionär · <span id="mioBarTitel"></span></div><div class="kz-bar-spacer"></div>'+
     '<button class="kz-close" id="mioClose" type="button" title="Spiel beenden">✕</button></div><div class="mio-stage" id="mioStage"></div>';
   mio.overlay = openOverlay(html, function(){
+    var mioZielAlt = mioZiel();
     if(mio.unsubAnswers){ mio.unsubAnswers(); mio.unsubAnswers = null; }
     clearInterval(mio.tick); mio.tick = null;
     if(mio.taste){ document.removeEventListener('keydown', mio.taste); mio.taste = null; }
     mio.overlay = null; mio.sig = null; mio.spiel = null; mio.answers = []; mio.busy = {};
     spielMerken('mio', null);
-    updateDoc(mioRef(), {aktiv:false}).catch(function(){});
+    liveSchreibenStill('million', mioZielAlt, {aktiv:false});
     if(state.route.name === 'million') mioListeLaden();
   }, 'kz-overlay-mio');
   mio.overlay.el.querySelector('#mioClose').addEventListener('click', function(){
@@ -26588,11 +26731,10 @@ function openMioHost(){
   // Klassenliste für die Wartelobby (wer fehlt noch?).
   mio.aus = (mio.spiel && mio.spiel.aus) || {};
   klasseRosterLoad().then(function(){ mio.sig = null; paintMioHost(); }).catch(function(err){ console.error(err); });
-  mio.unsubAnswers = onSnapshot(mioAnswersCol(), function(snap){
-    mio.answers = [];
-    snap.forEach(function(d){ mio.answers.push(Object.assign({uid:d.id}, d.data())); });
+  mio.unsubAnswers = liveAntwortenLesen('million', mioZiel(), function(list){
+    mio.answers = list;
     paintMioHost();
-  }, function(err){ console.error(err); });
+  });
   // Klicks hängen an der Bühne, nicht an den Knöpfen: ein Neuzeichnen zwischen
   // Drücken und Loslassen würde den Klick sonst verschlucken (siehe openQuizHost).
   mio.overlay.el.querySelector('#mioStage').addEventListener('click', function(e){
@@ -26634,7 +26776,7 @@ function paintMioHost(){
   var t = mio.overlay.el.querySelector('#mioBarTitel'); if(t && t.textContent !== s.titel) t.textContent = s.titel || '';
   // Timer, Zähler und Punkte stehen bewusst nicht in der Signatur — die zieht mioHostTick nach.
   var sig = [s.phase, s.runde, s.pos, s.leben, (s.weg || []).join(','), (s.kandidaten || []).join(','), s.vetoUid, s.wahl, s.richtig, s.grund,
-    JSON.stringify(s.joker || {}), s.phase === 'lobby' ? mioGemeldet().map(function(a){ return a.uid; }).join(',') + '#' + Object.keys(mio.aus).join(',') + '#' + klasseRoster.list.length : ''].join('|');
+    JSON.stringify(s.joker || {}), s.phase === 'lobby' ? mioGemeldet().map(function(a){ return a.uid; }).join(',') + '#' + Object.keys(mio.aus).join(',') + '#' + mioListe().length : ''].join('|');
   if(sig !== mio.sig || !stage.firstChild){
     mio.sig = sig; mio.dots = '';
     stage.innerHTML = mioHostHtml(s);
@@ -26692,7 +26834,7 @@ function mioHostHtml(s){
     // nicht auf der Klassenliste stehen (z. B. das Testkonto), kommen hinten dran.
     var gem = {}, kinder = [];
     mioGemeldet().forEach(function(a){ gem[a.uid] = a; });
-    ohneGaeste(klasseRoster.list).forEach(function(k){ kinder.push({uid:k.uid, name:k.displayName || '?', da:!!gem[k.uid]}); delete gem[k.uid]; });
+    mioListe().forEach(function(k){ kinder.push({uid:k.uid, name:k.displayName || '?', da:!!gem[k.uid]}); delete gem[k.uid]; });
     Object.keys(gem).forEach(function(u){ kinder.push({uid:u, name:gem[u].name || '?', da:true}); });
     var nDa = kinder.filter(function(k){ return k.da; }).length, nSpielt = mioDabei().length;
     h += '<div class="mio-frage">💰 Wartelobby<small>Öffnet die Library auf eurem Gerät – das Spiel erscheint von selbst.</small></div>';
@@ -26702,6 +26844,7 @@ function mioHostHtml(s){
         : '<span class="mio-kind" title="Noch nicht eingeloggt">'+esc(k.name)+'</span>';
     }).join('')+'</div>';
     h += '<div class="mio-status mio-klein">Hell = eingeloggt, blass = fehlt noch. Namen antippen = spielt nicht mit (z.&nbsp;B. Gerät zu Hause offen).</div>';
+    h += liveZielInfoHtml('mio-status mio-klein', mio.spiel);
     h += '<div class="mio-aktion"><button class="btn btn-primary" data-mio="weiter" type="button">▶︎ Erste Frage</button></div>';
   } else if(s.phase === 'ende'){
     var kopf = s.grund === 'million' ? '🏆 Ihr seid Millionär!' : s.grund === 'leben' ? '💔 Keine Leben mehr' : '📭 Die Fragen sind aufgebraucht';
@@ -27051,7 +27194,9 @@ var lsp = { session:null, unsub:null, unsubAnswers:null, answers:[], overlay:nul
 
 function lspRef(){ return kdoc('quizSessions', 'spiel'); }
 function lspAnswersCol(){ return kcol('quizSessions', 'spiel', 'antworten'); }
-function lspLaeuft(s){ return !!(s && s.aktiv); }
+function lspLaeuft(s){ return !!(s && s.aktiv && liveFuerMich(s)); }
+function lspZiel(){ return lsp.spiel && lsp.spiel.ziel ? lsp.spiel.ziel : lsp.session; }
+function lspListe(){ return (lsp.spiel && lsp.spiel.zielListe) || ohneGaeste(klasseRoster.list); }
 function lspArt(s){ return LSP_ARTEN[(s && s.art) || ''] || {icon:'🎲', name:'Spiel'}; }
 function lspBusy(key, ms){
   var now = Date.now();
@@ -27222,7 +27367,7 @@ function lspMerken(){ spielMerken('lsp', lsp.spiel ? Object.assign({}, lsp.spiel
 function lspSchreiben(d){
   if(d.phase === 'aufgeloest') lsp.busy.weiter = 0;   // der Klickschutz gilt nur für denselben Schritt
   lspMerken();
-  return updateDoc(lspRef(), Object.assign({updatedAt:serverTimestamp()}, d))
+  return liveSchreiben('spiel', lspZiel(), Object.assign({updatedAt:serverTimestamp()}, d))
     .catch(function(err){ console.error(err); toast('Das Spiel konnte nicht gespeichert werden – Verbindung prüfen.'); });
 }
 function lspGemeldet(){
@@ -27234,12 +27379,13 @@ function lspStart(sp, extra){
   if(lsp.overlay){ toast('Es läuft schon ein Spiel.'); return; }
   lsp.spiel = sp; lsp.busy = {}; lsp.sig = null; lsp.clock.key = ''; lsp.aus = {};
   // Erst die Antworten des letzten Spiels wegräumen, DANN die Lobby öffnen (siehe startQuizSession).
-  getDocs(lspAnswersCol()).then(function(snap){
-    if(snap.empty) return null;
-    var b = writeBatch(db); snap.forEach(function(d){ b.delete(d.ref); }); return b.commit();
-  }).then(function(){
+  liveZielLaden().then(function(ziel){
     if(lsp.spiel !== sp) return null;
-    return setDoc(lspRef(), Object.assign({aktiv:true, art:sp.art, spielId:sp.spielId, titel:sp.titel, phase:'lobby', runde:0, nr:0, updatedAt:serverTimestamp()}, extra || {}));
+    sp.ziel = { klassen:ziel.klassen, nur:ziel.nur }; sp.zielListe = ziel.liste; sp.zielText = ziel.text;
+    return liveAntwortenLoeschen('spiel', ziel.klassen).then(function(){ return ziel; });
+  }).then(function(ziel){
+    if(lsp.spiel !== sp || !ziel) return null;
+    return liveSetzen('spiel', ziel, Object.assign({aktiv:true, art:sp.art, spielId:sp.spielId, titel:sp.titel, phase:'lobby', runde:0, nr:0, updatedAt:serverTimestamp()}, extra || {}));
   }).then(function(){ if(lsp.spiel === sp){ lspMerken(); openLspHost(); } })
     .catch(function(err){ console.error(err); lsp.spiel = null; toast('Das Spiel konnte nicht gestartet werden.'); });
 }
@@ -27253,7 +27399,7 @@ function lspFortsetzen(){
   lsp.aus = g.aus || {};
 }
 function lspBeenden(){
-  updateDoc(lspRef(), {aktiv:false}).catch(function(){});
+  liveSchreibenStill('spiel', lsp.session, {aktiv:false});
   spielMerken('lsp', null);
 }
 function openLspHost(){
@@ -27274,11 +27420,10 @@ function openLspHost(){
   });
   lsp.aus = {};
   klasseRosterLoad().then(function(){ lsp.sig = null; lspPaintHost(); }).catch(function(err){ console.error(err); });
-  lsp.unsubAnswers = onSnapshot(lspAnswersCol(), function(snap){
-    lsp.answers = [];
-    snap.forEach(function(d){ lsp.answers.push(Object.assign({uid:d.id}, d.data())); });
+  lsp.unsubAnswers = liveAntwortenLesen('spiel', lspZiel(), function(list){
+    lsp.answers = list;
     lspPaintHost();
-  }, function(err){ console.error(err); });
+  });
   lsp.overlay.el.querySelector('#lspStage').addEventListener('click', function(e){
     var b = e.target && e.target.closest ? e.target.closest('button') : null;
     if(!b || b.disabled) return;
@@ -27312,7 +27457,7 @@ function lspPaintHost(){
   if(!stage || !s || s.spielId !== sp.spielId) return;
   var t = lsp.overlay.el.querySelector('#lspBarTitel'); if(t && t.textContent !== s.titel) t.textContent = s.titel || '';
   var sig = [s.phase, s.runde, s.nr, s.dranUid, (s.raus || []).join(','), s.ok, s.loesung, (s.gezogen || []).length, (s.bingos || []).length, (s.weg || []).join(','), JSON.stringify(s.teams || 0),
-    s.phase === 'lobby' ? lspGemeldet().map(function(a){ return a.uid; }).join(',') + '#' + Object.keys(lsp.aus).join(',') + '#' + klasseRoster.list.length : '',
+    s.phase === 'lobby' ? lspGemeldet().map(function(a){ return a.uid; }).join(',') + '#' + Object.keys(lsp.aus).join(',') + '#' + lspListe().length : '',
     sp.art === 'gauntlet' && s.phase !== 'lobby' ? gntHSig(s, sp) : ''].join('|');
   if(sig !== lsp.sig || !stage.firstChild){
     lsp.sig = sig;
@@ -27333,7 +27478,7 @@ function lspHostTick(){
 function lspLobbyHtml(s){
   var gem = {}, kinder = [];
   lspGemeldet().forEach(function(a){ gem[a.uid] = a; });
-  ohneGaeste(klasseRoster.list).forEach(function(k){ kinder.push({uid:k.uid, name:k.displayName || '?', da:!!gem[k.uid]}); delete gem[k.uid]; });
+  lspListe().forEach(function(k){ kinder.push({uid:k.uid, name:k.displayName || '?', da:!!gem[k.uid]}); delete gem[k.uid]; });
   Object.keys(gem).forEach(function(u){ kinder.push({uid:u, name:gem[u].name || '?', da:true}); });
   var nDa = kinder.filter(function(k){ return k.da; }).length, A = lspArt(s);
   var h = '<div class="lsp-main"><div class="lsp-frage">'+A.icon+' Wartelobby<small>Öffnet die Library auf eurem Gerät – das Spiel erscheint von selbst.</small></div>';
@@ -27343,6 +27488,7 @@ function lspLobbyHtml(s){
       : '<span class="lsp-kind" title="Noch nicht eingeloggt">'+esc(k.name)+'</span>';
   }).join('')+'</div>';
   h += '<div class="lsp-status lsp-klein">Hell = eingeloggt, blass = fehlt noch. Namen antippen = spielt nicht mit.</div>';
+  h += liveZielInfoHtml('lsp-status lsp-klein', lsp.spiel);
   h += '<div class="lsp-aktion"><button class="btn btn-primary" data-lh="los" type="button">▶︎ Los geht’s</button></div></div>';
   return h;
 }
@@ -28907,7 +29053,7 @@ function svHtml(sp){
 var WOLKE_MAX = [1, 2, 3, 5];
 var WOLKE_FARBEN = ['#3A3F73', '#4361EE', '#17A398', '#E8752C', '#8B5CF6', '#2E9E5B', '#E63950', '#0F766E'];
 
-var wolke = { session:null, unsub:null, unsubAnswers:null, answers:[], overlay:null, sig:null, voteOpen:false, meine:null, herz:null };
+var wolke = { ziel:null, session:null, unsub:null, unsubAnswers:null, answers:[], overlay:null, sig:null, voteOpen:false, meine:null, herz:null };
 
 function wolkeRef(){ return kdoc('quizSessions', 'wolke'); }
 function wolkeAnswersCol(){ return kcol('quizSessions', 'wolke', 'antworten'); }
@@ -29040,11 +29186,12 @@ function paintWolkeVote(){
 /* ---------- Lehrergerät: einrichten und am Beamer zeigen ---------- */
 
 // vorlage = gespeicherte Wortwolke (bearbeiten), ablage = {fach, ordner} für eine neue.
-function openWolkeSetup(vorlage, ablage){
-  if(!kzm.vorlagen){ kzmLoad().then(function(){ openWolkeSetup(vorlage, ablage); }); return; }
+function openWolkeSetup(vorlage, ablage, entw){
+  if(!kzm.vorlagen){ kzmLoad().then(function(){ openWolkeSetup(vorlage, ablage, entw); }); return; }
   var v = vorlage || {};
   var entwurf = { frage:v.frage || '', max:+v.max || 3, zeigen:v.zeigen !== false };
   var ab = vorlage ? {fach:v.fach || '', ordner:v.ordner || null} : (ablage || {fach:'', ordner:null});
+  if(entw){ entwurf = entw.d; ab = entw.ab; }
   var h = '<h3>☁️ '+(vorlage ? 'Wortwolke bearbeiten' : 'Wortwolke')+'</h3>';
   if(!vorlage) h += kzmVorlagenListeHtml('wolke');
   h += '<label class="modal-label">Frage</label>';
@@ -29055,6 +29202,7 @@ function openWolkeSetup(vorlage, ablage){
   }).join('')+'</select>';
   h += '<label class="gr-opt" style="margin-top:6px;"><input type="checkbox" id="wkZeigen"'+(entwurf.zeigen ? ' checked' : '')+'> Wolke sofort am Beamer zeigen (sonst erst verdeckt sammeln)</label>';
   h += '<p class="kk-ed-info">Gleiche Wörter werden zusammengezählt und grösser – Gross- und Kleinschreibung spielt keine Rolle. Am Beamer kannst du einzelne Wörter antippen und entfernen.</p>';
+  h += liveZielZeileHtml();
   h += '<label class="modal-label" style="margin-top:12px;">Ablegen (fürs Speichern)</label>' + kzmAblageHtml(ab.fach, ab.ordner);
   h += '<div class="modal-actions">'+(vorlage ? '<button class="btn btn-danger btn-sm" id="wkDel" type="button">Löschen</button>' : '')+
      '<button class="btn btn-ghost btn-sm" id="wkCancel" type="button">Abbrechen</button>'
@@ -29062,6 +29210,10 @@ function openWolkeSetup(vorlage, ablage){
      + '<button class="btn btn-primary btn-sm" id="wkStart" type="button">▶︎ Starten</button></div>';
   openModal(h, 'modal-wide');
   kzmAblageVerdrahten();
+  liveZielVerdrahten(function(){
+    entwurf = { frage:document.getElementById('wkFrage').value, max:+document.getElementById('wkMax').value || 3, zeigen:document.getElementById('wkZeigen').checked };
+    ab = kzmAblageLesen() || ab;
+  }, function(){ openWolkeSetup(vorlage, ablage, {d:entwurf, ab:ab}); });
   function lesen(){
     var frage = (document.getElementById('wkFrage').value || '').trim();
     if(!frage){ toast('Bitte eine Frage eingeben.'); return null; }
@@ -29088,9 +29240,12 @@ function openWolkeSetup(vorlage, ablage){
 }
 
 function wolkeStart(frage, max, zeigen){
-  wolkeClearAnswers().then(function(){
-    return setDoc(wolkeRef(), {
-      aktiv:true, frage:frage, max:max, zeigen:!!zeigen, sperre:[], startedAt:Date.now(), lebt:Date.now()
+  liveZielLaden().then(function(ziel){
+    wolke.ziel = ziel;
+    return liveAntwortenLoeschen('wolke', ziel.klassen).then(function(){
+      return liveSetzen('wolke', ziel, {
+        aktiv:true, frage:frage, max:max, zeigen:!!zeigen, sperre:[], startedAt:Date.now(), lebt:Date.now()
+      });
     });
   }).then(function(){
     openWolkeHost();
@@ -29119,18 +29274,18 @@ function openWolkeHost(){
     wolke.sig = null;
     // Beim Schliessen die Runde beenden, damit auf den Schülergeräten nicht
     // der Mitmachen-Knopf stehen bleibt.
-    updateDoc(wolkeRef(), { aktiv:false }).catch(function(){});
+    liveSchreibenStill('wolke', wolke.session && wolke.session.klassen ? wolke.session : wolke.ziel, { aktiv:false });
+    wolke.ziel = null;
   }, 'kz-overlay-beamer');
   wolke.overlay.el.querySelector('#wkClose').addEventListener('click', function(){ wolke.overlay.close(); });
-  wolke.herz = liveHerzStart(wolkeRef(), function(){ return wolke.session; });
+  wolke.herz = liveHerzAlle('wolke', function(){ return wolke.session; });
 
   klasseRosterLoad().then(function(){ wolke.sig = null; paintWolkeHost(); }).catch(function(){});
   if(!wolke.unsubAnswers){
-    wolke.unsubAnswers = onSnapshot(wolkeAnswersCol(), function(snap){
-      wolke.answers = [];
-      snap.forEach(function(d){ wolke.answers.push(Object.assign({uid:d.id}, d.data())); });
+    wolke.unsubAnswers = liveAntwortenLesen('wolke', wolke.ziel || wolke.session, function(list){
+      wolke.answers = list;
       paintWolkeHost();
-    }, function(err){ console.error(err); });
+    });
   }
   paintWolkeHost();
 }
@@ -29142,7 +29297,7 @@ function paintWolkeHost(){
   if(!s){ stage.innerHTML = '<div class="qh-sub">Keine Wortwolke aktiv.</div>'; return; }
   var liste = wolkeZaehlen();
   var dabei = wolke.answers.filter(function(a){ return (a.woerter || []).length; }).length;
-  var n = gaesteOptional(klasseRoster.list).length || 0;
+  var n = liveZielNZahl(s, gaesteOptional(klasseRoster.list).length || 0);
 
   var sig = [s.frage, s.zeigen, s.aktiv, dabei, liste.map(function(w){ return w.key+':'+w.n; }).join(',')].join('|');
   if(sig === wolke.sig) return;
@@ -29182,7 +29337,7 @@ function paintWolkeHost(){
   stage.innerHTML = h;
 
   stage.querySelector('#wkToggle').addEventListener('click', function(){
-    updateDoc(wolkeRef(), { zeigen: !s.zeigen }).catch(function(err){ console.error(err); });
+    liveSchreiben('wolke', s, { zeigen: !s.zeigen }).catch(function(err){ console.error(err); });
   });
   stage.querySelector('#wkNeu').addEventListener('click', function(){
     wolke.overlay.close();
@@ -29195,7 +29350,7 @@ function paintWolkeHost(){
     var key = b.getAttribute('data-key');
     var wort = (liste.filter(function(w){ return w.key === key; })[0] || {}).wort || key;
     uiConfirm('«'+wort+'» entfernen?', 'Das Wort verschwindet aus der Wolke – die Antworten selbst bleiben.', 'Entfernen', function(){
-      updateDoc(wolkeRef(), { sperre: arrayUnion(key) }).catch(function(err){ console.error(err); toast('Wort konnte nicht entfernt werden.'); });
+      liveSchreiben('wolke', s, { sperre: arrayUnion(key) }).catch(function(err){ console.error(err); toast('Wort konnte nicht entfernt werden.'); });
     }, true);
   });
 }
@@ -31551,7 +31706,8 @@ function renderKlassenzimmer(){
   html += '<p class="kz-intro">Werkzeuge für den Unterricht — nur für dich sichtbar. '+
     '<button class="btn btn-ghost btn-sm" id="kzAnordnenBtn" type="button" title="Werkzeuge verschieben oder ausblenden (oder lange auf eine Kachel drücken) – nochmals klicken beendet das Anordnen">✏️ Anordnen</button> '+
     '<button class="btn btn-ghost btn-sm anordnen-widgets" id="kzAnordnenWidgetsBtn" type="button" title="Ausgeblendetes zurückholen">🧩 Widgets</button>'+
-    (aktFensterMoeglich() ? ' <button class="btn '+(aktFensterAn() ? 'btn-primary' : 'btn-ghost')+' btn-sm" id="kzFensterBtn" type="button" aria-pressed="'+aktFensterAn()+'" title="Wortwolken, Umfragen, Spiele und Beamer-Werkzeuge in einem eigenen Fenster im Vollbild starten (gilt auch für ▶︎ Starten im Fach-Ordner). Es läuft immer nur eines aufs Mal – ausser Ruhephase, Zufall, Stadt Land Fluss, Gruppen und Energizer: die laufen unabhängig.">🪟 Eigenes Fenster: '+(aktFensterAn() ? 'an' : 'aus')+'</button>' : '')+'</p>';
+    (aktFensterMoeglich() ? ' <button class="btn '+(aktFensterAn() ? 'btn-primary' : 'btn-ghost')+' btn-sm" id="kzFensterBtn" type="button" aria-pressed="'+aktFensterAn()+'" title="Wortwolken, Umfragen, Spiele und Beamer-Werkzeuge in einem eigenen Fenster im Vollbild starten (gilt auch für ▶︎ Starten im Fach-Ordner). Es läuft immer nur eines aufs Mal – ausser Ruhephase, Zufall, Stadt Land Fluss, Gruppen und Energizer: die laufen unabhängig.">🪟 Eigenes Fenster: '+(aktFensterAn() ? 'an' : 'aus')+'</button>' : '')+
+    ' <span class="kz-mit-zeile" title="Gilt für Wortwolke, Blitzumfrage, Klassen-Quiz, Millionär, Spiele und die Beamer-Werkzeuge mit Namen">Live-Runden für: '+mitKnopfHtml('kzMit')+'</span></p>';
   var sichtbar = kzSichtbar();
   KZ_BEREICHE.forEach(function(b){
     var tiles = sichtbar.filter(function(t){ return t.bereich === b.id; });
@@ -31574,6 +31730,7 @@ function renderKlassenzimmer(){
   document.getElementById('backBtn').addEventListener('click', goHome);
   document.getElementById('kzAnordnenBtn').addEventListener('click', function(){ wackelnUmschalten(); });
   document.getElementById('kzAnordnenWidgetsBtn').addEventListener('click', openWidgetDrawer);
+  mitKnopfVerdrahten(document.getElementById('kzMit'), function(){});
   var fensterBtn = document.getElementById('kzFensterBtn');
   if(fensterBtn) fensterBtn.addEventListener('click', function(){
     lsSet(AKT_PREF_KEY, aktFensterAn() ? '0' : '1');
@@ -31815,14 +31972,30 @@ function kzmStarten(it){
   if(AKT_TYPEN[it.typ] && it.id) aktStarten('item:' + it.typ + ':' + it.id);
   else kzmStartenHier(it);
 }
+// «Für wen?» vor dem direkten Start aus Ordner/Planung: sonst startet die Runde stumm mit der
+// gemerkten Auswahl «Wer macht mit?» und die Klasse einer anderen Lehrperson sieht sie nicht.
+function liveFuerWenDialog(titel, weiter){
+  var h = '<h3>👥 Für wen?</h3><p class="pr-hinweis"><b>'+esc(titel)+'</b></p>'+
+    '<p style="margin:0 0 6px;">Die Runde erscheint bei: <b id="fwText">'+esc(mitKurz())+'</b></p>'+
+    '<p class="pr-hinweis">Klassen, deine Fach-Gruppen (z. B. Mathe) oder einzelne Schüler:innen – auch aus anderen Klassen.</p>'+
+    '<div class="modal-actions"><button class="btn btn-ghost btn-sm" id="fwAbbr" type="button">Abbrechen</button>'+
+    '<button class="btn btn-ghost btn-sm" id="fwAendern" type="button">👥 Ändern</button>'+
+    '<button class="btn btn-primary btn-sm" id="fwGo" type="button">▶︎ Starten</button></div>';
+  openModal(h);
+  mitGruppenLaden().then(function(){ var t = document.getElementById('fwText'); if(t) t.textContent = mitKurz(); });
+  function neu(){ liveFuerWenDialog(titel, weiter); }
+  document.getElementById('fwAbbr').addEventListener('click', closeModal);
+  document.getElementById('fwAendern').addEventListener('click', function(){ mitDialog(neu, neu); });
+  document.getElementById('fwGo').addEventListener('click', function(){ closeModal(); weiter(); });
+}
 function kzmStartenHier(it){
   if(!it) return;
   if(it.typ === 'quiz') quizStartDialog(it.raw);
-  else if(it.typ === 'million') spielWahl(it.raw.title, mioAusQuiz(it.raw));
-  else if(it.typ === 'schaetz') schaetzStart(it.raw.title, schaetzNorm(it.raw.questions), schaetzOpt().sec);
+  else if(it.typ === 'million') liveFuerWenDialog(it.raw.title, function(){ spielWahl(it.raw.title, mioAusQuiz(it.raw)); });
+  else if(it.typ === 'schaetz') liveFuerWenDialog(it.raw.title, function(){ schaetzStart(it.raw.title, schaetzNorm(it.raw.questions), schaetzOpt().sec); });
   else if(it.typ === 'kk') goResource(Object.assign(kkRes(it.raw), {folderId:it.ordner, ausOrdner:true}));
-  else if(it.typ === 'wolke') wolkeStart(it.raw.frage, Math.max(1, Math.min(5, +it.raw.max || 3)), it.raw.zeigen !== false);
-  else if(it.typ === 'umfrage') umfrageStartSerie(umfrageFragen(it.raw), it.raw.titel || '');
+  else if(it.typ === 'wolke') liveFuerWenDialog(it.raw.frage, function(){ wolkeStart(it.raw.frage, Math.max(1, Math.min(5, +it.raw.max || 3)), it.raw.zeigen !== false); });
+  else if(it.typ === 'umfrage') liveFuerWenDialog(it.raw.titel || umfrageFragen(it.raw)[0].frage, function(){ umfrageStartSerie(umfrageFragen(it.raw), it.raw.titel || ''); });
   else if(it.typ === 'pruefung'){ startPruefungWatcher(); state.route = {name:'pruefung', id:it.id}; render(); }
 }
 // Nach jedem Speichern: Zwischenspeicher neu laden und die offene Ansicht nachführen.
