@@ -15839,8 +15839,10 @@ function renderFolderContents(){
   }
   // Klassenzimmer-Material (Prüfungen, Karteikarten, Quiz, Wortwolken, Blitzumfragen) steht
   // unter den eigentlichen Übungen; ab zwei Stück derselben Art als Sammelordner.
-  var zusatz = resources.filter(zusatzArt);
-  var material = resources.filter(function(r){ return !zusatzArt(r); });
+  // wzBereich: Werkzeug-Einträge (Mathe › 3D-Körper, Algebra-Kacheln) direkt im Bereich «Werkzeuge».
+  var werkzeugRes = resources.filter(function(r){ return r.wzBereich; });
+  var zusatz = resources.filter(function(r){ return !r.wzBereich && zusatzArt(r); });
+  var material = resources.filter(function(r){ return !r.wzBereich && !zusatzArt(r); });
   if(material.length){
     if(ordnerNorm.length) html += '<div class="section-label">Übungen</div>';
     html += material.map(function(r){ return resourceCardHtml(r, realResources.indexOf(r), realResources.length, isTeacher && !r.virtual); }).join('');
@@ -15849,8 +15851,9 @@ function renderFolderContents(){
     if(folders.length || material.length) html += '<div class="section-label">Zusatzmaterial</div>';
     html += zusatzHtml(zusatz, subjectId, here);
   }
-  if(werkzeugOrdner.length){
+  if(werkzeugOrdner.length || werkzeugRes.length){
     html += '<div class="section-label">Werkzeuge</div>';
+    html += werkzeugRes.map(function(r){ return resourceCardHtml(r, 0, 1, false); }).join('');
     html += werkzeugOrdner.map(function(f){ return folderCardHtml(f, 0, 1, false); }).join('');
   }
   listEl.innerHTML = html;
@@ -24725,6 +24728,7 @@ function aemtliMeineTermine_(cfg, uid){
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
   {id:'2026-10-28-winter-look', datum:'2026-10-28', fuer:'alle', text:'❄️ Vom 1. bis 26. Dezember bekommt die Library einen Winter-Look: Lichterkette am Rand und Zipfelmützen auf dem Logo. Mit dem ❄️-Knopf oben kannst du ihn ausschalten.'},
+  {id:'2026-10-28-mathe-werkzeuge-direkt', datum:'2026-10-28', fuer:'alle', text:'🧊 Mathe › Werkzeuge: «Geometrische Körper» und «Algebra-Kacheln» stehen jetzt direkt im Bereich «Werkzeuge», ohne Zwischenordner.'},
   {id:'2026-10-28-mathe-werkzeuge', datum:'2026-10-28', fuer:'alle', text:'🧰 Mathe: Ganz unten gibt es jetzt den Bereich «Werkzeuge» – dort stehen 🧊 3D-Körper & Algebra-Kacheln (Lehrpersonen zusätzlich die 📐 Figuren-Werkstatt).'},
   {id:'2026-10-28-pruefung-zeit-steht', datum:'2026-10-28', fuer:'lehrer', text:'⏱ Gesperrte Prüfung: Die Zeit der Person steht still, bis du sie entsperrst (bei leerem Akku oder Absturz ab dem letzten Lebenszeichen).'},
   {id:'2026-10-28-neues-fenster', datum:'2026-10-28', fuer:'lehrer', text:'⧉ Neues Fenster: Der kleine Knopf oben links neben ← → öffnet die Library in einem zweiten Fenster.'},
@@ -40330,19 +40334,17 @@ function sikoreStufenHtml(aktiv, eigenes){
 /* 🧊 Mathe-Werkzeuge: statische Builds von teacher.dev-Apps (Apache-2.0, angepasst, siehe NOTICE.md im Ordner)
    in geometrie-koerper/ und algebra-kacheln/. Öffnen im Link-Viewer (iframe src, nicht srcdoc: SvelteKit lädt
    seine Dateien relativ zum Ordner). Kein Firestore, kein Fortschritt. */
-var MWZ_ORDNER = 'mwz_werkzeuge';
 var MWZ_VERSION = 2;   // nach jedem Neubau erhöhen: GitHub Pages lässt index.html 10 Min. im Browser-Cache
 function sikoreVirtuell(){
   return {
-    folders:[{id:MWZ_ORDNER, subject:'mathe', parentId:null, name:'🧊 3D-Körper & Algebra-Kacheln', order:-1990, virtual:true, werkzeug:true}].concat(
-      (state.profile && state.profile.role === 'teacher') ? [{id:'mwz_figuren', subject:'mathe', parentId:null, name:'📐 Figuren-Werkstatt', order:-1989, virtual:true, werkzeug:true, figuren:true,
+    folders:((state.profile && state.profile.role === 'teacher') ? [{id:'mwz_figuren', subject:'mathe', parentId:null, name:'📐 Figuren-Werkstatt', order:-1989, virtual:true, werkzeug:true, figuren:true,
         sub:'Saubere Figuren für Prüfungen und Arbeitsblätter · nur Lehrperson'}] : []),
     resources:[{id:'sikore_trainer', subject:'mathe', folderId:null, order:-2000, virtual:true, sikore:true, imHub:true,
       title:'🧮 SIKORE – Sicher Kopfrechnen'},
-      {id:'mwz_koerper', subject:'mathe', folderId:MWZ_ORDNER, order:0, virtual:true, werkzeug:true, linkUrl:'geometrie-koerper/?v='+MWZ_VERSION, linkLabel:'Werkzeug',
+      {id:'mwz_koerper', subject:'mathe', folderId:null, order:-1991, virtual:true, werkzeug:true, wzBereich:true, linkUrl:'geometrie-koerper/?v='+MWZ_VERSION, linkLabel:'Werkzeug',
         title:'🧊 Geometrische Körper – Netz, Oberfläche, Volumen',
         meta:'Quader, Würfel, Prisma, Pyramide, Zylinder, Kegel, Kugel in 3D drehen · Netz auffalten · Oberfläche und Volumen exakt mit Formel · Ergebnisse ausblendbar'},
-      {id:'mwz_kacheln', subject:'mathe', folderId:MWZ_ORDNER, order:1, virtual:true, werkzeug:true, linkUrl:'algebra-kacheln/?v='+MWZ_VERSION, linkLabel:'Werkzeug',
+      {id:'mwz_kacheln', subject:'mathe', folderId:null, order:-1990, virtual:true, werkzeug:true, wzBereich:true, linkUrl:'algebra-kacheln/?v='+MWZ_VERSION, linkLabel:'Werkzeug',
         title:'🟦 Algebra-Kacheln – ausmultiplizieren und faktorisieren',
         meta:'Terme wie (x + 2)(x − 3) mit Kacheln legen · Schritt für Schritt mit Kontrolle · Lehrperson erstellt eine Aufgabe und teilt sie per Link oder QR-Code'}]
   };
