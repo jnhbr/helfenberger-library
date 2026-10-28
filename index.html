@@ -190,6 +190,9 @@
   @page{@top-left{content:""}@top-center{content:""}@top-right{content:""}@bottom-left{content:""}@bottom-center{content:""}@bottom-right{content:""}}
   .topbar-zurueck{font-size:19px;line-height:1;padding:6px 11px;flex-shrink:0;}
   .topbar-zurueck[hidden]{display:none;}
+  .topbar-navrow{display:flex;flex-direction:row;align-items:center;gap:6px;flex-shrink:0;}
+  .topbar-neufenster{font-size:15px;padding:6px 9px;}
+  :root[data-design="neu"] .topbar .topbar-navrow .btn{width:auto;flex:0 0 auto;justify-content:center;}
   .topbar-logo img{height:100%;width:auto;object-fit:contain;display:block;}
   .topbar-title{font-family:'Baloo 2';font-weight:800;font-size:17px;color:var(--brand-ink);cursor:pointer;}
   .topbar-ferien{display:flex;align-items:center;gap:4px;font-size:12px;color:var(--text-muted);white-space:nowrap;}
@@ -10765,8 +10768,11 @@ function renderChrome(innerHtml){
   var isTeacher = state.profile && state.profile.role === 'teacher';
   var html = '';
   html += '<div class="topbar">';
+  html += '<div class="topbar-navrow">';
   html += '<button class="btn btn-ghost btn-sm topbar-zurueck" id="zurueckBtn" type="button" title="Zurück zur letzten Seite" aria-label="Zurück zur letzten Seite"'+(verlauf.stapel.length ? '' : ' hidden')+'>←</button>'+
     '<button class="btn btn-ghost btn-sm topbar-zurueck" id="vorBtn" type="button" title="Wieder vorwärts" aria-label="Wieder vorwärts"'+(verlauf.vor.length ? '' : ' hidden')+'>→</button>';
+  if(isTeacher) html += '<button class="btn btn-ghost btn-sm topbar-zurueck topbar-neufenster" id="neuFensterBtn" type="button" title="Library in neuem Fenster öffnen" aria-label="Library in neuem Fenster öffnen">⧉</button>';
+  html += '</div>';
   html += '<div class="topbar-logo" id="logoBtn" role="button" tabindex="0" title="Hilfe" aria-label="Library-Hilfe öffnen">'+kibLogoHtml()+'</div>';
   html += '<div class="topbar-title" id="titleBtn">Helfenberger\'s Library</div>';
   html += neuNavHtml(isTeacher);
@@ -10830,6 +10836,8 @@ function renderChrome(innerHtml){
   document.getElementById('titleBtn').addEventListener('click', goHome);
   document.getElementById('zurueckBtn').addEventListener('click', verlaufZurueck);
   document.getElementById('vorBtn').addEventListener('click', verlaufVor);
+  var nfb = document.getElementById('neuFensterBtn');
+  if(nfb) nfb.addEventListener('click', function(){ window.open(location.href, '_blank'); });
   document.getElementById('settingsBtn').addEventListener('click', openSettings);
   var sebQuitBtn = document.getElementById('sebQuitBtn');
   if(sebQuitBtn) sebQuitBtn.addEventListener('click', function(){
@@ -24541,6 +24549,7 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-10-28-neues-fenster', datum:'2026-10-28', fuer:'lehrer', text:'⧉ Neues Fenster: Der kleine Knopf oben links neben ← → öffnet die Library in einem zweiten Fenster.'},
   {id:'2026-10-27-bk-wieder-ausblenden', datum:'2026-10-27', fuer:'lehrer', text:'🙈 Briefkasten versehentlich eingeblendet? Mit «🙈 Ausblenden» auf der Karte ist er für die Schüler:innen wieder weg, samt Abgabe im Kalender – einblenden kannst du ihn jederzeit neu.'},
   {id:'2026-10-27-empfehlen-an', datum:'2026-10-27', fuer:'lehrer', text:'⭐ Material teilen geht neu per «Empfehlen an …»: Bei Übungen, Quizzen, Spiel-Sets, Karteikarten, Wortwolken und Blitzumfragen (🗃️ Unterrichtsmaterial) setzt du Häkchen bei den Lehrpersonen, die es bekommen sollen. Sie übernehmen es unter ⚙️ «Von Lehrern empfohlen». Neues Material wird nicht mehr automatisch in alle Seiten kopiert; schon vorhandene Kopien werden bei Änderungen weiter nachgeführt.'},
   {id:'2026-10-27-bk-ausblenden', datum:'2026-10-27', fuer:'lehrer', text:'📮 Briefkästen kannst du jetzt nur vorbereiten und ausblenden («🙈 Noch ausblenden»). Mit «👁 Einblenden» sehen die Schüler:innen den Briefkasten – und erst dann steht die Abgabe in ihrem Kalender.'},
