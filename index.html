@@ -17,6 +17,18 @@
     if(t === 'dark' || t === 'light'){ document.documentElement.setAttribute('data-theme', t); }
   }catch(e){}
 })();
+// ❄ Winter-Look: automatisch 1.–26. Dezember. Aus per Knopf (hl_winter=aus). Test: ?winter=1 (nur dieser Tab), ?winter=0 beendet den Test.
+var winterTest = false;
+function winterSaison(){ var d = new Date(); return winterTest || (d.getMonth() === 11 && d.getDate() <= 26); }
+function winterAn(){ var aus = false; try{ aus = localStorage.getItem('hl_winter') === 'aus'; }catch(e){} return winterSaison() && (winterTest || !aus); }
+(function(){
+  try{
+    var m = /[?&]winter=([01])/.exec(location.search);
+    if(m){ if(m[1] === '1') sessionStorage.setItem('hl_winter_test', '1'); else sessionStorage.removeItem('hl_winter_test'); }
+    winterTest = sessionStorage.getItem('hl_winter_test') === '1';
+  }catch(e){}
+  if(winterAn()) document.documentElement.classList.add('winter');
+})();
 </script>
 <!-- "Zum Home-Bildschirm hinzufügen" auf iOS ignoriert das Web-Manifest weitgehend und
      braucht diese eigenen Meta-Tags, um als eigenständige App (ohne Safari-Chrome) zu starten. -->
@@ -3610,6 +3622,14 @@
   .stp-tools .stp-woche{gap:4px;}
   .stp-tools .stp-tabs .stp-tab{padding:6px 10px;}
   .stp-tools{gap:8px;}
+
+  /* ❄ WINTER-LOOK (1.–26. Dezember, siehe winterAn()): Lichterkette am Rand + Zipfelmützen auf dem Logo. */
+  #winterLichter{position:fixed;inset:0;z-index:90;pointer-events:none;}
+  #winterLichter svg{width:100%;height:100%;display:block;overflow:visible;}
+  .winter .login-logo,.winter .topbar-logo .kib-logo{position:relative;}
+  .winter .login-logo::after,.winter .topbar-logo .kib-logo::after{
+    content:"";position:absolute;left:0;right:0;top:-12%;bottom:0;pointer-events:none;
+    background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cdefs%3E%3ClinearGradient id='r' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23e0393e'/%3E%3Cstop offset='1' stop-color='%23a81d24'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath d='M14 76 C16 40 38 16 74 14 C84 13 90 22 83 29 C69 38 68 58 88 76 Z' fill='url(%23r)'/%3E%3Crect x='8' y='68' width='86' height='22' rx='11' fill='%23fff'/%3E%3Crect x='8' y='68' width='86' height='22' rx='11' fill='none' stroke='%23c9d6e6' stroke-width='1.5'/%3E%3Ccircle cx='83' cy='22' r='10' fill='%23fff' stroke='%23c9d6e6' stroke-width='1.5'/%3E%3C/svg%3E") 29.0% 7.6%/10.5% auto no-repeat,url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cdefs%3E%3ClinearGradient id='r' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23e0393e'/%3E%3Cstop offset='1' stop-color='%23a81d24'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath d='M14 76 C16 40 38 16 74 14 C84 13 90 22 83 29 C69 38 68 58 88 76 Z' fill='url(%23r)'/%3E%3Crect x='8' y='68' width='86' height='22' rx='11' fill='%23fff'/%3E%3Crect x='8' y='68' width='86' height='22' rx='11' fill='none' stroke='%23c9d6e6' stroke-width='1.5'/%3E%3Ccircle cx='83' cy='22' r='10' fill='%23fff' stroke='%23c9d6e6' stroke-width='1.5'/%3E%3C/svg%3E") 7.3% 24.2%/10.5% auto no-repeat,url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cdefs%3E%3ClinearGradient id='r' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23e0393e'/%3E%3Cstop offset='1' stop-color='%23a81d24'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath d='M14 76 C16 40 38 16 74 14 C84 13 90 22 83 29 C69 38 68 58 88 76 Z' fill='url(%23r)'/%3E%3Crect x='8' y='68' width='86' height='22' rx='11' fill='%23fff'/%3E%3Crect x='8' y='68' width='86' height='22' rx='11' fill='none' stroke='%23c9d6e6' stroke-width='1.5'/%3E%3Ccircle cx='83' cy='22' r='10' fill='%23fff' stroke='%23c9d6e6' stroke-width='1.5'/%3E%3C/svg%3E") 8.5% 65.0%/10.5% auto no-repeat,url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cdefs%3E%3ClinearGradient id='r' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23e0393e'/%3E%3Cstop offset='1' stop-color='%23a81d24'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath d='M14 76 C16 40 38 16 74 14 C84 13 90 22 83 29 C69 38 68 58 88 76 Z' fill='url(%23r)'/%3E%3Crect x='8' y='68' width='86' height='22' rx='11' fill='%23fff'/%3E%3Crect x='8' y='68' width='86' height='22' rx='11' fill='none' stroke='%23c9d6e6' stroke-width='1.5'/%3E%3Ccircle cx='83' cy='22' r='10' fill='%23fff' stroke='%23c9d6e6' stroke-width='1.5'/%3E%3C/svg%3E") 31.1% 77.0%/10.5% auto no-repeat}
 </style>
 <script>if(/-test\//.test(location.pathname))document.documentElement.classList.add('test-site');</script>
 </head>
@@ -7770,7 +7790,7 @@ function wsCsv(){
 
 var LR_DATEI_RE = /lesereise/i;
 var LR_KEY_RE = /^[a-z0-9]+_lesereise_v\d+$/;
-var lrState = { detailUid:null, sort:'name', daten:null, laedt:false, buch:'' };
+var lrState = { detailUid:null, sort:'name', daten:null, laedt:false, buch:'', ansicht:'schueler', kap:0, nurSum:false };
 
 function lrAusDoc(data){
   var out = {};
@@ -7919,10 +7939,12 @@ function lrZeichnen(){
     if(sel) sel.onchange = function(){ lrState.buch = sel.value; lrState.detailUid = null; lrZeichnen(); };
   }
   if(lrState.detailUid){ lrDetail(body, buch); return; }
+  if(lrState.ansicht === 'kapitel'){ lrKapitel(body, buch); return; }
   var rows = lrZeilen(buch), n = rows.length || 1, N = meta.stationen.length;
   var totDone = 0, fertig = 0, nie = 0, qA = 0, qF = 0;
   rows.forEach(function(x){ totDone += x.r.done; if(x.r.fin) fertig++; if(!x.r.begonnen) nie++; qA += x.r.qAns; qF += x.r.qFirst; });
-  var h = '<div class="da-student-card"><h4>📖 '+esc(meta.buch || '')+(meta.autor ? ' <span class="tiny muted">· '+esc(meta.autor)+'</span>' : '')+' · '+rows.length+' Schüler:innen</h4>';
+  var h = lrTabsHtml();
+  h += '<div class="da-student-card"><h4>📖 '+esc(meta.buch || '')+(meta.autor ? ' <span class="tiny muted">· '+esc(meta.autor)+'</span>' : '')+' · '+rows.length+' Schüler:innen</h4>';
   h += '<div class="ws-kpis">' +
     '<div><b>'+(Math.round(totDone/n*10)/10)+'</b><span>Ø Stationen von '+N+'</span></div>' +
     '<div><b>'+(qA ? Math.round(qF/qA*100) : 0)+'%</b><span>Kapitel-Checks beim 1. Versuch richtig</span></div>' +
@@ -7958,9 +7980,110 @@ function lrZeichnen(){
   });
   h += '</tbody></table></div><p class="tiny muted">⭐ = Kapitel-Checks beim ersten Versuch fehlerfrei · 1. Versuch = Anteil der Fragen, die beim ersten Versuch stimmten · 🏅 = Linien-Abzeichen · ✍️ = Schreibaufträge mit mind. 50 Wörtern / angefangen · 🏁 = Abschlussquiz bestanden</p>';
   body.innerHTML = h;
+  lrTabsBinden(body);
   Array.prototype.forEach.call(body.querySelectorAll('.ws-name'), function(b){
     b.addEventListener('click', function(){ lrState.detailUid = b.getAttribute('data-uid'); lrZeichnen(); window.scrollTo(0, 0); });
   });
+}
+
+function lrTabsHtml(){
+  return '<div class="da-toolbar" style="margin-bottom:10px"><button class="btn btn-sm '+(lrState.ansicht === 'kapitel' ? 'btn-ghost' : 'btn-primary')+'" type="button" data-lrtab="schueler">👤 Pro Schüler:in</button>' +
+    '<button class="btn btn-sm '+(lrState.ansicht === 'kapitel' ? 'btn-primary' : 'btn-ghost')+'" type="button" data-lrtab="kapitel">📝 Zusammenfassungen pro Kapitel</button>' +
+    '<button class="btn btn-ghost btn-sm" type="button" id="lrAllePdf">📄 Alle Lesetagebücher als PDF</button></div>';
+}
+function lrTabsBinden(body){
+  Array.prototype.forEach.call(body.querySelectorAll('[data-lrtab]'), function(b){
+    b.addEventListener('click', function(){ lrState.ansicht = b.getAttribute('data-lrtab'); lrState.detailUid = null; lrZeichnen(); });
+  });
+  var a = document.getElementById('lrAllePdf');
+  if(a) a.addEventListener('click', function(){ lrPdf(null); });
+}
+
+// Lesetagebuch als druckbares Blatt (ein Blatt-Block pro Schüler:in); Druckdialog › «Als PDF sichern»
+function lrTagebuchHtml(stu, st, meta){
+  var r = lrAuswerten(st, meta), N = meta.stationen.length, moods = meta.moods || ['😣','😟','😐','🙂','😄'];
+  function box(t){ return '<div style="white-space:pre-wrap;border:1px solid #999;border-radius:4pt;padding:4pt 8pt;margin:3pt 0">'+esc(t)+'</div>'; }
+  var h = '<div class="blatt"><h1>📖 Lesetagebuch · '+esc(meta.buch || '')+'</h1><p><b>'+esc(stu.displayName || '?')+'</b>'+(meta.autor ? ' · '+esc(meta.autor) : '')+' · '+r.done+' / '+N+' Stationen entwertet'+(r.fin ? ' · Endstation '+(r.fin.best || 0)+'/15' : '')+'</p>';
+  Object.keys(meta.linien || {}).forEach(function(b){
+    var L = meta.linien[b], teile = '';
+    meta.stationen.forEach(function(s, i){
+      if(s.b !== b) return;
+      var dd = (st && st.st && st.st[i] && st.st[i].d) || {};
+      if(!dd.sum && !dd.quote && !dd.ask) return;
+      teile += '<h3 style="margin:8pt 0 0;font-size:11pt;break-after:avoid">'+(i+1)+'. '+esc(s.t)+' <span class="klein">S. '+esc(s.p)+(s.e && s.e !== s.p ? '–'+esc(s.e) : '')+(dd.mood ? ' · '+esc(moods[dd.mood - 1] || '') : '')+'</span></h3>' +
+        (dd.sum ? box(dd.sum) : '') + (dd.quote ? '<div class="klein"><i>«'+esc(dd.quote)+'»</i>'+(dd.page ? ' (S. '+esc(dd.page)+')' : '')+'</div>' : '') + (dd.ask ? '<div class="klein">❓ '+esc(dd.ask)+'</div>' : '');
+    });
+    if(teile) h += '<h2>'+esc((L.line ? L.line+' · ' : '')+(L.name || ''))+'</h2>'+teile;
+  });
+  var fh = '';
+  (meta.figuren || []).forEach(function(f){
+    var x = st && st.fig && st.fig[f.id];
+    if(!x || !(x.who || x.scene || x.end || (x.traits || []).length)) return;
+    fh += '<p style="margin:6pt 0 0;break-inside:avoid"><b>'+esc(f.emoji+' '+f.name)+'</b>'+((x.traits || []).length ? ' <span class="klein">· '+esc(x.traits.join(', '))+'</span>' : '')+(x.who ? box(x.who) : '')+(x.scene ? '<span class="klein">Wichtigste Szene: '+esc(x.scene)+'</span><br>' : '')+(x.end ? '<span class="klein">Was wird aus der Figur: '+esc(x.end)+'</span>' : '')+'</p>';
+  });
+  if(fh) h += '<h2>👥 Figuren-Steckbriefe</h2>'+fh;
+  var sp = (st && st.sp) || {};
+  if(st && (st.moodNote || sp.r1 || sp.r2)){
+    h += '<h2>📈 Stimmung &amp; 🌀 Spirale</h2>' + (st.moodNote ? '<div class="klein"><b>Tiefpunkt / Höhepunkt:</b></div>'+box(st.moodNote) : '') +
+      (sp.r1 ? '<div class="klein"><b>Wo hätte sie aussteigen können?</b></div>'+box(sp.r1) : '') + (sp.r2 ? '<div class="klein"><b>Wer hätte helfen können?</b></div>'+box(sp.r2) : '');
+  }
+  var wh = '';
+  (meta.schreiben || []).forEach(function(w){
+    var x = st && st.wr && st.wr[w.id];
+    if(x && x.text) wh += '<h3 style="margin:8pt 0 0;font-size:11pt;break-after:avoid">'+esc((w.emoji || '✍️')+' '+w.title)+' <span class="klein">'+lrWoerter(x.text)+' Wörter</span></h3>'+box(x.text);
+  });
+  if(wh) h += '<h2>✍️ Schreibwerkstatt</h2>'+wh;
+  return h + '</div>';
+}
+// uid = eine Person, null = alle (die etwas geschrieben/begonnen haben)
+function lrPdf(uid){
+  var d = lrState.daten; if(!d || !Object.keys(d.buecher || {}).length){ toast('Noch keine Daten.'); return; }
+  var buch = lrBuch(), meta = buch.meta;
+  var liste = lrZeilen(buch).filter(function(x){ return uid ? x.stu.uid === uid : (x.st && x.r.begonnen || x.r.texte); });
+  liste.sort(function(a, b){ return (a.stu.displayName || '').localeCompare(b.stu.displayName || '', 'de'); });
+  if(!liste.length){ toast('Noch kein Lesetagebuch vorhanden.'); return; }
+  toast('Druckfenster öffnet sich – dort «Als PDF sichern» wählen.');
+  svaDruck('Lesetagebuch ' + (meta.buch || '') + (uid ? ' – ' + (liste[0].stu.displayName || '') : ' – ' + (state.klasse || '')),
+    liste.map(function(x){ return lrTagebuchHtml(x.stu, x.st || {}, meta); }).join(''));
+}
+
+// Pro Kapitel: was haben alle Schüler:innen als Zusammenfassung geschrieben?
+function lrSumme(buch, i){
+  return lrState.daten.roster.map(function(stu){
+    var st = buch.proStu[stu.uid], sd = st && st.st && st.st[i], dd = (sd && sd.d) || {};
+    return {stu:stu, sum:String(dd.sum || '').trim(), done:!!(sd && sd.done), mood:dd.mood || 0, star:!!(sd && sd.star), quote:dd.quote || '', page:dd.page || '', ask:dd.ask || ''};
+  }).sort(function(a, b){ return (a.stu.displayName || '').localeCompare(b.stu.displayName || '', 'de'); });
+}
+function lrKapitel(body, buch){
+  var meta = buch.meta, N = meta.stationen.length, moods = meta.moods || ['😣','😟','😐','🙂','😄'];
+  if(lrState.kap < 0 || lrState.kap >= N) lrState.kap = 0;
+  var i = lrState.kap, s = meta.stationen[i], L = (meta.linien || {})[s.b] || {};
+  var liste = lrSumme(buch, i), mit = liste.filter(function(x){ return x.sum; }), ohne = liste.filter(function(x){ return !x.sum; });
+  var h = lrTabsHtml();
+  h += '<div class="da-toolbar" style="margin-bottom:10px"><button class="btn btn-ghost btn-sm" id="lrKapPrev" type="button"'+(i === 0 ? ' disabled' : '')+'>&larr;</button>' +
+    '<select class="sk-wahl" id="lrKapWahl" style="flex:1;min-width:200px">' + meta.stationen.map(function(st, k){
+      var anz = lrSumme(buch, k).filter(function(x){ return x.sum; }).length;
+      return '<option value="'+k+'"'+(k === i ? ' selected' : '')+'>'+(k+1)+'. '+esc(st.t)+' ('+anz+')</option>'; }).join('') + '</select>' +
+    '<button class="btn btn-ghost btn-sm" id="lrKapNext" type="button"'+(i === N - 1 ? ' disabled' : '')+'>&rarr;</button></div>';
+  h += '<div class="da-student-card"><h4>'+(L.line ? '<span style="display:inline-block;background:'+esc(L.color || '#555')+';color:#fff;border-radius:5px;padding:0 6px;font-weight:800;font-size:12px">'+esc(L.line)+'</span> ' : '')+(i+1)+'. '+esc(s.t)+' <span class="tiny muted">S. '+esc(s.p)+(s.e && s.e !== s.p ? '–'+esc(s.e) : '')+'</span></h4>' +
+    '<div class="ws-kpis"><div><b>'+mit.length+' / '+liste.length+'</b><span>Zusammenfassung geschrieben</span></div>' +
+    '<div><b>'+(mit.length ? Math.round(mit.reduce(function(a, x){ return a + lrWoerter(x.sum); }, 0) / mit.length) : 0)+'</b><span>Ø Wörter</span></div>' +
+    '<div><b>'+liste.filter(function(x){ return x.done; }).length+'</b><span>Station entwertet</span></div></div></div>';
+  mit.forEach(function(x){
+    h += '<div class="da-student-card" style="break-inside:avoid"><b>'+esc(x.stu.displayName || '?')+'</b> <span class="tiny muted">'+lrWoerter(x.sum)+' Wörter'+(x.done ? ' · 🎫 entwertet'+(x.star ? ' ⭐' : '') : ' · ✎ noch nicht entwertet')+'</span>' +
+      (x.mood ? ' <span style="font-size:18px">'+esc(moods[x.mood - 1] || '')+'</span>' : '') +
+      '<div style="white-space:pre-wrap;background:var(--surface-2);border-radius:10px;padding:8px 12px;margin:6px 0 0">'+esc(x.sum)+'</div>' +
+      (x.quote ? '<div class="tiny"><i>«'+esc(x.quote)+'»</i>'+(x.page ? ' (S. '+esc(x.page)+')' : '')+'</div>' : '') +
+      (x.ask ? '<div class="tiny">❓ '+esc(x.ask)+'</div>' : '') + '</div>';
+  });
+  if(!mit.length) h += '<div class="empty-state">Zu diesem Kapitel hat noch niemand eine Zusammenfassung geschrieben.</div>';
+  else if(ohne.length) h += '<p class="tiny muted"><b>Noch keine Zusammenfassung ('+ohne.length+'):</b> '+ohne.map(function(x){ return esc(x.stu.displayName || '?'); }).join(', ')+'</p>';
+  body.innerHTML = h;
+  lrTabsBinden(body);
+  function geh(k){ lrState.kap = k; lrZeichnen(); }
+  document.getElementById('lrKapWahl').addEventListener('change', function(e){ geh(parseInt(e.target.value, 10) || 0); });
+  document.getElementById('lrKapPrev').addEventListener('click', function(){ geh(i - 1); });
+  document.getElementById('lrKapNext').addEventListener('click', function(){ geh(i + 1); });
 }
 
 function lrDetail(body, buch){
@@ -7969,7 +8092,7 @@ function lrDetail(body, buch){
   if(!stu){ lrState.detailUid = null; lrZeichnen(); return; }
   var st = buch.proStu[stu.uid] || {}, r = lrAuswerten(st, meta), N = meta.stationen.length, moods = meta.moods || ['😣','😟','😐','🙂','😄'];
   function txt(s){ return '<div style="white-space:pre-wrap;background:var(--surface-2);border-radius:10px;padding:8px 12px;margin:6px 0">'+esc(s)+'</div>'; }
-  var h = '<div class="back-row"><button class="btn btn-ghost btn-sm" id="lrZurueck" type="button">&larr; alle Schüler:innen</button></div>';
+  var h = '<div class="back-row"><button class="btn btn-ghost btn-sm" id="lrZurueck" type="button">&larr; alle Schüler:innen</button> <button class="btn btn-ghost btn-sm" id="lrEinzelPdf" type="button">📄 Lesetagebuch als PDF</button></div>';
   h += '<div class="da-student-card"><h4>'+esc(stu.displayName || '?')+' · 📖 '+esc(meta.buch || '')+(st.name && st.name !== stu.displayName ? ' <span class="tiny muted">(Name auf der Fahrkarte: '+esc(st.name)+')</span>' : '')+'</h4><div class="ws-kpis">' +
     '<div><b>'+r.done+' / '+N+'</b><span>Stationen entwertet</span></div>' +
     '<div><b>'+(r.qAns ? Math.round(r.qFirst / r.qAns * 100) : 0)+'%</b><span>beim 1. Versuch richtig</span></div>' +
@@ -8039,12 +8162,19 @@ function lrDetail(body, buch){
   if(wh) h += '<details class="da-student-card ws-posten" open><summary><b>✍️ Schreibwerkstatt</b></summary>'+wh+'</details>';
   body.innerHTML = h;
   document.getElementById('lrZurueck').addEventListener('click', function(){ lrState.detailUid = null; lrZeichnen(); });
+  document.getElementById('lrEinzelPdf').addEventListener('click', function(){ lrPdf(stu.uid); });
 }
 
 function lrCsv(){
   var d = lrState.daten;
   if(!d || !Object.keys(d.buecher || {}).length){ toast('Noch keine Daten.'); return; }
   var buch = lrBuch(), meta = buch.meta;
+  if(lrState.ansicht === 'kapitel'){
+    var zr = [['Schüler:in', 'Kapitel Nr.', 'Kapitel', 'Wörter', 'Zusammenfassung']];
+    meta.stationen.forEach(function(s, i){ lrSumme(buch, i).forEach(function(x){ if(x.sum) zr.push([x.stu.displayName, i + 1, s.t, lrWoerter(x.sum), x.sum]); }); });
+    downloadTextFile('lesereise-zusammenfassungen-'+todayStr()+'.csv', zr.map(function(r){ return r.map(csvField).join(','); }).join('\r\n'), 'text/csv');
+    return;
+  }
   var rows = [['Schüler:in', 'Stationen entwertet', 'Stationen total', 'nächste Station', 'fehlerfreie Checks', '1. Versuch %', 'Linien-Abzeichen', 'Texte (≥50 Wörter)', 'Endstation', 'zuletzt']];
   lrZeilen(buch).forEach(function(x){
     rows.push([x.stu.displayName, x.r.done, meta.stationen.length, x.r.begonnen ? lrStationText(meta, x.r.cur) : '', x.r.stars,
@@ -9032,6 +9162,32 @@ function libZoomPruefen(){
 }
 window.addEventListener('resize', libZoomPruefen);
 libZoomPruefen();
+
+/* ===================== ❄ WINTER-LOOK ===================== */
+function winterLichterBauen(){
+  var alt = document.getElementById('winterLichter'); if(alt) alt.remove();
+  if(!winterAn()) return;
+  var z = libZoom() || 1, W = Math.round(document.documentElement.clientWidth / z), H = Math.round(window.innerHeight / z), o = '', k, i, x, y, t;
+  var glow = function(cx, cy, d){ return '<g><circle cx="'+cx+'" cy="'+cy+'" r="9" fill="url(#wlG)"/><circle cx="'+cx+'" cy="'+cy+'" r="2.8" fill="#ffe9b0"/></g>'; };
+  var swag = 84, d = 'M0 2';
+  for(x = 0; x < W; x += swag) d += ' Q'+(x+swag/2)+' 11 '+(x+swag)+' 2';
+  o += '<path d="'+d+'" fill="none" stroke="#5b5f68" stroke-width="1" opacity=".55"/>';
+  for(k = 0, x = 14; x < W - 8; x += 42, k++){ t = (x % swag) / swag; y = 2 + 18 * t * (1 - t); o += glow(x, y + 4, (k % 5) * .9); }
+  o += '<path d="M3 2 L3 '+H+'" stroke="#5b5f68" stroke-width="1" opacity=".45"/><path d="M'+(W-3)+' 2 L'+(W-3)+' '+H+'" stroke="#5b5f68" stroke-width="1" opacity=".45"/>';
+  for(i = 0, y = 26; y < H - 8; y += 42, i++){ o += glow(5, y, (i % 5) * .9) + glow(W - 5, y, ((i + 2) % 5) * .9); }
+  var div = document.createElement('div'); div.id = 'winterLichter'; div.setAttribute('aria-hidden', 'true');
+  div.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="'+W+'" height="'+H+'"><defs><radialGradient id="wlG"><stop offset="0" stop-color="#ffd27a" stop-opacity=".75"/><stop offset="1" stop-color="#ffd27a" stop-opacity="0"/></radialGradient></defs>'+o+'</svg>';
+  document.body.appendChild(div);
+}
+function winterUmschalten(){
+  var an = !document.documentElement.classList.contains('winter');
+  try{ if(an) localStorage.removeItem('hl_winter'); else localStorage.setItem('hl_winter', 'aus'); }catch(e){}
+  document.documentElement.classList.toggle('winter', winterAn());
+  winterLichterBauen();
+  var b = document.getElementById('winterBtn'); if(b) b.style.opacity = winterAn() ? '' : '.5';
+}
+(function(){ var tm; window.addEventListener('resize', function(){ clearTimeout(tm); tm = setTimeout(winterLichterBauen, 200); }); })();
+if(document.body) winterLichterBauen(); else document.addEventListener('DOMContentLoaded', winterLichterBauen);
 
 /* ===================== DARSTELLUNG (Dark/Light Mode) ===================== */
 
@@ -10807,6 +10963,7 @@ function renderChrome(innerHtml){
   html += '<button class="btn btn-ghost btn-sm topbar-bell" id="searchBtn" type="button" title="Suche">'+NEU_ICON.suche+'</button>';
   html += '<button class="btn btn-ghost btn-sm topbar-bell" id="langBtn" type="button" title="Sprache wählen">'+NEU_ICON.sprache+(i18nCode() !== 'de' ? '<span class="topbar-lang-code">'+esc(i18nCode().toUpperCase())+'</span>' : '')+'</button>';
   html += '<button class="btn btn-ghost btn-sm topbar-bell" id="themeToggleBtn" type="button" title="Darstellung">'+(currentEffectiveTheme()==='dark'?NEU_ICON.sonne:NEU_ICON.mond)+'</button>';
+  if(winterSaison()) html += '<button class="btn btn-ghost btn-sm topbar-bell" id="winterBtn" type="button" title="Winter-Look an/aus"'+(winterAn()?'':' style="opacity:.5"')+'>❄️</button>';
   html += '<button class="btn btn-ghost btn-sm topbar-bell" id="pushBellBtn" type="button" title="Erinnerungen">'+NEU_ICON.erinnerungen+'</button>';
   html += '<button class="btn btn-ghost btn-sm topbar-bell" id="stundenplanBtn" type="button" title="Stundenplan">'+NEU_ICON.stundenplan+'</button>';
   if(!isLeitung()){ html += '<button class="btn btn-ghost btn-sm topbar-bell" id="linksBtn" type="button" title="Links"'+(isTeacher || linksFuerSchueler().length ? '' : ' style="display:none;"')+'>'+NEU_ICON.links+'</button>'; }
@@ -10875,6 +11032,7 @@ function renderChrome(innerHtml){
 
   document.getElementById('searchBtn').addEventListener('click', openSearchModal);
   document.getElementById('themeToggleBtn').addEventListener('click', toggleTheme);
+  var winterBtn = document.getElementById('winterBtn'); if(winterBtn) winterBtn.addEventListener('click', winterUmschalten);
 
   var quizJoinBtn = document.getElementById('quizJoinBtn');
   if(quizJoinBtn){ quizJoinBtn.addEventListener('click', joinQuiz); }
@@ -15672,27 +15830,37 @@ function renderFolderContents(){
   }
 
   var html = '';
-  if(folders.length){
+  // 🧰 Werkzeuge (3D-Körper, Algebra-Kacheln, Figuren-Werkstatt) stehen als eigener Bereich ganz unten.
+  var ordnerNorm = folders.filter(function(f){ return !f.werkzeug; });
+  var werkzeugOrdner = folders.filter(function(f){ return f.werkzeug; });
+  if(ordnerNorm.length){
     html += '<div class="section-label">Ordner</div>';
-    html += folders.map(function(f){ return folderCardHtml(f, realFolders.indexOf(f), realFolders.length, isTeacher && !f.virtual); }).join('');
+    html += ordnerNorm.map(function(f){ return folderCardHtml(f, realFolders.indexOf(f), realFolders.length, isTeacher && !f.virtual); }).join('');
   }
   // Klassenzimmer-Material (Prüfungen, Karteikarten, Quiz, Wortwolken, Blitzumfragen) steht
   // unter den eigentlichen Übungen; ab zwei Stück derselben Art als Sammelordner.
   var zusatz = resources.filter(zusatzArt);
   var material = resources.filter(function(r){ return !zusatzArt(r); });
   if(material.length){
-    if(folders.length) html += '<div class="section-label">Übungen</div>';
+    if(ordnerNorm.length) html += '<div class="section-label">Übungen</div>';
     html += material.map(function(r){ return resourceCardHtml(r, realResources.indexOf(r), realResources.length, isTeacher && !r.virtual); }).join('');
   }
   if(zusatz.length){
     if(folders.length || material.length) html += '<div class="section-label">Zusatzmaterial</div>';
     html += zusatzHtml(zusatz, subjectId, here);
   }
+  if(werkzeugOrdner.length){
+    html += '<div class="section-label">Werkzeuge</div>';
+    html += werkzeugOrdner.map(function(f){ return folderCardHtml(f, 0, 1, false); }).join('');
+  }
   listEl.innerHTML = html;
   zusatzVerdrahten(listEl);
 
   folders.forEach(function(f){
-    document.getElementById('fopen-'+f.id).addEventListener('click', function(){ goSubject(subjectId, f.id); });
+    document.getElementById('fopen-'+f.id).addEventListener('click', function(){
+      if(f.figuren){ state.figVon = subjectId; state.route = {name:'figuren'}; render(); return; }
+      goSubject(subjectId, f.id);
+    });
     if(!isTeacher || f.virtual) return;
     var i = realFolders.indexOf(f);
     document.getElementById('fup-'+f.id).addEventListener('click', function(){ reorderFolder(realFolders, i, -1); });
@@ -15837,8 +16005,11 @@ function zusatzVerdrahten(listEl){
 function folderCardHtml(f, index, total, isTeacher){
   var c = subtreeCounts(f.id);
   var parts = [];
-  if(c.folders) parts.push(c.folders+' Ordner');
-  parts.push(c.resources+' Übung'+(c.resources===1?'':'en'));
+  if(f.sub) parts.push(f.sub);
+  else{
+    if(c.folders) parts.push(c.folders+' Ordner');
+    parts.push(c.resources+' Übung'+(c.resources===1?'':'en'));
+  }
 
   var html = '<div class="folder-card'+(c.hasCurrent?' has-current':'')+'" id="fcard-'+f.id+'">';
   if(isTeacher){
@@ -18215,7 +18386,8 @@ function renderFiguren(){
   clearSubjectWatchers(); clearOverviewWatchers();
   var akt = FIG_SEITEN.find(function(x){ return x.id === lsGet('libfig_seite'); }) || FIG_SEITEN[0];
   var html = '<div class="viewer-wrap">';
-  html += '<div class="back-row"><button class="btn btn-ghost btn-sm" id="backBtn" type="button">&larr; Klassenzimmer</button></div>';
+  var figZurueck = state.figVon;
+  html += '<div class="back-row"><button class="btn btn-ghost btn-sm" id="backBtn" type="button">&larr; '+(figZurueck ? esc(subjectName(figZurueck)) : 'Klassenzimmer')+'</button></div>';
   html += '<div class="viewer-head"><h2>'+bildIconHtml('kz-figuren','📐',32)+' Figuren-Werkstatt</h2>';
   html += FIG_SEITEN.map(function(x){ return '<button class="btn '+(x === akt ? 'btn-primary' : 'btn-ghost')+' btn-sm" type="button" data-figseite="'+x.id+'">'+x.name+'</button>'; }).join(' ');
   html += '<a class="btn btn-ghost btn-sm" href="'+esc(akt.url)+'" target="_blank" rel="noopener">↗ Neuer Tab</a>';
@@ -18237,7 +18409,10 @@ function renderFiguren(){
   html += '<iframe id="resourceFrame" title="Figuren-Werkstatt: '+esc(akt.name)+'" src="'+esc(akt.url)+'" allow="fullscreen; clipboard-read; clipboard-write" allowfullscreen></iframe>';
   html += '</div></div>';
   renderChrome(html);
-  document.getElementById('backBtn').addEventListener('click', function(){ state.route = {name:'klassenzimmer'}; render(); });
+  document.getElementById('backBtn').addEventListener('click', function(){
+    if(figZurueck){ state.figVon = null; goSubject(figZurueck, null); return; }
+    state.route = {name:'klassenzimmer'}; render();
+  });
   Array.prototype.forEach.call(document.querySelectorAll('[data-figseite]'), function(b){
     b.addEventListener('click', function(){ lsSet('libfig_seite', b.getAttribute('data-figseite')); renderFiguren(); });
   });
@@ -24549,6 +24724,9 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-10-28-winter-look', datum:'2026-10-28', fuer:'alle', text:'❄️ Vom 1. bis 26. Dezember bekommt die Library einen Winter-Look: Lichterkette am Rand und Zipfelmützen auf dem Logo. Mit dem ❄️-Knopf oben kannst du ihn ausschalten.'},
+  {id:'2026-10-28-mathe-werkzeuge', datum:'2026-10-28', fuer:'alle', text:'🧰 Mathe: Ganz unten gibt es jetzt den Bereich «Werkzeuge» – dort stehen 🧊 3D-Körper & Algebra-Kacheln (Lehrpersonen zusätzlich die 📐 Figuren-Werkstatt).'},
+  {id:'2026-10-28-pruefung-zeit-steht', datum:'2026-10-28', fuer:'lehrer', text:'⏱ Gesperrte Prüfung: Die Zeit der Person steht still, bis du sie entsperrst (bei leerem Akku oder Absturz ab dem letzten Lebenszeichen).'},
   {id:'2026-10-28-neues-fenster', datum:'2026-10-28', fuer:'lehrer', text:'⧉ Neues Fenster: Der kleine Knopf oben links neben ← → öffnet die Library in einem zweiten Fenster.'},
   {id:'2026-10-27-bk-wieder-ausblenden', datum:'2026-10-27', fuer:'lehrer', text:'🙈 Briefkasten versehentlich eingeblendet? Mit «🙈 Ausblenden» auf der Karte ist er für die Schüler:innen wieder weg, samt Abgabe im Kalender – einblenden kannst du ihn jederzeit neu.'},
   {id:'2026-10-27-empfehlen-an', datum:'2026-10-27', fuer:'lehrer', text:'⭐ Material teilen geht neu per «Empfehlen an …»: Bei Übungen, Quizzen, Spiel-Sets, Karteikarten, Wortwolken und Blitzumfragen (🗃️ Unterrichtsmaterial) setzt du Häkchen bei den Lehrpersonen, die es bekommen sollen. Sie übernehmen es unter ⚙️ «Von Lehrern empfohlen». Neues Material wird nicht mehr automatisch in alle Seiten kopiert; schon vorhandene Kopien werden bei Änderungen weiter nachgeführt.'},
@@ -24674,6 +24852,7 @@ const NEUIGKEITEN = [
   {id:'2026-10-09-schach-lp', datum:'2026-10-09', fuer:'lehrer', text:'♟️ Schach für die Klasse: Im Fach «Schach & Jassen» gibt es das Schachbrett. Während der Unterrichtszeit ist es für Schüler:innen gesperrt – oben im Schachclub schaltest du unter «🔑 Lehrperson: Freischaltung» für 15, 30 oder 45 Minuten oder bis zum Ende der Lektion frei (auch für mehrere Klassen), und setzt die Rangliste zurück. Du selbst kannst immer spielen.'},
   {id:'2026-10-08-faecher-ausblenden', datum:'2026-10-08', fuer:'alle', text:'🧩 Du kannst jetzt auch Fächer ausblenden, die du nicht brauchst: «✏️ Anordnen» antippen (oder lange auf eine Kachel drücken) und beim Fach auf «−». Unter den Kacheln steht dann «… ausgeblendet · anzeigen» – so holst du sie jederzeit zurück.'},
   {id:'2026-10-08-wer-macht-mit', datum:'2026-10-08', fuer:'lehrer', text:'👥 Neu im 🏫 Klassenzimmer: «Wer macht mit?» (Knopf oben rechts in 🎲 Zufall, ⏱ Ruhephase und 👥 Gruppen & Partner). Mische ganze Klassen aus der ganzen Schule, deine 👥 Gruppen und einzelne Schüler:innen – z. B. die G2b und drei aus der E3a. Die Auswahl gilt für Glücksrad, Wer ist dran?, Gruppen & Partner und die Flüsterliste und ersetzt den Knopf «👭 Gäste».'},
+  {id:'2026-10-28-lesereise-kapitel', datum:'2026-10-28', fuer:'lehrer', text:'📖 Lesereise-Übersicht (📈 Lernstand): neu «📝 Zusammenfassungen pro Kapitel» – Kapitel wählen und alle Zusammenfassungen der Klasse untereinander lesen. Lesetagebücher gibt es einzeln (im Detail) oder für alle auf einmal als 📄 PDF (Druckdialog › Als PDF sichern).'},
   {id:'2026-10-08-lernstand-ordner', datum:'2026-10-08', fuer:'lehrer', text:'📈 Die Lernstand-Übersicht ist neu nach Fach und Ordner geordnet, wie in der Fachansicht – mit Suchfeld. SIKORE, alle Übungstrainer, Karteikarten, Werkstatt, Lesereise, Voci und die Diktat-Auswertung stehen dort, wo die Übung liegt. Der Stand wird erst beim Aufklappen geladen, darum öffnet die Seite viel schneller.'},
   {id:'2026-10-08-klassenwahl-schlank', datum:'2026-10-08', fuer:'lehrer', text:'🏫 Klasse wechseln: Zuoberst steht nur noch deine eigene Seite, darunter alle Klassen. «⭐ Meine Seiten» gibt es nicht mehr. ⚡ Die Energizer kommen ohne Fotos aus – die Liste ist kürzer und lädt schneller.'},
   {id:'2026-10-08-schneller', datum:'2026-10-08', fuer:'alle', text:'⚡ Die Library startet schneller: Sie öffnet sich sofort aus dem Speicher deines Geräts und holt Neues im Hintergrund. Gibt es eine neue Version, lädt sie von selbst neu – oder unten erscheint kurz «🔄 Neue Version», wenn du gerade etwas machst.'},
@@ -32014,7 +32193,7 @@ function kzToolStarten(id){
   else if(id === 'slf') openBeamerTools('slf');
   else if(id === 'energizer'){ state.route = {name:'energizer'}; render(); }
   else if(id === 'raeume'){ rbu.von = 'klassenzimmer'; state.route = {name:'raeume'}; render(); }
-  else if(id === 'figuren'){ state.route = {name:'figuren'}; render(); }
+  else if(id === 'figuren'){ state.figVon = null; state.route = {name:'figuren'}; render(); }
   else if(id === 'sitzplan'){ state.route = {name:'sitzplan'}; render(); }
   else if(id === 'quiz'){ state.route = {name:'quiz'}; render(); }
   else if(id === 'million'){ state.route = {name:'million'}; render(); }
@@ -36183,7 +36362,7 @@ function pruefVerstoss(grund){
   var pid = s.pid;
   pruefSessionStopp();
   pruefLokal(pid, {status:'gesperrt', aktiv:false, verstoesse:upd.verstoesse});
-  updateDoc(teilRef(pid, state.user.uid), upd).catch(function(err){ console.error('Sperre speichern', err); });
+  updateDoc(teilRef(pid, state.user.uid), upd).catch(function(err){ if(!(err && err.code === 'permission-denied')) console.error('Sperre speichern', err); });
   pruefFullscreenAus();
   pruefZeigeGesperrt(pruefById(pid), grund);
 }
@@ -36300,7 +36479,7 @@ function pruefStudentUpdate(){
     // Die Prüfung war noch gar nicht fertig geladen (langsame Verbindung) —
     // dafür wird niemand gesperrt: einfach nochmals versuchen lassen.
     pruefLokal(p.id, {aktiv:false});
-    updateDoc(teilRef(p.id, state.user.uid), {aktiv:false}).catch(function(err){ console.error('Teilnahme zurücksetzen', err); });
+    updateDoc(teilRef(p.id, state.user.uid), {aktiv:false}).catch(function(err){ if(!(err && err.code === 'permission-denied')) console.error('Teilnahme zurücksetzen', err); });
     pruefZeigeEntsperrt(p, true);
     return;
   }
@@ -36309,7 +36488,7 @@ function pruefStudentUpdate(){
     // neu geladen/geschlossen oder die Prüfung in einem zweiten Tab geöffnet.
     var vs = (t.verstoesse || []).concat([{at:Date.now(), grund:'Seite neu geladen oder verlassen'}]).slice(-30);
     pruefLokal(p.id, {status:'gesperrt', aktiv:false, verstoesse:vs});
-    updateDoc(teilRef(p.id, state.user.uid), {status:'gesperrt', aktiv:false, gesperrtAm:serverTimestamp(), verstoesse:vs}).catch(function(err){ console.error('Sperre speichern', err); });
+    updateDoc(teilRef(p.id, state.user.uid), {status:'gesperrt', aktiv:false, gesperrtAm:serverTimestamp(), verstoesse:vs}).catch(function(err){ if(!(err && err.code === 'permission-denied')) console.error('Sperre speichern', err); });
     pruefZeigeGesperrt(p, 'Seite neu geladen oder verlassen');
     return;
   }
@@ -39379,13 +39558,25 @@ function pruefZuschlagDialog(p){
     updateDoc(pruefRef(p.id), {zuschlag:map}).then(function(){ closeModal(); toast(Object.keys(map).length ? '♿ Zeitzuschlag für '+Object.keys(map).length+' Person'+(Object.keys(map).length === 1 ? '' : 'en')+' gespeichert.' : 'Kein Zeitzuschlag mehr.'); }).catch(pruefFehler);
   });
 }
+// Entsperren: die Zeit der Person stand während der Sperre still. Startzeit um
+// die Sperrdauer nach hinten schieben. Bei «Seite neu geladen» (z. B. Akku leer)
+// zählt das letzte Lebenszeichen als Beginn der Sperre, nicht der Neustart.
+function pruefEntsperrUpd(p, t){
+  var upd = {status:'laeuft', aktiv:false, entsperrtAm:serverTimestamp()};
+  if(p && +p.zeitMin > 0 && t && t.startMs){
+    var g = pruefMs(t.gesperrtAm), l = pruefMs(t.lebt), stop = g;
+    if(l && (!g || g - l > 90000)) stop = l;
+    if(stop && Date.now() > stop) upd.startMs = t.startMs + (Date.now() - stop);
+  }
+  return upd;
+}
 function pruefMonitorVerdrahten(p){
   var el = document.getElementById('prMon');
   el.onclick = function(e){
     var b = e.target.closest('button'); if(!b) return;
     var a = b.getAttribute('data-a'), eu = b.getAttribute('data-e'), du = b.getAttribute('data-d'), ru = b.getAttribute('data-r');
     var teil = pruef.teil[p.id] || {};
-    if(eu){ updateDoc(teilRef(p.id, eu), {status:'laeuft', aktiv:false, entsperrtAm:serverTimestamp()}).then(function(){ toast('Entsperrt.'); }).catch(pruefFehler); return; }
+    if(eu){ updateDoc(teilRef(p.id, eu), pruefEntsperrUpd(p, teil[eu])).then(function(){ toast('Entsperrt.'); }).catch(pruefFehler); return; }
     if(du){ if(pruefArt(p) === 'sikore') sikoreDetailsLehrer(p, du); else if(pruefArt(p) === 'tippen') tippPrDetailsLehrer(p, du); else pruefDetailsLehrer(p, du); return; }
     if(ru){
       uiConfirm('Teilnahme zurücksetzen?', (teil[ru] && teil[ru].name || 'Die Person')+' verliert alle Antworten und kann die Prüfung neu beginnen.', 'Zurücksetzen', function(){
@@ -39427,7 +39618,7 @@ function pruefMonitorVerdrahten(p){
     else if(a === 'download') pruefDownloadDialog(p);
     else if(a === 'alleEntsperren'){
       var batch = writeBatch();
-      Object.keys(teil).forEach(function(uid){ if(teil[uid].status === 'gesperrt') batch.update(teilRef(p.id, uid), {status:'laeuft', aktiv:false, entsperrtAm:serverTimestamp()}); });
+      Object.keys(teil).forEach(function(uid){ if(teil[uid].status === 'gesperrt') batch.update(teilRef(p.id, uid), pruefEntsperrUpd(p, teil[uid])); });
       batch.commit().then(function(){ toast('Alle entsperrt.'); }).catch(pruefFehler);
     }
     else if(a === 'loeschen') uiConfirm('Prüfung löschen?', 'Die Prüfung und alle Abgaben werden gelöscht — auch die Noten im Notenrechner der Schüler:innen.', 'Löschen', async function(){
@@ -40143,7 +40334,9 @@ var MWZ_ORDNER = 'mwz_werkzeuge';
 var MWZ_VERSION = 2;   // nach jedem Neubau erhöhen: GitHub Pages lässt index.html 10 Min. im Browser-Cache
 function sikoreVirtuell(){
   return {
-    folders:[{id:MWZ_ORDNER, subject:'mathe', parentId:null, name:'🧊 Werkzeuge: 3D-Körper & Algebra-Kacheln', order:-1990, virtual:true}],
+    folders:[{id:MWZ_ORDNER, subject:'mathe', parentId:null, name:'🧊 3D-Körper & Algebra-Kacheln', order:-1990, virtual:true, werkzeug:true}].concat(
+      (state.profile && state.profile.role === 'teacher') ? [{id:'mwz_figuren', subject:'mathe', parentId:null, name:'📐 Figuren-Werkstatt', order:-1989, virtual:true, werkzeug:true, figuren:true,
+        sub:'Saubere Figuren für Prüfungen und Arbeitsblätter · nur Lehrperson'}] : []),
     resources:[{id:'sikore_trainer', subject:'mathe', folderId:null, order:-2000, virtual:true, sikore:true, imHub:true,
       title:'🧮 SIKORE – Sicher Kopfrechnen'},
       {id:'mwz_koerper', subject:'mathe', folderId:MWZ_ORDNER, order:0, virtual:true, werkzeug:true, linkUrl:'geometrie-koerper/?v='+MWZ_VERSION, linkLabel:'Werkzeug',
@@ -40352,7 +40545,8 @@ function sikorePruefStart(p, sess, ov, saved){
   sess.sikore = {p:p, level:level, reihen:reihen, ans:ans};
   ov.innerHTML = pruefLockBar(p, sess.vorschau) + '<div class="pr-bank-wrap"><div class="pr-bank sk-pruef" id="skPruef"></div></div>';
   pruefLockBarVerdrahten();
-  var el = document.getElementById('skPruef');
+  var el = ov.querySelector('#skPruef') || document.getElementById('skPruef');
+  if(!el) throw new Error('Prüfungsfenster wurde geschlossen, bitte nochmals starten.');
   el.innerHTML = '<div class="pr-q-kopf"><span class="pr-badge">🧮 SIKORE</span><span>'+esc(sikoreLevelText(level))+'</span></div>'+
     '<p class="pr-hinweis">Rechne im Kopf und schreib jedes Ergebnis ins Kästchen (Enter = nächstes Kästchen). Mit deinem Ergebnis rechnest du gleich weiter.'+
     (c.quersumme ? ' Am Zeilenende steht die Quersumme (QS) des richtigen Ergebnisses als Kontrolle.' : '')+'</p>'+
@@ -47191,6 +47385,7 @@ var LEISTE_ITEMS = [
   {id:'fragenBtn', label:'❓ Fragebox'},
   {id:'searchBtn', label:'🔍 Suche'},
   {id:'themeToggleBtn', label:'🌙 Hell / Dunkel'},
+  {id:'winterBtn', label:'❄️ Winter-Look'},
   {id:'pushBellBtn', label:'🔔 Erinnerungen'},
   {id:'todoBtn', label:'📝 To-dos', rolle:'lehrer'},
   {id:'pflanzenBtn', label:'🪴 Pflanzen', rolle:'lehrer'},
