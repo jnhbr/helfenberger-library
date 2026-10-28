@@ -12,11 +12,12 @@
  *   node admin/uebung-ersetzen.js --klasse G3b --id <übungs-id> --datei neu.html --ja
  *
  * --suche findet Übungen, deren Titel oder Dateiname den Text enthält (Gross/klein egal).
- * Schreibt nur mit --ja. Braucht admin/serviceAccountKey.json (siehe _firebase.js).
+ * Schreibt nur mit --ja. Bricht ab, wenn Multiple Choice ungemischt ist (mc-pruefen.js), ausser mit --trotzdem. Braucht admin/serviceAccountKey.json (siehe _firebase.js).
  */
 const fs = require('fs');
 const path = require('path');
 const { starten } = require('./_firebase');
+const { mcProbleme } = require('./mc-pruefen');
 
 const MAX_CHUNK_BYTES = 900 * 1024;          // wie index.html
 const MAX_RESOURCE_BYTES = 8 * 1024 * 1024;
@@ -65,6 +66,12 @@ function chunks(str, maxBytes){
   const bytes = Buffer.byteLength(html, 'utf8');
   if(bytes > MAX_RESOURCE_BYTES) throw new Error('Datei zu gross (max. 8 MB).');
   if(!/^\s*<!doctype html/i.test(html)) console.log('⚠️  Die Datei beginnt nicht mit <!doctype html> – trotzdem weiter.');
+  // Multiple Choice: richtige Antwort darf nicht immer an derselben Stelle stehen (siehe mc-pruefen.js)
+  const mc = mcProbleme(html);
+  if(mc.length){
+    console.log('❌ Multiple Choice nicht gemischt:\n   ' + mc.join('\n   '));
+    if(!process.argv.includes('--trotzdem')){ console.log('Erst die Seite korrigieren (oder bewusst mit --trotzdem).'); process.exit(1); }
+  }
 
   const eigen = await kref.collection('resources').doc(id).get();
   if(!eigen.exists) throw new Error('Übung ' + id + ' gibt es in ' + klasse + ' nicht.');
