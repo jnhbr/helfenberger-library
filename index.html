@@ -315,6 +315,8 @@ function winterAn(){ var aus = false; try{ aus = localStorage.getItem('hl_winter
   .sva-gkf{background:var(--surface,#fff);border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:15px;line-height:1.5;overflow-wrap:anywhere;white-space:normal;} .sva-gkf.leer{color:var(--text-muted);background:transparent;border-style:dashed;}
   .sva-gkl{display:block;font-size:11.5px;font-weight:800;text-transform:uppercase;letter-spacing:.03em;color:var(--text-muted);margin-bottom:2px;}
   .sva-detail .sva-rueck{margin-top:0;background:var(--surface,#fff);border-style:solid;}
+  .sva-gkf .sva-gkr{display:block;width:100%;margin-top:6px;font-size:14px;background:#F4FAF6;border-color:#BFE3CC;color:var(--text);} .sva-gkf .sva-gkr:placeholder-shown{background:transparent;border-style:dashed;}
+  .sva-rueckbox ul{margin:4px 0 0;padding-left:18px;} .sva-rueckbox li{margin:2px 0;}
   .sva-rueck{margin-top:10px;padding:10px;border:1px dashed var(--border);border-radius:8px;display:flex;flex-direction:column;gap:6px;align-items:flex-start;} .sva-rueck .modal-input{width:100%;}
   .sva-pform{display:grid;grid-template-columns:1fr 1fr;gap:6px 10px;margin:8px 0;} .sva-pform label.breit{grid-column:1 / -1;} .sva-pform .modal-input{width:100%;}
   .sva-rueckbox{border-radius:10px;padding:10px 14px;background:#E9F6EE;border:1px solid #BFE3CC;} .sva-rueckbox.ueber{background:#FFF4D6;border-color:#EBD08A;}
@@ -10564,7 +10566,7 @@ var KIB_WISSEN = [
   {id:'lp-seb', fuer:'lp', f:'Wie schreibe ich eine Prüfung mit dem Safe Exam Browser?', w:'safe exam browser seb sicher prüfung sperren abschreiben spicken installiert',
    a:'«▶️ Freigeben» fragt, ob im normalen Browser oder mit dem 🛡️ Safe Exam Browser geschrieben wird. Die Schüler:innen tippen auf «Im Safe Exam Browser öffnen» und melden sich dort an. In der Übersicht zeigt 🛡️, wer im SEB schreibt. Der SEB muss auf den Geräten installiert sein.'},
   {id:'lp-sva', fuer:'lp', f:'Wie begleite ich die SVA in der Library?', w:'sva abschlussarbeit grobkonzept journal rapport ausstellung beurteilung raster wer steht wo projekte der klasse aufmerksamkeit tischkarten', ziel:'start',
-   a:'In der Kachel 🎓 SVA. Einmal einrichten: «📅 Termine in den Kalender dieser Klasse» und «📮 Briefkästen für die Abgaben».\nDanach zeigt «🔔 Braucht Aufmerksamkeit», wer im Rückstand ist, «📊 Wer steht wo?» den Stand in der Dossier-Werkstatt und «📋 Projekte der Klasse» Themen, Journal und Rapporte (mit Rückmeldung zum Grobkonzept). Unter «📝 Beurteilung» füllst du das Raster aus. Alles hat eine Druckfassung.'},
+   a:'In der Kachel 🎓 SVA. Einmal einrichten: «📅 Termine in den Kalender dieser Klasse» und «📮 Briefkästen für die Abgaben».\nDanach zeigt «🔔 Braucht Aufmerksamkeit», wer im Rückstand ist, «📊 Wer steht wo?» den Stand in der Dossier-Werkstatt und «📋 Projekte der Klasse» Themen, Journal und Rapporte (mit Rückmeldung pro Block des Grobkonzepts). Unter «📝 Beurteilung» füllst du das Raster aus. Alles hat eine Druckfassung.'},
   {id:'lp-extras', fuer:'lp', f:'Wozu sind To-dos, Pflanzen und Schulden da?', w:'to-do todo todos pflanzen giessen giesserinnerung schulden schulden-liste geld schoggibrötli',
    a:'📝 To-dos: deine private Aufgabenliste. 🪴 Pflanzen: Giesserinnerung mit rotem Band, bis abgehakt. 💸 Schulden: kleine Beträge, die Schüler:innen dir schulden; pro Klasse ein- und ausschaltbar unter ⚙️ Einstellungen › 🧩 Widgets.'},
   {id:'lp-kaputt', fuer:'lp', problem:true, f:'Eine Übung zeigt einen weissen Bildschirm.', w:'fehler kaputt geht nicht funktioniert nicht weiss weisser bildschirm lädt nicht problem bug leer',
@@ -14786,7 +14788,7 @@ async function svaPrivatLaden(klasse){
   try{ await svaPrivatUmziehen(klasse); }catch(err){ console.warn('SVA: Umziehen der alten Rückmeldungen', err); }
   var out = {rueck:{}, vorlage:{}};
   var snap = await getDocs(collection(db, 'klassen', klasse, 'svaPrivat'));
-  snap.forEach(function(d){ var x = d.data(); if(x.rueck && (x.rueck.status || x.rueck.text)) out.rueck[d.id] = x.rueck; if(x.vorlage) out.vorlage[d.id] = true; });
+  snap.forEach(function(d){ var x = d.data(); if(svaHatRueck(x.rueck)) out.rueck[d.id] = x.rueck; if(x.vorlage) out.vorlage[d.id] = true; });
   return out;
 }
 function svaVorlageSchalten(uid, an){
@@ -14800,11 +14802,13 @@ function svaPrivatZeigen(){
   getDoc(svaPrivatRef(state.klasse, state.user.uid)).then(function(d){
     if(!d.exists()) return;
     var x = d.data(), r = x.rueck, plan = document.querySelector('.sva-plan'), knoepfe = document.querySelector('.sva-plan .sva-knoepfe');
-    if(r && (r.status || r.text) && plan && !document.getElementById('svaRueckBox')){
-      var el = document.createElement('div');
+    if(svaHatRueck(r) && plan && !document.getElementById('svaRueckBox')){
+      var el = document.createElement('div'), bl = svaRueckBloecke(r);
       el.id = 'svaRueckBox'; el.className = 'sva-rueckbox'+(r.status === 'ueber' ? ' ueber' : '');
       el.innerHTML = '<b>💬 Rückmeldung zu deinem Grobkonzept'+(r.von ? ' von '+esc(r.von) : '')+'</b> <span class="sva-klein">'+esc(svaDatCH(r.am))+'</span><br>'+
-        (r.status === 'ok' ? '✅ Besprochen – dein Grobkonzept passt.' : r.status === 'ueber' ? '✏️ Bitte überarbeite dein Grobkonzept.' : '')+(r.text ? '<br>'+svaZeilen(r.text) : '');
+        (bl.length ? 'Zu '+(bl.length === 1 ? 'einem Block' : bl.length+' Blöcken')+' – du siehst sie auch in «📓 Mein SVA-Projekt» direkt beim Feld:<ul>'+
+          bl.map(function(f){ return '<li><b>'+esc(f[1])+':</b> '+svaZeilen(r.b[f[0]])+'</li>'; }).join('')+'</ul>' :
+          (r.status === 'ok' ? '✅ Besprochen – dein Grobkonzept passt.' : r.status === 'ueber' ? '✏️ Bitte überarbeite dein Grobkonzept.' : '')+(r.text ? '<br>'+svaZeilen(r.text) : ''));
       plan.insertBefore(el, plan.firstChild);
     }
     if(x.vorlage && knoepfe && !document.getElementById('svaVorlageLink')){
@@ -14924,7 +14928,8 @@ function svaDruck(titel, body){
 
 /* 📋 Projekte der Klasse: Themen, Journal, Rapporte, Ausstellung
    Zusätzlich pro Klasse:
-   - svaPrivat/{uid}.rueck  {status:'ok'|'ueber', text, am, von}  Rückmeldung zum Grobkonzept – nur die Schüler:in selbst
+   - svaPrivat/{uid}.rueck  {b:{thema:'…', inhalt:'…', …}, am, von}  Rückmeldung zum Grobkonzept pro Block (seit 29.10.2026;
+     ältere haben noch {status:'ok'|'ueber', text}, die beim nächsten Speichern ersetzt werden) – nur die Schüler:in selbst
      und Lehrpersonen können sie lesen; sie erscheint bei ihr im Fach SVA (svaPrivatZeigen).
    - klassenzimmer/svaPapier {p:{uid:{thema, produkt, stunden, titel, zeigt, bedarf}}}  nur Lehrpersonen: Angaben für
      Schüler:innen, die auf Papier arbeiten – fliessen in Listen, Tischkarten und Bedarf ein. */
@@ -14979,7 +14984,14 @@ async function svaProjLaden(){
   svaProj.liste = d ? d.liste : null; svaProj.rueck = d ? d.rueck : {}; svaProj.papier = d ? d.papier : {};
   svaProjZeichnen();
 }
-function svaRueckChip(r){ return !r || !r.status ? '' : r.status === 'ok' ? ' <span class="sva-chip ok">besprochen ✓</span>' : ' <span class="sva-chip abgabe">überarbeiten</span>'; }
+function svaRueckBloecke(r){ var b = (r && r.b) || {}; return SVA_GK_FELDER.filter(function(f){ return String(b[f[0]] || '').trim(); }); }
+function svaHatRueck(r){ return !!(r && (r.status || String(r.text || '').trim() || svaRueckBloecke(r).length)); }
+function svaRueckText(r){ var bl = svaRueckBloecke(r); return bl.length ? bl.map(function(f){ return f[1]+': '+r.b[f[0]]; }).join(' | ') : (r && r.text) || ''; }
+function svaRueckChip(r){
+  var n = svaRueckBloecke(r).length;
+  if(n) return ' <span class="sva-chip ok">💬 '+n+' Rückmeldung'+(n === 1 ? '' : 'en')+'</span>';
+  return !r || !r.status ? '' : r.status === 'ok' ? ' <span class="sva-chip ok">besprochen ✓</span>' : ' <span class="sva-chip abgabe">überarbeiten</span>';
+}
 function svaPapierForm(x){
   var pa = svaProj.papier[x.s.uid] || {}, f = function(k, label, breit){ return '<label class="sva-klein'+(breit ? ' breit' : '')+'">'+label+'<input type="'+(k === 'stunden' ? 'number' : 'text')+'" class="modal-input" data-pf="'+k+'" value="'+esc(pa[k] == null ? '' : pa[k])+'"'+(k === 'stunden' ? ' min="0" max="300" step="0.5"' : ' maxlength="160"')+'></label>'; };
   return '<details class="sva-papier" data-uid="'+esc(x.s.uid)+'"><summary>✏️ Auf Papier: nachtragen</summary><div class="sva-pform">'+f('thema','Thema',true)+f('produkt','Produkt',true)+f('stunden','Stunden bisher')+f('titel','Titel Tischkarte')+
@@ -15003,21 +15015,25 @@ function svaProjZeichnen(){
   var html = '';
   if(svaProj.sicht === 'themen'){
     // «bereit» (Schüler:in hat das Grobkonzept zum Besprechen freigegeben) steht zuoberst und ist gleich aufgeklappt.
-    var bereitOffen = function(x){ return !!(x.p && x.p.g.bereit && !(svaProj.rueck[x.s.uid] || {}).status); };
+    var bereitOffen = function(x){ return !!(x.p && x.p.g.bereit && !svaHatRueck(svaProj.rueck[x.s.uid])); };
     liste = liste.slice().sort(function(a, b){ return (bereitOffen(b) ? 1 : 0) - (bereitOffen(a) ? 1 : 0); });
     html = '<table class="sva-tab"><tr><th>Name</th><th>Thema</th><th>Produkt</th><th>Grobkonzept</th></tr>'+liste.map(function(x){
       var w = svaWerte(x, svaProj.papier);
       if(!x.p) return '<tr'+(w.papier ? '' : ' class="vorbei"')+'><td>'+name(x)+pap(w)+'</td><td>'+esc(w.thema || '–')+'</td><td>'+esc(w.produkt || '–')+'</td><td>'+(w.papier ? '' : 'noch nichts eingetragen')+svaPapierForm(x)+'</td></tr>';
       var g = x.p.g, n = SVA_GK_FELDER.filter(function(f){ return (g[f[0]] || '').trim(); }).length, r = svaProj.rueck[x.s.uid] || {};
-      var offen = bereitOffen(x), u = esc(x.s.uid);
-      var felder = SVA_GK_FELDER.map(function(f){ var t = (g[f[0]] || '').trim(); return '<div class="sva-gkf'+(t ? '' : ' leer')+'"><span class="sva-gkl">'+esc(f[1])+'</span>'+(t ? svaZeilen(g[f[0]]) : '–')+'</div>'; }).join('');
+      var offen = bereitOffen(x), u = esc(x.s.uid), rb = r.b || {};
+      var felder = SVA_GK_FELDER.map(function(f){ var t = (g[f[0]] || '').trim(); return '<div class="sva-gkf'+(t ? '' : ' leer')+'"><span class="sva-gkl">'+esc(f[1])+'</span>'+(t ? svaZeilen(g[f[0]]) : '–')+
+        '<textarea class="modal-input sva-gkr" rows="2" data-rb="'+f[0]+'" maxlength="600" placeholder="💬 Rückmeldung zu diesem Block">'+esc(rb[f[0]] || '')+'</textarea></div>'; }).join('');
+      // Ältere Gesamt-Rückmeldung (vor 29.10.2026) nur noch anzeigen, beim Speichern fällt sie weg.
+      var alt = (r.status || r.text) && !svaRueckBloecke(r).length ? '<div class="sva-gkf leer" data-ralt="1"><span class="sva-gkl">Frühere Gesamt-Rückmeldung</span>'+
+        (r.status === 'ok' ? '✅ besprochen – passt' : r.status === 'ueber' ? '✏️ bitte überarbeiten' : '')+(r.text ? '<br>'+svaZeilen(r.text) : '')+
+        '<br><span class="sva-klein">Fällt beim nächsten Speichern weg – übernimm bei Bedarf etwas in einen Block.</span></div>' : '';
       return '<tr class="sva-hauptzeile"><td>'+name(x)+'</td><td>'+esc(w.thema || '–')+'</td><td>'+esc(w.produkt || '–')+'</td><td>'+n+' / '+SVA_GK_FELDER.length+
         (g.bereit ? ' <span class="sva-chip">bereit</span>' : '')+'<span data-rchip="'+u+'">'+svaRueckChip(r)+'</span> <button class="btn btn-ghost btn-sm" type="button" data-auf="'+u+'" aria-expanded="'+(offen ? 'true' : 'false')+'">'+(offen ? 'zuklappen ▴' : 'ansehen ▾')+'</button></td></tr>'+
-        '<tr class="sva-detailzeile" data-detail="'+u+'"'+(offen ? '' : ' hidden')+'><td colspan="4"><div class="sva-detail"><div class="sva-gk">'+felder+'</div>'+
-        '<div class="sva-rueck" data-uid="'+u+'"><b>Rückmeldung an '+name(x)+'</b><span class="sva-klein">erscheint im Fach SVA</span>'+
-        '<select class="modal-input" data-rf="status"><option value="">– keine Rückmeldung –</option><option value="ok"'+(r.status === 'ok' ? ' selected' : '')+'>✅ besprochen – passt</option><option value="ueber"'+(r.status === 'ueber' ? ' selected' : '')+'>✏️ bitte überarbeiten</option></select>'+
-        '<textarea class="modal-input" rows="4" data-rf="text" maxlength="600" placeholder="Kommentar, z. B. was noch fehlt">'+esc(r.text || '')+'</textarea>'+
-        '<button class="btn btn-primary btn-sm" type="button" data-rsave="1">Rückmeldung speichern</button> <span class="sva-klein" data-rinfo="1"></span></div></div></td></tr>';
+        '<tr class="sva-detailzeile" data-detail="'+u+'"'+(offen ? '' : ' hidden')+'><td colspan="4"><div class="sva-detail" data-ruid="'+u+'">'+
+        '<span class="sva-klein">💬 Unter jedem Block kannst du eine Rückmeldung schreiben. '+name(x)+' sieht sie in «Mein SVA-Projekt» direkt beim Feld und oben im Fach SVA.</span>'+
+        '<div class="sva-gk">'+felder+'</div>'+alt+
+        '<div><button class="btn btn-primary btn-sm" type="button" data-rsave="1">Rückmeldungen speichern</button> <span class="sva-klein" data-rinfo="1"></span></div></div></td></tr>';
     }).join('')+'</table>';
   } else if(svaProj.sicht === 'journal'){
     html = '<table class="sva-tab"><tr><th>Name</th><th>Stunden</th><th>Einträge</th><th>letzter Eintrag</th></tr>'+liste.map(function(x){
@@ -15052,12 +15068,16 @@ function svaProjKlick(e){
     var du = au.getAttribute('data-auf'), dz = Array.prototype.filter.call(document.querySelectorAll('[data-detail]'), function(t){ return t.getAttribute('data-detail') === du; })[0];
     if(dz){ var zu = !dz.hidden; dz.hidden = zu; au.setAttribute('aria-expanded', zu ? 'false' : 'true'); au.textContent = zu ? 'ansehen ▾' : 'zuklappen ▴'; }
   } else if(rs){
-    var box = rs.closest('.sva-rueck'), uid = box.getAttribute('data-uid'), info = box.querySelector('[data-rinfo]');
-    var status = box.querySelector('[data-rf="status"]').value, text = box.querySelector('[data-rf="text"]').value.trim().slice(0, 600), p;
-    if(!status && !text){ delete svaProj.rueck[uid]; p = setDoc(svaPrivatRef(svaProj.klasse, uid), {rueck:deleteField(), am:todayStr()}, {merge:true}); }
-    else { var r = {status:status, text:text, am:todayStr(), von:state.profile.nachname || state.profile.displayName || state.profile.username || ''}; svaProj.rueck[uid] = r; p = setDoc(svaPrivatRef(svaProj.klasse, uid), {rueck:r, am:todayStr()}, {merge:true}); }
+    var box = rs.closest('[data-ruid]'), uid = box.getAttribute('data-ruid'), info = box.querySelector('[data-rinfo]'), b = {}, n = 0, p;
+    Array.prototype.forEach.call(box.querySelectorAll('[data-rb]'), function(ta){ var t = ta.value.trim().slice(0, 600); b[ta.getAttribute('data-rb')] = t; if(t) n++; });
+    if(!n){ delete svaProj.rueck[uid]; p = setDoc(svaPrivatRef(svaProj.klasse, uid), {rueck:deleteField(), am:todayStr()}, {merge:true}); }
+    else {
+      // Alle Blöcke immer mitschreiben (geleerte als ''), sonst liesse merge alte Texte stehen; die alte Gesamt-Rückmeldung fällt weg.
+      var r = {b:b, am:todayStr(), von:state.profile.nachname || state.profile.displayName || state.profile.username || ''}; svaProj.rueck[uid] = r;
+      p = setDoc(svaPrivatRef(svaProj.klasse, uid), {rueck:{b:b, am:r.am, von:r.von, status:deleteField(), text:deleteField()}, am:todayStr()}, {merge:true});
+    }
     info.textContent = 'speichert …';
-    p.then(function(){ info.textContent = (!status && !text) ? 'Rückmeldung entfernt.' : 'Gespeichert – sichtbar im Fach SVA.'; var chip = document.querySelector('[data-rchip="'+uid+'"]'); if(chip) chip.innerHTML = svaRueckChip(svaProj.rueck[uid]); },
+    p.then(function(){ info.textContent = n ? 'Gespeichert – sichtbar in «Mein SVA-Projekt» und im Fach SVA.' : 'Rückmeldungen entfernt.'; var chip = document.querySelector('[data-rchip="'+uid+'"]'); if(chip) chip.innerHTML = svaRueckChip(svaProj.rueck[uid]); var a = box.querySelector('[data-ralt]'); if(a) a.remove(); },
            function(err){ console.error(err); info.textContent = err && err.code === 'permission-denied' ? 'Noch nicht möglich: Die neuen Firestore-Regeln sind noch nicht publiziert.' : 'Konnte nicht gespeichert werden.'; });
   } else if(ps){
     var pbox = ps.closest('.sva-papier'), puid = pbox.getAttribute('data-uid'), pinfo = pbox.querySelector('[data-pinfo]'), pa = {}, leer = true;
@@ -15086,10 +15106,10 @@ function svaProjDrucken(art){
     // ⬇️ CSV der gerade offenen Ansicht (wie die übrigen CSV-Exporte der Library, für Excel).
     var sicht = svaProj.sicht, rows, rap = function(r){ r = r || {}; return [r.stand == null ? '' : r.stand, r.am ? svaDatCH(r.am) : '', r.fertig || '', r.muehe || '', r.weiter || '', r.hilfe ? 'ja' : '']; };
     if(sicht === 'themen'){
-      rows = [['Name', 'Thema', 'Produkt', 'Grobkonzept Felder', 'bereit', 'Rückmeldung', 'Kommentar', 'erfasst'].concat(SVA_GK_FELDER.map(function(f){ return f[1]; }))];
+      rows = [['Name', 'Thema', 'Produkt', 'Grobkonzept Felder', 'bereit', 'Rückmeldung', 'erfasst'].concat(SVA_GK_FELDER.map(function(f){ return f[1]; }))];
       liste.forEach(function(x){ var v = w(x), g = (x.p && x.p.g) || {}, r = svaProj.rueck[x.s.uid] || {};
         rows.push([roh(x), v.thema, v.produkt, x.p ? SVA_GK_FELDER.filter(function(f){ return (g[f[0]] || '').trim(); }).length : '', g.bereit ? 'ja' : '',
-          r.status === 'ok' ? 'besprochen' : r.status === 'ueber' ? 'überarbeiten' : '', r.text || '', x.p ? 'Library' : v.papier ? 'Papier' : ''].concat(SVA_GK_FELDER.map(function(f){ return g[f[0]] || ''; }))); });
+          svaRueckText(r) || (r.status === 'ok' ? 'besprochen' : r.status === 'ueber' ? 'überarbeiten' : ''), x.p ? 'Library' : v.papier ? 'Papier' : ''].concat(SVA_GK_FELDER.map(function(f){ return g[f[0]] || ''; }))); });
     } else if(sicht === 'journal'){
       rows = [['Name', 'Datum', 'von', 'bis', 'Minuten', 'Ort', 'Was gemacht', 'Kommentar', 'Stunden total']];
       liste.forEach(function(x){ var v = w(x), j = x.p ? x.p.j.slice().sort(function(a, b){ return (a.d || '') < (b.d || '') ? -1 : 1; }) : [];
@@ -15144,7 +15164,7 @@ function svaAchtungGruende(x, daten, heute){
   var felder = SVA_GK_FELDER.filter(function(f){ return (p.g[f[0]] || '').trim(); }).length;
   if(heute >= svaTagePlus('2026-11-02', -7) && r.status !== 'ok' && felder < SVA_GK_FELDER.length) g.push({art:'rot', t:'Grobkonzept unvollständig ('+felder+' von '+SVA_GK_FELDER.length+' Feldern), Abgabe Mo 2.11., 12 Uhr'});
   if(r.status === 'ueber') g.push({art:'gelb', t:'Grobkonzept: Überarbeitung offen'});
-  if(p.g.bereit && !r.status) g.push({art:'gelb', t:'Grobkonzept bereit – wartet auf deine Rückmeldung'});
+  if(p.g.bereit && !svaHatRueck(r)) g.push({art:'gelb', t:'Grobkonzept bereit – wartet auf deine Rückmeldung'});
   if(heute > '2026-12-11' && !(p.r.dez && p.r.dez.am)) g.push({art:'gelb', t:'Rapport Dezember fehlt'});
   if(heute > '2027-01-21' && !(p.r.jan && p.r.jan.am)) g.push({art:'gelb', t:'Rapport Januar fehlt'});
   if(heute >= '2026-12-01' && heute <= '2027-03-08'){
@@ -15424,6 +15444,11 @@ async function svaEinwurf(art, blatt){
   }
 }
 window.__svaEinwurf = function(art, blatt){ return svaEinwurf(art, blatt); };
+// sva/mein-projekt.html holt sich so die eigene Rückmeldung pro Block (svaPrivat) und zeigt sie beim jeweiligen Feld.
+window.__svaRueck = function(){
+  if(!state.user || !state.klasse) return Promise.resolve(null);
+  return getDoc(svaPrivatRef(state.klasse, state.user.uid)).then(function(d){ var r = d.exists() ? d.data().rueck : null; return r && r.b ? {b:r.b, von:r.von || '', am:r.am || ''} : null; }, function(){ return null; });
+};
 
 /* ♟️ Brücke für schach/schach.html (siehe SCHACH weiter oben). Gibt null zurück, solange niemand angemeldet ist. */
 window.__hlSchach = function(){
@@ -24727,6 +24752,8 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-10-29-sva-rueck-block', datum:'2026-10-29', fuer:'lehrer', text:'🎓 SVA › «📋 Projekte der Klasse»: Beim Grobkonzept gibst du die Rückmeldung jetzt pro Block (Thema, Inhalt/Ideen, Fragestellungen …) – unter jedem Feld steht ein eigenes Textfeld. Das Kind sieht sie in «Mein SVA-Projekt» direkt beim Feld. Die bisherige Gesamt-Rückmeldung (besprochen/überarbeiten) gibt es nicht mehr.'},
+  {id:'2026-10-29-sva-rueck-block-sus', datum:'2026-10-29', fuer:'alle', text:'🎓 SVA: Deine Lehrperson kann dir jetzt zu jedem Block deines Grobkonzepts eine Rückmeldung geben. Du siehst sie in «📓 Mein SVA-Projekt» direkt unter dem jeweiligen Feld.'},
   {id:'2026-10-28-winter-look', datum:'2026-10-28', fuer:'alle', text:'❄️ Vom 1. bis 26. Dezember bekommt die Library einen Winter-Look: Lichterkette am Rand und Zipfelmützen auf dem Logo. Mit dem ❄️-Knopf oben kannst du ihn ausschalten.'},
   {id:'2026-10-28-mathe-werkzeuge-direkt', datum:'2026-10-28', fuer:'alle', text:'🧊 Mathe › Werkzeuge: «Geometrische Körper» und «Algebra-Kacheln» stehen jetzt direkt im Bereich «Werkzeuge», ohne Zwischenordner.'},
   {id:'2026-10-28-mathe-werkzeuge', datum:'2026-10-28', fuer:'alle', text:'🧰 Mathe: Ganz unten gibt es jetzt den Bereich «Werkzeuge» – dort stehen 🧊 3D-Körper & Algebra-Kacheln (Lehrpersonen zusätzlich die 📐 Figuren-Werkstatt).'},

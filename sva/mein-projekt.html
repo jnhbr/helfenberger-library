@@ -91,6 +91,7 @@
   @media (max-width:640px){.zwei,.vier{grid-template-columns:1fr 1fr;}}
   .zeile{display:flex;align-items:baseline;gap:10px;padding:4px 0;} .zeile .leiter{flex:1;}
   .eintrag p{margin:6px 0;} .eintrag .kom{font-style:italic;color:var(--ink2);}
+  .lprueck{background:#e5f2e9;border-left:4px solid var(--ok);padding:7px 12px;margin-top:8px;font-size:15.5px;} .lprueck .wann{font-family:var(--mono);font-size:13px;color:var(--ink2);}
   .btn.klein{font-size:14px;padding:4px 10px;} .fehlertext{color:var(--warn);font-family:Calibri,Arial,sans-serif;}
   .btn:disabled{opacity:.6;cursor:default;} .btn.gefahr{background:var(--blatt);color:var(--warn);border-color:var(--warn);font-weight:400;} .btn.gefahr.voll{background:var(--warn);color:#fff;font-weight:700;}
   .werkzeug{border-style:dashed;} .tag.gruen{background:var(--ok);color:#fff;}
@@ -135,6 +136,17 @@ var LEHRER = window.__libLehrer === true;
 // Im Viewer der Library gibt es die Brücke zum Briefkasten (index.html: svaEinwurf); direkt geöffnet gibt es sie nicht.
 var LIB = (function(){ try{ return window.parent !== window && typeof window.parent.__svaEinwurf === 'function' ? window.parent : null; }catch(e){ return null; } })();
 var S = laden();
+// Rückmeldung der Lehrperson pro Block (aus der Library, svaPrivat): {b:{thema:'…', …}, von, am} – erscheint unter dem Feld.
+var RUECK = null;
+if(LIB && typeof LIB.__svaRueck === 'function') LIB.__svaRueck().then(function(r){ RUECK = r; rueckZeigen(); }, function(){});
+function rueckZeigen(){
+  if(!RUECK || !RUECK.b) return;
+  Array.prototype.forEach.call(document.querySelectorAll('[data-rb]'), function(el){
+    var t = String(RUECK.b[el.getAttribute('data-rb')] || '').trim();
+    el.hidden = !t;
+    el.innerHTML = t ? '<b>💬 Rückmeldung'+(RUECK.von ? ' von '+esc(RUECK.von) : '')+'</b>'+(RUECK.am ? ' <span class="wann">'+datCH(RUECK.am)+'</span>' : '')+'<br>'+esc(t).replace(/\n/g, '<br>') : '';
+  });
+}
 // S.bk = {grob|rapDez|rapJan: Zeitpunkt (ms)} merkt sich, was schon in den Briefkasten geworfen wurde.
 function laden(){ var o; try{ o = JSON.parse(localStorage.getItem(KEY) || '{}'); }catch(e){ o = {}; } o.g = o.g || {}; o.j = o.j || []; o.r = o.r || {}; o.a = o.a || {}; o.a.zeigt = o.a.zeigt || {}; o.a.bedarf = o.a.bedarf || {}; o.a.check = o.a.check || {}; o.bk = o.bk || {}; return o; }
 var spTimer = null;
@@ -316,10 +328,11 @@ function zStart(el){
 
 function zKonzept(el){
   el.innerHTML = '<h2>Thema und Grobkonzept</h2><div class="hinweis">Abgabe bis <b>Montag, 2. November 2026, 12 Uhr</b>. Du kannst schon jetzt selbstständig beginnen; am Montagmorgen schreibst du es in der Schule fertig. Ein gutes Grobkonzept ist das A und O! Fülle alle Felder aus und besprich das Grobkonzept mit deiner Lehrperson. Dann '+(LIB ? 'wirfst du es mit dem Knopf unten als PDF <b>direkt in den Briefkasten</b> und druckst' : 'druckst')+' es zum Unterschreiben aus (du, deine Eltern, deine Lehrperson).</div>'+
-    FELDER.map(function(f){ return '<div class="karte"><label class="fl">'+esc(f[1])+'</label><div class="hilfe">'+esc(f[2])+'</div>'+feld(f[0], S.g[f[0]], f[3])+'</div>'; }).join('')+
+    FELDER.map(function(f){ return '<div class="karte"><label class="fl">'+esc(f[1])+'</label><div class="hilfe">'+esc(f[2])+'</div>'+feld(f[0], S.g[f[0]], f[3])+'<div class="lprueck" data-rb="'+f[0]+'" hidden></div></div>'; }).join('')+
     '<div class="karte checks"><label'+(S.g.bereit?' class="an"':'')+'><input type="checkbox" id="bereit"'+(S.g.bereit?' checked':'')+'><span>Mein Grobkonzept ist vollständig – ich möchte es mit meiner Lehrperson besprechen.</span></label></div>'+werkzeug('konzept', einwurfKnopf('grob'));
   el.oninput = function(e){ var f = e.target.getAttribute('data-f'); if(f){ S.g[f] = e.target.value; sichern(); } };
   el.onchange = function(e){ if(e.target.id === 'bereit'){ S.g.bereit = e.target.checked; S.g.bereitAm = e.target.checked ? heute() : ''; e.target.parentNode.classList.toggle('an', e.target.checked); sichern(true); } };
+  rueckZeigen();
 }
 
 /* Text fürs Arbeitsprotokoll in Word. In der Zwischenablage liegen zwei Fassungen:
