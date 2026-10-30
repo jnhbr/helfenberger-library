@@ -543,6 +543,11 @@ function winterAn(){ var aus = false; try{ aus = localStorage.getItem('hl_winter
   .cal-res-pick label{display:flex;align-items:center;gap:8px;font-size:14px;padding:3px 0;}
   .cal-res-pick .cal-res-empty{font-size:13px;color:var(--text-muted);padding:3px 0;}
   .cal-sub-btn{margin-top:6px;margin-left:8px;}
+  /* 🙈 Noch nicht für Schüler:innen freigegeben: grau gestreift, gestrichelt, deutlich gedämpft. */
+  .cal-entry.cal-entry.cal-verborgen{background:repeating-linear-gradient(135deg,#eceef1 0 12px,#f6f7f9 12px 24px) !important;border:2px dashed #7b8794 !important;border-left:8px dashed #7b8794 !important;color:#4a5560;}
+  .cal-entry.cal-verborgen .cal-entry-body{opacity:.72;}
+  .cal-entry.cal-verborgen .cal-entry-actions{opacity:1;}
+  .cal-verborgen-tag{display:inline-block;font-size:12px;font-weight:700;padding:2px 9px;border-radius:999px;background:#4a5560;color:#fff;margin-left:4px;}
   .cal-gruppe-tag{display:inline-block;font-size:11.5px;font-weight:600;padding:1px 7px;border-radius:999px;background:var(--surface-2);color:var(--text-muted);margin-left:2px;}
   .gr-hint{font-size:13px;color:var(--text-muted);margin:6px 0 10px;}
   .gr-liste{display:flex;flex-direction:column;gap:8px;margin-bottom:6px;}
@@ -4672,14 +4677,14 @@ function calendarEntryResources(e){
 function calendarEntryLineHtml(e, isTeacher, roster){
   var meta = CALENDAR_TYPES[e.type] || {label:e.type, icon:'📌', color:'#556270'};
   var s = e.subject ? subjectById(e.subject) : null;
-  var html = '<div class="cal-entry" style="--cal-c:'+meta.color+'">';
+  var html = '<div class="cal-entry'+(isTeacher && e.verborgen ? ' cal-verborgen' : '')+'" style="--cal-c:'+meta.color+'">';
   html += '<div class="cal-entry-date">'+fmtDueDate(e.dueDate)+'<span class="cal-entry-weekday">'+esc(weekdayLabel(e.dueDate))+'</span></div>';
   html += '<div class="cal-entry-body">';
   html += '<div class="cal-entry-title"><span class="cal-entry-type">'+calTypIcon(meta, 26)+' '+esc(meta.label)+'</span>'+(s?' · '+esc(s.name):'')+
     (e.gruppeName ? ' <span class="cal-gruppe-tag" title="Nur für diese Gruppe">👥 '+esc(e.gruppeName)+'</span>' : '')+
     (e.quelle ? ' <span class="cal-gruppe-tag">'+esc(klasseInfo(e.quelle).lp)+'</span>' : '')+
     (e.private ? ' <span class="cal-private-tag" title="Diesen Eintrag siehst nur du">🔒 nur für dich</span>' : '')+
-    (isTeacher && e.verborgen ? ' <span class="cal-gruppe-tag" title="Schüler:innen sehen diesen Eintrag noch nicht">🙈 für Schüler:innen verborgen</span>' : '')+
+    (isTeacher && e.verborgen ? ' <span class="cal-verborgen-tag" title="Schüler:innen sehen diesen Eintrag noch nicht">🙈 VERBORGEN – Schüler:innen sehen das noch nicht</span>' : '')+
     (isTeacher && e.nurOffen && hasSubmissionChecklist(e.type) ? ' <span class="cal-gruppe-tag" title="Verlängert: nur noch sichtbar für die, die in der Abgabe-Checkliste noch nicht abgehakt sind">⏰ nur noch Offene</span>' : '')+'</div>';
   html += '<div class="cal-entry-text">'+esc(e.title)+'</div>';
   if(e.type === 'pruefung' && e.schreibenIn){ html += '<div class="cal-entry-desc">📍 Geschrieben '+(e.schreibenIn === 'frei' ? 'in einer freien Lektion (z. B. ISF)' : 'in der Lektion «'+esc(subjectName(e.schreibenIn))+'»')+'</div>'; }
