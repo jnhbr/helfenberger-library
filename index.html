@@ -15006,6 +15006,7 @@ function svaProjekte(){
   sel.addEventListener('change', function(){ svaProj.klasse = sel.value; svaProjLaden(); });
   document.getElementById('svaPrSicht').addEventListener('click', function(e){ var b = e.target.closest('[data-sicht]'); if(b){ svaProj.sicht = b.getAttribute('data-sicht'); svaProjZeichnen(); } });
   document.getElementById('svaPrDruck').addEventListener('click', function(e){ var b = e.target.closest('[data-druck]'); if(b) svaProjDrucken(b.getAttribute('data-druck')); });
+  document.getElementById('svaPrDruck').addEventListener('change', function(e){ if(e.target.id === 'svaGkWer') svaProj.gkWer = e.target.value; if(e.target.id === 'svaGkMit') svaProj.gkMit = e.target.checked; });
   document.getElementById('svaPr').addEventListener('click', svaProjKlick);
   svaProjLaden();
 }
@@ -15036,7 +15037,11 @@ function svaProjZeichnen(){
   if(!el) return;
   var sichten = [['themen','Themen und Grobkonzept'],['journal','Arbeitsjournal'],['rapport','Rapporte'],['ausstellung','Ausstellung']];
   sichtEl.innerHTML = sichten.map(function(s){ return '<button class="btn btn-sm '+(s[0] === svaProj.sicht ? 'btn-primary' : 'btn-ghost')+'" type="button" data-sicht="'+s[0]+'">'+s[1]+'</button>'; }).join('');
-  druckEl.innerHTML = (svaProj.sicht === 'themen' ? '<button class="btn btn-ghost btn-sm" type="button" data-druck="themen">🖨️ Themenliste</button>'
+  var gkWahl = function(){ return '<select id="svaGkWer" class="modal-input" style="width:auto;display:inline-block" title="Wessen Grobkonzept?"><option value="">Alle Grobkonzepte</option>'+svaProj.liste.filter(function(x){ return x.p; }).map(function(x){
+      return '<option value="'+esc(x.s.uid)+'"'+(svaProj.gkWer === x.s.uid ? ' selected' : '')+'>'+esc(x.s.displayName || x.s.username || '?')+'</option>'; }).join('')+'</select> '+
+    '<label class="sva-klein" style="white-space:nowrap"><input type="checkbox" id="svaGkMit"'+(svaProj.gkMit === false ? '' : ' checked')+'> mit Rückmeldung</label> '+
+    '<button class="btn btn-ghost btn-sm" type="button" data-druck="gk" title="Öffnet die Druckansicht – dort auch «Als PDF sichern»">🖨️ Grobkonzept / PDF</button> '; };
+  druckEl.innerHTML = (svaProj.sicht === 'themen' ? (svaProj.liste ? gkWahl() : '')+'<button class="btn btn-ghost btn-sm" type="button" data-druck="themen">🖨️ Themenliste</button>'
     : svaProj.sicht === 'ausstellung' ? '<button class="btn btn-ghost btn-sm" type="button" data-druck="karten">🖨️ Tischkarten</button><button class="btn btn-ghost btn-sm" type="button" data-druck="bedarf">🖨️ Bedarfsliste</button>'
     : svaProj.sicht === 'journal' ? '<button class="btn btn-ghost btn-sm" type="button" data-druck="journal">🖨️ Stundenliste</button>'
     : '<button class="btn btn-ghost btn-sm" type="button" data-druck="rapport">🖨️ Rapporte</button>')+
@@ -15068,7 +15073,7 @@ function svaProjZeichnen(){
         '<tr class="sva-detailzeile" data-detail="'+u+'"'+(offen ? '' : ' hidden')+'><td colspan="4"><div class="sva-detail" data-ruid="'+u+'">'+
         '<span class="sva-klein">💬 Unter jedem Block kannst du eine Rückmeldung schreiben. '+name(x)+' sieht sie in «Mein SVA-Projekt» direkt beim Feld und oben im Fach SVA.</span>'+
         '<div class="sva-gk">'+felder+'</div>'+alt+
-        '<div><button class="btn btn-primary btn-sm" type="button" data-rsave="1">Alle Rückmeldungen speichern</button> <span class="sva-klein" data-rinfo="1"></span></div></div></td></tr>';
+        '<div><button class="btn btn-primary btn-sm" type="button" data-rsave="1">Alle Rückmeldungen speichern</button> <button class="btn btn-ghost btn-sm" type="button" data-gkdruck="'+u+'" title="Druckansicht / PDF, mit Rückmeldung je nach Häkchen oben">🖨️ Dieses Grobkonzept / PDF</button> <span class="sva-klein" data-rinfo="1"></span></div></div></td></tr>';
     }).join('')+'</table>';
   } else if(svaProj.sicht === 'journal'){
     html = '<table class="sva-tab"><tr><th>Name</th><th>Stunden</th><th>Einträge</th><th>letzter Eintrag</th></tr>'+liste.map(function(x){
@@ -15098,8 +15103,9 @@ function svaProjZeichnen(){
   el.innerHTML = '<p class="sva-klein">Klasse '+esc(svaProj.klasse)+': '+liste.filter(function(x){ return x.p; }).length+' von '+liste.length+' arbeiten in «Mein SVA-Projekt»'+(papierN ? ', '+papierN+' auf Papier nachgetragen' : '')+'.</p>'+html;
 }
 function svaProjKlick(e){
-  var rs = e.target.closest('[data-rsave]'), ps = e.target.closest('[data-psave]'), au = e.target.closest('[data-auf]');
-  if(au){
+  var rs = e.target.closest('[data-rsave]'), ps = e.target.closest('[data-psave]'), au = e.target.closest('[data-auf]'), gd = e.target.closest('[data-gkdruck]');
+  if(gd){ svaProjDrucken('gk', gd.getAttribute('data-gkdruck')); }
+  else if(au){
     var du = au.getAttribute('data-auf'), dz = Array.prototype.filter.call(document.querySelectorAll('[data-detail]'), function(t){ return t.getAttribute('data-detail') === du; })[0];
     if(dz){ var zu = !dz.hidden; dz.hidden = zu; au.setAttribute('aria-expanded', zu ? 'false' : 'true'); au.textContent = zu ? 'ansehen ▾' : 'zuklappen ▴'; }
   } else if(rs){
@@ -15135,7 +15141,7 @@ function svaProjKlick(e){
     pp.then(function(){ pinfo.textContent = leer ? 'Eintrag entfernt.' : 'Gespeichert.'; }, function(err){ console.error(err); pinfo.textContent = 'Konnte nicht gespeichert werden.'; });
   }
 }
-function svaProjDrucken(art){
+function svaProjDrucken(art, einzelUid){
   var liste = svaProj.liste || [], kl = svaProj.klasse, name = function(x){ return esc(x.s.displayName || x.s.username || '?'); };
   var w = function(x){ return svaWerte(x, svaProj.papier); };
   var roh = function(x){ return x.s.displayName || x.s.username || '?'; };
@@ -15176,6 +15182,22 @@ function svaProjDrucken(art){
       (r.fertig ? '<br><span class="klein">Fertig:</span> '+svaZeilen(r.fertig) : '')+(r.muehe ? '<br><span class="klein">Macht Mühe:</span> '+svaZeilen(r.muehe) : '')+(r.weiter ? '<br><span class="klein">Nächste Schritte:</span> '+svaZeilen(r.weiter) : ''); };
     svaDruck('Rapporte SVA '+kl, '<h1>Rapporte SVA 2026/27 · Klasse '+esc(kl)+'</h1>'+stand+'<table><tr><th>Name</th><th>Rapport Dezember</th><th>Rapport Januar</th></tr>'+
       liste.map(function(x){ return '<tr><td>'+name(x)+'</td><td>'+rz(x.p && x.p.r.dez)+'</td><td>'+rz(x.p && x.p.r.jan)+'</td></tr>'; }).join('')+'</table>');
+    return;
+  }
+  if(art === 'gk'){
+    // Grobkonzept(e) als Druckansicht (Als PDF sichern): eine Seite pro Schüler:in, Rückmeldung je nach Häkchen «mit Rückmeldung».
+    var einz = typeof einzelUid === 'string' ? einzelUid : ((document.getElementById('svaGkWer') || {}).value || '');
+    var mit = (document.getElementById('svaGkMit') || {checked:true}).checked;
+    var wahl = liste.filter(function(x){ return x.p && (!einz || x.s.uid === einz); });
+    if(!wahl.length){ toast('Kein Grobkonzept vorhanden.'); return; }
+    svaDruck('Grobkonzept SVA '+kl+(wahl.length === 1 ? ' – '+roh(wahl[0]) : ''), wahl.map(function(x){
+      var v = w(x), g = x.p.g, r = svaProj.rueck[x.s.uid] || {}, rb = r.b || {};
+      return '<div class="blatt"><h1>Grobkonzept SVA 2026/27 · '+name(x)+'</h1><p class="klein">Klasse '+esc(kl)+' · Stand: '+new Date().toLocaleDateString('de-CH')+(mit && r.von ? ' · Rückmeldung von '+esc(r.von) : '')+'</p>'+
+        '<p><b>Thema:</b> '+esc(v.thema || '–')+'<br><b>Produkt:</b> '+esc(v.produkt || '–')+'</p>'+
+        SVA_GK_FELDER.map(function(f){ var t = (g[f[0]] || '').trim(), rt = String(rb[f[0]] || '').trim();
+          return '<div style="break-inside:avoid;margin:0 0 8pt"><h2>'+esc(f[1])+'</h2><div>'+(t ? svaZeilen(g[f[0]]) : '–')+'</div>'+
+            (mit && rt ? '<div style="margin-top:3pt;padding:3pt 6pt;border-left:3px solid #777;background:#f2f2f2"><span class="klein">💬 Rückmeldung:</span> '+svaZeilen(rt)+'</div>' : '')+'</div>'; }).join('')+
+        (mit && !svaRueckBloecke(r).length && r.text ? '<div style="margin-top:6pt;padding:3pt 6pt;border-left:3px solid #777;background:#f2f2f2"><span class="klein">💬 Rückmeldung:</span> '+svaZeilen(r.text)+'</div>' : '')+'</div>'; }).join(''));
     return;
   }
   if(art === 'themen'){
@@ -24814,6 +24836,7 @@ const NEUIGKEITEN = [
   {id:'2026-10-30-uebung-ohne-wellenlinie', datum:'2026-10-30', fuer:'alle', text:'✍️ In Übungsseiten (z. B. Diktat-Training) werden Wörter nicht mehr rot unterstrichen, und dein Stand wird auch beim Wegwechseln sofort gesichert.'},
   {id:'2026-10-30-diktat-kurz', datum:'2026-10-30', fuer:'lehrer', text:'✂️ Diktat-Prüfungen: Im Monitor gibt es «Kürzeres Diktat». Wer dort angehakt ist, muss nicht das ganze Diktat schreiben – was nach dem zuletzt geschriebenen Wort fehlt, zählt nicht als Fehler. Das Geschriebene wird normal korrigiert.'},
   {id:'2026-10-29-spiele-gross', datum:'2026-10-29', fuer:'lehrer', text:'🔎 Quiz und Spiele (Der grosse Preis, Wer wird Millionär, Quiz-Show, Umfrage-Duell usw.): Fragen, Antworten, Knöpfe und Teamanzeigen sind jetzt deutlich grösser und auf dem Beamer besser lesbar.'},
+  {id:'2026-10-30-sva-gk-pdf', datum:'2026-10-30', fuer:'lehrer', text:'🎓 SVA › «📋 Projekte der Klasse» › Themen und Grobkonzept: Neu «🖨️ Grobkonzept / PDF» – alle Grobkonzepte (eine Seite pro Kind) oder nur eines, mit oder ohne deine Rückmeldung (Häkchen). In der Druckansicht kannst du direkt drucken oder «Als PDF sichern». Im aufgeklappten Kind gibt es dafür auch «🖨️ Dieses Grobkonzept / PDF».'},
   {id:'2026-10-29-sva-rueck-block', datum:'2026-10-29', fuer:'lehrer', text:'🎓 SVA › «📋 Projekte der Klasse»: Beim Grobkonzept gibst du die Rückmeldung jetzt pro Block (Thema, Inhalt/Ideen, Fragestellungen …) – unter jedem Feld steht ein eigenes Textfeld mit 💾-Knopf (jeder Knopf speichert alle Blöcke). Das Kind sieht sie in «Mein SVA-Projekt» direkt beim Feld. Die bisherige Gesamt-Rückmeldung (besprochen/überarbeiten) gibt es nicht mehr.'},
   {id:'2026-10-29-sva-rueck-block-sus', datum:'2026-10-29', fuer:'alle', text:'🎓 SVA: Deine Lehrperson kann dir jetzt zu jedem Block deines Grobkonzepts eine Rückmeldung geben. Du siehst sie in «📓 Mein SVA-Projekt» direkt unter dem jeweiligen Feld.'},
   {id:'2026-10-28-winter-look', datum:'2026-10-28', fuer:'alle', text:'❄️ Vom 1. bis 26. Dezember bekommt die Library einen Winter-Look: Lichterkette am Rand und Zipfelmützen auf dem Logo. Mit dem ❄️-Knopf oben kannst du ihn ausschalten.'},
