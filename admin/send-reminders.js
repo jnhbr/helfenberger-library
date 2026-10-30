@@ -108,6 +108,7 @@ async function main(){
     entryCount += snap.size;
     snap.forEach(function(doc){
       var e = doc.data();
+      if(e.verborgen) return;   // von der Lehrperson noch nicht für Schüler:innen freigegeben
       e.seite = ref.id;
       if(e.gruppeId && Array.isArray(e.mitglieder)) gruppenEintraege.push(e);
       else (entriesByKlasse[ref.id] = entriesByKlasse[ref.id] || []).push(e);
