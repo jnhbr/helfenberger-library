@@ -18099,6 +18099,7 @@ function stopResourceSync(){
 }
 
 window.addEventListener('pagehide', flushResourceSync);
+document.addEventListener('visibilitychange', function(){ if(document.visibilityState === 'hidden') flushResourceSync(); });
 document.addEventListener('visibilitychange', function(){
   if(document.visibilityState !== 'hidden') return;
   // Handy: beim Wegwischen kommt pagehide in der Übung oft nicht → SVA-Seiten sichern lassen, bevor wir lesen.
@@ -18236,6 +18237,10 @@ function injectExerciseHelpers(html, rid){
     // Seiten, die Enter schon selbst behandeln (z.B. RZG-Quizseiten), nicht doppelt prüfen lassen.
     var mitEnter = !/['"]Enter['"]|keyCode\s*===?\s*13|which\s*===?\s*13/.test(html);
     var script = exerciseHelperScript(rid, mitEnter);
+    // Keine rote Rechtschreib-Wellenlinie in Übungsseiten (Diktate, Lückentexte …): Browser-Prüfung und Autokorrektur aus, auch bei später eingefügten Feldern.
+    script += '<script>(function(){function aus(r){var l=r.querySelectorAll?r.querySelectorAll("textarea,input,[contenteditable]"):[];for(var i=0;i<l.length;i++){var e=l[i];if(e.tagName==="INPUT"&&/^(checkbox|radio|button|submit|range|file|color)$/i.test(e.type||""))continue;e.setAttribute("spellcheck","false");e.setAttribute("autocorrect","off");e.setAttribute("autocapitalize","off");e.setAttribute("data-gramm","false");}}' +
+      'function los(){aus(document);new MutationObserver(function(m){for(var i=0;i<m.length;i++)for(var j=0;j<m[i].addedNodes.length;j++){var n=m[i].addedNodes[j];if(n.nodeType===1){if(/^(TEXTAREA|INPUT)$/.test(n.tagName)||n.isContentEditable)aus({querySelectorAll:function(){return[n];}});aus(n);}}}).observe(document.documentElement,{childList:true,subtree:true});}' +
+      'if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",los);else los();})();<\/script>';
     var headRe = /<head(\s[^>]*)?>/i;
     if(headRe.test(out)) return out.replace(headRe, function(m){ return m + script; });
     var idx = out.search(/<script/i);
@@ -24765,6 +24770,9 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-10-30-pin-ausweichen', datum:'2026-10-30', fuer:'lehrer', text:'📌 «Immer im Vordergrund» öffnet jetzt auch dann ein Fenster, wenn das Bild-in-Bild-Video nicht startet (z. B. in der installierten Chrome-App).'},
+  {id:'2026-10-30-uebung-ohne-wellenlinie', datum:'2026-10-30', fuer:'alle', text:'✍️ In Übungsseiten (z. B. Diktat-Training) werden Wörter nicht mehr rot unterstrichen, und dein Stand wird auch beim Wegwechseln sofort gesichert.'},
+  {id:'2026-10-30-diktat-kurz', datum:'2026-10-30', fuer:'lehrer', text:'✂️ Diktat-Prüfungen: Im Monitor gibt es «Kürzeres Diktat». Wer dort angehakt ist, muss nicht das ganze Diktat schreiben – was nach dem zuletzt geschriebenen Wort fehlt, zählt nicht als Fehler. Das Geschriebene wird normal korrigiert.'},
   {id:'2026-10-29-spiele-gross', datum:'2026-10-29', fuer:'lehrer', text:'🔎 Quiz und Spiele (Der grosse Preis, Wer wird Millionär, Quiz-Show, Umfrage-Duell usw.): Fragen, Antworten, Knöpfe und Teamanzeigen sind jetzt deutlich grösser und auf dem Beamer besser lesbar.'},
   {id:'2026-10-29-sva-rueck-block', datum:'2026-10-29', fuer:'lehrer', text:'🎓 SVA › «📋 Projekte der Klasse»: Beim Grobkonzept gibst du die Rückmeldung jetzt pro Block (Thema, Inhalt/Ideen, Fragestellungen …) – unter jedem Feld steht ein eigenes Textfeld mit 💾-Knopf (jeder Knopf speichert alle Blöcke). Das Kind sieht sie in «Mein SVA-Projekt» direkt beim Feld. Die bisherige Gesamt-Rückmeldung (besprochen/überarbeiten) gibt es nicht mehr.'},
   {id:'2026-10-29-sva-rueck-block-sus', datum:'2026-10-29', fuer:'alle', text:'🎓 SVA: Deine Lehrperson kann dir jetzt zu jedem Block deines Grobkonzepts eine Rückmeldung geben. Du siehst sie in «📓 Mein SVA-Projekt» direkt unter dem jeweiligen Feld.'},
@@ -34736,7 +34744,16 @@ function pipAnfordern(){
       .catch(function(err){ console.error('Bild-in-Bild', err); toast('📌 Bitte nochmals klicken, dann öffnet sich das Fenster.'); });
   };
   if(v.readyState >= 1) los();
-  else v.addEventListener('loadedmetadata', los, {once:true});
+  else {
+    // Kommt das Bild nie (z. B. als installierte Chrome-App), nach 2 s auf das HTML-Fenster ausweichen statt stumm nichts zu tun.
+    var art = pipv.art, id = pipv.id, ok = false;
+    v.addEventListener('loadedmetadata', function(){ ok = true; los(); }, {once:true});
+    setTimeout(function(){
+      if(ok || pipv.video !== v) return;
+      pipStoppen();
+      try{ pipFensterStarten(art, id); }catch(e){ console.error('Bild-in-Bild', e); toast('📌 Das Fenster liess sich nicht öffnen.'); }
+    }, 2000);
+  }
 }
 function pipFensterStarten(art, id){
   var alt = pipv.fenster;
@@ -37195,12 +37212,12 @@ function pruefZahl(s){
 }
 // Punkte pro Frage: q.punkte (änderbar unter «Aufgaben & Punkte»), sonst aus
 // der Lösung. Handkorrektur: korrektur[frageId] = Punkte (ältere: true/false).
-function pruefBankBewerten(p, loes, antworten, korrektur){
+function pruefBankBewerten(p, loes, antworten, korrektur, uid){
   antworten = antworten || {}; korrektur = korrektur || {};
   var details = [];
   (p.fragen || []).forEach(function(q){
     var L = loes[q.id]; if(!L) return;
-    if(q.typ === 'diktat'){ details = details.concat(pruefDiktatDetails(q, L, antworten[q.id], korrektur)); return; }
+    if(q.typ === 'diktat'){ details = details.concat(pruefDiktatDetails(q, L, antworten[q.id], korrektur, !!(uid && p.diktatKurz && p.diktatKurz[uid]))); return; }
     if(q.typ === 'luecke' || q.typ === 'hoeren'){ details.push(rswBewerten(q, L, antworten[q.id], korrektur)); return; }
     var v = antworten[q.id], max = +q.punkte > 0 ? +q.punkte : (L.punkte || 1), pkt = 0, a = '–', hinweis = '';
     if(q.typ === 'mc'){ if(v != null && q.optionen[v] != null) a = q.optionen[v]; pkt = v === L.loesung ? max : 0; }
@@ -37257,7 +37274,7 @@ function pruefDiktatTokens(t){
     });
   return out;
 }
-function pruefDiktatDetails(q, L, v, korrektur){
+function pruefDiktatDetails(q, L, v, korrektur, kurz){
   var orig = (L.text || []).join(' '), ein = String(v || '');
   (L.alt || []).forEach(function(g){
     var vs = String(g).split('|'), kanon = vs.filter(function(x){ return orig.indexOf(x) >= 0; })[0] || vs[0];
@@ -37272,11 +37289,11 @@ function pruefDiktatDetails(q, L, v, korrektur){
   var T = [];
   for(var i=0;i<=n;i++) T.push(new Uint16Array(m+1));
   for(i=n-1;i>=0;i--) for(var j=m-1;j>=0;j--) T[i][j] = A[i].k === B[j].k ? T[i+1][j+1] + 1 : Math.max(T[i+1][j], T[i][j+1]);
-  var fehler = [], del = [], ins = [];
+  var fehler = [], del = [], ins = [], letztA = -1;
   // Innerhalb einer Lücke nur Wort mit Wort und Zeichen mit Zeichen paaren.
   function paaren(dl, il, pos){
     var k = Math.min(dl.length, il.length);
-    for(var x=0;x<k;x++) fehler.push({id:q.id + '~' + dl[x], pos:dl[x], n:1, a:B[il[x]].roh, r:A[dl[x]].roh, art:'falsch'});
+    for(var x=0;x<k;x++) letztA = Math.max(letztA, dl[x]), fehler.push({id:q.id + '~' + dl[x], pos:dl[x], n:1, a:B[il[x]].roh, r:A[dl[x]].roh, art:'falsch'});
     if(dl.length > k) fehler.push({id:q.id + '~' + dl[k], pos:dl[k], n:dl.length - k, a:'–', r:dl.slice(k).map(function(x){ return A[x].roh; }).join(' '), art:'fehlt'});
     if(il.length > k) fehler.push({id:q.id + '~+' + il[k], pos:pos, n:il.length - k, a:il.slice(k).map(function(x){ return B[x].roh; }).join(' '), r:'(nichts)', art:'zuviel'});
   }
@@ -37288,11 +37305,18 @@ function pruefDiktatDetails(q, L, v, korrektur){
   }
   i = 0; j = 0;
   while(i < n || j < m){
-    if(i < n && j < m && A[i].k === B[j].k){ lueckeAbschliessen(); i++; j++; }
+    if(i < n && j < m && A[i].k === B[j].k){ lueckeAbschliessen(); letztA = i; i++; j++; }
     else if(j < m && (i >= n || T[i][j+1] >= T[i+1][j])) ins.push(j++);
     else del.push(i++);
   }
   lueckeAbschliessen();
+  // «Kürzeres Diktat» (Lehrperson pro Person): was nach dem zuletzt geschriebenen Wort fehlt, zählt nicht.
+  var rest = 0;
+  if(kurz && m > 0 && letztA < n - 1){
+    rest = n - 1 - letztA;
+    fehler = fehler.filter(function(f){ return !(f.art === 'fehlt' && f.pos > letztA); });
+    n = letztA + 1;
+  }
   fehler.sort(function(x, y){ return x.pos - y.pos; });
   var zaehlt = 0;
   var rows = fehler.map(function(f){
@@ -37302,8 +37326,8 @@ function pruefDiktatDetails(q, L, v, korrektur){
     return {id:f.id, nr:true, f:'«' + (f.art === 'zuviel' ? f.a : f.r) + '» — ' + was, kat:f.n > 1 ? f.n + ' Fehler' : '', a:f.a, r:f.r, ok:ok, pkt:0, max:0};
   });
   var max = n || 1, pkt = Math.max(0, max - zaehlt);
-  var nw = A.filter(function(x){ return !x.z; }).length, mw = B.filter(function(x){ return !x.z; }).length;
-  var info = {id:q.id, info:true, f:'Diktat: ' + zaehlt + ' Fehler · ' + mw + ' von ' + nw + ' Wörtern geschrieben', a:'', ok:zaehlt === 0, pkt:pkt, max:max};
+  var nw = A.slice(0, n).filter(function(x){ return !x.z; }).length, mw = B.filter(function(x){ return !x.z; }).length;
+  var info = {id:q.id, info:true, f:'Diktat: ' + zaehlt + ' Fehler · ' + mw + ' von ' + nw + ' Wörtern geschrieben' + (rest ? ' · kürzeres Diktat: Rest (' + rest + ' Wörter/Zeichen) nicht gewertet' : ''), a:'', ok:zaehlt === 0, pkt:pkt, max:max};
   return [info].concat(rows);
 }
 function pruefDiktatWoerter(t){ return pruefDiktatTokens(t).filter(function(x){ return !x.z; }).length; }
@@ -39420,7 +39444,7 @@ function pruefErgebnis(p, t){
   if(pruefArt(p) === 'mt') return mtPrBewerten(p, t.uid, t.antworten);
   if(pruefArt(p) === 'bank'){
     var loes = pruef.loes[p.id];
-    return loes ? pruefBankBewerten(p, loes, t.antworten, t.korrektur) : null;
+    return loes ? pruefBankBewerten(p, loes, t.antworten, t.korrektur, t.uid) : null;
   }
   return typeof t.punkte === 'number' ? {punkte:t.punkte, max:t.max, details:t.details || []} : null;
 }
@@ -39448,6 +39472,7 @@ function pruefMonitorZeichnen(){
   if(!skPapier) h += '<button class="btn btn-ghost btn-sm" data-a="pip" type="button" title="Kleines Fenster, das immer im Vordergrund bleibt — auch wenn du in einem anderen Programm arbeitest">📌 Immer im Vordergrund</button>';
   if(!skPapier) h += '<button class="btn btn-sm '+(p.seb ? 'btn-primary' : 'btn-ghost')+'" data-a="seb" type="button" title="Die Prüfung lässt sich nur im Safe Exam Browser schreiben — er sperrt das ganze Gerät">🛡️ Safe Exam Browser: '+(p.seb ? 'an' : 'aus')+'</button>';
   if(!skPapier) h += '<button class="btn btn-ghost btn-sm" data-a="vorschau" type="button">👀 Ausprobieren</button>';
+  if(!skPapier && p.diktat) h += '<button class="btn btn-sm '+(p.diktatKurz && Object.keys(p.diktatKurz).length ? 'btn-primary' : 'btn-ghost')+'" data-a="diktatkurz" type="button" title="Für einzelne Personen zählt nicht, was nach dem zuletzt geschriebenen Wort fehlt">✂️ Kürzeres Diktat</button>';
   if(!skPapier && +p.zeitMin > 0 && pruefArt(p) !== 'tippen') h += '<button class="btn btn-sm '+(p.zuschlag && Object.keys(p.zuschlag).length ? 'btn-primary' : 'btn-ghost')+'" data-a="zuschlag" type="button" title="Nachteilsausgleich: einzelnen Personen mehr Zeit geben — auch während die Prüfung läuft">♿ Zeitzuschlag</button>';
   if(pruefArt(p) === 'sikore') h += '<button class="btn btn-ghost btn-sm" data-a="sikoreDruck" type="button">🖨️ Blätter drucken</button>';
   h += '<button class="btn btn-ghost btn-sm" data-a="bearbeiten" type="button">✏️ Bearbeiten</button>';
@@ -39623,6 +39648,27 @@ function pruefEntsperrUpd(p, t){
   }
   return upd;
 }
+/* ---------- ✂️ Kürzeres Diktat-Dialog ----------
+   p.diktatKurz = {uid: true}: bei diesen Personen zählt der Rest nach dem zuletzt geschriebenen Wort nicht als Fehler. */
+function pruefDiktatKurzDialog(p){
+  var teil = pruef.teil[p.id] || {}, roster = pruefRosterFuer(p);
+  if(!roster){ toast('Klasse wird noch geladen …'); return; }
+  var rows = pruefMonitorZeilen(p, teil, roster).sort(function(a,b){ return a.name.localeCompare(b.name, 'de'); });
+  var jetzt = p.diktatKurz || {};
+  var h = '<h3>✂️ Kürzeres Diktat</h3><p>Wer hier angehakt ist, muss nicht das ganze Diktat schreiben: Alles nach dem zuletzt geschriebenen Wort zählt nicht als Fehler. Was geschrieben wurde, wird normal korrigiert. Wer gar nichts schreibt, bekommt trotzdem alle Fehler.</p>'+
+    '<div style="max-height:calc(46vh/var(--lz,1));overflow:auto;margin:8px 0;">';
+  rows.forEach(function(r){
+    h += '<label style="display:flex;gap:8px;align-items:center;padding:3px 0;"><input type="checkbox" data-dk="'+esc(r.uid)+'"'+(jetzt[r.uid] ? ' checked' : '')+'> '+esc(r.name)+'</label>';
+  });
+  h += '</div><div class="modal-actions"><button class="btn btn-ghost btn-sm" id="modalCancel" type="button">Abbrechen</button><button class="btn btn-primary btn-sm" id="dkOk" type="button">Speichern</button></div>';
+  openModal(h);
+  document.getElementById('modalCancel').addEventListener('click', closeModal);
+  document.getElementById('dkOk').addEventListener('click', function(){
+    var map = {};
+    Array.prototype.forEach.call(document.querySelectorAll('[data-dk]'), function(c){ if(c.checked) map[c.getAttribute('data-dk')] = true; });
+    updateDoc(pruefRef(p.id), {diktatKurz:map}).then(function(){ closeModal(); toast(Object.keys(map).length ? '✂️ Kürzeres Diktat für '+Object.keys(map).length+' Person'+(Object.keys(map).length === 1 ? '' : 'en')+' gespeichert.' : 'Alle schreiben das ganze Diktat.'); }).catch(pruefFehler);
+  });
+}
 function pruefMonitorVerdrahten(p){
   var el = document.getElementById('prMon');
   el.onclick = function(e){
@@ -39663,6 +39709,7 @@ function pruefMonitorVerdrahten(p){
     }
     else if(a === 'pip') pipStarten('pruef', p.id);
     else if(a === 'zuschlag') pruefZuschlagDialog(p);
+    else if(a === 'diktatkurz') pruefDiktatKurzDialog(p);
     else if(a === 'bearbeiten'){ if(pruefArt(p) === 'sikore') sikoreEditor(p); else if(pruefArt(p) === 'tippen') tippPrEditor(p); else if(pruefArt(p) === 'mt') mtPrEditor(p); else if(p.rsw) rswPrEditor(p); else pruefEditor(p); }
     else if(a === 'sikoreDruck') sikoreDruckDialog(p);
     else if(a === 'punkte') pruefAufgabenPunkte(p);
@@ -39720,7 +39767,7 @@ async function pruefNotenEintragen(p, nurUids){
     if(nurUids && nurUids.indexOf(uid) < 0) return;
     var t = teil[uid]; if(t.status !== 'abgegeben') return;
     var tip = pruefArt(p) === 'tippen';
-    var r = tip ? tippBewerten(p, t.antworten) : loes ? pruefBankBewerten(p, loes, t.antworten, t.korrektur)
+    var r = tip ? tippBewerten(p, t.antworten) : loes ? pruefBankBewerten(p, loes, t.antworten, t.korrektur, uid)
                  : (typeof t.punkte === 'number' ? {punkte:t.punkte, max:t.max} : null);
     if(!r || !r.max) return;
     var upd = {notiertAm:serverTimestamp()};
@@ -39798,7 +39845,7 @@ function pruefDetailsLehrer(p, uid){
   var korrektur = Object.assign({}, t.korrektur || {});
   var details = bank ? null : (t.details || []).map(function(d){ return Object.assign({}, d); });
   function erg(){
-    if(bank) return pruefBankBewerten(p, pruef.loes[p.id] || {}, t.antworten, korrektur);
+    if(bank) return pruefBankBewerten(p, pruef.loes[p.id] || {}, t.antworten, korrektur, uid);
     var pk = details.filter(function(d){ return d.ok; }).length;
     return {punkte:pk, max:t.max, details:details};
   }
