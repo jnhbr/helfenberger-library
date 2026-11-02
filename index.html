@@ -3641,7 +3641,7 @@ function winterAn(){ var aus = false; try{ aus = localStorage.getItem('hl_winter
 
   /* ---------- 🦆 Duck-Bühne (Look der Simple-Duck-Quizshow) ----------
      Drehende Lichtstrahlen auf farbiger Bühne, weisse Karten mit dickem Rand und hartem Schatten,
-     gelbe Buchstabenkreise, Stockente unten links. Eigene Bühne wie beim Millionär: unabhängig vom App-Design. */
+     gelbe Buchstabenkreise. Eigene Bühne wie beim Millionär: unabhängig vom App-Design. */
   .duck{--dk-mitte:#2f78d6;--dk-rand:#0f2f66;--dk-ink:#14302c;--dk-gelb:#f6b223;--dk-orange:#f15a12;--dk-gruen:#1f9d63;
     --surface:#fff;--surface-2:#eef3f1;--text:#14302c;--text-muted:#4b6360;--border:#14302c;--brand:#14302c;--brand-contrast:#fff;
     --good:#1f9d63;--good-soft:#d6f2e3;--bad:#e5484d;--bad-soft:#fbdde1;
@@ -3653,13 +3653,17 @@ function winterAn(){ var aus = false; try{ aus = localStorage.getItem('hl_winter
   .duck-gruen{--dk-mitte:#1b8a6b;--dk-rand:#08402f;}
   .duck::before{content:"";position:fixed;left:50%;top:38%;width:300vmax;height:300vmax;margin:-150vmax 0 0 -150vmax;z-index:-1;pointer-events:none;
     background:repeating-conic-gradient(from 0deg,rgba(255,255,255,.10) 0 10deg,transparent 10deg 20deg);animation:dkSpin 160s linear infinite;}
-  .duck::after{content:"";position:fixed;left:14px;bottom:0;width:clamp(70px,9vw,130px);aspect-ratio:476/511;z-index:-1;pointer-events:none;
-    background:url(assets/ente-quiz.png) center bottom/contain no-repeat;filter:drop-shadow(0 6px 0 rgba(0,0,0,.25));}
   @keyframes dkSpin{to{transform:rotate(360deg);}}
   @media (prefers-reduced-motion:reduce){ .duck::before{animation:none;} }
   .duck .kz-bar{background:rgba(0,0,0,.26);border-bottom:none;color:#fff;}
   .duck .kz-close{background:#fff;color:var(--dk-ink);border:3px solid var(--dk-ink);box-shadow:0 4px 0 rgba(0,0,0,.28);}
   .duck .kz-bar-title{font-weight:800;}
+  /* ⚡ Energizer auf der Duck-Bühne: weisse Karten brauchen dunkle Schrift, Text direkt auf der Bühne weisse */
+  .duck .en-schritte li,.duck .en-tipp,.duck .en-var,.duck .en-helfer,.duck .en-timer-box,.duck .en-timer-zu{color:var(--dk-ink);}
+  .duck .en-tipp{background:#fff;border:3px solid var(--dk-ink);border-left:8px solid var(--en-c);}
+  .duck .en-schritte li,.duck .en-var,.duck .en-helfer,.duck .en-timer-box,.duck .en-timer-zu{border:3px solid var(--dk-ink);}
+  .duck .en-kurz,.duck .en-titel{color:#fff;text-shadow:0 3px 0 rgba(0,0,0,.25);}
+  .duck .en-von{color:rgba(255,255,255,.9);}
   /* Text direkt auf der Bühne */
   .duck .qh-big,.duck .qh-qnum,.duck .qh-sub,.duck .qh-count,.duck .qh-timer,.duck .qh-qtext,.duck .lsp-kopfzeile,.duck .lsp-status,.duck .lsp-hinweis-text,.duck .tsp-hinweis,.duck .tsp-gross,.duck .tsp-wer,.duck .lsp-klein{color:#fff;text-shadow:0 4px 0 rgba(0,0,0,.25);}
   .duck .qh-big,.duck .tsp-gross{font-weight:800;}
@@ -3768,7 +3772,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 import {
   initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
-  getFirestore, doc, getDoc, getDocFromCache, getDocs, getDocsFromServer, collection, query, where, onSnapshot, serverTimestamp, increment,
+  getFirestore, doc, getDoc, getDocFromServer, getDocFromCache, getDocs, getDocsFromServer, collection, query, where, onSnapshot, serverTimestamp, increment,
   setDoc as fsSetDoc, updateDoc as fsUpdateDoc, deleteDoc as fsDeleteDoc, writeBatch as fsWriteBatch, Bytes, deleteField, arrayUnion, arrayRemove,
   connectFirestoreEmulator, waitForPendingWrites, disableNetwork, enableNetwork
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
@@ -18065,7 +18069,9 @@ function svaSyncBeobachten(rid){
   if(syncState.unsub){ try{ syncState.unsub(); }catch(e){} syncState.unsub = null; }
   if(!state.user || alsSchueler()) return;
   syncState.unsub = onSnapshot(doc(db,'progress', state.user.uid, 'resources', rid), function(snap){
-    if(syncState.resourceId !== rid || !snap.exists() || snap.metadata.hasPendingWrites) return;
+    if(syncState.resourceId !== rid || snap.metadata.hasPendingWrites) return;
+    if(!snap.metadata.fromCache) syncState.remoteOk = true;   // auch «Dokument gibt es noch nicht» ist vom Server bestätigt
+    if(!snap.exists()) return;
     var data = snap.data(), remoteRev = (typeof data.storeRev === 'number') ? data.storeRev : 0;
     if(!snap.metadata.fromCache) syncState.remoteOk = true;
     if(!data.storeJson || remoteRev <= localRev(rid)) return;
@@ -18213,11 +18219,35 @@ async function writeProgressWithHistory(uid, rid, newFields){
   });
 }
 
+// Wurde der Stand beim Öffnen nur aus dem Zwischenspeicher gelesen (Handy: schwaches Netz), blieb remoteOk bei
+// Schüler:innen für immer false – es wurde nie etwas gespeichert (SVA-Grobkonzept, 02.11.2026). Jetzt: beim Server
+// nachfragen; klappt das, wird geschrieben (was hier ungespeichert liegt, gewinnt wie beim Live-Abgleich),
+// sonst bleibt es lokal und es kommt ein deutlicher Hinweis statt Stille.
+var serverPruefung = {laeuft:false, hinweisAm:0};
+function serverStandBestaetigen(rid){
+  if(serverPruefung.laeuft) return;
+  serverPruefung.laeuft = true;
+  getDocFromServer(doc(db,'progress', state.user.uid, 'resources', rid)).then(function(){
+    serverPruefung.laeuft = false;
+    if(syncState.resourceId !== rid) return;
+    syncState.remoteOk = true;
+    writeStore(rid);
+  }, function(err){
+    serverPruefung.laeuft = false;
+    console.error('Server-Stand nicht erreichbar', err);
+    if(Date.now() - serverPruefung.hinweisAm > 60000 && String(rid).indexOf('sva_') === 0){
+      serverPruefung.hinweisAm = Date.now();
+      toast('⚠️ Keine Verbindung: Dein Text ist auf diesem Gerät gesichert, aber noch nicht in der Library. Bitte mit Internet nochmals öffnen.', 'fehler');
+    }
+    if(syncState.resourceId === rid) scheduleStoreWrite(rid);
+  });
+}
+
 function writeStore(rid){
   if(!state.user || syncState.resourceId !== rid) return;
   var payload = buildStorePayload();
   if(!payload.keys.length || payload.json === syncState.lastWritten) return;
-  if(!syncState.remoteOk){ scheduleStoreWrite(rid); return; }   // Server-Stand noch unbestätigt: nichts überschreiben
+  if(!syncState.remoteOk){ serverStandBestaetigen(rid); return; }   // Server-Stand noch unbestätigt: erst beim Server nachfragen, nie still liegen lassen
   if(payload.json.length > SYNC_MAX_BYTES){
     console.warn('Übungsstand zu gross für die Synchronisierung ('+payload.json.length+' Zeichen) — bleibt nur auf diesem Gerät.');
     return;
@@ -18237,6 +18267,7 @@ function writeStore(rid){
   }).catch(function(err){
     console.error('Stand konnte nicht gespeichert werden', err);
     syncState.lastWritten = null;   // beim nächsten Versuch erneut schreiben
+    if(String(rid).indexOf('sva_') === 0) toast('⚠️ Speichern in der Library hat nicht geklappt – dein Text bleibt auf diesem Gerät. Es wird erneut versucht.', 'fehler');
   });
 }
 
@@ -24959,6 +24990,7 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-11-02-energizer-lesbar', datum:'2026-11-02', fuer:'lehrer', text:'⚡ Energizer am Beamer wieder gut lesbar: Schritte, Tipp, Timer und Spielhelfer haben dunkle Schrift auf weissen Karten (vorher weiss auf weiss).'},
   {id:'2026-10-30-slf-spiel', datum:'2026-10-30', fuer:'lehrer', text:'🌍 Stadt Land Fluss ist jetzt ein eigenes Spiel (Klassenzimmer › Spiele) mit eigener Bühne und gehört nicht mehr zu den Beamer-Werkzeugen.'},
   {id:'2026-10-30-duck-buehne', datum:'2026-10-30', fuer:'alle', text:'🦆 Neuer Look für Quiz und Spiele: Klassen-Quiz, Schätzmeister, Bingo, Buzzer, Der grosse Preis, Drei gewinnt, Schiffe versenken, Umfrage, Wortwolke und Energizer laufen jetzt auf der bunten Show-Bühne von Simple Duck – mit drehenden Lichtstrahlen, dicken Rändern, gelbem Countdown und der Stockente unten links.'},
   {id:'2026-10-30-kalender-verbergen', datum:'2026-10-30', fuer:'lehrer', text:'🙈 Kalender: Einträge lassen sich für Schüler:innen verbergen (Häkchen im Formular oder Knopf «Verbergen») und später mit «👁 Freigeben» sichtbar schalten.'},
