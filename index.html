@@ -24990,6 +24990,7 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-11-02-stp-spaetabend', datum:'2026-11-02', fuer:'alle', text:'🗓️ Im Stundenplan erscheinen jetzt auch Termine nach 18:30 (z. B. Elterngespräche) – die Abendzeilen sind nur sichtbar, wenn in der Woche etwas darin steht.'},
   {id:'2026-11-02-energizer-lesbar', datum:'2026-11-02', fuer:'lehrer', text:'⚡ Energizer am Beamer wieder gut lesbar: Schritte, Tipp, Timer und Spielhelfer haben dunkle Schrift auf weissen Karten (vorher weiss auf weiss).'},
   {id:'2026-10-30-slf-spiel', datum:'2026-10-30', fuer:'lehrer', text:'🌍 Stadt Land Fluss ist jetzt ein eigenes Spiel (Klassenzimmer › Spiele) mit eigener Bühne und gehört nicht mehr zu den Beamer-Werkzeugen.'},
   {id:'2026-10-30-duck-buehne', datum:'2026-10-30', fuer:'alle', text:'🦆 Neuer Look für Quiz und Spiele: Klassen-Quiz, Schätzmeister, Bingo, Buzzer, Der grosse Preis, Drei gewinnt, Schiffe versenken, Umfrage, Wortwolke und Energizer laufen jetzt auf der bunten Show-Bühne von Simple Duck – mit drehenden Lichtstrahlen, dicken Rändern, gelbem Countdown und der Stockente unten links.'},
@@ -48086,7 +48087,9 @@ function stpZeitenAktuell(z){
 // die Zeilen erscheinen nur, wenn an irgendeinem Tag etwas drinsteht.
 var STP_EXTRA = [
   {s:'m1', von:'11:55', bis:'12:40'}, {s:'m2', von:'12:45', bis:'13:30'},
-  {s:'a1', von:'16:55', bis:'17:40'}, {s:'a2', von:'17:45', bis:'18:30'}
+  {s:'a1', von:'16:55', bis:'17:40'}, {s:'a2', von:'17:45', bis:'18:30'},
+  // Spätabend (Elterngespräche, Sitzungen): nur sichtbar, wenn in der Woche etwas darin steht; nie Teil von Kochen
+  {s:'e1', von:'18:35', bis:'19:20'}, {s:'e2', von:'19:25', bis:'20:10'}, {s:'e3', von:'20:15', bis:'21:00'}
 ];
 function stpBelegt(plan, sl){ return [0,1,2,3,4].some(function(t){ return !stpLeer(plan.zelle(stpKey(t, sl))); }); }
 // Alle anzuzeigenden Zeilen, nach Zeit sortiert: {s (Index oder Zusatz-ID), von, bis, nr, extra}
@@ -48105,7 +48108,7 @@ function stpKochSlots(zeiten, k){
   if(!zeiten[k]) return [];
   var ende = stpMin(zeiten[k].bis), naechste = zeiten[k+1] ? stpMin(zeiten[k+1].von) : 24*60;
   if(naechste - ende < 40) return [];
-  return STP_EXTRA.filter(function(x){ return stpMin(x.von) >= ende && stpMin(x.bis) <= naechste; });
+  return STP_EXTRA.filter(function(x){ return x.s.charAt(0) !== 'e' && stpMin(x.von) >= ende && stpMin(x.bis) <= naechste; });
 }
 
 // Klassen fürs Feld «Klasse» im persönlichen Plan der Lehrperson (kl).
