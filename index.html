@@ -32748,8 +32748,26 @@ function bstArchiviert(r){ return !!(r.bestellt && r.bestelltAm && r.bestelltAm 
 function bstLief(r){ return r.lief === 'bachmann' || r.lief === 'andere' ? r.lief : ((r.bereich === 'nt' && r.nr) ? 'bachmann' : 'andere'); }
 function bstOffeneText(b, lief){
   var offen = bst.rows.filter(function(r){ return r.bereich === b.id && !r.bestellt && bstLief(r) === lief; }).sort(function(x, y){ return (x.ord || 0) - (y.ord || 0); });
-  return { n:offen.length, titel:'Bestellung '+(lief === 'bachmann' ? 'bei Bachmann' : 'bei anderen Lieferanten')+' – '+b.name+' (Stand '+fmtDueDate(todayStr())+')',
-    zeilen:offen.map(function(r){ return (r.anzahl || '1')+' · '+(r.nr ? r.nr+' · ' : '')+r.bez+(r.bem ? ' ('+r.bem+')' : '')+(lief === 'andere' && r.liefName ? ' – '+r.liefName : ''); }) };
+  var summe = 0, mitPreis = 0;
+  var zeilen = offen.map(function(r, i){
+    var menge = String(r.anzahl || '1').trim().replace(/\s*[x×]$/i, '');
+    if(typeof r.preis === 'number'){ summe += r.preis * bstMenge(r); mitPreis++; }
+    var z = (i + 1)+'. '+menge+' × '+r.bez;
+    if(r.nr) z += ' (Bestellnummer '+r.nr+')';
+    if(r.bem) z += ', '+r.bem;
+    if(lief === 'andere' && r.liefName) z += ' – bei '+r.liefName;
+    return z;
+  });
+  var name = (state.profile && (state.profile.displayName || state.profile.username)) || rbuIch();
+  var text = 'Guten Tag\n\n'
+    + (lief === 'bachmann'
+        ? 'Wir möchten bei Bachmann Lehrmittel folgendes Material für den Bereich «'+b.name+'» bestellen:'
+        : 'Wir möchten folgendes Material für den Bereich «'+b.name+'» bestellen (Lieferant jeweils beim Posten):')
+    + '\n\n'+zeilen.join('\n')+'\n\n'
+    + (lief === 'bachmann' && mitPreis ? 'Richtpreis laut Katalog (exkl. MwSt.): ca. CHF '+bstChf(summe)+(mitPreis < offen.length ? ' für die Posten mit Preisangabe' : '')+'.\n\n' : '')
+    + 'Die Lieferung geht an die Sekundarschule Altnau. Bei Fragen oder Lieferschwierigkeiten melden Sie sich bitte kurz bei mir.\n\n'
+    + 'Vielen Dank und freundliche Grüsse\n'+name+'\nSekundarschule Altnau';
+  return { n:offen.length, betreff:'Bestellung '+b.name+' – Sekundarschule Altnau', text:text };
 }
 function bstKopieren(text, meldung){
   var fertig = function(){ toast(meldung); };
@@ -32917,9 +32935,9 @@ function paintBestellungen(){
   [bez, anz, nr, preis, bem].forEach(function(f){ f.addEventListener('keydown', function(e){ if(e.key === 'Enter'){ e.preventDefault(); add(); } }); });
   document.getElementById('bstNurOffen').addEventListener('change', function(e){ bst.nurOffen = e.target.checked; paintBestellungen(); });
   document.getElementById('bstArchiv').addEventListener('change', function(e){ bst.archiv = e.target.checked; paintBestellungen(); });
-  function kopieren(lief){ var o = bstOffeneText(b, lief); if(!o.n){ toast('Keine offenen Posten.'); return; } bstKopieren(o.titel+'\n'+o.zeilen.join('\n'), o.n+' Posten kopiert.'); }
+  function kopieren(lief){ var o = bstOffeneText(b, lief); if(!o.n){ toast('Keine offenen Posten.'); return; } bstKopieren(o.text, 'Bestelltext kopiert ('+o.n+' Posten).'); }
   function mailen(lief){ var o = bstOffeneText(b, lief); if(!o.n){ toast('Keine offenen Posten.'); return; }
-    window.location.href = 'mailto:?subject='+encodeURIComponent(o.titel)+'&body='+encodeURIComponent(o.titel+'\n\n'+o.zeilen.join('\n')); }
+    window.location.href = 'mailto:?subject='+encodeURIComponent(o.betreff)+'&body='+encodeURIComponent(o.text); }
   [['bstKop', function(){ kopieren('bachmann'); }], ['bstMail', function(){ mailen('bachmann'); }], ['bstKopA', function(){ kopieren('andere'); }], ['bstMailA', function(){ mailen('andere'); }]].forEach(function(x){
     var el = document.getElementById(x[0]); if(el) el.addEventListener('click', x[1]);
   });
