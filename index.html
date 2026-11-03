@@ -2281,6 +2281,13 @@ function winterAn(){ var aus = false; try{ aus = localStorage.getItem('hl_winter
   .bst-erledigt td{color:var(--text-muted);}
   .bst-erledigt .bst-bez{text-decoration:line-through;}
   .bst-bem{font-size:12px;color:var(--text-muted);text-decoration:none;}
+  .modal.bst-arch-modal{max-width:720px;width:100%;}
+  .bst-arch-liste{max-height:55vh;overflow:auto;border:1px solid var(--border);border-radius:12px;}
+  .bst-arch-liste:empty{display:none;}
+  .bst-arch-monat{position:sticky;top:0;background:var(--surface-2);font-weight:800;font-size:12.5px;padding:6px 12px;border-bottom:1px solid var(--border);color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em;}
+  .bst-arch-zeile{display:flex;gap:12px;align-items:center;padding:9px 12px;border-bottom:1px solid var(--border);}
+  .bst-arch-d{min-width:84px;font-variant-numeric:tabular-nums;font-weight:700;font-size:13px;color:var(--text-muted);}
+  .bst-arch-t{flex:1;min-width:0;font-size:14px;}
   .bst-summe{margin:0;padding:12px 16px;font-size:13.5px;color:var(--text-muted);border-top:1px solid var(--border);background:var(--bst-soft);}
   .bst-summe b{color:var(--bst);font-size:15px;}
   .bst-printkopf,.bst-leer,.bst-fuss{display:none;}
@@ -32671,7 +32678,7 @@ function kzToolStarten(id){
    (Natur und Technik, Textiles Werken, Holz-/Metallwerken). Eine Collection für alle drei:
    bestellungen/{id} -> {bereich:'nt'|'tw'|'hm', bez, anzahl (Text, z. B. «4–6»), nr, preis (CHF exkl. MwSt. pro Stück
    oder null), bem, lief ('bachmann'|'andere'), liefName (freier Lieferant bei 'andere'), datum (YYYY-MM-DD), lehrer, vonUid, bestellt, bestelltAm, ord}.
-   Katalogsuche (nur Natur und Technik): assets/bachmann-katalog.json = {stand, eintraege:[[nr, name, preis, pfad, produktId], …]}
+   Archiv: bestellt vor über 4 Wochen, eigenes Fenster mit Suche. Katalogsuche (nur Natur und Technik): assets/bachmann-katalog.json = {stand, eintraege:[[nr, name, preis, pfad, produktId], …]}
    aus bachmann-lehrmittel.ch (Preise exkl. MwSt.). Ausdruck: Cmd+P, die Seite druckt sich selbst als Formular (@media print). */
 var BST_BEREICHE = [
   { id:'nt', icon:'🔬', name:'Natur und Technik', katalog:true },
@@ -32842,7 +32849,7 @@ function paintBestellungen(){
   if(!host) return;
   var b = bstBereich();
   var alle = bst.rows.filter(function(r){ return r.bereich === b.id; }).sort(function(x, y){ return (x.ord || 0) - (y.ord || 0); });
-  var rows = alle.filter(function(r){ return !(bst.nurOffen && r.bestellt) && (bst.archiv || !bstArchiviert(r)); });
+  var rows = alle.filter(function(r){ return !(bst.nurOffen && r.bestellt) && !bstArchiviert(r); });
   var imArchiv = alle.filter(bstArchiviert).length;
   var offenAlle = alle.filter(function(r){ return !r.bestellt; }), summeAlle = 0;
   offenAlle.forEach(function(r){ if(typeof r.preis === 'number') summeAlle += r.preis * bstMenge(r); });
@@ -32876,10 +32883,11 @@ function paintBestellungen(){
            + '<button class="btn btn-primary btn-sm" id="bstShop" type="button" title="Legt alle offenen Bachmann-Posten mit Katalognummer in den Bachmann-Warenkorb">🛒 Bei Bachmann bestellen</button>' : '')
      + (nA ? '<button class="btn btn-ghost btn-sm" id="bstKopA" type="button">📋 Andere kopieren ('+nA+')</button><button class="btn btn-ghost btn-sm" id="bstMailA" type="button">✉️ Andere-Mail</button>' : '')
      + (!nB && !nA ? '<span class="vg-hint" style="margin:0;">Keine offenen Posten.</span>' : '')
+     + '<button class="btn btn-ghost btn-sm" id="bstArchivBtn" type="button">🗄️ Archiv ('+imArchiv+')</button>'
      + '<button class="btn btn-ghost btn-sm" id="bstDruck2" type="button">🖨️ Drucken (⌘P)</button>'
      + '</div>';
   h += '<div class="bst-optionen"><label class="gr-opt"><input type="checkbox" id="bstNurOffen"'+(bst.nurOffen ? ' checked' : '')+'> Bestellte ausblenden (auch im Ausdruck)</label>'
-     + '<label class="gr-opt"><input type="checkbox" id="bstArchiv"'+(bst.archiv ? ' checked' : '')+'> Archiv zeigen: bestellt vor über 4 Wochen ('+imArchiv+')</label></div></div>';
+     + '</div></div>';
   h += '</div>';
 
   h += '<div class="bst-blatt">';
@@ -32940,7 +32948,7 @@ function paintBestellungen(){
   document.getElementById('bstAdd').addEventListener('click', add);
   [bez, anz, nr, preis, bem].forEach(function(f){ f.addEventListener('keydown', function(e){ if(e.key === 'Enter'){ e.preventDefault(); add(); } }); });
   document.getElementById('bstNurOffen').addEventListener('change', function(e){ bst.nurOffen = e.target.checked; paintBestellungen(); });
-  document.getElementById('bstArchiv').addEventListener('change', function(e){ bst.archiv = e.target.checked; paintBestellungen(); });
+  document.getElementById('bstArchivBtn').addEventListener('click', function(){ bstArchivOeffnen(b); });
   function kopieren(lief){ var o = bstOffeneText(b, lief); if(!o.n){ toast('Keine offenen Posten.'); return; } bstKopieren(o.text, 'Bestelltext kopiert ('+o.n+' Posten).'); }
   function mailen(lief){ var o = bstOffeneText(b, lief); if(!o.n){ toast('Keine offenen Posten.'); return; }
     window.location.href = 'mailto:?subject='+encodeURIComponent(o.betreff)+'&body='+encodeURIComponent(o.text); }
@@ -33009,6 +33017,48 @@ function paintBestellungen(){
   Array.prototype.forEach.call(host.querySelectorAll('[data-ed]'), function(btn){
     btn.addEventListener('click', function(){ var r = zeile(btn.getAttribute('data-ed')); if(r) bstBearbeiten(r); });
   });
+}
+
+/* 🗄️ Archiv: alle Bestellungen des Bereichs, die vor über 4 Wochen bestellt wurden – nach Bestelldatum, durchsuchbar. */
+function bstArchivOeffnen(b){
+  var arch = bst.rows.filter(function(r){ return r.bereich === b.id && bstArchiviert(r); })
+    .sort(function(x, y){ return String(y.bestelltAm).localeCompare(String(x.bestelltAm)) || (y.ord || 0) - (x.ord || 0); });
+  openModal('<h3>🗄️ Archiv – '+esc(b.name)+'</h3>'
+    + '<input id="bstArchSuche" class="modal-input" type="search" placeholder="Suchen: Bezeichnung, Nummer, Lehrer, Lieferant …" autocomplete="off">'
+    + '<p class="vg-hint" id="bstArchZahl" style="margin:8px 0;"></p>'
+    + '<div id="bstArchListe" class="bst-arch-liste"></div>'
+    + '<div class="modal-actions"><button class="btn btn-primary btn-sm" id="modalOk" type="button">Schliessen</button></div>', 'bst-arch-modal');
+  document.getElementById('modalOk').addEventListener('click', closeModal);
+  var such = document.getElementById('bstArchSuche'), liste = document.getElementById('bstArchListe'), zahl = document.getElementById('bstArchZahl');
+  function zeigen(){
+    var teile = bstNorm(such.value).split(/\s+/).filter(Boolean);
+    var treffer = arch.filter(function(r){
+      var h = bstNorm([r.bez, r.nr, r.lehrer, r.liefName, r.bem, r.anzahl, fmtDueDate(r.bestelltAm), fmtDueDate(r.datum)].join(' '));
+      return teile.every(function(t){ return h.indexOf(t) >= 0; });
+    });
+    zahl.textContent = arch.length ? treffer.length+' von '+arch.length+' Bestellungen' : 'Noch nichts im Archiv. Was vor über 4 Wochen bestellt wurde, erscheint hier.';
+    var h = '', monat = '';
+    treffer.forEach(function(r){
+      var m = String(r.bestelltAm || '').slice(0, 7);
+      if(m !== monat){ monat = m; var t = m.split('-'); h += '<div class="bst-arch-monat">'+(t.length === 2 ? ['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'][+t[1] - 1]+' '+t[0] : 'Ohne Datum')+'</div>'; }
+      h += '<div class="bst-arch-zeile"><div class="bst-arch-d">'+esc(fmtDueDate(r.bestelltAm))+'</div>'
+        + '<div class="bst-arch-t"><b>'+esc(r.anzahl ? r.anzahl+' × ' : '')+esc(r.bez)+'</b>'
+        + '<div class="bst-bem">'+[r.nr ? 'Nr. '+esc(r.nr) : '', typeof r.preis === 'number' ? 'CHF '+bstChf(r.preis) : '', esc(r.lehrer || ''), bstLief(r) === 'andere' && r.liefName ? esc(r.liefName) : (bstLief(r) === 'bachmann' ? 'Bachmann' : ''), r.bem ? esc(r.bem) : ''].filter(Boolean).join(' · ')+'</div></div>'
+        + '<button class="btn btn-ghost btn-sm" data-an="'+r.id+'" type="button" title="Nochmals bestellen">🔁</button></div>';
+    });
+    liste.innerHTML = h;
+    Array.prototype.forEach.call(liste.querySelectorAll('[data-an]'), function(btn){
+      btn.addEventListener('click', function(){
+        var r = bst.rows.filter(function(x){ return x.id === btn.getAttribute('data-an'); })[0]; if(!r) return;
+        var daten = { bereich:r.bereich, bez:r.bez, anzahl:r.anzahl || '', nr:r.nr || '', preis:(typeof r.preis === 'number' ? r.preis : null), bem:r.bem || '',
+          lief:bstLief(r), liefName:r.liefName || '', datum:todayStr(), lehrer:rbuIch(), vonUid:state.user.uid, bestellt:false, bestelltAm:'', ord:Date.now() };
+        var ref = doc(collection(db, 'bestellungen'));
+        setDoc(ref, daten).then(function(){ daten.id = ref.id; bst.rows.push(daten); btn.disabled = true; btn.textContent = '✓'; paintBestellungen(); toast('Neu auf die Liste gesetzt.'); })
+          .catch(function(err){ console.error(err); toast('Konnte nicht gespeichert werden.'); });
+      });
+    });
+  }
+  such.addEventListener('input', zeigen); zeigen();
 }
 
 function bstBearbeiten(r){
