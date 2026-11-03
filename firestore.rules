@@ -185,6 +185,21 @@ function energizerOk() {
     && request.resource.data.get('tipp', '') is string && request.resource.data.get('tipp', '').size() <= 500;
 }
 
+function bestellungOk() {
+  return request.resource.data.bereich in ['nt', 'tw', 'hm']
+    && request.resource.data.bez is string
+    && request.resource.data.bez.size() > 0 && request.resource.data.bez.size() <= 200
+    && request.resource.data.anzahl is string && request.resource.data.anzahl.size() <= 30
+    && request.resource.data.nr is string && request.resource.data.nr.size() <= 60
+    && (request.resource.data.preis == null || request.resource.data.preis is number)
+    && request.resource.data.bem is string && request.resource.data.bem.size() <= 300
+    && request.resource.data.datum is string && request.resource.data.datum.size() == 10
+    && request.resource.data.lehrer is string && request.resource.data.lehrer.size() <= 80
+    && request.resource.data.bestellt is bool
+    && request.resource.data.bestelltAm is string && request.resource.data.bestelltAm.size() <= 10
+    && request.resource.data.keys().size() <= 12;
+}
+
 service cloud.firestore {
   match /databases/{database}/documents {
 
@@ -674,6 +689,15 @@ service cloud.firestore {
         && request.resource.data.vonUid == resource.data.vonUid;
       // Separat von create/update: bei einem delete ist request.resource null.
       allow delete: if isTeacher() && (resource.data.vonUid == request.auth.uid || isJan());
+    }
+
+    // 🛒 Gemeinsame Nachbestell-Listen der Lehrpersonen (Klassenzimmer › Bestellungen): alle Lehrpersonen
+    // tragen ein, ändern und löschen. delete separat (request.resource ist dort null).
+    match /bestellungen/{bid} {
+      allow read: if canReadAll();
+      allow create: if isTeacher() && bestellungOk() && request.resource.data.vonUid == request.auth.uid;
+      allow update: if isTeacher() && bestellungOk() && request.resource.data.vonUid == resource.data.vonUid;
+      allow delete: if isTeacher();
     }
 
     match /schulLinks/{linkId} {

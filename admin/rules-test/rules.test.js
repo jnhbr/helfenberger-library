@@ -286,6 +286,20 @@ test('Energizer: Lehrperson legt eigenes Spiel an, alle Lehrpersonen lesen, Sch�
   await assertSucceeds(getDoc(doc(db.jan(), 'energizer/e1')));
   await assertFails(getDoc(doc(db.sus(), 'energizer/e1')));
 });
+const best = (uid, extra = {}) => ({ bereich: 'nt', bez: 'Universalindikator', anzahl: '4x', nr: 'C3900', preis: 76.4, bem: '', datum: '2026-11-03',
+  lehrer: 'Test', vonUid: uid, bestellt: false, bestelltAm: '', ord: 1, ...extra });
+test('Bestellungen: Lehrpersonen tragen ein und ändern, Schüler:innen nicht', async () => {
+  await assertSucceeds(setDoc(doc(db.lp(), 'bestellungen/b1'), best('lp')));
+  await assertFails(setDoc(doc(db.lp(), 'bestellungen/b2'), best('jan')));
+  await assertFails(setDoc(doc(db.lp(), 'bestellungen/b3'), best('lp', { bereich: 'xx' })));
+  await assertFails(setDoc(doc(db.lp(), 'bestellungen/b4'), best('lp', { bez: '' })));
+  await assertFails(setDoc(doc(db.sus(), 'bestellungen/b5'), best('sus')));
+  await assertSucceeds(getDoc(doc(db.jan(), 'bestellungen/b1')));
+  await assertFails(getDoc(doc(db.sus(), 'bestellungen/b1')));
+  await assertSucceeds(updateDoc(doc(db.jan(), 'bestellungen/b1'), { bestellt: true, bestelltAm: '2026-11-04' }));
+  await assertFails(updateDoc(doc(db.lp(), 'bestellungen/b1'), { vonUid: 'jan' }));
+  await assertSucceeds(deleteDoc(doc(db.jan(), 'bestellungen/b1')));
+});
 test('Energizer: nur wer es angelegt hat (und Jan) ändert und löscht', async () => {
   await seed('energizer/e1', en('lp'));
   await assertSucceeds(updateDoc(doc(db.lp(), 'energizer/e1'), { titel: 'Neu' }));
@@ -312,6 +326,7 @@ const LOESCHBAR = [
   ['progress/sus/pruefungsnoten/n1', { note: 5, gewicht: 1 }],
   ['uebungsIndex/r1', { klassen: ['G3b'] }],
   ['schulLinks/l1', { name: 'L', url: 'https://x', fuer: 'lehrer' }],
+  ['bestellungen/b1', { bereich: 'nt', bez: 'Ethanol' }],
   ['streaks/sus', { days: {} }]
 ];
 for(const [pfad, daten] of LOESCHBAR){
