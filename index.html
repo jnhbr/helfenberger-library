@@ -9546,6 +9546,77 @@ var AKT_ZIEL = null;
 })();
 var AKT_FENSTER = !!AKT_ZIEL;
 
+// 🖱️ Doppelklick-Datei (.html/.webloc mit Link <Library>#spiel=<Daten>): spielt ein Quiz, eine
+// Blitzumfrage, Schätz-/Millionär-Fragen oder eine Wortwolke direkt, OHNE sie zu speichern.
+// Die Daten stehen nach dem # (gehen nie an einen Server); Format: base64url von deflate-raw(JSON)
+// oder «j.»+base64url(JSON). JSON = {typ:'quiz'|'million'|'schaetz'|'umfrage'|'wolke', raw:{…}}.
+// Abgemeldet bleibt das Spiel in sessionStorage, bis die Lehrperson angemeldet ist.
+var DIREKT_KEY = 'direktspiel_wartet';
+var DIREKT_FERTIG = Promise.resolve();
+(function(){
+  var m = /^#spiel=([A-Za-z0-9_\-.]+)$/.exec(location.hash || '');
+  if(!m) return;
+  try{ history.replaceState(history.state, '', location.pathname + location.search); }catch(e){}
+  var b64 = function(t){ t = t.replace(/-/g, '+').replace(/_/g, '/'); while(t.length % 4) t += '='; var bin = atob(t), u = new Uint8Array(bin.length); for(var i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u; };
+  DIREKT_FERTIG = (async function(){
+    var txt;
+    if(m[1].slice(0, 2) === 'j.') txt = new TextDecoder().decode(b64(m[1].slice(2)));
+    else txt = await new Response(new Blob([b64(m[1])]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).text();
+    var d = JSON.parse(txt);
+    if(!direktPaket(d)) return;
+    sessionStorage.setItem(DIREKT_KEY, JSON.stringify(d));
+  })().catch(function(e){ console.error('Direktspiel', e); });
+})();
+// Paket = {titel, spiele:[{typ, raw}]} (oder ein einzelnes {typ, raw}); nur bekannte Arten behalten.
+function direktPaket(d){
+  if(!d) return null;
+  var l = Array.isArray(d.spiele) ? d.spiele : (d.raw ? [d] : []);
+  l = l.filter(function(x){ return x && x.raw && ['quiz', 'million', 'schaetz', 'umfrage', 'wolke'].indexOf(x.typ) >= 0; });
+  if(!l.length) return null;
+  return {titel:String(d.titel || l[0].raw.title || l[0].raw.titel || l[0].raw.frage || 'Spiele').slice(0, 100), spiele:l};
+}
+var DIREKT_ICON = {quiz:'🎮', million:'💰', schaetz:'🎯', umfrage:'📊', wolke:'☁️'};
+function direktName(x){ return String(x.raw.title || x.raw.titel || x.raw.frage || x.typ).slice(0, 90); }
+async function direktSpielStarten(){
+  await DIREKT_FERTIG;
+  var roh = null, d = null;
+  try{ roh = sessionStorage.getItem(DIREKT_KEY); }catch(e){}
+  if(!roh) return;
+  try{ d = direktPaket(JSON.parse(roh)); }catch(e){}
+  try{ sessionStorage.removeItem(DIREKT_KEY); }catch(e){}
+  if(!d) return;
+  if(!state.profile || state.profile.role !== 'teacher' || alsSchueler()){ toast('Dieses Spiel kann nur eine Lehrperson starten.'); return; }
+  state.route = {name:'klassenzimmer'}; render();
+  setTimeout(function(){ direktDialog(d); }, 300);
+}
+// 1. Wer macht mit (Klasse/Gruppe)? 2. Was starten? 3. Ein Tipp = sofort los (ohne Team-/Fragenwahl, nichts wird gespeichert).
+function direktDialog(d){
+  var h = '<h3>▶︎ '+esc(d.titel)+'</h3><p class="pr-hinweis">Direktstart – nichts davon wird gespeichert.</p>';
+  h += '<div class="section-label" style="margin:10px 0 6px;">1 · Klasse / Gruppe</div>';
+  h += '<p style="margin:0 0 6px;">Es erscheint bei: <b id="dsText">'+esc(mitKurz())+'</b> <button class="btn btn-ghost btn-sm" id="dsAendern" type="button">👥 Ändern</button></p>';
+  h += '<div class="section-label" style="margin:14px 0 6px;">2 · Was starten? (ein Tipp startet sofort)</div>';
+  d.spiele.forEach(function(x, i){
+    h += '<button class="btn btn-primary" style="display:block;width:100%;text-align:left;margin:0 0 8px;" type="button" data-ds="'+i+'">'+DIREKT_ICON[x.typ]+' '+esc(direktName(x))+'</button>';
+  });
+  h += '<div class="modal-actions"><button class="btn btn-ghost btn-sm" id="dsAbbr" type="button">Schliessen</button></div>';
+  openModal(h);
+  mitGruppenLaden().then(function(){ var t = document.getElementById('dsText'); if(t) t.textContent = mitKurz(); });
+  function neu(){ direktDialog(d); }
+  document.getElementById('dsAbbr').addEventListener('click', closeModal);
+  document.getElementById('dsAendern').addEventListener('click', function(){ mitDialog(neu, neu); });
+  document.querySelectorAll('[data-ds]').forEach(function(b){
+    b.addEventListener('click', function(){ var x = d.spiele[+b.getAttribute('data-ds')]; closeModal(); direktStart(x); });
+  });
+}
+function direktStart(x){
+  var r = x.raw, t = direktName(x);
+  if(x.typ === 'quiz'){ r.id = r.id || 'direkt'; startQuizSession(r, 0, null); }
+  else if(x.typ === 'million') spielWahl(t, mioAusQuiz(r));
+  else if(x.typ === 'schaetz') schaetzStart(t, schaetzNorm(r.questions), schaetzOpt().sec);
+  else if(x.typ === 'wolke') wolkeStart(r.frage, Math.max(1, Math.min(5, +r.max || 3)), r.zeigen !== false);
+  else if(x.typ === 'umfrage') umfrageStartSerie(umfrageFragen(r), r.titel || '');
+}
+
 onAuthStateChanged(auth, authGeaendert);
 async function authGeaendert(user){
   // onAuthStateChanged feuert nicht nur bei An-/Abmeldung, sondern z.B. auch
@@ -9661,6 +9732,7 @@ async function authGeaendert(user){
     startPruefungWatcher();
     startLernphaseWatcher();
     gruppenMitgliederNachtragen().catch(function(err){ console.error('Gruppen-Mitglieder', err); });
+    direktSpielStarten();
     if(AKT_FENSTER){
       // Im Aktivitäts-Fenster keine Einführung/Hinweise — die würden den Start-Dialog verdrängen.
       if(state.profile.role === 'teacher' && !alsSchueler()) aktFensterBoot();
@@ -24796,8 +24868,74 @@ function quizEnsureJoined(viaGet){
   });
 }
 
+/* ---------- Vollbild-Wächter (Live-Quiz + Live-Spiele, nur Schülergeräte) ----------
+   Die Seite öffnet im Vollbild. Wer es während einer Frage verlässt (oder die Frage
+   ausserhalb des Vollbilds beginnt), kann diese Frage nicht mehr beantworten; bei
+   der nächsten Frage ist er wieder dabei, sobald er im Vollbild ist. Geräte ohne
+   Vollbild-API (iPhone) bleiben ausgenommen. */
+var vb = { key:null, gesperrt:false, timer:null };
+function vbFs(){ return !!(document.fullscreenElement || document.webkitFullscreenElement); }
+function vbMoeglich(){ var d = document.documentElement; return !!(d.requestFullscreen || d.webkitRequestFullscreen); }
+function vbSchueler(){ var p = state.profile; return !!(p && p.role === 'student' && !alsSchueler() && !isLeitung()); }
+function vbEinschalten(){
+  if(!vbMoeglich() || !vbSchueler() || vbFs()) return;
+  try{
+    var d = document.documentElement, r = (d.requestFullscreen || d.webkitRequestFullscreen).call(d);
+    if(r && r.catch) r.catch(function(){});
+  }catch(e){}
+}
+function vbKontext(){
+  if(!vbMoeglich() || !vbSchueler()) return null;
+  var q = quizLive.session;
+  if(state.route.name === 'quizplay' && quizIsRunning(q)) return {art:'quiz', aktiv:q.state === 'frage', key:'quiz|'+(q.title||'')+'|'+q.qIndex};
+  var s = lsp.session;
+  if(lsp.offen && lspLaeuft(s)) return {art:'lsp', aktiv:s.phase === 'frage', key:'lsp|'+s.spielId+'|'+(s.runde||0)+'|'+(s.nr||0)};
+  return null;
+}
+function vbTick(){
+  var c = vbKontext(), bar = document.getElementById('vbBar');
+  if(!c){
+    vb.key = null; vb.gesperrt = false;
+    if(bar) bar.remove();
+    return;
+  }
+  var fs = vbFs();
+  if(c.aktiv && c.key !== vb.key){ vb.key = c.key; vb.gesperrt = !fs; }
+  else if(c.aktiv && !fs) vb.gesperrt = true;
+  else if(!c.aktiv){ vb.key = null; vb.gesperrt = false; }
+  if(!fs){
+    if(!bar){
+      bar = document.createElement('div');
+      bar.id = 'vbBar';
+      bar.style.cssText = 'position:fixed;left:0;right:0;top:0;z-index:100000;background:#b3261e;color:#fff;padding:8px 12px;display:flex;gap:10px;align-items:center;justify-content:center;flex-wrap:wrap;font-weight:600;font-size:15px;text-align:center;';
+      bar.innerHTML = '<span id="vbText"></span><button type="button" id="vbBtn" style="background:#fff;color:#b3261e;border:0;border-radius:8px;padding:6px 12px;font-weight:700;cursor:pointer;">⛶ Vollbild starten</button>';
+      document.body.appendChild(bar);
+      document.getElementById('vbBtn').addEventListener('click', vbEinschalten);
+    }
+    document.getElementById('vbText').textContent = vb.gesperrt
+      ? 'Du hast das Vollbild verlassen – diese Frage kannst du nicht mehr beantworten. Ab der nächsten bist du wieder dabei, wenn du im Vollbild bist.'
+      : 'Quiz und Spiele laufen im Vollbild. Wer es verlässt, kann die aktuelle Frage nicht mehr beantworten.';
+  } else if(bar) bar.remove();
+  if(vb.gesperrt && c.aktiv){
+    var sel = c.art === 'quiz' ? '.qp-wrap [data-choice]' : '.lsp-s [data-ls]';
+    Array.prototype.forEach.call(document.querySelectorAll(sel), function(b){ b.disabled = true; });
+    var note = document.getElementById('qpNote');
+    if(c.art === 'quiz' && note && quizPlay.choice === null){ note.textContent = '🚫 Vollbild verlassen – diese Frage ist gesperrt.'; note.classList.add('qp-note-late'); }
+  }
+}
+document.addEventListener('click', function(e){
+  if(!vb.gesperrt || !e.target || !e.target.closest) return;
+  if(e.target.closest('.qp-wrap [data-choice], .lsp-s [data-ls]')){
+    e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+    toast('Vollbild verlassen – diese Frage ist gesperrt.');
+  }
+}, true);
+['fullscreenchange','webkitfullscreenchange'].forEach(function(ev){ document.addEventListener(ev, vbTick); });
+vb.timer = setInterval(vbTick, 300);
+
 function joinQuiz(){
   if(!quizIsRunning(quizLive.session)) return;
+  vbEinschalten();
   // Eigener Spieler-Eintrag mit 0 Punkten; die Punkte setzt danach nur noch
   // das Lehrer-Gerät (siehe firestore.rules). Beim erneuten Beitreten während
   // derselben Runde darf der Eintrag NICHT neu geschrieben werden - das würde
@@ -25142,6 +25280,8 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-11-04-direktspiel', datum:'2026-11-04', fuer:'lehrer', text:'🖱️ Doppelklick-Spiele: Eine Datei (.html) öffnet die Library. Du wählst Klasse/Gruppe, dann Quiz, Blitzumfrage, Schätzfragen oder Wortwolke, und es startet sofort – ohne etwas zu speichern.'},
+  {id:'2026-11-03-vollbild-quiz', datum:'2026-11-03', fuer:'alle', text:'⛶ Live-Quizze und Spiele laufen jetzt im Vollbild. Wer es während einer Frage verlässt, kann diese Frage nicht mehr beantworten – bei der nächsten ist man wieder dabei, sobald man im Vollbild ist.'},
   {id:'2026-11-03-bestellungen', datum:'2026-11-03', fuer:'lehrer', text:'🛒 Neu im 🏫 Klassenzimmer: «Bestellungen». Gemeinsame Nachbestell-Listen für Natur und Technik, Textiles Werken und Holz-/Metallwerken – wie das Blatt im Vorbereitungszimmer. Bei Natur und Technik lässt sich der Bachmann-Katalog nach Name oder Nummer durchsuchen und alles Offene mit einem Tipp in den Bachmann-Warenkorb legen. Offene Posten lassen sich kopieren oder als Mail schicken, Bestelltes mit 🔁 nochmals eintragen (nach 4 Wochen wandert es ins Archiv). Jeder Posten hat einen Lieferanten: Bachmann oder ein anderer (z. B. Apotheke); nur Bachmann-Posten gehen in Mail und Warenkorb. ⌘P druckt die Liste als Formular.'},
   {id:'2026-11-03-folien-alleszeigen', datum:'2026-11-03', fuer:'lehrer', text:'🎞️ Folien: «Alles zeigen »»» und «Abschnitt »»» funktionieren jetzt (Klick). Pfeil nach unten überspringt die Lösung, Pfeil rechts geht Klick für Klick weiter, Pfeil hoch deckt wieder alles zu. Gilt für neu hochgeladene Folien.'},
   {id:'2026-11-03-sva-rechtschreibung', datum:'2026-11-03', fuer:'alle', text:'✍️ Im SVA-Ordner (Mein SVA-Projekt, Dossier-Werkstatt) siehst du beim Schreiben wieder rot unterwellt, wenn ein Wort falsch geschrieben ist.'},
@@ -28149,6 +28289,7 @@ function lspSenden(d){
 
 function openLspS(){
   if(!lspLaeuft(lsp.session)) return;
+  vbEinschalten();
   lsp.autoFor = lsp.session.spielId;
   lsp.offen = true; lsp.sSig = null;
   lspPaintS();
