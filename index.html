@@ -3480,7 +3480,13 @@ function winterAn(){ var aus = false; try{ aus = localStorage.getItem('hl_winter
   .sv-brett.ziel{border-color:var(--tf);opacity:1;box-shadow:0 0 0 4px color-mix(in srgb,var(--tf) 25%,transparent);}
   .sv-titel{text-align:center;font-weight:700;font-size:clamp(12.5px,calc(1.2vw/var(--lz,1)),16px);margin-bottom:6px;}
   .sv-gitter{display:grid;gap:3px;align-items:center;}
-  .sv-kopf{text-align:center;font-weight:700;color:var(--text-muted);font-size:13px;min-width:18px;}
+  .sv-kopf{text-align:center;font-weight:800;color:#fff;font-size:clamp(15px,calc(2.4vh/var(--lz,1)),26px);min-width:24px;text-shadow:0 1px 3px rgba(0,0,0,.55);}
+  .sv-flotte{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin:0 0 8px;}
+  .sv-schiff{display:flex;gap:2px;padding:3px;border-radius:6px;background:rgba(255,255,255,.35);}
+  .sv-seg{width:clamp(14px,calc(2.2vh/var(--lz,1)),24px);height:clamp(14px,calc(2.2vh/var(--lz,1)),24px);border-radius:4px;background:#8ec9ea;border:2px solid #1c4a66;box-sizing:border-box;}
+  .sv-seg.hit{background:#F7B733;border-color:#a06a00;}
+  .sv-schiff.versenkt{background:rgba(230,57,80,.35);}
+  .sv-schiff.versenkt .sv-seg{background:#E63950;border-color:#7d1020;}
   .sv-feld{aspect-ratio:1;border:none;border-radius:6px;background:#8ec9ea;font-size:clamp(13px,calc(2.4vh/var(--lz,1)),26px);line-height:1;padding:0;display:flex;align-items:center;justify-content:center;color:#1c4a66;}
   .sv-brett.ziel .sv-feld:not(:disabled){cursor:crosshair;}
   .sv-brett.ziel .sv-feld:not(:disabled):hover{background:#5fb0dd;}
@@ -18419,7 +18425,7 @@ function exerciseHelperScript(rid, mitEnter){
   '})();<\/script>';
 }
 
-function injectExerciseHelpers(html, rid){
+function injectExerciseHelpers(html, rid, mitRechtschreibung){
   if(!html || !rid) return html;
   try{
     var out = html;
@@ -18448,7 +18454,8 @@ function injectExerciseHelpers(html, rid){
     var mitEnter = !/['"]Enter['"]|keyCode\s*===?\s*13|which\s*===?\s*13/.test(html);
     var script = exerciseHelperScript(rid, mitEnter);
     // Keine rote Rechtschreib-Wellenlinie in Übungsseiten (Diktate, Lückentexte …): Browser-Prüfung und Autokorrektur aus, auch bei später eingefügten Feldern.
-    script += '<script>(function(){function aus(r){var l=r.querySelectorAll?r.querySelectorAll("textarea,input,[contenteditable]"):[];for(var i=0;i<l.length;i++){var e=l[i];if(e.tagName==="INPUT"&&/^(checkbox|radio|button|submit|range|file|color)$/i.test(e.type||""))continue;e.setAttribute("spellcheck","false");e.setAttribute("autocorrect","off");e.setAttribute("autocapitalize","off");e.setAttribute("data-gramm","false");}}' +
+    // Ausnahme: im SVA-Ordner bleibt die Browser-Rechtschreibprüfung an, damit die Schüler:innen ihre Fehler beim Schreiben sehen.
+    if(!mitRechtschreibung) script += '<script>(function(){function aus(r){var l=r.querySelectorAll?r.querySelectorAll("textarea,input,[contenteditable]"):[];for(var i=0;i<l.length;i++){var e=l[i];if(e.tagName==="INPUT"&&/^(checkbox|radio|button|submit|range|file|color)$/i.test(e.type||""))continue;e.setAttribute("spellcheck","false");e.setAttribute("autocorrect","off");e.setAttribute("autocapitalize","off");e.setAttribute("data-gramm","false");}}' +
       'function los(){aus(document);new MutationObserver(function(m){for(var i=0;i<m.length;i++)for(var j=0;j<m[i].addedNodes.length;j++){var n=m[i].addedNodes[j];if(n.nodeType===1){if(/^(TEXTAREA|INPUT)$/.test(n.tagName)||n.isContentEditable)aus({querySelectorAll:function(){return[n];}});aus(n);}}}).observe(document.documentElement,{childList:true,subtree:true});}' +
       'if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",los);else los();})();<\/script>';
     var headRe = /<head(\s[^>]*)?>/i;
@@ -18595,7 +18602,7 @@ function renderResource(r){
       frame.addEventListener('load', function(){ try{ frame.contentWindow.focus(); }catch(e){} }, {once:true});
       frame.srcdoc = html.replace(/<head>/i, '<head><script>window.__libLehrer = '+(state.profile.role === 'teacher' ? 'true' : 'false')+';<\/script>');
     } else
-    frame.srcdoc = injectExerciseHelpers(html, r.id);
+    frame.srcdoc = injectExerciseHelpers(html, r.id, r.subject === 'sva');
   }).catch(function(err){
     console.error(err);
     var wrap = document.querySelector('.viewer-frame-wrap');
@@ -25042,6 +25049,9 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-11-03-folien-alleszeigen', datum:'2026-11-03', fuer:'lehrer', text:'🎞️ Folien: «Alles zeigen »»» und «Abschnitt »»» funktionieren jetzt (Klick). Pfeil nach unten überspringt die Lösung, Pfeil rechts geht Klick für Klick weiter, Pfeil hoch deckt wieder alles zu. Gilt für neu hochgeladene Folien.'},
+  {id:'2026-11-03-sva-rechtschreibung', datum:'2026-11-03', fuer:'alle', text:'✍️ Im SVA-Ordner (Mein SVA-Projekt, Dossier-Werkstatt) siehst du beim Schreiben wieder rot unterwellt, wenn ein Wort falsch geschrieben ist.'},
+  {id:'2026-11-03-schiffe-flotte', datum:'2026-11-03', fuer:'lehrer', text:'🚢 Schiffe versenken: Über jedem Meer steht jetzt die ganze Flotte (verschieden lange Schiffe) – getroffene Teile leuchten gelb, versenkte Schiffe rot. Rund um ein versenktes Schiff erscheint das Wasser sofort und ist nicht mehr anklickbar. Die Buchstaben A–F und Zahlen 1–6 sind gross und weiss.'},
   {id:'2026-11-02-stp-spaetabend', datum:'2026-11-02', fuer:'alle', text:'🗓️ Im Stundenplan erscheinen jetzt auch Termine nach 18:30 (z. B. Elterngespräche) – die Abendzeilen sind nur sichtbar, wenn in der Woche etwas darin steht.'},
   {id:'2026-11-02-energizer-lesbar', datum:'2026-11-02', fuer:'lehrer', text:'⚡ Energizer am Beamer wieder gut lesbar: Schritte, Tipp, Timer und Spielhelfer haben dunkle Schrift auf weissen Karten (vorher weiss auf weiss).'},
   {id:'2026-10-30-slf-spiel', datum:'2026-10-30', fuer:'lehrer', text:'🌍 Stadt Land Fluss ist jetzt ein eigenes Spiel (Klassenzimmer › Spiele) mit eigener Bühne und gehört nicht mehr zu den Beamer-Werkzeugen.'},
@@ -29403,8 +29413,8 @@ function tspSetup(art, titel, fragen){
     h += '<p class="pr-hinweis">Zwei Teams. Wer richtig antwortet, setzt einen Stein; bei einer falschen Antwort ist das andere Team dran.</p>';
   } else {
     h += teamWahl(1, 2, +o.svTeams === 1 ? 1 : 2);
-    h += '<label class="modal-label">Meer</label><select id="tspGr" class="modal-input"><option value="6">Klein: 6 × 6, vier Schiffe (kurz)</option><option value="8"'+(+o.svGr === 8 ? ' selected' : '')+'>Gross: 8 × 8, fünf Schiffe (lang)</option></select>';
-    h += '<p class="pr-hinweis">Der Computer versteckt die Flotten. Richtige Antwort = ein Schuss; ein Treffer gibt gleich noch einen Schuss. Zu zweit schiesst jedes Team auf die Flotte des anderen; allein hat die Klasse fünf Leben.</p>';
+    h += '<label class="modal-label">Meer</label><select id="tspGr" class="modal-input"><option value="6">Klein: 6 × 6, vier Schiffe (3, 3, 2, 2 Felder)</option><option value="8"'+(+o.svGr === 8 ? ' selected' : '')+'>Gross: 8 × 8, fünf Schiffe (4, 3, 3, 2, 2 Felder)</option></select>';
+    h += '<p class="pr-hinweis">Der Computer versteckt die Flotten – die Schiffe sind verschieden lang, oben über dem Meer siehst du, welche noch fehlen. Versenkte Schiffe sind rot, das Wasser rundherum erscheint von selbst. Richtige Antwort = ein Schuss; ein Treffer gibt gleich noch einen Schuss. Zu zweit schiesst jedes Team auf die Flotte des anderen; allein hat die Klasse fünf Leben.</p>';
   }
   h += '<div class="modal-actions"><button class="btn btn-ghost btn-sm" id="modalCancel" type="button">Abbrechen</button><button class="btn btn-primary btn-sm" id="tspGo" type="button">▶︎ '+(alt ? 'Neues Spiel' : 'Spiel starten')+'</button></div>';
   openModal(h, 'modal-wide');
@@ -29757,6 +29767,17 @@ function svKlick(sp, a, b){
     if(!schiff){ br.s[i] = 'w'; sp.phase = 'daneben'; sp.text = '💦 Wasser!'; playTone(196, 0.35, 'sine', 0.2); return; }
     br.s[i] = 't'; schiff.t++;
     var versenkt = schiff.t >= schiff.z.length;
+    if(versenkt){
+      // Felder rundherum können kein Schiff enthalten: sofort als Wasser markieren (nicht mehr anklickbar)
+      var gr0 = sv.gr;
+      schiff.z.forEach(function(z){
+        var zr = Math.floor(z / gr0), zc = z % gr0;
+        for(var dr = -1; dr <= 1; dr++) for(var dc = -1; dc <= 1; dc++){
+          var nr = zr + dr, nc = zc + dc;
+          if(nr >= 0 && nr < gr0 && nc >= 0 && nc < gr0 && !br.s[nr * gr0 + nc]) br.s[nr * gr0 + nc] = 'w';
+        }
+      });
+    }
     playTone(versenkt ? 110 : 150, versenkt ? 0.7 : 0.35, 'sawtooth', 0.16);
     if(br.schiffe.every(function(x){ return x.t >= x.z.length; })){ sp.phase = 'ende'; sp.sieg = true; sp.konfetti = true; playGong(); return; }
     sp.text = (versenkt ? '🔥 Versenkt!' : '💥 Treffer!') + ' Gleich nochmals schiessen.';
@@ -29767,12 +29788,22 @@ function svKlick(sp, a, b){
     tspFrageZiehen(sp); sp.phase = 'frage'; sp.text = '';
   }
 }
+function svFlotteHtml(br){
+  // Alle Schiffe der Flotte (längste zuerst): getroffene Teile gelb, versenkte Schiffe rot
+  var h = '<div class="sv-flotte">';
+  br.schiffe.slice().sort(function(a, b){ return b.z.length - a.z.length; }).forEach(function(x){
+    h += '<div class="sv-schiff'+(x.t >= x.z.length ? ' versenkt' : '')+'" title="Schiff mit '+x.z.length+' Feldern">';
+    for(var k = 0; k < x.z.length; k++) h += '<span class="sv-seg'+(k < x.t ? ' hit' : '')+'"></span>';
+    h += '</div>';
+  });
+  return h + '</div>';
+}
 function svBrettHtml(sp, bi){
   var sv = sp.sv, br = sv.bretter[bi], gr = sv.gr, ziel = sp.phase === 'schiessen' && bi === svZiel(sp), ende = sp.phase === 'ende';
   var inSchiff = {}, versenkt = {};
   br.schiffe.forEach(function(x){ x.z.forEach(function(z){ inSchiff[z] = 1; if(x.t >= x.z.length) versenkt[z] = 1; }); });
   var titel = sv.solo ? 'Die Flotte des Computers' : 'Flotte von Team '+TEAM_FARBEN[bi].name+' – hier schiesst Team '+TEAM_FARBEN[1 - bi].name;
-  var h = '<div class="sv-brett'+(ziel ? ' ziel' : '')+'" style="--tf:'+TEAM_FARBEN[sv.solo ? 1 : bi].farbe+';"><div class="sv-titel">'+esc(titel)+'</div><div class="sv-gitter" style="grid-template-columns:auto repeat('+gr+',1fr);">';
+  var h = '<div class="sv-brett'+(ziel ? ' ziel' : '')+'" style="--tf:'+TEAM_FARBEN[sv.solo ? 1 : bi].farbe+';"><div class="sv-titel">'+esc(titel)+'</div>'+svFlotteHtml(br)+'<div class="sv-gitter" style="grid-template-columns:auto repeat('+gr+',1fr);">';
   h += '<span></span>';
   for(var c = 0; c < gr; c++) h += '<span class="sv-kopf">'+'ABCDEFGH'[c]+'</span>';
   for(var r = 0; r < gr; r++){

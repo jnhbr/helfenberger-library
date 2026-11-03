@@ -166,6 +166,7 @@ function absatz(p, rels){
   return '<p style="' + st.join(';') + '">' + html + '</p>';
 }
 
+var SPRUNG = {};
 function formElement(sp, rels, medien, nr){
   var spPr = eins(sp, 'p:spPr'), xf = eins(spPr, 'a:xfrm');
   if(!xf) return '';
@@ -198,6 +199,10 @@ function formElement(sp, rels, medien, nr){
   var cnv = pfad(sp, ['p:nvSpPr', 'p:cNvPr']), hl = cnv && eins(cnv, 'a:hlinkClick');
   var link = hl && hl.a['r:id'] && rels[hl.a['r:id']] && rels[hl.a['r:id']].extern ? rels[hl.a['r:id']].ziel : null;
   if(link) inhalt += '<a class="fl-vollink" href="' + esc(link) + '" target="_blank" rel="noopener"></a>';
+  else {
+    var sr = hl && hl.a['r:id'] && rels[hl.a['r:id']], sz = sr && !sr.extern && /\/slide$/.test(sr.typ) ? SPRUNG[relPfad('ppt/slides/x', sr.ziel)] : null;
+    if(sz != null) inhalt += '<a class="fl-vollink fl-sprung" href="#" data-sprung="' + sz + '"' + (/Alles zeigen/.test(hl.a.tooltip || '') ? ' data-aktion="alles"' : /Von vorn/.test(hl.a.tooltip || '') ? ' data-aktion="zurueck"' : '') + '></a>';
+  }
   return '<div class="fl-el" style="' + st.join(';') + '">' + inhalt + '</div>';
 }
 
@@ -268,6 +273,11 @@ async function pptxZuHtml(bytes, opt){
   var B = sz ? parseInt(sz.a.cx, 10) / PX : 1280, H = sz ? parseInt(sz.a.cy, 10) / PX : 720;
   var folien = [], notizen = [];
   var ids = pfad(pres, ['p:presentation', 'p:sldIdLst']);
+  SPRUNG = {};
+  kind(ids || { c: [] }, 'p:sldId').forEach(function(s){
+    var rel = prels[s.a['r:id']];
+    if(rel && dateien[relPfad('ppt/presentation.xml', rel.ziel)]) SPRUNG[relPfad('ppt/presentation.xml', rel.ziel)] = Object.keys(SPRUNG).length;
+  });
   kind(ids || { c: [] }, 'p:sldId').forEach(function(s){
     var rel = prels[s.a['r:id']]; if(!rel) return;
     var sp = relPfad('ppt/presentation.xml', rel.ziel), dx = dateien[sp];
@@ -489,8 +499,10 @@ var DECK_JS = '(' + function(){
   function taste(e){
     if(e.metaKey || e.ctrlKey || e.altKey) return;
     var k = e.key;
-    if(k === 'ArrowRight' || k === 'PageDown' || k === ' ' || k === 'Enter' || k === 'ArrowDown'){ e.preventDefault(); zeige(i + 1); }
-    else if(k === 'ArrowLeft' || k === 'PageUp' || k === 'Backspace' || k === 'ArrowUp'){ e.preventDefault(); zeige(i - 1); }
+    if(k === 'ArrowDown'){ e.preventDefault(); var sp = fit.querySelector('[data-aktion="alles"]'); zeige(sp ? +sp.getAttribute('data-sprung') : i + 1); }
+    else if(k === 'ArrowRight' || k === 'PageDown' || k === ' ' || k === 'Enter'){ e.preventDefault(); zeige(i + 1); }
+    else if(k === 'ArrowUp'){ e.preventDefault(); var zu = fit.querySelector('[data-aktion="zurueck"]'); zeige(zu ? +zu.getAttribute('data-sprung') : i - 1); }
+    else if(k === 'ArrowLeft' || k === 'PageUp' || k === 'Backspace'){ e.preventDefault(); zeige(i - 1); }
     else if(k === 'Home'){ zeige(0); } else if(k === 'End'){ zeige(N - 1); }
     else if(k === 'f' || k === 'F'){ voll(); }
     else if(k === 'g' || k === 'G'){ uebersicht(); }
@@ -500,6 +512,7 @@ var DECK_JS = '(' + function(){
     else if(k === 'Escape' && schwarz){ blackout(); }
   }
   document.addEventListener('keydown', taste);
+  fit.addEventListener('click', function(e){ var a = e.target.closest && e.target.closest('[data-sprung]'); if(a){ e.preventDefault(); zeige(+a.getAttribute('data-sprung')); } });
   // Wischen
   var tx = null;
   fit.addEventListener('touchstart', function(e){ tx = e.touches[0].clientX; }, { passive: true });
