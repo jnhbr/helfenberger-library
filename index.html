@@ -1195,6 +1195,15 @@ function winterAn(){ var aus = false; try{ aus = localStorage.getItem('hl_winter
   .ls-suche{display:block;width:100%;max-width:520px;margin:0 0 10px;}
   .ls-reset{margin-top:10px;font-size:13.5px;}
   .ls-reset > summary{cursor:pointer;color:var(--text-muted);font-weight:700;}
+  #pdfDruckBox{display:none;}
+  @media print{
+    body.pdf-druck > *:not(#pdfDruckBox){display:none !important;}
+    body.pdf-druck{background:#fff !important;margin:0 !important;padding:0 !important;}
+    body.pdf-druck #pdfDruckBox{display:block !important;}
+    .pdf-druck-seite{display:block;width:100%;height:auto;break-after:page;break-inside:avoid;}
+    .pdf-druck-seite:last-child{break-after:auto;}
+    @page{margin:0;}
+  }
   @media print{ .ls-spezial,.ls-fach-tag,.ls-suche,#lsAufBtn{display:none !important;} .ls-ordner{break-inside:auto;} }
 
 
@@ -18719,7 +18728,7 @@ function renderPdfResource(r){
   html += '<div class="back-row"><button class="btn btn-ghost btn-sm" id="backBtn">&larr; '+esc(s ? s.name : 'Fach')+'</button></div>';
   html += '<div class="viewer-head"><h2>'+esc(r.title || r.fileName)+'</h2><span class="viewer-progress">📄 PDF</span>';
   html += '<a class="btn btn-ghost btn-sm" id="pdfTabBtn" target="_blank" rel="noopener" style="display:none;">↗ Neuer Tab</a>';
-  html += '<button class="btn btn-ghost btn-sm" id="pdfPrintBtn" type="button" style="display:none;" title="Das PDF in voller Seitengrösse drucken (Strg/Cmd+P im Viewer schneidet den Rand ab)">🖨️ Drucken</button>';
+  html += '<button class="btn btn-ghost btn-sm" id="pdfPrintBtn" type="button" style="display:none;" title="Das PDF in voller Seitengrösse drucken (Cmd+P geht ebenfalls)">🖨️ Drucken</button>';
   html += libFensterBtnHtml('fensterBtn');
   html += '<button class="btn btn-ghost btn-sm btn-fs" id="fsBtn" type="button">'+FS_ICON_ENTER+'</button>';
   html += '</div>';
@@ -18741,6 +18750,7 @@ function renderPdfResource(r){
     var pb = document.getElementById('pdfPrintBtn');
     if(pb){ pb.style.display = ''; pb.addEventListener('click', function(){ pdfDrucken(pdfViewerUrl); }); }
     pdfDruckTasteVerdrahten();
+    if(!pdfTouchGeraet()) pdfDruckVorbereiten(blob, r.id);
     // Fokus in den Viewer: dort druckt Strg/Cmd+P das PDF selbst
     if(frame) frame.addEventListener('load', function(){ try{ frame.contentWindow.focus(); }catch(err){} });
   }).catch(function(err){
@@ -18778,7 +18788,49 @@ function resourceDruckTasteVerdrahten(){
     try{ fr.contentWindow.focus(); fr.contentWindow.print(); }catch(err){ console.error(err); window.print(); }
   }, true);
 }
+// Druckfertige Seiten: alle PDF-Seiten als Bilder in einem Druckbereich (am Bildschirm unsichtbar). Egal woher
+// Cmd/Strg+P kommt (Library-Rand, PDF-Viewer, Menü), druckt beforeprint nur diesen Bereich: A4 randlos, nichts abgeschnitten.
+var PDF_DRUCK_MAX_SEITEN = 60;
+var pdfDruckBereit = null;   // Ressourcen-ID, deren Druckseiten fertig sind
+function pdfDruckBoxEntfernen(){
+  var b = document.getElementById('pdfDruckBox'); if(b) b.remove();
+  var st = document.getElementById('pdfDruckStil'); if(st) st.remove();
+  document.body.classList.remove('pdf-druck');
+  pdfDruckBereit = null;
+}
+function pdfDruckVorbereiten(blob, rid){
+  pdfDruckBoxEntfernen();
+  var box = document.createElement('div');
+  box.id = 'pdfDruckBox';
+  document.body.appendChild(box);
+  blob.arrayBuffer().then(function(buf){
+    return ladePdfJs().then(function(pdfjs){ return pdfjs.getDocument({data: new Uint8Array(buf)}).promise; });
+  }).then(function(pdf){
+    if(pdf.numPages > PDF_DRUCK_MAX_SEITEN) return;
+    var chain = Promise.resolve();
+    for(var i = 1; i <= pdf.numPages; i++){ (function(nr){
+      chain = chain.then(function(){ return pdf.getPage(nr); }).then(function(page){
+        if(!box.parentNode) return;
+        var vp1 = page.getViewport({scale:1}), vp = page.getViewport({scale: 2.5});
+        var c = document.createElement('canvas');
+        c.width = vp.width; c.height = vp.height; c.className = 'pdf-druck-seite';
+        if(nr === 1 && vp1.width > vp1.height){
+          var st = document.createElement('style'); st.id = 'pdfDruckStil';
+          st.textContent = '@media print{@page{size:A4 landscape;margin:0;}}'; document.head.appendChild(st);
+        }
+        return page.render({canvasContext: c.getContext('2d'), viewport: vp}).promise.then(function(){ box.appendChild(c); });
+      });
+    })(i); }
+    return chain.then(function(){ if(box.parentNode) pdfDruckBereit = rid; });
+  }).catch(function(err){ console.error(err); });
+}
+window.addEventListener('beforeprint', function(){
+  var zeigt = document.getElementById('pdfPrintBtn') && document.getElementById('pdfDruckBox') && pdfDruckBereit && pdfDruckBereit === currentViewerResourceId;
+  if(zeigt) document.body.classList.add('pdf-druck');
+});
+window.addEventListener('afterprint', function(){ document.body.classList.remove('pdf-druck'); });
 function pdfDrucken(url){
+  if(pdfDruckBereit && pdfDruckBereit === currentViewerResourceId && document.getElementById('pdfDruckBox')){ window.print(); return; }
   var f = document.createElement('iframe');
   f.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;';
   f.onload = function(){
@@ -25007,6 +25059,7 @@ const NEUIGKEITEN = [
   {id:'2026-10-28-mathe-werkzeuge-direkt', datum:'2026-10-28', fuer:'alle', text:'🧊 Mathe › Werkzeuge: «Geometrische Körper» und «Algebra-Kacheln» stehen jetzt direkt im Bereich «Werkzeuge», ohne Zwischenordner.'},
   {id:'2026-10-28-mathe-werkzeuge', datum:'2026-10-28', fuer:'alle', text:'🧰 Mathe: Ganz unten gibt es jetzt den Bereich «Werkzeuge» – dort stehen 🧊 3D-Körper & Algebra-Kacheln (Lehrpersonen zusätzlich die 📐 Figuren-Werkstatt).'},
   {id:'2026-10-28-pruefung-zeit-steht', datum:'2026-10-28', fuer:'lehrer', text:'⏱ Gesperrte Prüfung: Die Zeit der Person steht still, bis du sie entsperrst (bei leerem Akku oder Absturz ab dem letzten Lebenszeichen).'},
+  {id:'2026-11-03-pdf-druck', datum:'2026-11-03', fuer:'lehrer', text:'🖨️ PDFs drucken: Cmd+P druckt jetzt immer das PDF in voller Seite ohne abgeschnittenen Rand – egal wo du vorher geklickt hast.'},
   {id:'2026-10-28-neues-fenster', datum:'2026-10-28', fuer:'lehrer', text:'⧉ Neues Fenster: Der kleine Knopf oben links neben ← → öffnet die Library in einem zweiten Fenster.'},
   {id:'2026-10-27-bk-wieder-ausblenden', datum:'2026-10-27', fuer:'lehrer', text:'🙈 Briefkasten versehentlich eingeblendet? Mit «🙈 Ausblenden» auf der Karte ist er für die Schüler:innen wieder weg, samt Abgabe im Kalender – einblenden kannst du ihn jederzeit neu.'},
   {id:'2026-10-27-empfehlen-an', datum:'2026-10-27', fuer:'lehrer', text:'⭐ Material teilen geht neu per «Empfehlen an …»: Bei Übungen, Quizzen, Spiel-Sets, Karteikarten, Wortwolken und Blitzumfragen (🗃️ Unterrichtsmaterial) setzt du Häkchen bei den Lehrpersonen, die es bekommen sollen. Sie übernehmen es unter ⚙️ «Von Lehrern empfohlen». Neues Material wird nicht mehr automatisch in alle Seiten kopiert; schon vorhandene Kopien werden bei Änderungen weiter nachgeführt.'},
