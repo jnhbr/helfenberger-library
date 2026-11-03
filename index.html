@@ -2284,10 +2284,9 @@ function winterAn(){ var aus = false; try{ aus = localStorage.getItem('hl_winter
   .bst-summe{margin:0;padding:12px 16px;font-size:13.5px;color:var(--text-muted);border-top:1px solid var(--border);background:var(--bst-soft);}
   .bst-summe b{color:var(--bst);font-size:15px;}
   .bst-printkopf,.bst-leer,.bst-fuss{display:none;}
-  @page bestellung{size:A4 portrait;margin:1.5cm 1.5cm 2cm;@top-left{content:""}@top-center{content:""}@top-right{content:""}@bottom-left{content:""}@bottom-center{content:""}@bottom-right{content:""}}
   @media print{
     .bst-screen{display:none !important;}
-    .bst-wrap{page:bestellung;font-family:Calibri,Arial,sans-serif;color:#000;}
+    .bst-wrap{font-family:Calibri,Arial,sans-serif;color:#000;}
     .bst-wrap *{color:#000 !important;}
     .bst-printkopf{display:grid;grid-template-columns:30mm 1fr 30mm;align-items:center;border:1.5pt solid #000;margin-bottom:12mm;}
     .bst-pk-l,.bst-pk-r{padding:3mm;text-align:center;}
@@ -32691,6 +32690,12 @@ function bstMenge(r){ var m = String(r.anzahl || '').match(/\d+/); return m ? pa
 
 function renderBestellungen(){
   clearSubjectWatchers(); clearOverviewWatchers();
+  /* Seitenränder und leere Kopf-/Fusszeile des Browsers nur für diese Seite (ein @page im festen CSS würde jeden Ausdruck der Library betreffen). */
+  if(!document.getElementById('bstPageStyle')){
+    var ps = document.createElement('style'); ps.id = 'bstPageStyle';
+    ps.textContent = '@page{size:A4 portrait;margin:1.5cm 1.5cm 2cm;'+DRUCK_OHNE_KOPF+'}';
+    document.head.appendChild(ps);
+  }
   var html = '<div class="bst-wrap" data-b="'+bst.bereich+'">';
   html += '<div class="back-row"><button class="btn btn-ghost btn-sm" id="backBtn" type="button">&larr; Klassenzimmer</button>'
         + '<button class="btn btn-ghost btn-sm" id="bstDruck" type="button">🖨️ Drucken (⌘P)</button></div>';
@@ -32871,6 +32876,7 @@ function paintBestellungen(){
            + '<button class="btn btn-primary btn-sm" id="bstShop" type="button" title="Legt alle offenen Bachmann-Posten mit Katalognummer in den Bachmann-Warenkorb">🛒 Bei Bachmann bestellen</button>' : '')
      + (nA ? '<button class="btn btn-ghost btn-sm" id="bstKopA" type="button">📋 Andere kopieren ('+nA+')</button><button class="btn btn-ghost btn-sm" id="bstMailA" type="button">✉️ Andere-Mail</button>' : '')
      + (!nB && !nA ? '<span class="vg-hint" style="margin:0;">Keine offenen Posten.</span>' : '')
+     + '<button class="btn btn-ghost btn-sm" id="bstDruck2" type="button">🖨️ Drucken (⌘P)</button>'
      + '</div>';
   h += '<div class="bst-optionen"><label class="gr-opt"><input type="checkbox" id="bstNurOffen"'+(bst.nurOffen ? ' checked' : '')+'> Bestellte ausblenden (auch im Ausdruck)</label>'
      + '<label class="gr-opt"><input type="checkbox" id="bstArchiv"'+(bst.archiv ? ' checked' : '')+'> Archiv zeigen: bestellt vor über 4 Wochen ('+imArchiv+')</label></div></div>';
@@ -32941,6 +32947,8 @@ function paintBestellungen(){
   [['bstKop', function(){ kopieren('bachmann'); }], ['bstMail', function(){ mailen('bachmann'); }], ['bstKopA', function(){ kopieren('andere'); }], ['bstMailA', function(){ mailen('andere'); }]].forEach(function(x){
     var el = document.getElementById(x[0]); if(el) el.addEventListener('click', x[1]);
   });
+  document.getElementById('bstDruck2').addEventListener('click', function(){ window.print(); });
+  var blatt = document.getElementById('bstBlatt'); if(blatt) blatt.addEventListener('click', function(){ blatt.disabled = true; bstBlattUebernehmen(); });
   var shop = document.getElementById('bstShop'); if(shop) shop.addEventListener('click', function(){ bstZuBachmann(b); });
   Array.prototype.forEach.call(host.querySelectorAll('[data-neu]'), function(btn){
     btn.addEventListener('click', function(){
@@ -49545,6 +49553,7 @@ window.addEventListener('resize', function(){
 /* ===================== MAIN RENDER ===================== */
 
 function render(){
+  var bstPs = document.getElementById('bstPageStyle'); if(bstPs && !(state.route && state.route.name === 'bestellungen')) bstPs.remove();
   verlaufMerken();
   app.classList.remove('hat-chrome');   // renderChrome setzt sie wieder (neues Design: Platz für die Seitenleiste)
   clearOverviewWatchers();
