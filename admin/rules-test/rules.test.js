@@ -293,6 +293,8 @@ test('Bestellungen: Lehrpersonen tragen ein und ändern, Schüler:innen nicht', 
   await assertFails(setDoc(doc(db.lp(), 'bestellungen/b2'), best('jan')));
   await assertFails(setDoc(doc(db.lp(), 'bestellungen/b3'), best('lp', { bereich: 'xx' })));
   await assertFails(setDoc(doc(db.lp(), 'bestellungen/b4'), best('lp', { bez: '' })));
+  await assertSucceeds(setDoc(doc(db.lp(), 'bestellungen/b6'), best('lp', { lief: 'andere', liefName: 'Apotheke' })));
+  await assertFails(setDoc(doc(db.lp(), 'bestellungen/b7'), best('lp', { lief: 'xx' })));
   await assertFails(setDoc(doc(db.sus(), 'bestellungen/b5'), best('sus')));
   await assertSucceeds(getDoc(doc(db.jan(), 'bestellungen/b1')));
   await assertFails(getDoc(doc(db.sus(), 'bestellungen/b1')));
