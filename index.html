@@ -3882,7 +3882,7 @@ import {
   initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
   getFirestore, doc, getDoc, getDocFromServer, getDocFromCache, getDocs, getDocsFromServer, collection, query, where, onSnapshot, serverTimestamp, increment,
   setDoc as fsSetDoc, updateDoc as fsUpdateDoc, deleteDoc as fsDeleteDoc, writeBatch as fsWriteBatch, Bytes, deleteField, arrayUnion, arrayRemove,
-  connectFirestoreEmulator, waitForPendingWrites, disableNetwork, enableNetwork
+  connectFirestoreEmulator, waitForPendingWrites, disableNetwork, enableNetwork, runTransaction
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 
 /* =====================================================================
@@ -18407,8 +18407,73 @@ function summaryAmount(s){
 // Einziger Schreibweg nach progress/{uid}/resources/{rid}. Liest zuerst den
 // aktuellen Stand, erkennt einen Reset (Lernstand fällt auf 0) und sichert
 // ihn dann als history-Eintrag, bevor die neuen Felder geschrieben werden.
-async function writeProgressWithHistory(uid, rid, newFields){
+// Zusammenführen zweier Stände (Schlüssel → Text): was nur die Cloud hat, bleibt; die Lesereise wird pro Station zusammengeführt.
+// {json, remote}: remote = ob aus der Cloud etwas dazukam, das dieses Gerät nicht hatte. Eigene Schlüssel der Browser-Bibliothek (firestore_*) bleiben aussen vor.
+function standZusammen(lokJson, remJson){
+  var L = JSON.parse(lokJson), R = JSON.parse(remJson), remote = false;
+  Object.keys(R).forEach(function(k){
+    if(k.indexOf('firestore_') === 0) return;
+    if(!Object.prototype.hasOwnProperty.call(L, k)){ L[k] = R[k]; remote = true; return; }
+    if(k === LESEREISE_KEY){
+      var z = lesereiseZusammen(L[k], R[k]);
+      if(z){ L[k] = z.json; if(z.remote) remote = true; }
+    }
+  });
+  return {json: JSON.stringify(L), remote: remote};
+}
+
+// Lernstand-Historie: fällt der Lernstand auf 0 (Reset-Knopf), kommt der alte in history. Ergänzt payload.
+function historyDazu(before, merged, payload){
+  var oldSummary = learnedSummary(before);
+  var newSummary = learnedSummary(merged);
+  if(oldSummary && summaryAmount(oldSummary) > 0 && summaryAmount(newSummary) === 0){
+    var history = (before && Array.isArray(before.history)) ? before.history.slice() : [];
+    history.push({ archivedAt: new Date().toISOString(), summary: oldSummary });
+    if(history.length > PROGRESS_HISTORY_MAX) history = history.slice(history.length - PROGRESS_HISTORY_MAX);
+    payload.history = history;
+    merged.history = history;
+  }
+}
+
+// Stand schreiben, ohne Fremdes blind zu überschreiben (04.11.2026: ein Laptop mit altem Stand ersetzte die Stationen vom
+// Handy). In einer Transaktion wird der aktuelle Cloud-Stand gelesen; hat ein anderes Gerät seit unserem letzten Abgleich
+// (basisRev) geschrieben, wird zusammengeführt und der überschriebene Stand als «vorher» im selben Dokument aufgehoben.
+async function standTransaktion(ref_, newFields, basisRev){
+  return runTransaction(db, async function(tx){
+    var snap = await tx.get(ref_), before = snap.exists() ? snap.data() : null;
+    var f = Object.assign({}, newFields), zusammen = false;
+    if(before && before.storeJson && typeof before.storeRev === 'number' && before.storeRev > basisRev){
+      try{
+        var z = standZusammen(f.storeJson, before.storeJson);
+        if(z.remote){
+          f.storeJson = z.json; zusammen = true;
+          f.storeKeys = Array.from(new Set((f.storeKeys || []).concat((before.storeKeys || []).filter(function(k){ return k.indexOf('firestore_') !== 0; })))).sort();
+        }
+      }catch(e){ console.error('Stand zusammenführen', e); }
+      if(before.storeJson !== f.storeJson) f.vorher = {at: Date.now(), rev: before.storeRev, storeJson: before.storeJson};
+    }
+    var vor = f.vorher || (before && before.vorher);
+    if(vor && vor.storeJson && f.storeJson.length + vor.storeJson.length > 850000) f.vorher = deleteField();
+    var merged = Object.assign({}, before || {}, f), payload = Object.assign({}, f);
+    historyDazu(before, merged, payload);
+    tx.set(ref_, payload, {merge:true});
+    return {zusammen: zusammen, merged: merged};
+  });
+}
+
+// basisRev (nur Stand-Schreibvorgänge): letzte Revision, mit der dieses Gerät abgeglichen war → schreibt über standTransaktion.
+async function writeProgressWithHistory(uid, rid, newFields, basisRev){
   var ref_ = doc(db, 'progress', uid, 'resources', rid);
+  if(newFields.storeJson && typeof basisRev === 'number'){
+    try{
+      var res = await standTransaktion(ref_, newFields, basisRev);
+      progressBekannt[uid + '/' + rid] = {data: res.merged, at: Date.now()};
+      if(res.zusammen) setLocalRev(rid, 0);   // beim nächsten Öffnen den zusammengeführten Stand holen
+      return;
+    }catch(e){
+      console.warn('Transaktion nicht möglich (offline?), schreibe wie bisher', e);
+    }
+  }
   var before = null, bk = progressBekannt[uid + '/' + rid];
   if(bk && Date.now() - bk.at < PROGRESS_BEKANNT_MS) before = bk.data;
   else try{
@@ -18417,33 +18482,9 @@ async function writeProgressWithHistory(uid, rid, newFields){
   }catch(e){
     console.error('Lernstand konnte vor dem Schreiben nicht gelesen werden', e);
   }
-
-  // Lesereise: nie Stationen löschen, die ein anderes Gerät schon in der Cloud hat (siehe lesereiseZusammen).
-  if(newFields.storeJson && before && before.storeJson){
-    try{
-      var ns = JSON.parse(newFields.storeJson), bs = JSON.parse(before.storeJson);
-      if(ns[LESEREISE_KEY] && bs[LESEREISE_KEY]){
-        var z = lesereiseZusammen(ns[LESEREISE_KEY], bs[LESEREISE_KEY]);
-        if(z && z.remote){
-          ns[LESEREISE_KEY] = z.json;
-          newFields.storeJson = JSON.stringify(ns);
-          setLocalRev(rid, 0);   // beim nächsten Öffnen den zusammengeführten Stand holen
-        }
-      }
-    }catch(e){ console.error('Lesereise zusammenführen', e); }
-  }
   var merged = Object.assign({}, before||{}, newFields);
-  var oldSummary = learnedSummary(before);
-  var newSummary = learnedSummary(merged);
   var payload = Object.assign({}, newFields);
-
-  if(oldSummary && summaryAmount(oldSummary) > 0 && summaryAmount(newSummary) === 0){
-    var history = (before && Array.isArray(before.history)) ? before.history.slice() : [];
-    history.push({ archivedAt: new Date().toISOString(), summary: oldSummary });
-    if(history.length > PROGRESS_HISTORY_MAX) history = history.slice(history.length - PROGRESS_HISTORY_MAX);
-    payload.history = history;
-    merged.history = history;
-  }
+  historyDazu(before, merged, payload);
   progressBekannt[uid + '/' + rid] = {data:merged, at:(bk && before === bk.data) ? bk.at : Date.now()};
 
   return setDoc(ref_, payload, {merge:true}).catch(function(err){
@@ -18487,7 +18528,8 @@ function writeStore(rid){
   }
   // Revision optimistisch hochzählen: so gewinnt auch dann das zuletzt
   // benutzte Gerät, wenn der Schreibvorgang gerade offline scheitert.
-  var rev = Math.max(Date.now(), localRev(rid) + 1);
+  var basis = localRev(rid);
+  var rev = Math.max(Date.now(), basis + 1);
   setLocalRev(rid, rev);
   saveTrackedKeys(rid, syncState.tracked);
   syncState.lastWritten = payload.json;
@@ -18497,7 +18539,7 @@ function writeStore(rid){
     storeKeys: payload.keys,
     storeRev: rev,
     storeAt: serverTimestamp()
-  }).catch(function(err){
+  }, basis).catch(function(err){
     console.error('Stand konnte nicht gespeichert werden', err);
     syncState.lastWritten = null;   // beim nächsten Versuch erneut schreiben
     if(String(rid).indexOf('sva_') === 0) toast('⚠️ Speichern in der Library hat nicht geklappt – dein Text bleibt auf diesem Gerät. Es wird erneut versucht.', 'fehler');
@@ -19195,12 +19237,13 @@ function libFensterSpeichern(f){
     console.warn('Übungsstand zu gross für die Synchronisierung ('+json.length+' Zeichen) — bleibt nur auf diesem Gerät.');
     return;
   }
-  var rev = Math.max(Date.now(), localRev(f.rid) + 1);
+  var basis = localRev(f.rid);
+  var rev = Math.max(Date.now(), basis + 1);
   setLocalRev(f.rid, rev);
   saveTrackedKeys(f.rid, f.tracked);
   f.lastWritten = json;
   f.lastWriteAt = Date.now();
-  writeProgressWithHistory(state.user.uid, f.rid, {storeJson:json, storeKeys:keys, storeRev:rev, storeAt:serverTimestamp()})
+  writeProgressWithHistory(state.user.uid, f.rid, {storeJson:json, storeKeys:keys, storeRev:rev, storeAt:serverTimestamp()}, basis)
     .catch(function(err){ console.error('Stand (Fenster) konnte nicht gespeichert werden', err); f.lastWritten = null; });
 }
 function libFensterPlanen(f){
@@ -33005,12 +33048,13 @@ function bstKopieren(text, meldung){
 /* Legt die offenen Posten mit bekannter Katalognummer per Formular in den Bachmann-Warenkorb (Shopware: /checkout/line-item/add,
    ohne CSRF-Token; ein Formular-POST in einem neuen Tab genügt, kein fetch nötig). */
 function bstZuBachmann(b){
+  window.open('https://bachmann-lehrmittel.ch/account/login?redirectTo=frontend.checkout.cart.page', 'bachmannShop'); // sofort im Klick, sonst blockt der Browser das Fenster
   bstKatalogLaden(function(){
     var nachNr = {};
     bst.katalog.eintraege.forEach(function(e){ if(e.id) nachNr[e.nr.toLowerCase()] = e; });
     var offen = bst.rows.filter(function(r){ return r.bereich === b.id && !r.bestellt && bstLief(r) === 'bachmann'; });
     var f = document.createElement('form');
-    f.method = 'post'; f.action = 'https://bachmann-lehrmittel.ch/checkout/line-item/add'; f.target = '_blank'; f.style.display = 'none';
+    f.method = 'post'; f.action = 'https://bachmann-lehrmittel.ch/checkout/line-item/add'; f.target = 'bachmannShop'; f.style.display = 'none';
     var feld = function(n, v){ var i = document.createElement('input'); i.type = 'hidden'; i.name = n; i.value = v; f.appendChild(i); return i; };
     feld('redirectTo', 'frontend.checkout.cart.page');
     var drin = 0, fehlen = [], gesehen = {};
@@ -33025,8 +33069,19 @@ function bstZuBachmann(b){
       gesehen[e.id] = { q:feld(pre+'[quantity]', String(m)), m:m }; drin++;
     });
     if(!drin){ toast('Kein offener Posten hat eine Bachmann-Nummer aus dem Katalog.'); return; }
-    document.body.appendChild(f); f.submit(); document.body.removeChild(f);
-    toast(drin+' Artikel im Bachmann-Warenkorb.'+(fehlen.length ? ' Nicht dabei (keine Katalognummer): '+fehlen.join(', ') : ''));
+    /* Der Warenkorb geht beim Anmelden bei Bachmann verloren (neue Sitzung). Darum: zuerst die Anmeldung öffnen, erst danach die Artikel
+       in denselben, nun angemeldeten Tab legen. */
+    openModal(
+      '<h3>🛒 Bei Bachmann anmelden</h3>'+
+      '<p>1. Im neuen Tab bei Bachmann anmelden.<br>2. Hier auf «Artikel in den Warenkorb» klicken – dann liegen '+drin+' Artikel im Warenkorb, bereit zum Bestellen auf Rechnung.'+(fehlen.length ? '<br><small>Nicht dabei (keine Katalognummer): '+esc(fehlen.join(', '))+'</small>' : '')+'</p>'+
+      '<div class="modal-actions"><button class="btn btn-ghost btn-sm" id="modalCancel" type="button">Abbrechen</button>'+
+      '<button class="btn btn-primary btn-sm" id="modalOk" type="button">Artikel in den Warenkorb</button></div>'
+    );
+    document.getElementById('modalCancel').addEventListener('click', closeModal);
+    document.getElementById('modalOk').addEventListener('click', function(){
+      document.body.appendChild(f); f.submit(); document.body.removeChild(f); closeModal();
+      toast(drin+' Artikel im Bachmann-Warenkorb.');
+    });
   });
 }
 
