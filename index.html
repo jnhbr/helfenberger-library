@@ -6157,10 +6157,17 @@ var fremdeUebCache = {};
 function fremdeUebungen(klasse, subjectId){
   var key = klasse+'|'+subjectId, c = fremdeUebCache[key];
   if(c && Date.now() - c.t < 5*60*1000) return c.p;
-  var p = Promise.all([
-    getDocs(query(kcolFor(klasse, 'folders'), where('subject','==',subjectId))),
-    getDocs(query(kcolFor(klasse, 'resources'), where('subject','==',subjectId)))
-  ]).then(function(res){
+  function laden(){
+    return Promise.all([
+      getDocs(query(kcolFor(klasse, 'folders'), where('subject','==',subjectId))),
+      getDocs(query(kcolFor(klasse, 'resources'), where('subject','==',subjectId)))
+    ]);
+  }
+  // Direkt nach der Anmeldung ist das Token für Firestore manchmal noch nicht bereit: einmal mit frischem Token wiederholen.
+  var p = laden().catch(function(err){
+    if(!(err && err.code === 'permission-denied') || !auth.currentUser) throw err;
+    return auth.currentUser.getIdToken(true).then(laden);
+  }).then(function(res){
     var folders = {}, resources = [];
     res[0].forEach(function(d){ folders[d.id] = Object.assign({id:d.id}, d.data()); });
     res[1].forEach(function(d){ var r = Object.assign({id:d.id}, d.data()); if(fuerRolleSichtbar(r) && !r.imHub) resources.push(r); });
@@ -6802,7 +6809,7 @@ function earlybirdLadenDatum(datum){
 // aus der offenen Klasse / total). Schüler:innen sehen nur die kommenden Termine,
 // für die sie eingetragen sind – sonst gar keinen Earlybird.
 function earlybirdKalenderLaden(){
-  if(!state.user || istPraktikum()) return Promise.resolve([]);   // Praktikum/Zivi: Earlybird gesperrt (firestore.rules)
+  if(!state.user || istPraktikum() || istPraktikumKlasse(state.klasse)) return Promise.resolve([]);   // Praktikum/Zivi: Earlybird gesperrt (firestore.rules)
   var lehrer = state.profile.role === 'teacher';
   if(!lehrer){
     var kommend = earlybirdKommende();
@@ -12710,13 +12717,13 @@ function pwLaden(){
 }
 // Beim Anmelden: fertige Passwörter melden (nur die eigenen Anfragen).
 function pwHinweis(){
-  if(!state.profile || state.profile.role !== 'teacher' || isLeitung() || istPraktikum()) return;
+  if(!state.profile || state.profile.role !== 'teacher' || isLeitung() || istPraktikum() || istPraktikumKlasse(state.klasse)) return;
   pwLaden().then(function(list){
     var fertig = list.filter(function(a){ return a.status === 'erledigt' && a.vonUid === state.user.uid; });
     var offenJan = istJan() ? list.filter(function(a){ return a.status === 'offen'; }).length : 0;
     if(fertig.length) toast('🔑 Neues Passwort bereit für '+fertig.map(function(a){ return a.name; }).join(', ')+' – ⚙️ Einstellungen.');
     else if(offenJan) toast('🔑 '+offenJan+' offene Passwort-Anfrage'+(offenJan === 1 ? '' : 'n')+' – node admin/passwort-reset.js --ja');
-  }).catch(function(err){ console.error('Passwort-Anfragen', err); });
+  }).catch(function(err){ if(!(err && err.code === 'permission-denied')) console.error('Passwort-Anfragen', err); });
 }
 function openPasswortAnfragen(){
   openModal('<h3>🔑 Passwort zurücksetzen</h3>'+
@@ -18384,7 +18391,20 @@ async function prepareResourceSync(rid){
 function svaSyncBeobachten(rid){
   if(syncState.unsub){ try{ syncState.unsub(); }catch(e){} syncState.unsub = null; }
   if(!state.user || alsSchueler()) return;
-  syncState.unsub = onSnapshot(doc(db,'progress', state.user.uid, 'resources', rid), function(snap){
+  syncState.unsub = onSnapshot(doc(db,'progress', state.user.uid, 'resources', rid), function(snap){ svaSyncAnwenden(rid, snap); }, function(err){ console.error('Stand-Beobachtung', err); });
+}
+// Handy im Hintergrund / schlafende Verbindung: der Live-Kanal meldet Änderungen vom anderen Gerät dann oft
+// erst viel später. Darum beim Zurückkehren und alle 20 s zusätzlich direkt beim Server nachfragen.
+function svaSyncNachfragen(){
+  var rid = syncState.resourceId;
+  if(!rid || !state.user || alsSchueler() || document.visibilityState === 'hidden') return;
+  getDocFromServer(doc(db,'progress', state.user.uid, 'resources', rid)).then(function(snap){ svaSyncAnwenden(rid, snap); }).catch(function(){});
+}
+document.addEventListener('visibilitychange', function(){ if(document.visibilityState === 'visible') svaSyncNachfragen(); });
+window.addEventListener('focus', svaSyncNachfragen);
+setInterval(svaSyncNachfragen, 20000);
+function svaSyncAnwenden(rid, snap){
+  {
     if(syncState.resourceId !== rid || snap.metadata.hasPendingWrites) return;
     if(!snap.metadata.fromCache) syncState.remoteOk = true;   // auch «Dokument gibt es noch nicht» ist vom Server bestätigt
     if(!snap.exists()) return;
@@ -18408,7 +18428,7 @@ function svaSyncBeobachten(rid){
     syncState.baseline = lsSnapshot();
     toast('Neuerer Stand von deinem anderen Gerät geladen.');
     if(state.route && state.route.name === 'resource') render();
-  }, function(err){ console.error('Stand-Beobachtung', err); });
+  }
 }
 
 // Jeder Schlüssel, der sich seit dem Öffnen geändert hat oder neu ist, gehört
@@ -25493,6 +25513,7 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-11-04-sync-nachfragen', datum:'2026-11-04', fuer:'lehrer', text:'🔄 Übungsstand zwischen Handy und Computer: Ist die Übung auf beiden Geräten offen, holt sie den neueren Stand jetzt beim Zurückwechseln und alle 20 Sekunden selbst.'},
   {id:'2026-11-04-lp-wechsler', datum:'2026-11-04', fuer:'alle', text:'👩‍🏫 Im Fach steht neben dem Titel deine Lehrperson. Tippe darauf, dann kannst du die Übungen einer anderen Lehrperson ansehen und machen. Dein Fortschritt gilt bei gleichen Übungen überall. Nach dem Neuöffnen bist du wieder bei deiner Lehrperson.'},
   {id:'2026-11-04-lesereise-sync', datum:'2026-11-04', fuer:'alle', text:'Lesereise: Was du am Handy gelöst hast, geht auf dem Laptop nicht mehr verloren – die Stationen werden jetzt zusammengeführt.'},
   {id:'2026-11-04-direktspiel', datum:'2026-11-04', fuer:'lehrer', text:'🖱️ Doppelklick-Spiele: Eine Datei (.html) öffnet die Library. Du wählst Klasse/Gruppe, dann Quiz, Blitzumfrage, Schätzfragen oder Wortwolke, und es startet sofort – ohne etwas zu speichern.'},
