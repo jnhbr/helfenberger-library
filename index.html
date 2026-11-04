@@ -18219,12 +18219,31 @@ function lesereiseZusammen(lokStr, remStr){
     return {json: JSON.stringify(m), lokal: lokal, remote: remote};
   }catch(e){ return null; }
 }
-function applyRemoteStore(keys, store){
+// 1:1-Spiegelung: «Basis» = der Stand, mit dem dieses Gerät zuletzt mit der Cloud abgeglichen war. Ist lokal seit der Basis nichts
+// Echtes geändert, wird der Cloud-Stand immer übernommen – auch wenn die Übung beim blossen Öffnen ihren Zeitstempel (savedAt)
+// neu gesetzt hat. Sonst galt ein Gerät mit altem Stand als «neuer» und lud ihn hoch (Matilda/Alajdin, 04.11.2026).
+function ohneZeit(v){
+  try{ var o = JSON.parse(v); if(o && typeof o === 'object' && !Array.isArray(o) && 'savedAt' in o){ delete o.savedAt; return JSON.stringify(o); } }catch(e){}
+  return v;
+}
+function gleichStand(a, b){
+  if(a === b) return true;
+  if(a == null || b == null) return false;
+  try{
+    var A = JSON.parse(a), B = JSON.parse(b), ka = Object.keys(A), kb = Object.keys(B);
+    if(ka.length !== kb.length) return false;
+    return ka.every(function(k){ return Object.prototype.hasOwnProperty.call(B, k) && ohneZeit(A[k]) === ohneZeit(B[k]); });
+  }catch(e){ return false; }
+}
+function setBase(rid, json){ try{ if(json && json.length < 300000) lsSet(LIB_PREFIX+'base_'+rid, json); else lsDel(LIB_PREFIX+'base_'+rid); }catch(e){} }
+function getBase(rid){ try{ var r = lsGet(LIB_PREFIX+'base_'+rid); return r ? JSON.parse(r) : null; }catch(e){ return null; } }
+function applyRemoteStore(keys, store, base){
   var behalten = false;
   keys.forEach(function(k){
     if(k.indexOf(LIB_PREFIX) === 0) return;
     if(Object.prototype.hasOwnProperty.call(store, k)){
       var lok = lsGet(k);
+      if(base && lok !== null && lok !== store[k] && Object.prototype.hasOwnProperty.call(base, k) && ohneZeit(lok) === ohneZeit(base[k])){ lsSet(k, store[k]); return; }
       if(k === LESEREISE_KEY && lok !== null && lok !== store[k]){
         var z = lesereiseZusammen(lok, store[k]);
         if(z){ lsSet(k, z.json); if(z.lokal) behalten = true; return; }
@@ -18261,9 +18280,12 @@ async function prepareResourceSync(rid){
     if(data && data.storeJson && remoteRev > localRev(rid)){
       var store = {};
       try{ store = JSON.parse(data.storeJson) || {}; }catch(e){ store = {}; }
-      behalten = applyRemoteStore(keys, store);
+      behalten = applyRemoteStore(keys, store, getBase(rid));
       setLocalRev(rid, remoteRev);
       saveTrackedKeys(rid, syncState.tracked);
+      if(!behalten) setBase(rid, buildStorePayload().json);
+    }else if(data && data.storeJson && remoteRev === localRev(rid) && !getBase(rid)){
+      setBase(rid, buildStorePayload().json);
     }
     // Nichts neu hochladen, solange sich nichts geändert hat (früher wurde beim Öffnen immer geschrieben —
     // mit einem veralteten lokalen Stand überschrieb das den Stand vom anderen Gerät).
@@ -18295,7 +18317,7 @@ function svaSyncBeobachten(rid){
     if(!snap.metadata.fromCache) syncState.remoteOk = true;
     if(!data.storeJson || remoteRev <= localRev(rid)) return;
     checkLocalChanges(rid);
-    if(syncState.writeTimer || buildStorePayload().json !== syncState.lastWritten) return;   // hier ist Neueres ungespeichert → das gewinnt
+    if(syncState.writeTimer || !gleichStand(buildStorePayload().json, syncState.lastWritten)) return;   // hier ist Neueres ungespeichert → das gewinnt
     var store = {};
     try{ store = JSON.parse(data.storeJson) || {}; }catch(e){ return; }
     var keys = Array.isArray(data.storeKeys) ? data.storeKeys : [];
@@ -18303,10 +18325,11 @@ function svaSyncBeobachten(rid){
     // Übung zuerst aus der Seite nehmen: ihr pagehide würde sonst den alten Stand wieder in localStorage schreiben.
     var fr = document.getElementById('resourceFrame');
     if(fr && fr.parentNode) fr.parentNode.removeChild(fr);
-    var behalten = applyRemoteStore(keys, store);
+    var behalten = applyRemoteStore(keys, store, getBase(rid));
     setLocalRev(rid, remoteRev);
     saveTrackedKeys(rid, syncState.tracked);
     syncState.lastWritten = behalten ? null : buildStorePayload().json;
+    if(!behalten) setBase(rid, syncState.lastWritten);
     syncState.baseline = lsSnapshot();
     toast('Neuerer Stand von deinem anderen Gerät geladen.');
     if(state.route && state.route.name === 'resource') render();
@@ -18326,7 +18349,7 @@ function checkLocalChanges(rid){
     if(!(k in now) && !syncState.tracked[k] && !libFensterFremd(k, rid)){ syncState.tracked[k] = true; changed = true; }
   });
   var payload = buildStorePayload();
-  if(changed || payload.json !== syncState.lastWritten) scheduleStoreWrite(rid);
+  if(changed || !gleichStand(payload.json, syncState.lastWritten)) scheduleStoreWrite(rid);
 }
 
 function buildStorePayload(){
@@ -18520,7 +18543,7 @@ function serverStandBestaetigen(rid){
 function writeStore(rid){
   if(!state.user || syncState.resourceId !== rid) return;
   var payload = buildStorePayload();
-  if(!payload.keys.length || payload.json === syncState.lastWritten) return;
+  if(!payload.keys.length || gleichStand(payload.json, syncState.lastWritten)) return;
   if(!syncState.remoteOk){ serverStandBestaetigen(rid); return; }   // Server-Stand noch unbestätigt: erst beim Server nachfragen, nie still liegen lassen
   if(payload.json.length > SYNC_MAX_BYTES){
     console.warn('Übungsstand zu gross für die Synchronisierung ('+payload.json.length+' Zeichen) — bleibt nur auf diesem Gerät.');
@@ -18534,6 +18557,7 @@ function writeStore(rid){
   saveTrackedKeys(rid, syncState.tracked);
   syncState.lastWritten = payload.json;
   syncState.lastWriteAt = Date.now();
+  setBase(rid, payload.json);
   writeProgressWithHistory(state.user.uid, rid, {
     storeJson: payload.json,
     storeKeys: payload.keys,
