@@ -355,10 +355,10 @@ test('Schüler:innen und Schulleitung dürfen Übungen nicht löschen', async ()
 });
 
 // ---------- Klassen sauber getrennt ----------
-test('Schüler:in liest nur die eigene Klasse', async () => {
+test('Übungslisten sehen alle Angemeldeten (Lehrpersonen-Wechsler), Gäste nicht', async () => {
   await seed('klassen/G3b/resources/r1', { subject: 'mathe' });
   await assertSucceeds(getDoc(doc(db.sus(), 'klassen/G3b/resources/r1')));
-  await assertFails(getDoc(doc(db.susA(), 'klassen/G3b/resources/r1')));
+  await assertSucceeds(getDoc(doc(db.susA(), 'klassen/G3b/resources/r1')));
   await assertSucceeds(getDoc(doc(db.lp(), 'klassen/G3b/resources/r1')));
   await assertSucceeds(getDoc(doc(db.leitung(), 'klassen/G3b/resources/r1')));
   await assertFails(getDoc(doc(db.gast(), 'klassen/G3b/resources/r1')));

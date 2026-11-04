@@ -220,13 +220,13 @@ service cloud.firestore {
       // Die App führt klassen/{k}/appMeta/gruppenMitglieder = {uids:[...]}
       // bei jeder Gruppenänderung nach (gruppenMitgliederSync in index.html).
       match /resources/{resourceId} {
-        allow read: if inKlasseLesen(klasse) || inGruppeVon(klasse);
+        allow read: if inKlasseLesen(klasse) || inGruppeVon(klasse) || isSignedIn();  // Lehrpersonen-Wechsler: alle Angemeldeten sehen die Übungslisten jeder Seite
         allow create, update: if isTeacher();
         allow delete: if isTeacher();
       }
 
       match /folders/{folderId} {
-        allow read: if inKlasseLesen(klasse) || inGruppeVon(klasse);
+        allow read: if inKlasseLesen(klasse) || inGruppeVon(klasse) || isSignedIn();
         allow create, update: if isTeacher();
         allow delete: if isTeacher();
       }
