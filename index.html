@@ -25517,6 +25517,7 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-11-06-praep-bachmann', datum:'2026-11-06', fuer:'lehrer', text:'🛒 Präp-Planungen: Der Block «Bei Bachmann bestellen» hat einen Knopf, der alle noch offenen Posten direkt in 🏫 Klassenzimmer › Bestellungen einträgt.'},
   {id:'2026-11-06-diktat-mehr', datum:'2026-11-06', fuer:'lehrer', text:'✍️ Diktat-Korrektur: Zusammen-/Getrenntschreibung («vorsich») und mehrfach gleich geschriebene Wörter zählen nur einmal, Folgefehler nach falschem Satzende zählen nicht, ein vorangestellter Titel wird erkannt. Das PDF zeigt Fehlerarten und «schon im Diktat X so geschrieben», dazu gibt es eine _Klassenübersicht. Neu im Monitor: «🔀 Schreibweisen» für gleichwertige Schreibweisen.'},
   {id:'2026-11-06-diktat-korrektur', datum:'2026-11-06', fuer:'lehrer', text:'✍️ Diktat-Korrektur: Doppelte Leerschläge und fehlende Leerschläge nach Satzzeichen zählen nicht mehr als Fehler. Im Abgaben-PDF steht der geschriebene Text jetzt mit den Fehlern in Rot und dem Richtigen in [ ].'},
   {id:'2026-11-05-zivi-earlybird', datum:'2026-11-05', fuer:'lehrer', text:'🐦 Earlybird: Das Zivi-Konto sieht und bearbeitet den Earlybird jetzt wie eine Lehrperson (eintragen, Aufträge, abhaken, Liste drucken) – der Zivi ist dafür zuständig. Die übrige Auswertung bleibt für Praktikum/Zivi gesperrt.'},
@@ -33113,6 +33114,35 @@ function bstLoad(){
     snap.forEach(function(d){ var x = d.data(); x.id = d.id; bst.rows.push(x); });
   });
 }
+
+/* Eine Planung/Präp (eingebettete Seite) schickt ihre offenen Bachmann-Posten: {__bstImport:true, posten:[{bez, anzahl, nr, preis, bem}]}.
+   Sie landen in «Natur und Technik» (lief 'bachmann'); wer dieselbe Nummer schon offen auf der Liste hat, wird übersprungen. */
+window.addEventListener('message', function(e){
+  var d = e.data;
+  if(!d || !d.__bstImport || !state.user || !pruefIstLehrer() || !Array.isArray(d.posten) || !e.source) return;
+  var antwort = function(o){ try{ e.source.postMessage(Object.assign({__bstImportAntwort:true}, o), '*'); }catch(x){} };
+  bstLoad().then(function(){
+    var offenNr = {};
+    bst.rows.forEach(function(r){ if(r.bereich === 'nt' && !r.bestellt && r.nr) offenNr[String(r.nr).toLowerCase()] = true; });
+    var neu = [], schon = 0, t = Date.now();
+    d.posten.slice(0, 60).forEach(function(z, i){
+      var nr = String(z.nr || '').trim(), bez = String(z.bez || '').trim();
+      if(!bez) return;
+      if(nr && offenNr[nr.toLowerCase()]){ schon++; return; }
+      if(nr) offenNr[nr.toLowerCase()] = true;
+      var preis = typeof z.preis === 'number' && !isNaN(z.preis) ? z.preis : null;
+      neu.push({ bereich:'nt', bez:bez.slice(0, 160), anzahl:String(z.anzahl || '').slice(0, 40), nr:nr.slice(0, 40), preis:preis, bem:String(z.bem || '').slice(0, 300),
+        lief:'bachmann', liefName:'', datum:todayStr(), lehrer:rbuIch(), vonUid:state.user.uid, bestellt:false, bestelltAm:'', ord:t + i });
+    });
+    return Promise.all(neu.map(function(daten){
+      var ref = doc(collection(db, 'bestellungen'));
+      return setDoc(ref, daten).then(function(){ daten.id = ref.id; bst.rows.push(daten); });
+    })).then(function(){
+      toast(neu.length ? '🛒 '+neu.length+' Posten in die Bestellliste eingetragen'+(schon ? ' ('+schon+' standen schon drin).' : '.') : 'Alles stand schon in der Bestellliste.');
+      antwort({ok:true, neu:neu.length, schon:schon});
+    });
+  }).catch(function(err){ console.error(err); toast('Konnte nicht in die Bestellliste eingetragen werden.'); antwort({ok:false}); });
+});
 
 function bstKatalogLaden(fertig){
   if(bst.katalog){ fertig(); return; }
