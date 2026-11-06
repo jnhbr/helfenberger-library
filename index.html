@@ -296,6 +296,8 @@ function winterAn(){ var aus = false; try{ aus = localStorage.getItem('hl_winter
   /* Die Briefkästen sind ein eigener Block unter dem Material – mit deutlichem Abstand, nie an die letzte Übung geklebt. */
   .bk-unten:not(:empty){margin-top:28px;}
   #resourceList + .bk-liste:not(:empty), #gruppenFach:not(:empty) + .bk-liste:not(:empty){margin-top:28px;}
+  .indiv-hinweis{background:color-mix(in srgb,var(--ge, #feeb15) 28%,var(--surface));border:2px solid var(--ge, #feeb15);border-radius:var(--radius-sm);padding:14px 18px;margin:0 0 16px;box-shadow:var(--shadow);}
+  .indiv-hinweis-zeile{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-top:8px;}
   .resource-card.indiv-geloest{border-color:#2e9e5b;background:color-mix(in srgb,#2e9e5b 14%,var(--surface));}
   .chip-indiv{display:inline-block;font-size:.72rem;font-weight:700;color:#1f7a45;background:color-mix(in srgb,#2e9e5b 18%,transparent);border-radius:99px;padding:1px 8px;margin-left:4px;}
   .indiv-archiv{margin-top:10px;} .indiv-archiv summary{cursor:pointer;color:var(--text-muted);font-weight:600;margin-bottom:8px;} .indiv-archiv .resource-card{margin-bottom:8px;} .indiv-leer{margin:6px 2px;}
@@ -11729,6 +11731,7 @@ function renderHome(){
   if(istJan()) html += '<button class="btn btn-ghost btn-sm" id="fehlerKopierBtn" type="button" title="Alle gemeldeten Fehler kopieren" aria-label="Fehler kopieren">🐞</button>';
   html += '</div>';
   html += '<div id="aemtliBanner"></div>';
+  html += '<div id="indivHinweis"></div>';
   html += '<div id="stpJetzt"></div>';
   html += '<div id="homeworkWidget"></div>';
   html += '<div class="subject-grid" id="subjectGrid">';
@@ -11770,6 +11773,7 @@ function renderHome(){
   renderStpJetzt();
   renderHomeworkWidget();
   renderAemtliBanner();
+  renderIndivHinweis();
 
   // subscribe to all visible subjects' resource counts (light overview)
   watchSubjectsOverview(visibleSubjects.map(function(s){ return s.id; }));
@@ -11778,6 +11782,39 @@ function renderHome(){
 // Kleines "Die nächsten 7 Tage"-Widget auf der Startseite - zeigt alle
 // Eintragstypen (Hausaufgaben, Abgaben, Prüfungen, Erinnerungen); die volle
 // Übersicht gibt es über den Kalender-Knopf.
+/* 📌 Hinweiskarte «Neue Übung für dich» auf der Startseite (Schüler:innen): zeigt individuelle Übungen, die weder gelöst
+   noch schon geöffnet/als gesehen markiert sind. Gesehen: progress/{uid}/erledigt/liste ids['iug_'+resId] = Zeitpunkt. */
+function indivGesehenMarkieren(r){
+  if(!state.user) return Promise.resolve(false);
+  return erledigtLoad().then(function(){
+    if(erledigt.ids['iug_'+r.id]) return false;
+    erledigt.ids['iug_'+r.id] = Date.now();
+    return setDoc(erledigtRef(), { ids: erledigt.ids, updatedAt: serverTimestamp() }).then(function(){ return true; });
+  }).catch(function(err){ console.error(err); return false; });
+}
+function renderIndivHinweis(){
+  var host = document.getElementById('indivHinweis');
+  if(!host || !state.user || !state.profile || state.profile.role === 'teacher' || isLeitung()) return;
+  getDocs(query(kcol('resources'), where('indiv.uid', '==', state.user.uid))).then(function(snap){
+    return erledigtLoad().then(function(){
+      var neu = [];
+      snap.forEach(function(d){ var r = Object.assign({id: d.id}, d.data()); if(!erledigt.ids['iu_'+r.id] && !erledigt.ids['iug_'+r.id]) neu.push(r); });
+      host = document.getElementById('indivHinweis'); if(!host || !neu.length){ if(host) host.innerHTML = ''; return; }
+      host.innerHTML = '<div class="indiv-hinweis"><b>📌 Neue Übung für dich</b>'+neu.map(function(r){
+        var f = subjectById(r.subject);
+        return '<div class="indiv-hinweis-zeile"><span>'+esc(r.title || r.fileName)+' <span class="muted">· '+esc(f ? f.name : r.subject)+'</span></span>'+
+          '<span><button class="btn btn-primary btn-sm" type="button" data-iuopen="'+esc(r.id)+'">Jetzt starten</button> <button class="btn btn-ghost btn-sm" type="button" data-iugesehen="'+esc(r.id)+'" title="Hinweis ausblenden">Später</button></span></div>';
+      }).join('')+'</div>';
+      var byId = {}; neu.forEach(function(r){ byId[r.id] = r; });
+      Array.prototype.forEach.call(host.querySelectorAll('[data-iuopen]'), function(b){
+        b.addEventListener('click', function(){ var r = byId[b.getAttribute('data-iuopen')]; indivGesehenMarkieren(r); goResource(r); });
+      });
+      Array.prototype.forEach.call(host.querySelectorAll('[data-iugesehen]'), function(b){
+        b.addEventListener('click', function(){ indivGesehenMarkieren(byId[b.getAttribute('data-iugesehen')]).then(renderIndivHinweis); });
+      });
+    });
+  }).catch(function(err){ console.error('Hinweis neue Übung', err); });
+}
 function renderHomeworkWidget(){
   var host = document.getElementById('homeworkWidget');
   if(!host) return;
@@ -16816,6 +16853,7 @@ function indivKartenAufwerten(liste, isTeacher, neuZeichnen){
   liste.forEach(function(r){
     indivBekannt[r.id] = true;
     var card = document.getElementById('card-'+r.id); if(!card) return;
+    if(!isTeacher){ var ob = document.getElementById('open-'+r.id); if(ob) ob.addEventListener('click', function(){ indivGesehenMarkieren(r); }); }
     var h4 = card.querySelector('h4');
     var t = indivGeloestAm(r);
     if(isTeacher && h4) h4.insertAdjacentHTML('beforeend', ' <span class="chip-lehrer" title="Zugewiesen an">👤 '+esc(r.indiv.name || '')+'</span>');
@@ -25623,7 +25661,7 @@ function aemtliMeineTermine_(cfg, uid){
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
   {id:'2026-11-06-individuelle-uebung', datum:'2026-11-06', fuer:'lehrer', text:'📌 Individuelle Übung: Im 🏫 Klassenzimmer gibt es die Kachel «Individuelle Übungen» (Fach, Übung, Personen oder ganze Klasse/Gruppe wählen; Sammelzuweisung: viele Dateien «Vorname – Titel.html» auf einmal hochladen; dazu die Übersicht, wer gelöst hat). Auch bei jeder Übung unter «⋯» gibt es «👤 Individuell zuweisen». Die gewählten Personen sehen die Übung im Fach ganz unten unter «📌 Individuelle Übung». Gelöst = grün (wiederholen geht immer), nach 7 Tagen wandert sie ins 🗄️ Archiv.'},
-  {id:'2026-11-06-individuelle-uebung-sus', datum:'2026-11-06', fuer:'alle', text:'📌 Neu: Ganz unten im Fach kann «Individuelle Übung» stehen – extra für dich, damit du deine Fehler übst. Gelöst = grün, nach 7 Tagen im Archiv.'},
+  {id:'2026-11-06-individuelle-uebung-sus', datum:'2026-11-06', fuer:'alle', text:'📌 Neu: Ganz unten im Fach kann «Individuelle Übung» stehen – extra für dich, damit du deine Fehler übst. Auf der Startseite siehst du einen gelben Hinweis «Neue Übung für dich». Gelöst = grün, nach 7 Tagen im Archiv.'},
   {id:'2026-11-06-bestell-archiv', datum:'2026-11-06', fuer:'lehrer', text:'🗄️ Bestellungen: Was bestellt ist, wandert schon am Tag danach ins Archiv (vorher nach 4 Wochen).'},
   {id:'2026-11-06-praep-bachmann', datum:'2026-11-06', fuer:'lehrer', text:'🛒 Präp-Planungen: Der Block «Bei Bachmann bestellen» hat einen Knopf, der alle noch offenen Posten direkt in 🏫 Klassenzimmer › Bestellungen einträgt.'},
   {id:'2026-11-06-diktat-mehr', datum:'2026-11-06', fuer:'lehrer', text:'✍️ Diktat-Korrektur: Zusammen-/Getrenntschreibung («vorsich») und mehrfach gleich geschriebene Wörter zählen nur einmal, Folgefehler nach falschem Satzende zählen nicht, ein vorangestellter Titel wird erkannt. Das PDF zeigt Fehlerarten und «schon im Diktat X so geschrieben», dazu gibt es eine _Klassenübersicht. Neu im Monitor: «🔀 Schreibweisen» für gleichwertige Schreibweisen.'},
