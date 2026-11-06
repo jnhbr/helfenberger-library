@@ -38444,7 +38444,7 @@ function pruefBankBewerten(p, loes, antworten, korrektur, uid){
   var details = [];
   (p.fragen || []).forEach(function(q){
     var L = loes[q.id]; if(!L) return;
-    if(q.typ === 'diktat'){ details = details.concat(pruefDiktatDetails(q, L, antworten[q.id], korrektur, !!(uid && p.diktatKurz && p.diktatKurz[uid]))); return; }
+    if(q.typ === 'diktat'){ details = details.concat(pruefDiktatDetails(q, L, antworten[q.id], korrektur, !!(uid && p.diktatKurz && p.diktatKurz[uid]), [p.titel, p.resourceTitel])); return; }
     if(q.typ === 'luecke' || q.typ === 'hoeren'){ details.push(rswBewerten(q, L, antworten[q.id], korrektur)); return; }
     var v = antworten[q.id], max = +q.punkte > 0 ? +q.punkte : (L.punkte || 1), pkt = 0, a = '–', hinweis = '';
     if(q.typ === 'mc'){ if(v != null && q.optionen[v] != null) a = q.optionen[v]; pkt = v === L.loesung ? max : 0; }
@@ -38501,7 +38501,7 @@ function pruefDiktatTokens(t){
   }
   return out;
 }
-function pruefDiktatDetails(q, L, v, korrektur, kurz){
+function pruefDiktatDetails(q, L, v, korrektur, kurz, titel){
   var orig = (L.text || []).join(' '), ein = String(v || '');
   (L.alt || []).forEach(function(g){
     var vs = String(g).split('|'), kanon = vs.filter(function(x){ return orig.indexOf(x) >= 0; })[0] || vs[0];
@@ -38512,18 +38512,71 @@ function pruefDiktatDetails(q, L, v, korrektur, kurz){
     });
   });
   var A = pruefDiktatTokens(orig), B = pruefDiktatTokens(ein), n = A.length, m = B.length;
+  // Hat jemand den Titel der Prüfung/Übung vorne dazugeschrieben (oft ohne Enter, direkt vor dem Text),
+  // zählt das nicht als Fehler: führende Wörter, die zum Titel passen (auch nur dessen Ende, z. B.
+  // «Der Verräter» aus «Prüfung Der Verräter»), werden vorher abgetrennt und normal gezeigt.
+  var titelB = [], kl = function(x){ return x.k.toLowerCase(); }, kand = [];
+  (titel || []).forEach(function(t){
+    var W = pruefDiktatTokens(t).filter(function(x){ return !x.z; });
+    for(var st=0; st<W.length; st++) kand.push(W.slice(st));
+  });
+  kand.sort(function(x, y){ return y.length - x.length; });
+  for(var ci=0; ci<kand.length; ci++){
+    var cd = kand[ci], wk = function(arr){ return arr.length >= cd.length && cd.every(function(w, x){ return kl(arr[x]) === kl(w); }); };
+    if(wk(B) && !wk(A)){
+      var drop = cd.length;
+      while(drop < B.length && B[drop].z && !(A[0] && A[0].z && A[0].k === B[drop].k)) drop++;
+      titelB = B.splice(0, drop); m = B.length;
+      break;
+    }
+  }
   // LCS-Tabelle von hinten, dann vorwärts ablaufen
   var T = [];
   for(var i=0;i<=n;i++) T.push(new Uint16Array(m+1));
   for(i=n-1;i>=0;i--) for(var j=m-1;j>=0;j--) T[i][j] = A[i].k === B[j].k ? T[i+1][j+1] + 1 : Math.max(T[i+1][j], T[i][j+1]);
   var fehler = [], del = [], ins = [], letztA = -1, markB = {}, fehltB = {};
   // Innerhalb einer Lücke nur Wort mit Wort und Zeichen mit Zeichen paaren.
-  function paaren(dl, il, pos, jb){
-    var k = Math.min(dl.length, il.length);
-    for(var x=0;x<k;x++){
-      letztA = Math.max(letztA, dl[x]); fehler.push({id:q.id + '~' + dl[x], pos:dl[x], n:1, a:B[il[x]].roh, r:A[dl[x]].roh, art:'falsch'});
-      markB[il[x]] = {id:q.id + '~' + dl[x], r:A[dl[x]].roh};
+  // Zusammen-/Getrenntschreibung («vorsich» statt «vor sich», «zu sammen») ist nur 1 Fehler:
+  // 1–3 Wörter gegen 1–3 Wörter, die aneinandergehängt dasselbe ergeben.
+  function gruppe(dl, il, x, y){
+    // zuerst genau gleich, dann auch mit kleinem Tippfehler dazu («Narungs suche» statt «Nahrungssuche»: 1 Fehler)
+    var P = [[2,1],[1,2],[3,1],[1,3],[2,2]];
+    for(var fz=0; fz<2; fz++) for(var pi=0; pi<P.length; pi++){
+      if(fz && P[pi][0] === 2 && P[pi][1] === 2) continue;
+      var a = dl.slice(x, x + P[pi][0]), b = il.slice(y, y + P[pi][1]);
+      if(a.length < P[pi][0] || b.length < P[pi][1]) continue;
+      var sa = a.map(function(z){ return A[z].k; }).join('').toLowerCase(), sb = b.map(function(z){ return B[z].k; }).join('').toLowerCase();
+      if(fz ? lev(sa, sb) <= Math.max(1, Math.floor(Math.max(sa.length, sb.length) / 4)) : sa === sb) return {a:a, b:b};
     }
+    return null;
+  }
+  function lev(u, v){
+    var p = [], c, i2, j2;
+    for(j2=0;j2<=v.length;j2++) p.push(j2);
+    for(i2=1;i2<=u.length;i2++){
+      c = [i2];
+      for(j2=1;j2<=v.length;j2++) c.push(Math.min(p[j2] + 1, c[j2-1] + 1, p[j2-1] + (u.charAt(i2-1) === v.charAt(j2-1) ? 0 : 1)));
+      p = c;
+    }
+    return p[v.length];
+  }
+  function paaren(dl, il, pos, jb){
+    var x = 0, y = 0, wortG = dl.length && !A[dl[0]].z;
+    while(x < dl.length && y < il.length){
+      var g = wortG ? gruppe(dl, il, x, y) : null;
+      if(g){
+        var id = q.id + '~' + g.a[0], rt = g.a.map(function(z){ return A[z].roh; }).join(' ');
+        letztA = Math.max(letztA, g.a[g.a.length - 1]);
+        fehler.push({id:id, pos:g.a[0], n:1, a:g.b.map(function(z){ return B[z].roh; }).join(' '), r:rt, art:'falsch', wort:true});
+        g.b.forEach(function(z, zi){ markB[z] = {id:id, r:zi ? '' : rt}; });
+        x += g.a.length; y += g.b.length; continue;
+      }
+      letztA = Math.max(letztA, dl[x]); fehler.push({id:q.id + '~' + dl[x], pos:dl[x], n:1, a:B[il[y]].roh, r:A[dl[x]].roh, art:'falsch', wort:!A[dl[x]].z});
+      markB[il[y]] = {id:q.id + '~' + dl[x], r:A[dl[x]].roh};
+      x++; y++;
+    }
+    dl = dl.slice(x); il = il.slice(y);
+    var k = 0;
     if(dl.length > k){
       var rt = dl.slice(k).map(function(x){ return A[x].roh; }).join(' ');
       fehler.push({id:q.id + '~' + dl[k], pos:dl[k], n:dl.length - k, a:'–', r:rt, art:'fehlt'});
@@ -38555,17 +38608,20 @@ function pruefDiktatDetails(q, L, v, korrektur, kurz){
     n = letztA + 1;
   }
   fehler.sort(function(x, y){ return x.pos - y.pos; });
-  var zaehlt = 0;
+  var zaehlt = 0, gesehen = {};
   var rows = fehler.map(function(f){
-    var ok = !!korrektur[f.id];
+    // Derselbe falsch geschriebene Wortfehler (z. B. «Essel» statt «Esel») zählt nur beim ersten Mal.
+    var key = f.art === 'falsch' && f.wort ? f.r + '→' + f.a : null, dup = !!(key && gesehen[key]);
+    if(key) gesehen[key] = true;
+    var ok = dup || !!korrektur[f.id];
     if(!ok) zaehlt += f.n;
     var was = f.art === 'fehlt' ? (f.n > 1 ? 'fehlt (' + f.n + ' Wörter/Zeichen)' : 'fehlt') : f.art === 'zuviel' ? (f.n > 1 ? 'zu viel (' + f.n + ' Wörter/Zeichen)' : 'zu viel') : 'falsch';
-    return {id:f.id, nr:true, f:'«' + (f.art === 'zuviel' ? f.a : f.r) + '» — ' + was, kat:f.n > 1 ? f.n + ' Fehler' : '', a:f.a, r:f.r, ok:ok, pkt:0, max:0};
+    return {id:f.id, nr:true, dup:dup, f:'«' + (f.art === 'zuviel' ? f.a : f.r) + '» — ' + was + (dup ? ' (gleicher Fehler wie weiter oben)' : ''), kat:f.n > 1 ? f.n + ' Fehler' : '', a:f.a, r:f.r, ok:ok, pkt:0, max:0};
   });
   var max = n || 1, pkt = Math.max(0, max - zaehlt);
   var nw = A.slice(0, n).filter(function(x){ return !x.z; }).length, mw = B.filter(function(x){ return !x.z; }).length;
   // Geschriebener Text mit Korrektur: Fehler rot, das Richtige in [ ]; gestrichene Fehler (ok) normal.
-  var segs = [];
+  var segs = titelB.map(function(x){ return {t:x.roh, rot:false, sp:x.sp}; });
   for(var jj=0;jj<=m;jj++){
     (fehltB[jj] || []).forEach(function(e){
       if(kurz && e.pos > letztA) return;
@@ -38575,7 +38631,7 @@ function pruefDiktatDetails(q, L, v, korrektur, kurz){
     if(jj === m) break;
     var mk = markB[jj], bad = mk && !korrektur[mk.id];
     segs.push({t:B[jj].roh, rot:!!bad, strich:!!(bad && mk.r === null), sp:B[jj].sp});
-    if(bad && mk.r !== null) segs.push({t:'[' + mk.r + ']', rot:true, sp:!B[jj].z});
+    if(bad && mk.r) segs.push({t:'[' + mk.r + ']', rot:true, sp:!B[jj].z});
   }
   var info = {id:q.id, segs:segs, info:true, f:'Diktat: ' + zaehlt + ' Fehler · ' + mw + ' von ' + nw + ' Wörtern geschrieben' + (rest ? ' · kürzeres Diktat: Rest (' + rest + ' Wörter/Zeichen) nicht gewertet' : ''), a:'', ok:zaehlt === 0, pkt:pkt, max:max};
   return [info].concat(rows);
@@ -41397,7 +41453,7 @@ async function pruefPdf(blaetter, doppelseitig, bildMap){
       var az;
       if(b.diktat) az = d.a && d.a !== '–' && d.r && d.r !== '(nichts)' ? svaUmbruch('geschrieben: «' + d.a + '» · richtig: «' + d.r + '»', N, G, CW - EIN) : [];
       else az = svaUmbruch('Antwort: ' + (d.a || '–'), N, G, CW - EIN);
-      if(b.diktat && d.ok) az = az.concat(svaUmbruch('zählt nicht als Fehler', N, G, CW - EIN));
+      if(b.diktat && d.ok) az = az.concat(svaUmbruch(d.dup ? 'gleicher Fehler wie weiter oben – zählt nur einmal' : 'zählt nicht als Fehler', N, G, CW - EIN));
       var hz = d.hinweis && /^Folgefehler/.test(d.hinweis) ? svaUmbruch(d.hinweis, N, 9, CW - EIN) : [];
       var hoehe = (fz.length + az.length) * ZA + hz.length * 13;
       if(d.kontext){ var kz = svaUmbruch(d.kontext, N, G, CW - EIN); platz(Math.min(kz.length, 3) * ZA + ZA * 2); zeilen(kz, N, G, M + EIN, ZA); y += 3; }
