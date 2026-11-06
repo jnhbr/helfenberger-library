@@ -25517,6 +25517,7 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-11-06-bestell-archiv', datum:'2026-11-06', fuer:'lehrer', text:'🗄️ Bestellungen: Was bestellt ist, wandert schon am Tag danach ins Archiv (vorher nach 4 Wochen).'},
   {id:'2026-11-06-praep-bachmann', datum:'2026-11-06', fuer:'lehrer', text:'🛒 Präp-Planungen: Der Block «Bei Bachmann bestellen» hat einen Knopf, der alle noch offenen Posten direkt in 🏫 Klassenzimmer › Bestellungen einträgt.'},
   {id:'2026-11-06-diktat-mehr', datum:'2026-11-06', fuer:'lehrer', text:'✍️ Diktat-Korrektur: Zusammen-/Getrenntschreibung («vorsich») und mehrfach gleich geschriebene Wörter zählen nur einmal, Folgefehler nach falschem Satzende zählen nicht, ein vorangestellter Titel wird erkannt. Das PDF zeigt Fehlerarten und «schon im Diktat X so geschrieben», dazu gibt es eine _Klassenübersicht. Neu im Monitor: «🔀 Schreibweisen» für gleichwertige Schreibweisen.'},
   {id:'2026-11-06-diktat-korrektur', datum:'2026-11-06', fuer:'lehrer', text:'✍️ Diktat-Korrektur: Doppelte Leerschläge und fehlende Leerschläge nach Satzzeichen zählen nicht mehr als Fehler. Im Abgaben-PDF steht der geschriebene Text jetzt mit den Fehlern in Rot und dem Richtigen in [ ].'},
@@ -33066,7 +33067,7 @@ function kzToolStarten(id){
    (Natur und Technik, Textiles Werken, Holz-/Metallwerken). Eine Collection für alle drei:
    bestellungen/{id} -> {bereich:'nt'|'tw'|'hm', bez, anzahl (Text, z. B. «4–6»), nr, preis (CHF exkl. MwSt. pro Stück
    oder null), bem, lief ('bachmann'|'andere'), liefName (freier Lieferant bei 'andere'), datum (YYYY-MM-DD), lehrer, vonUid, bestellt, bestelltAm, ord}.
-   Archiv: bestellt vor über 4 Wochen, eigenes Fenster mit Suche. Katalogsuche (nur Natur und Technik): assets/bachmann-katalog.json = {stand, eintraege:[[nr, name, preis, pfad, produktId], …]}
+   Archiv: bestellt vor mindestens einem Tag, eigenes Fenster mit Suche. Katalogsuche (nur Natur und Technik): assets/bachmann-katalog.json = {stand, eintraege:[[nr, name, preis, pfad, produktId], …]}
    aus bachmann-lehrmittel.ch (Preise exkl. MwSt.). Ausdruck: Cmd+P, die Seite druckt sich selbst als Formular (@media print). */
 var BST_BEREICHE = [
   { id:'nt', icon:'🔬', name:'Natur und Technik', katalog:true },
@@ -33170,8 +33171,8 @@ function bstSuchen(q){
   return treffer.slice(0, 40).map(function(t){ return t.e; });
 }
 
-/* Bestellte Posten verschwinden nach 4 Wochen aus der Liste (Archiv), bleiben aber in der Datenbank. */
-function bstArchiviert(r){ return !!(r.bestellt && r.bestelltAm && r.bestelltAm < addDaysStr(-28)); }
+/* Bestellte Posten verschwinden einen Tag nach dem Bestellen aus der Liste (Archiv), bleiben aber in der Datenbank. */
+function bstArchiviert(r){ return !!(r.bestellt && r.bestelltAm && r.bestelltAm < todayStr()); }
 /* Lieferant: 'bachmann' (Katalog, Warenkorb, Bachmann-Mail) oder 'andere' (mit freiem Lieferanten-Namen). Alte Einträge ohne Feld:
    Natur und Technik mit Nummer = Bachmann, sonst anderer. */
 function bstLief(r){ return r.lief === 'bachmann' || r.lief === 'andere' ? r.lief : ((r.bereich === 'nt' && r.nr) ? 'bachmann' : 'andere'); }
@@ -33448,7 +33449,7 @@ function paintBestellungen(){
   });
 }
 
-/* 🗄️ Archiv: alle Bestellungen des Bereichs, die vor über 4 Wochen bestellt wurden – nach Bestelldatum, durchsuchbar. */
+/* 🗄️ Archiv: alle Bestellungen des Bereichs, die bestellt wurden und nicht mehr auf der Liste stehen (ab dem Tag nach dem Bestellen) – nach Bestelldatum, durchsuchbar. */
 function bstArchivOeffnen(b){
   var arch = bst.rows.filter(function(r){ return r.bereich === b.id && bstArchiviert(r); })
     .sort(function(x, y){ return String(y.bestelltAm).localeCompare(String(x.bestelltAm)) || (y.ord || 0) - (x.ord || 0); });
@@ -33465,7 +33466,7 @@ function bstArchivOeffnen(b){
       var h = bstNorm([r.bez, r.nr, r.lehrer, r.liefName, r.bem, r.anzahl, fmtDueDate(r.bestelltAm), fmtDueDate(r.datum)].join(' '));
       return teile.every(function(t){ return h.indexOf(t) >= 0; });
     });
-    zahl.textContent = arch.length ? treffer.length+' von '+arch.length+' Bestellungen' : 'Noch nichts im Archiv. Was vor über 4 Wochen bestellt wurde, erscheint hier.';
+    zahl.textContent = arch.length ? treffer.length+' von '+arch.length+' Bestellungen' : 'Noch nichts im Archiv. Was bestellt wurde, erscheint hier ab dem Tag danach.';
     var h = '', monat = '';
     treffer.forEach(function(r){
       var m = String(r.bestelltAm || '').slice(0, 7);
