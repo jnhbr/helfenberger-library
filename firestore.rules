@@ -163,6 +163,12 @@ function darfAuswerten() {
   return canReadAll() && !isPraktikum();
 }
 
+// Zivi (Konto praktikum-zivi): zuständig für den Earlybird, darf ihn lesen und
+// bearbeiten wie eine Lehrperson (seit 05.11.2026). Sonst gilt isPraktikum().
+function isZivi() {
+  return isTeacher() && request.auth.token.get('klasse', '') == 'praktikum-zivi';
+}
+
 // Schreiben in der Auswertung: Lehrpersonen ohne Praktikum/Zivi.
 function lehrerVoll() {
   return isTeacher() && !isPraktikum();
@@ -760,11 +766,11 @@ service cloud.firestore {
 
     // 🐦 Earlybird (Nachsitzen Mittwochmorgen, ganze Schule): earlybird/{datum}_{uid}
     // = {datum, uid, name, nachname, klasse, vonUid, vonName, anwesend, am}.
-    // Lehrpersonen tragen ein/aus und haken ab, Schüler:innen lesen nur den
+    // Lehrpersonen und der Zivi (zuständig) tragen ein/aus und haken ab, Schüler:innen lesen nur den
     // eigenen Eintrag (where('uid','==', eigene uid)).
     match /earlybird/{eid} {
-      allow read: if darfAuswerten() || (isSignedIn() && resource.data.uid == request.auth.uid);
-      allow create, update: if lehrerVoll()
+      allow read: if darfAuswerten() || isZivi() || (isSignedIn() && resource.data.uid == request.auth.uid);
+      allow create, update: if (lehrerVoll() || isZivi())
         && request.resource.data.datum is string && request.resource.data.datum.size() == 10
         && request.resource.data.uid is string
         && eid == request.resource.data.datum + '_' + request.resource.data.uid
@@ -772,7 +778,7 @@ service cloud.firestore {
         && request.resource.data.anwesend is bool
         && request.resource.data.keys().size() <= 12;
       // Separat: bei einem delete ist request.resource null.
-      allow delete: if lehrerVoll();
+      allow delete: if lehrerVoll() || isZivi();
     }
 
     // 🚪 Räume (seit 28.09.2026). raumBelegung/plan = feste Belegung aus Untis

@@ -27,6 +27,7 @@ const db = {
   susA: () => env.authenticatedContext('susA', { klasse: 'G3a', email: 'susa@helfenberger-library.app' }).firestore(),
   leitung: () => env.authenticatedContext('leitung', { leitung: true, klasse: 'G3b', email: 'schulleitung@helfenberger-library.app' }).firestore(),
   praktikum: () => env.authenticatedContext('prak', { teacher: true, klasse: 'praktikum-zivi', email: 'zivi@helfenberger-library.app' }).firestore(),
+  praktikant: () => env.authenticatedContext('prak1', { teacher: true, klasse: 'praktikum-1', email: 'praktikum1@helfenberger-library.app' }).firestore(),
   gast: () => env.unauthenticatedContext().firestore()
 };
 
@@ -227,8 +228,11 @@ test('Praktikum/Zivi: keine Auswertung (Lernstand, Serien, Prüfungsresultate, E
   await assertFails(getDoc(doc(p, 'klassen/G3b/svaPrivat/sus')));
   await assertFails(getDoc(doc(p, 'klassen/G3b/pruefungen/p1/teilnahmen/sus')));
   await assertFails(getDoc(doc(p, 'klassen/G3b/pruefungen/p1/intern/loesungen')));
-  await assertFails(getDoc(doc(p, 'earlybird/2026-10-21_sus')));
-  await assertFails(getDocs(collection(p, 'earlybird')));
+  await assertFails(getDoc(doc(db.praktikant(), 'earlybird/2026-10-21_sus')));
+  await assertFails(getDocs(collection(db.praktikant(), 'earlybird')));
+  // der Zivi ist für den Earlybird zuständig
+  await assertSucceeds(getDoc(doc(p, 'earlybird/2026-10-21_sus')));
+  await assertSucceeds(getDocs(query(collection(p, 'earlybird'), where('datum', '==', '2026-10-21'))));
   // Lehrpersonen und Schulleitung lesen das weiterhin
   await assertSucceeds(getDoc(doc(db.lp(), 'progress/sus/resources/r1')));
   await assertSucceeds(getDoc(doc(db.lp(), 'streaks/sus')));
@@ -253,7 +257,11 @@ test('Praktikum/Zivi: schreibt nichts in der Auswertung und setzt keine Passwör
   await assertFails(setDoc(doc(p, 'klassen/G3b/pruefungen/p1/intern/loesungen'), { l: [] }));
   await assertFails(setDoc(doc(p, 'progress/sus/pruefungsnoten/n1'), { note: 6, gewicht: 1 }));
   await assertFails(setDoc(doc(p, 'klassen/G3b/debts/sus'), { entries: [] }));
-  await assertFails(setDoc(doc(p, 'earlybird/2026-10-21_sus'), { datum: '2026-10-21', uid: 'sus', klasse: 'G3b', anwesend: false }));
+  await assertFails(setDoc(doc(db.praktikant(), 'earlybird/2026-10-21_sus'), { datum: '2026-10-21', uid: 'sus', klasse: 'G3b', anwesend: false }));
+  // Zivi: Earlybird eintragen, abhaken, austragen
+  await assertSucceeds(setDoc(doc(p, 'earlybird/2026-10-21_sus'), { datum: '2026-10-21', uid: 'sus', klasse: 'G3b', anwesend: false }));
+  await assertSucceeds(updateDoc(doc(p, 'earlybird/2026-10-21_sus'), { anwesend: true }));
+  await assertSucceeds(deleteDoc(doc(p, 'earlybird/2026-10-21_sus')));
   await assertFails(deleteDoc(doc(p, 'streaks/sus')));
   await assertFails(setDoc(doc(p, 'passwortAnfragen/a1'), { uid: 'sus', vonUid: 'prak', status: 'offen' }));
   // Lehrpersonen dürfen das weiterhin

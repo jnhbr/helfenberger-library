@@ -4317,6 +4317,10 @@ function istPraktikumKlasse(k){ return String(k || '').indexOf('praktikum') === 
 // und lehrerVoll()). Gesperrt sind Lernstand und Klassenübersichten, Online-Prüfungen,
 // Earlybird, Vergessen-Zähler, Schulden und das Zurücksetzen von Passwörtern.
 function istPraktikum(){ return !!(state.profile && state.profile.role === 'teacher' && !state.profile.alsAnsicht && istPraktikumKlasse(state.profile.klasse)); }
+// Der Zivi ist für den Earlybird zuständig: sieht und bearbeitet ihn wie eine Lehrperson
+// (firestore.rules: isZivi()), die übrige Auswertung bleibt gesperrt.
+function istZivi(){ return istPraktikum() && state.profile.klasse === 'praktikum-zivi'; }
+function praktikumGesperrt(route){ return istPraktikum() && PRAKTIKUM_GESPERRT.indexOf(route) >= 0 && !(route === 'earlybird' && istZivi()); }
 function darfAuswertenApp(){ return !!(state.profile && state.profile.role === 'teacher' && !istPraktikum()); }
 var PRAKTIKUM_GESPERRT = ['lernstand', 'werkstatt', 'lesereise', 'diktatauswertung', 'earlybird', 'vergessen', 'pruefungen', 'pruefung'];
 var PRAKTIKUM_KZ_AUS = ['vergessen', 'pruefung'];
@@ -4324,7 +4328,7 @@ function renderPraktikumGesperrt(){
   clearSubjectWatchers(); clearOverviewWatchers();
   var html = '<div class="back-row"><button class="btn btn-ghost btn-sm" id="backBtn" type="button">&larr; Startseite</button></div>';
   html += '<h2 class="page-welcome" style="margin-bottom:6px;">🔒 Nicht verfügbar</h2>';
-  html += '<div class="empty-state">Dieser Bereich ist für Praktikums- und Zivi-Konten gesperrt. Lernstand, Prüfungen, Earlybird und der Vergessen-Zähler sind den Lehrpersonen vorbehalten.</div>';
+  html += '<div class="empty-state">Dieser Bereich ist für Praktikums- und Zivi-Konten gesperrt. Lernstand, Prüfungen, Earlybird (ausser für den Zivi) und der Vergessen-Zähler sind den Lehrpersonen vorbehalten.</div>';
   renderChrome(html);
   document.getElementById('backBtn').addEventListener('click', function(){ goHome(); });
 }
@@ -6809,7 +6813,7 @@ function earlybirdLadenDatum(datum){
 // aus der offenen Klasse / total). Schüler:innen sehen nur die kommenden Termine,
 // für die sie eingetragen sind – sonst gar keinen Earlybird.
 function earlybirdKalenderLaden(){
-  if(!state.user || istPraktikum() || istPraktikumKlasse(state.klasse)) return Promise.resolve([]);   // Praktikum/Zivi: Earlybird gesperrt (firestore.rules)
+  if(!state.user || ((istPraktikum() || istPraktikumKlasse(state.klasse)) && !istZivi())) return Promise.resolve([]);   // Praktikum: Earlybird gesperrt, Zivi nicht (firestore.rules)
   var lehrer = state.profile.role === 'teacher';
   if(!lehrer){
     var kommend = earlybirdKommende();
@@ -11367,7 +11371,7 @@ function renderChrome(innerHtml){
   if(!isTeacher){ html += '<button class="btn btn-ghost btn-sm topbar-bell" id="streakBtn" type="button">'+NEU_ICON.flamme+' <b>0</b></button>'; }
   if(!isTeacher){ html += '<button class="btn btn-ghost btn-sm topbar-bell topbar-besen" id="aemtliBtn" type="button" title="Ämtli">'+NEU_ICON.aemtli+'</button>'; }
   if(!isTeacher){ html += '<button class="btn btn-ghost btn-sm topbar-bell" id="notenBtn" type="button" title="Notenrechner">'+NEU_ICON.noten+'</button>'; }
-  if(isTeacher && !istPraktikum()){ html += '<button class="btn btn-ghost btn-sm topbar-bell" id="earlybirdBtn" type="button" title="Earlybird">'+NEU_ICON.earlybird+'</button>'; }
+  if(isTeacher && (!istPraktikum() || istZivi())){ html += '<button class="btn btn-ghost btn-sm topbar-bell" id="earlybirdBtn" type="button" title="Earlybird">'+NEU_ICON.earlybird+'</button>'; }
   html += '<button class="btn btn-ghost btn-sm topbar-bell" id="neuBtn" type="button" title="Neuigkeiten">'+NEU_ICON.neuigkeiten+'</button>';
   html += '<button class="btn btn-ghost btn-sm topbar-bell" id="fragenBtn" type="button" title="Anonyme Fragebox">'+NEU_ICON.fragebox+'<span class="topbar-badge" id="fragenBadge" hidden>0</span></button>';
   html += '<button class="btn btn-ghost btn-sm topbar-bell" id="searchBtn" type="button" title="Suche">'+NEU_ICON.suche+'</button>';
@@ -25513,6 +25517,8 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-11-06-diktat-korrektur', datum:'2026-11-06', fuer:'lehrer', text:'✍️ Diktat-Korrektur: Doppelte Leerschläge und fehlende Leerschläge nach Satzzeichen zählen nicht mehr als Fehler. Im Abgaben-PDF steht der geschriebene Text jetzt mit den Fehlern in Rot und dem Richtigen in [ ].'},
+  {id:'2026-11-05-zivi-earlybird', datum:'2026-11-05', fuer:'lehrer', text:'🐦 Earlybird: Das Zivi-Konto sieht und bearbeitet den Earlybird jetzt wie eine Lehrperson (eintragen, Aufträge, abhaken, Liste drucken) – der Zivi ist dafür zuständig. Die übrige Auswertung bleibt für Praktikum/Zivi gesperrt.'},
   {id:'2026-11-04-sync-nachfragen', datum:'2026-11-04', fuer:'lehrer', text:'🔄 Übungsstand zwischen Handy und Computer: Ist die Übung auf beiden Geräten offen, holt sie den neueren Stand jetzt beim Zurückwechseln und alle 20 Sekunden selbst.'},
   {id:'2026-11-04-lp-wechsler', datum:'2026-11-04', fuer:'alle', text:'👩‍🏫 Im Fach steht neben dem Titel deine Lehrperson. Tippe darauf, dann kannst du die Übungen einer anderen Lehrperson ansehen und machen. Dein Fortschritt gilt bei gleichen Übungen überall. Nach dem Neuöffnen bist du wieder bei deiner Lehrperson.'},
   {id:'2026-11-04-lesereise-sync', datum:'2026-11-04', fuer:'alle', text:'Lesereise: Was du am Handy gelöst hast, geht auf dem Laptop nicht mehr verloren – die Stationen werden jetzt zusammengeführt.'},
@@ -25520,6 +25526,7 @@ const NEUIGKEITEN = [
   {id:'2026-11-03-vollbild-quiz', datum:'2026-11-03', fuer:'alle', text:'⛶ Live-Quizze und Spiele laufen jetzt im Vollbild. Wer es während einer Frage verlässt, kann diese Frage nicht mehr beantworten – bei der nächsten ist man wieder dabei, sobald man im Vollbild ist.'},
   {id:'2026-11-03-bestellungen', datum:'2026-11-03', fuer:'lehrer', text:'🛒 Neu im 🏫 Klassenzimmer: «Bestellungen». Gemeinsame Nachbestell-Listen für Natur und Technik, Textiles Werken und Holz-/Metallwerken – wie das Blatt im Vorbereitungszimmer. Bei Natur und Technik lässt sich der Bachmann-Katalog nach Name oder Nummer durchsuchen und alles Offene mit einem Tipp in den Bachmann-Warenkorb legen. Offene Posten lassen sich kopieren oder als Mail schicken, Bestelltes mit 🔁 nochmals eintragen (nach 4 Wochen wandert es ins Archiv). Jeder Posten hat einen Lieferanten: Bachmann oder ein anderer (z. B. Apotheke); nur Bachmann-Posten gehen in Mail und Warenkorb. ⌘P druckt die Liste als Formular.'},
   {id:'2026-11-03-folien-alleszeigen', datum:'2026-11-03', fuer:'lehrer', text:'🎞️ Folien: «Alles zeigen »»» und «Abschnitt »»» funktionieren jetzt (Klick). Pfeil nach unten überspringt die Lösung, Pfeil rechts geht Klick für Klick weiter, Pfeil hoch deckt wieder alles zu. Gilt für neu hochgeladene Folien.'},
+  {id:'2026-11-04-sva-protokoll-windows', datum:'2026-11-04', fuer:'alle', text:'📋 Arbeitsjournal: Der kopierte Protokoll-Text sieht in Word jetzt auch unter Windows gleich aus (Calibri, Zeilenabstand 1,5). Dazu gibt es die Knöpfe «nur oben» und «nur unten» für die beiden Zellen.'},
   {id:'2026-11-03-sva-rechtschreibung', datum:'2026-11-03', fuer:'alle', text:'✍️ Im SVA-Ordner (Mein SVA-Projekt, Dossier-Werkstatt) siehst du beim Schreiben wieder rot unterwellt, wenn ein Wort falsch geschrieben ist.'},
   {id:'2026-11-03-schiffe-flotte', datum:'2026-11-03', fuer:'lehrer', text:'🚢 Schiffe versenken: Über jedem Meer steht jetzt die ganze Flotte (verschieden lange Schiffe) – getroffene Teile leuchten gelb, versenkte Schiffe rot. Rund um ein versenktes Schiff erscheint das Wasser sofort und ist nicht mehr anklickbar. Die Buchstaben A–F und Zahlen 1–6 sind gross und weiss.'},
   {id:'2026-11-02-stp-spaetabend', datum:'2026-11-02', fuer:'alle', text:'🗓️ Im Stundenplan erscheinen jetzt auch Termine nach 18:30 (z. B. Elterngespräche) – die Abendzeilen sind nur sichtbar, wenn in der Woche etwas darin steht.'},
@@ -25729,6 +25736,7 @@ const NEUIGKEITEN = [
   {id:'2026-09-27-gruppen-stundenplan', datum:'2026-09-27', fuer:'lehrer', text:'👥 Alle Gruppen der Schule sind jetzt aus der Gruppen-Excel und dem Stundenplan (1. Semester) eingerichtet – Niveaugruppen, Halbklassen, Wahlfächer und Fächer, die eine ganze Klasse bei dir hat. Deine Schüler:innen sehen im Fach deine Übungen; die Übungen der Klassenseite blenden sich in diesem Fach aus. Neu gibt es die Gruppenfächer NT und RZG (mehrere Fächer zusammen). Unter 👥 Meine Gruppen kannst du alles anpassen.'},
   {id:'2026-09-27-uebersicht-klassenwahl', datum:'2026-09-27', fuer:'lehrer', text:'📊 Klassenübersichten (Karteikarten, Trainer, SIKORE, Tipptrainer, Voci) und 📈 Lernstand zeigen zuerst nur deine Klasse. Oben bei «Klasse» kannst du eine andere Klasse wählen oder «🌍 Alle Klassen» – dann kommen alle aus anderen Klassen dazu, die das schon geübt haben (im Lernstand eine Klasse aufs Mal).'},
   {id:'2026-09-27-uebung-ordnermenu', datum:'2026-09-27', fuer:'lehrer', text:'📁 «➕ Neue Prüfung»: Die Übung wählst du jetzt in einem Ordner-Menü statt in einer langen Liste – Fach › Ordner › Übung, die Ordner gehen beim Darüberfahren auf (Tippen geht auch).'},
+  {id:'2026-11-05-pruefung-differenzieren', datum:'2026-11-05', fuer:'lehrer', text:'🎯 Prüfungen differenzieren: Im Monitor jeder Bildtrainer-Prüfung (und der Pöstlergeografie) gibt es «🎯 Differenzieren». Du wählst pro Person eine eigene Antwortart, z. B. 🟢 Auswahl (leicht) für eine Schülerin, während die Klasse eintippt. Alle haben dieselben Fragen; die Stufe gilt, sobald die Person startet, und steht im Monitor hinter dem Namen.'},
   {id:'2026-09-27-pruefung-verraet-nichts', datum:'2026-09-27', fuer:'lehrer', text:'🕵️ Prüfungen: Keine Aufgabe verrät mehr die Antwort einer anderen (z. B. «Welcher Kanton ist markiert?» und «Hauptort von Aargau?» mit demselben Kanton). Beim Zusammenstellen wird so eine Aufgabe weggelassen; im 🧩 Baukasten steht eine ⚠️-Warnung. Pöstlergeografie und Bildtrainer brauchen dafür die neue Fassung der Übung.'},
   {id:'2026-09-27-pruefung-zusatzmaterial', datum:'2026-09-27', fuer:'alle', text:'📝 Prüfungen im Fach-Ordner stehen jetzt unten beim Zusatzmaterial – ab zwei Stück in einem eigenen Ordner «📝 Prüfungen».'},
   {id:'2026-09-27-pruefung-ganze-klasse', datum:'2026-09-27', fuer:'lehrer', text:'📝 Prüfung für «Ganze Klasse»: In der Übersicht erscheinen nur noch die Schüler:innen dieser Klasse – keine Gruppen-Mitglieder aus anderen Klassen mehr (die sind nur dabei, wenn du unter «Für» die 👥 Gruppe wählst).'},
@@ -36913,6 +36921,13 @@ function pruefZuschlag(p, uid){
   var z = +p.zuschlag[uid == null ? (state.user && state.user.uid) : uid];
   return z > 0 ? Math.min(200, z) : 0;
 }
+// 🎯 Differenzieren (Bildtrainer, Pöstlergeografie): p.differenz = {uid: Wert der Option «Antwortart» (diff)} — die Person
+// schreibt dieselben Fragen, aber in ihrer eigenen Stufe (z. B. 🟢 Auswahl statt Eintippen). Von der Lehrperson im Monitor gesetzt.
+function pruefDiffFuer(p, uid){
+  if(!p || !p.differenz || pruefArt(p) !== 'nativ') return null;
+  var v = p.differenz[uid == null ? (state.user && state.user.uid) : uid];
+  return v != null && v !== '' ? String(v) : null;
+}
 function pruefZeitMinFuer(p, uid){ return Math.round((+p.zeitMin || 0) * (1 + pruefZuschlag(p, uid) / 100) * 10) / 10; }
 function pruefZeitMinText(p, uid){ var m = pruefZeitMinFuer(p, uid); return String(m).replace('.', ','); }
 function pruefFrist(p, t, uid){ return p && +p.zeitMin > 0 && t && t.startMs ? t.startMs + Math.round(pruefZeitMinFuer(p, uid) * 60000) : null; }
@@ -37521,6 +37536,7 @@ async function pruefStarten(p, weiter, vorschau){
     // noch diese Fassung hochgeladen ist: Namen hier herausnehmen.
     html = html.split("'Deine Wahl: <b>' + esc(exAnswerLabel(q, EX.ans[q.key])) + '</b>'").join("'✔️ <b>Auf der Karte markiert</b> – du kannst deine Wahl noch ändern.'");
     var cfg = Object.assign({}, p.cfg || {}, (p.cfg && p.cfg.optionen) || {}, {titel:p.titel, seed:p.seed, personSeed:pruefPersonSeed(uid), antworten:saved});
+    var dv = pruefDiffFuer(p, uid); if(dv != null) cfg.diff = dv;   // 🎯 eigene Antwortart/Schwierigkeit dieser Person
     var inject = '<script>window.__GEO_PRUEFUNG=' + JSON.stringify(cfg).replace(/</g, '\\u003c') + ';<\/script>';
     var headRe = /<head(\s[^>]*)?>/i;
     html = headRe.test(html) ? html.replace(headRe, function(m){ return m + inject; }) : inject + html;
@@ -38472,17 +38488,17 @@ function pruefBankBewerten(p, loes, antworten, korrektur, uid){
    Zeile und zählen pro Wort. */
 function pruefDiktatTokens(t){
   // Wörter und Satzzeichen getrennt: jedes Satzzeichen ist ein eigenes Token
-  // (fehlendes Komma = 1 Fehler, das Wort davor bleibt richtig).
+  // (fehlendes Komma = 1 Fehler, das Wort davor bleibt richtig). Abstände
+  // zählen nie: doppelte Leerschläge und fehlende Leerschläge nach einem
+  // Satzzeichen («Hallo,Welt») sind kein Fehler. sp = stand ein Leerschlag davor.
   var out = [];
-  String(t || '').replace(/[„“”«»‹›"]/g, '"').replace(/[‘’‚`´]/g, "'").replace(/\.\.\./g, '…').replace(/—/g, '–')
-    .split(/\s+/).forEach(function(w){
-      var m = w.match(/^([^\p{L}\p{N}]*)([\s\S]*?)([^\p{L}\p{N}]*)$/u);
-      if(!m) return;
-      var zeichen = function(g){ Array.from(g).forEach(function(c){ if(c === '-') c = '–'; out.push({roh:c, k:c, z:true}); }); };
-      zeichen(m[1]);
-      if(m[2]) out.push({roh:m[2], k:m[2].replace(/ß/g, 'ss')});
-      zeichen(m[3]);
-    });
+  var s = String(t || '').replace(/[„“”«»‹›"]/g, '"').replace(/[‘’‚`´]/g, "'").replace(/\.\.\./g, '…').replace(/—/g, '–');
+  var re = /\p{N}+(?:[.,]\p{N}+)+|[\p{L}\p{N}]+(?:['\-–][\p{L}\p{N}]+)*|\S/gu, m;
+  while((m = re.exec(s))){
+    var w = m[0], sp = m.index > 0 && /\s/.test(s.charAt(m.index - 1));
+    if(/^[\p{L}\p{N}]/u.test(w)) out.push({roh:w, k:w.replace(/ß/g, 'ss').replace(/[–]/g, '-'), sp:sp});
+    else out.push({roh:w, k:w === '-' ? '–' : w, z:true, sp:sp});
+  }
   return out;
 }
 function pruefDiktatDetails(q, L, v, korrektur, kurz){
@@ -38500,18 +38516,28 @@ function pruefDiktatDetails(q, L, v, korrektur, kurz){
   var T = [];
   for(var i=0;i<=n;i++) T.push(new Uint16Array(m+1));
   for(i=n-1;i>=0;i--) for(var j=m-1;j>=0;j--) T[i][j] = A[i].k === B[j].k ? T[i+1][j+1] + 1 : Math.max(T[i+1][j], T[i][j+1]);
-  var fehler = [], del = [], ins = [], letztA = -1;
+  var fehler = [], del = [], ins = [], letztA = -1, markB = {}, fehltB = {};
   // Innerhalb einer Lücke nur Wort mit Wort und Zeichen mit Zeichen paaren.
-  function paaren(dl, il, pos){
+  function paaren(dl, il, pos, jb){
     var k = Math.min(dl.length, il.length);
-    for(var x=0;x<k;x++) letztA = Math.max(letztA, dl[x]), fehler.push({id:q.id + '~' + dl[x], pos:dl[x], n:1, a:B[il[x]].roh, r:A[dl[x]].roh, art:'falsch'});
-    if(dl.length > k) fehler.push({id:q.id + '~' + dl[k], pos:dl[k], n:dl.length - k, a:'–', r:dl.slice(k).map(function(x){ return A[x].roh; }).join(' '), art:'fehlt'});
-    if(il.length > k) fehler.push({id:q.id + '~+' + il[k], pos:pos, n:il.length - k, a:il.slice(k).map(function(x){ return B[x].roh; }).join(' '), r:'(nichts)', art:'zuviel'});
+    for(var x=0;x<k;x++){
+      letztA = Math.max(letztA, dl[x]); fehler.push({id:q.id + '~' + dl[x], pos:dl[x], n:1, a:B[il[x]].roh, r:A[dl[x]].roh, art:'falsch'});
+      markB[il[x]] = {id:q.id + '~' + dl[x], r:A[dl[x]].roh};
+    }
+    if(dl.length > k){
+      var rt = dl.slice(k).map(function(x){ return A[x].roh; }).join(' ');
+      fehler.push({id:q.id + '~' + dl[k], pos:dl[k], n:dl.length - k, a:'–', r:rt, art:'fehlt'});
+      (fehltB[jb] = fehltB[jb] || []).push({id:q.id + '~' + dl[k], pos:dl[k], r:rt});
+    }
+    if(il.length > k){
+      fehler.push({id:q.id + '~+' + il[k], pos:pos, n:il.length - k, a:il.slice(k).map(function(x){ return B[x].roh; }).join(' '), r:'(nichts)', art:'zuviel'});
+      il.slice(k).forEach(function(x){ markB[x] = {id:q.id + '~+' + il[k], r:null}; });
+    }
   }
   function lueckeAbschliessen(){
     var wortD = function(x){ return !A[x].z; }, wortI = function(x){ return !B[x].z; };
-    paaren(del.filter(wortD), ins.filter(wortI), i);
-    paaren(del.filter(function(x){ return !wortD(x); }), ins.filter(function(x){ return !wortI(x); }), i);
+    paaren(del.filter(wortD), ins.filter(wortI), i, j);
+    paaren(del.filter(function(x){ return !wortD(x); }), ins.filter(function(x){ return !wortI(x); }), i, j);
     del = []; ins = [];
   }
   i = 0; j = 0;
@@ -38538,7 +38564,20 @@ function pruefDiktatDetails(q, L, v, korrektur, kurz){
   });
   var max = n || 1, pkt = Math.max(0, max - zaehlt);
   var nw = A.slice(0, n).filter(function(x){ return !x.z; }).length, mw = B.filter(function(x){ return !x.z; }).length;
-  var info = {id:q.id, info:true, f:'Diktat: ' + zaehlt + ' Fehler · ' + mw + ' von ' + nw + ' Wörtern geschrieben' + (rest ? ' · kürzeres Diktat: Rest (' + rest + ' Wörter/Zeichen) nicht gewertet' : ''), a:'', ok:zaehlt === 0, pkt:pkt, max:max};
+  // Geschriebener Text mit Korrektur: Fehler rot, das Richtige in [ ]; gestrichene Fehler (ok) normal.
+  var segs = [];
+  for(var jj=0;jj<=m;jj++){
+    (fehltB[jj] || []).forEach(function(e){
+      if(kurz && e.pos > letztA) return;
+      if(korrektur[e.id]) return;
+      segs.push({t:'[' + e.r + ']', rot:true, sp:/[\p{L}\p{N}]/u.test(e.r)});
+    });
+    if(jj === m) break;
+    var mk = markB[jj], bad = mk && !korrektur[mk.id];
+    segs.push({t:B[jj].roh, rot:!!bad, strich:!!(bad && mk.r === null), sp:B[jj].sp});
+    if(bad && mk.r !== null) segs.push({t:'[' + mk.r + ']', rot:true, sp:!B[jj].z});
+  }
+  var info = {id:q.id, segs:segs, info:true, f:'Diktat: ' + zaehlt + ' Fehler · ' + mw + ' von ' + nw + ' Wörtern geschrieben' + (rest ? ' · kürzeres Diktat: Rest (' + rest + ' Wörter/Zeichen) nicht gewertet' : ''), a:'', ok:zaehlt === 0, pkt:pkt, max:max};
   return [info].concat(rows);
 }
 function pruefDiktatWoerter(t){ return pruefDiktatTokens(t).filter(function(x){ return !x.z; }).length; }
@@ -40685,6 +40724,7 @@ function pruefMonitorZeichnen(){
   if(!skPapier) h += '<button class="btn btn-ghost btn-sm" data-a="vorschau" type="button">👀 Ausprobieren</button>';
   if(!skPapier && p.diktat) h += '<button class="btn btn-sm '+(p.diktatKurz && Object.keys(p.diktatKurz).length ? 'btn-primary' : 'btn-ghost')+'" data-a="diktatkurz" type="button" title="Für einzelne Personen zählt nicht, was nach dem zuletzt geschriebenen Wort fehlt">✂️ Kürzeres Diktat</button>';
   if(!skPapier && +p.zeitMin > 0 && pruefArt(p) !== 'tippen') h += '<button class="btn btn-sm '+(p.zuschlag && Object.keys(p.zuschlag).length ? 'btn-primary' : 'btn-ghost')+'" data-a="zuschlag" type="button" title="Nachteilsausgleich: einzelnen Personen mehr Zeit geben — auch während die Prüfung läuft">♿ Zeitzuschlag</button>';
+  if(!skPapier && pruefArt(p) === 'nativ' && !p.diktat && p.cfg && (p.cfg.optionen || {}).diff != null) h += '<button class="btn btn-sm '+(p.differenz && Object.keys(p.differenz).length ? 'btn-primary' : 'btn-ghost')+'" data-a="differenz" type="button" title="Einzelne Personen schreiben dieselbe Prüfung in einer leichteren (oder anderen) Antwortart — auch Bildtrainer">🎯 Differenzieren</button>';
   if(pruefArt(p) === 'sikore') h += '<button class="btn btn-ghost btn-sm" data-a="sikoreDruck" type="button">🖨️ Blätter drucken</button>';
   h += '<button class="btn btn-ghost btn-sm" data-a="bearbeiten" type="button">✏️ Bearbeiten</button>';
   h += '<button class="btn btn-ghost btn-sm" data-a="ablegen" type="button" title="In einem Ordner des Fachs ablegen – die Klasse sieht sie dort erst nach dem Freigeben">📁 Ablegen</button>';
@@ -40744,7 +40784,7 @@ function pruefMonitorZeichnen(){
       : (p.diktat ? (t.beantwortet || 0)+' Wörter geschrieben' : pruefArt(p) === 'tippen' ? (t.beantwortet || 0)+' Zeichen getippt' : (t.beantwortet || 0)+' / '+anzahl+' beantwortet') + (pruefFrist(p, t, r.uid) ? ' · ⏱ ' + (pruefZeitUm(p, t, r.uid) ? 'Zeit um' : Math.ceil((pruefFrist(p, t, r.uid) - Date.now()) / 60000) + ' Min. übrig') + (pruefZuschlag(p, r.uid) ? ' (♿ +' + pruefZuschlag(p, r.uid) + ' %)' : '') : '');
     var vs = t && t.verstoesse && t.verstoesse.length ? ' · <span class="pr-vs" title="'+esc(t.verstoesse.map(function(v){ return new Date(v.at).toLocaleTimeString('de-CH',{hour:'2-digit',minute:'2-digit'})+' '+v.grund; }).join('\n'))+'">⚠️ '+t.verstoesse.length+'× verlassen</span>' : '';
     var sebMark = !t ? '' : t.seb ? ' <span title="im Safe Exam Browser">🛡️</span>' : p.seb ? ' <small class="pr-vs">⚠️ ohne SEB</small>' : '';
-    h += '<div class="pr-zeile '+st.cls+'"><div class="pr-name">'+esc(r.name)+sebMark+pruefSpracheMark(t)+(pruefArt(p) === 'sikore' && p.levels && p.levels[r.uid] ? ' <small>· Level '+esc(String(p.levels[r.uid]))+'</small>' : '')+'</div><div class="pr-st">'+esc(st.txt)+'</div><div class="pr-fort">'+fort+vs+'</div><div class="pr-akt">';
+    h += '<div class="pr-zeile '+st.cls+'"><div class="pr-name">'+esc(r.name)+sebMark+pruefSpracheMark(t)+(pruefDiffFuer(p, r.uid) != null ? ' <small title="Differenziert: eigene Antwortart">🎯 '+esc(pruefDiffName(p, pruefDiffFuer(p, r.uid)))+'</small>' : '')+(pruefArt(p) === 'sikore' && p.levels && p.levels[r.uid] ? ' <small>· Level '+esc(String(p.levels[r.uid]))+'</small>' : '')+'</div><div class="pr-st">'+esc(st.txt)+'</div><div class="pr-fort">'+fort+vs+'</div><div class="pr-akt">';
     if(t && t.status === 'gesperrt') h += '<button class="btn btn-primary btn-sm" data-e="'+esc(r.uid)+'" type="button">🔓 Entsperren</button>';
     if(t && t.status === 'abgegeben' && r.erg) h += '<button class="btn btn-ghost btn-sm" data-d="'+esc(r.uid)+'" type="button">Details</button>';
     if(t) h += '<button class="btn btn-ghost btn-sm" data-r="'+esc(r.uid)+'" type="button" title="Teilnahme löschen — die Person kann neu beginnen">↺</button>';
@@ -40847,6 +40887,52 @@ function pruefZuschlagDialog(p){
     updateDoc(pruefRef(p.id), {zuschlag:map}).then(function(){ closeModal(); toast(Object.keys(map).length ? '♿ Zeitzuschlag für '+Object.keys(map).length+' Person'+(Object.keys(map).length === 1 ? '' : 'en')+' gespeichert.' : 'Kein Zeitzuschlag mehr.'); }).catch(pruefFehler);
   });
 }
+/* ---------- 🎯 Differenzieren-Dialog ----------
+   Pro Person eine eigene Antwortart (Option «diff» der Übung, z. B. 🟢 Auswahl (leicht) … 🟣 Eintippen exakt).
+   Die Werte liest die Library aus der Übung selbst (pruefProbe), darum geht es für alle Bildtrainer und die
+   Pöstlergeografie. Gilt für alle, die noch nicht gestartet haben (wer schon schreibt, behält seine Stufe). */
+function pruefDiffOption(info){
+  return ((info && info.optionen) || []).filter(function(o){ return o.id === 'diff'; })[0] || null;
+}
+function pruefDiffName(p, v){
+  var n = p.cfg && p.cfg.diffWerte && p.cfg.diffWerte[v];
+  return n ? String(n).replace(/\s*\(.*$/, '') : 'Stufe ' + v;
+}
+function pruefDifferenzDialog(p){
+  var teil = pruef.teil[p.id] || {}, roster = pruefRosterFuer(p);
+  if(!roster){ toast('Klasse wird noch geladen …'); return; }
+  openModal('<h3>🎯 Differenzieren</h3><p class="pr-hinweis">Übung wird ausgelesen …</p>');
+  pruefProbe(p.contentId).then(function(info){
+    var o = pruefDiffOption(info);
+    if(!o){ closeModal(); uiInfo('🎯 Differenzieren', 'Diese Übung hat keine einstellbare Antwortart. Lade bei der Übung die neue Fassung mit «Datei ersetzen» hoch.'); return; }
+    var rows = pruefMonitorZeilen(p, teil, roster).sort(function(a, b){ return a.name.localeCompare(b.name, 'de'); });
+    var cur = p.cfg && p.cfg.optionen && p.cfg.optionen.diff != null ? String(p.cfg.optionen.diff) : String(o.standard);
+    var klasse = (o.werte.filter(function(w){ return String(w[0]) === cur; })[0] || [cur, cur])[1];
+    var jetzt = p.differenz || {};
+    var h = '<h3>🎯 Differenzieren</h3><p>Alle schreiben dieselben Fragen. Die Klasse arbeitet in <b>' + esc(klasse) + '</b>; hier gibst du einzelnen Personen eine andere Stufe, z. B. 🟢 leicht. Gilt, sobald die Person die Prüfung (neu) startet.</p>' +
+      '<div style="max-height:calc(46vh/var(--lz,1));overflow:auto;margin:8px 0;">';
+    rows.forEach(function(r){
+      var gestartet = !!r.t, w = jetzt[r.uid] != null ? String(jetzt[r.uid]) : '';
+      h += '<div style="display:flex;gap:8px;align-items:center;justify-content:space-between;padding:3px 0;"><span>' + esc(r.name) + (gestartet ? ' <small>(hat gestartet)</small>' : '') + '</span>' +
+        '<select class="modal-input" data-df="' + esc(r.uid) + '" style="width:auto;margin:0;"' + (gestartet ? ' disabled' : '') + '><option value="">wie Klasse</option>' +
+        o.werte.map(function(x){ return '<option value="' + esc(String(x[0])) + '"' + (String(x[0]) === w ? ' selected' : '') + '>' + esc(x[1]) + '</option>'; }).join('') + '</select></div>';
+    });
+    h += '</div><div class="modal-actions"><button class="btn btn-ghost btn-sm" id="modalCancel" type="button">Abbrechen</button><button class="btn btn-primary btn-sm" id="dfOk" type="button">Speichern</button></div>';
+    openModal(h);
+    document.getElementById('modalCancel').addEventListener('click', closeModal);
+    document.getElementById('dfOk').addEventListener('click', function(){
+      var map = {};
+      // Wer schon gestartet hat, behält die bisherige Stufe.
+      Object.keys(jetzt).forEach(function(u){ if(teil[u]) map[u] = jetzt[u]; });
+      Array.prototype.forEach.call(document.querySelectorAll('[data-df]'), function(sel){ if(!sel.disabled && sel.value !== '') map[sel.getAttribute('data-df')] = sel.value; });
+      var werte = {}; o.werte.forEach(function(x){ werte[String(x[0])] = x[1]; });
+      updateDoc(pruefRef(p.id), {differenz:map, 'cfg.diffWerte':werte}).then(function(){
+        closeModal(); var n = Object.keys(map).length;
+        toast(n ? '🎯 Differenziert für ' + n + ' Person' + (n === 1 ? '' : 'en') + ' gespeichert.' : 'Niemand mehr differenziert.');
+      }).catch(pruefFehler);
+    });
+  }).catch(function(err){ console.error(err); closeModal(); uiInfo('🎯 Differenzieren', 'Die Übung konnte nicht ausgelesen werden.'); });
+}
 // Entsperren: die Zeit der Person stand während der Sperre still. Startzeit um
 // die Sperrdauer nach hinten schieben. Bei «Seite neu geladen» (z. B. Akku leer)
 // zählt das letzte Lebenszeichen als Beginn der Sperre, nicht der Neustart.
@@ -40920,6 +41006,7 @@ function pruefMonitorVerdrahten(p){
     }
     else if(a === 'pip') pipStarten('pruef', p.id);
     else if(a === 'zuschlag') pruefZuschlagDialog(p);
+    else if(a === 'differenz') pruefDifferenzDialog(p);
     else if(a === 'diktatkurz') pruefDiktatKurzDialog(p);
     else if(a === 'bearbeiten'){ if(pruefArt(p) === 'sikore') sikoreEditor(p); else if(pruefArt(p) === 'tippen') tippPrEditor(p); else if(pruefArt(p) === 'mt') mtPrEditor(p); else if(p.rsw) rswPrEditor(p); else pruefEditor(p); }
     else if(a === 'sikoreDruck') sikoreDruckDialog(p);
@@ -41130,6 +41217,10 @@ function pruefAbgabeBlatt(p, r){
     if(q.typ === 'diktat') texte.push({titel:'Geschriebener Text', text:String((t.antworten || {})[q.id] || '–')});
   });
   var am = pruefMs(t.abgegebenAm) || pruefMs(p.freigegebenAm) || Date.now();
+  texte.forEach(function(tx){
+    var inf = (erg.details || []).filter(function(d){ return d.info && d.segs; })[0];
+    if(inf){ tx.segs = inf.segs; tx.titel = 'Geschriebener Text (Fehler rot, richtig in [ ])'; }
+  });
   var pk = p.diktat ? (erg.max - erg.punkte) + ' Fehler' : pruefArt(p) === 'tippen' ? erg.punkte + ' Netto-Anschläge/Min.' + (erg.fehler != null ? ', ' + erg.fehler + ' Fehler' : '')
     : pruefZahlText(erg.punkte) + ' von ' + pruefZahlText(erg.max) + ' Punkten';
   var details = (erg.details || []).map(function(d){ return Object.assign({}, d, {bilder:[]}); });
@@ -41272,7 +41363,22 @@ async function pruefPdf(blaetter, doppelseitig, bildMap){
     // Diktat: der geschriebene Text
     (b.texte || []).forEach(function(tx){
       platz(ZA * 3); text(svaWinText(tx.titel), B, G, M, y, ZA); y += ZA;
-      zeilen(svaUmbruch(tx.text, N, G, CW), N, G, M, ZA); y += 10;
+      if(tx.segs){
+        // Wort für Wort setzen: Fehler rot (falsche Wörter durchgestrichen), Korrektur in [ ] rot
+        var cx = M, ps = tx.segs.filter(function(g){ return g.t; });
+        platz(ZA);
+        ps.forEach(function(g){
+          var w = breite(g.t, N, G), sw = g.sp && cx > M ? breite(' ', N, G) : 0;
+          if(cx > M && cx + sw + w > M + CW){ y += ZA; platz(ZA); cx = M; sw = 0; }
+          cx += sw;
+          if(g.rot) ops.push('1 0 0 rg 1 0 0 RG');
+          text(svaWinText(g.t), N, G, cx, y, ZA);
+          if(g.strich) linie(cx, y + ZA/2, cx + w, y + ZA/2);
+          if(g.rot) ops.push('0 g 0 G');
+          cx += w;
+        });
+        y += ZA + 10;
+      } else { zeilen(svaUmbruch(tx.text, N, G, CW), N, G, M, ZA); y += 10; }
     });
     if(b.diktat && b.details.length > 1){ platz(ZA * 2); text(svaWinText('Fehler'), B, G, M, y, ZA); y += ZA + 2; }
     var nr = 0;
@@ -50015,7 +50121,7 @@ function render(){
   }
   if(state.route.name === 'login'){ renderLogin(); return; }
   if(!state.profile){ app.innerHTML = '<div class="spinner-wrap">Lädt …</div>'; return; }
-  if(istPraktikum() && PRAKTIKUM_GESPERRT.indexOf(state.route.name) >= 0){ renderPraktikumGesperrt(); return; }
+  if(praktikumGesperrt(state.route.name)){ renderPraktikumGesperrt(); return; }
   if(state.route.name === 'home'){ renderHome(); return; }
   if(state.route.name === 'subject'){ renderSubject(state.route.subject, state.route.folderId || null); return; }
   if(state.route.name === 'gruppenfach'){ renderGruppenFach(); return; }
