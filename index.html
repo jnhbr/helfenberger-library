@@ -296,6 +296,9 @@ function winterAn(){ var aus = false; try{ aus = localStorage.getItem('hl_winter
   /* Die Briefkästen sind ein eigener Block unter dem Material – mit deutlichem Abstand, nie an die letzte Übung geklebt. */
   .bk-unten:not(:empty){margin-top:28px;}
   #resourceList + .bk-liste:not(:empty), #gruppenFach:not(:empty) + .bk-liste:not(:empty){margin-top:28px;}
+  .resource-card.indiv-geloest{border-color:#2e9e5b;background:color-mix(in srgb,#2e9e5b 14%,var(--surface));}
+  .chip-indiv{display:inline-block;font-size:.72rem;font-weight:700;color:#1f7a45;background:color-mix(in srgb,#2e9e5b 18%,transparent);border-radius:99px;padding:1px 8px;margin-left:4px;}
+  .indiv-archiv{margin-top:10px;} .indiv-archiv summary{cursor:pointer;color:var(--text-muted);font-weight:600;margin-bottom:8px;} .indiv-archiv .resource-card{margin-bottom:8px;} .indiv-leer{margin:6px 2px;}
   .resource-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:16px 18px;box-shadow:var(--shadow);display:flex;align-items:center;gap:16px;flex-wrap:wrap;transition:border-color .15s ease, box-shadow .15s ease;}
   .resource-card.sk-karte{width:100%;font:inherit;color:inherit;text-align:left;cursor:pointer;}
   .resource-card.sk-karte:hover{border-color:var(--brand);}
@@ -16310,9 +16313,11 @@ function renderFolderContents(){
   // Klassenzimmer-Material (Prüfungen, Karteikarten, Quiz, Wortwolken, Blitzumfragen) steht
   // unter den eigentlichen Übungen; ab zwei Stück derselben Art als Sammelordner.
   // wzBereich: Werkzeug-Einträge (Mathe › 3D-Körper, Algebra-Kacheln) direkt im Bereich «Werkzeuge».
+  var indivAlle = resources.filter(indivIst);
+  if(indivAlle.length && !erledigt.loaded && state.user) erledigtLoad().then(function(){ if(document.getElementById('resourceList')) renderFolderContents(); });
   var werkzeugRes = resources.filter(function(r){ return r.wzBereich; });
-  var zusatz = resources.filter(function(r){ return !r.wzBereich && zusatzArt(r); });
-  var material = resources.filter(function(r){ return !r.wzBereich && !zusatzArt(r); });
+  var zusatz = resources.filter(function(r){ return !r.wzBereich && !indivIst(r) && zusatzArt(r); });
+  var material = resources.filter(function(r){ return !r.wzBereich && !indivIst(r) && !zusatzArt(r); });
   if(material.length){
     if(ordnerNorm.length) html += '<div class="section-label">Übungen</div>';
     html += material.map(function(r){ return resourceCardHtml(r, realResources.indexOf(r), realResources.length, isTeacher && !r.virtual); }).join('');
@@ -16326,7 +16331,9 @@ function renderFolderContents(){
     html += werkzeugRes.map(function(r){ return resourceCardHtml(r, 0, 1, false); }).join('');
     html += werkzeugOrdner.map(function(f){ return folderCardHtml(f, 0, 1, false); }).join('');
   }
+  if(indivAlle.length && erledigt.loaded) html += indivBereichHtml(indivAlle, isTeacher);
   listEl.innerHTML = html;
+  if(indivAlle.length && erledigt.loaded) indivKartenAufwerten(indivAlle, isTeacher, renderFolderContents);
   zusatzVerdrahten(listEl);
 
   folders.forEach(function(f){
@@ -16378,6 +16385,8 @@ function renderFolderContents(){
     if(ueditBtn) ueditBtn.addEventListener('click', function(){ openUebungEditor(r); });
     var zuBtn = document.getElementById('zu-'+r.id);
     if(zuBtn) zuBtn.addEventListener('click', function(){ uebungZuweisenDialog(r); });
+    var iuBtn = document.getElementById('iu-'+r.id);
+    if(iuBtn) iuBtn.addEventListener('click', function(){ indivZuweisenDialog(r); });
     var lpBtn = document.getElementById('lp-'+r.id);
     if(lpBtn) lpBtn.addEventListener('click', function(){
       lpBtn.disabled = true;
@@ -16773,6 +16782,99 @@ function niveauChipHtml(r, isTeacher){
   if(isTeacher && Array.isArray(r.nurFuer)) h += ' <span class="chip-lehrer" title="Nur diese Personen sehen die Übung">🎯 '+r.nurFuer.length+' Pers.</span>';
   return h;
 }
+/* ---------- 📌 Individuelle Übung (seit 06.11.2026) ----------
+   Eine Kopie einer Übung, die genau einer Person zugewiesen ist: resources/{id}.indiv = {uid, name, am, von}
+   plus nurFuer:[uid] (so sieht nur diese Person sie). Inhalt wird geteilt (contentId), nichts wird kopiert.
+   Im Fach steht sie ganz unten im Bereich «📌 Individuelle Übung». Gelöst-Stand: progress/{uid}/erledigt/liste,
+   ids['iu_'+resId] = Zeitpunkt des ersten Lösens (Zahl). Grün ab dann; 7 Tage später im 🗄️ Archiv (Anzeige, keine Löschung).
+   Gelöst wird automatisch, wenn die Übung meldet, dass alles bearbeitet ist (__libProgress), oder mit «✅ Als gelöst markieren». */
+var INDIV_ARCHIV_TAGE = 7;
+var indivBekannt = {};
+function indivIst(r){ return !!(r && r.indiv && r.indiv.uid); }
+function indivGeloestAm(r){ var v = erledigt.ids && erledigt.ids['iu_'+r.id]; return typeof v === 'number' ? v : 0; }
+function indivArchiviert(r){ var t = indivGeloestAm(r); return !!t && Date.now() - t > INDIV_ARCHIV_TAGE * 86400000; }
+function indivGeloestMarkieren(r){
+  if(!state.user) return Promise.resolve(false);
+  return erledigtLoad().then(function(){
+    if(indivGeloestAm(r)) return false;
+    erledigt.ids['iu_'+r.id] = Date.now();
+    return setDoc(erledigtRef(), { ids: erledigt.ids, updatedAt: serverTimestamp() }).then(function(){ return true; });
+  }).catch(function(err){ console.error(err); return false; });
+}
+function indivBereichHtml(liste, isTeacher){
+  var aktiv = liste.filter(function(r){ return !indivArchiviert(r); });
+  var arch = liste.filter(indivArchiviert);
+  function nach(a, b){ return String((b.indiv && b.indiv.am) || '').localeCompare(String((a.indiv && a.indiv.am) || '')); }
+  aktiv.sort(nach); arch.sort(nach);
+  var h = '<div class="section-label">📌 Individuelle Übung</div>';
+  h += aktiv.length ? aktiv.map(function(r){ return resourceCardHtml(r, 0, 1, isTeacher); }).join('') : '<p class="muted indiv-leer">Alles erledigt – gut gemacht! 🎉</p>';
+  if(arch.length) h += '<details class="indiv-archiv"><summary>🗄️ Archiv ('+arch.length+')</summary>'+arch.map(function(r){ return resourceCardHtml(r, 0, 1, isTeacher); }).join('')+'</details>';
+  return h;
+}
+// Nach dem Zeichnen: Namens-/Gelöst-Chips, grüne Karte, «Als gelöst markieren».
+function indivKartenAufwerten(liste, isTeacher, neuZeichnen){
+  liste.forEach(function(r){
+    indivBekannt[r.id] = true;
+    var card = document.getElementById('card-'+r.id); if(!card) return;
+    var h4 = card.querySelector('h4');
+    var t = indivGeloestAm(r);
+    if(isTeacher && h4) h4.insertAdjacentHTML('beforeend', ' <span class="chip-lehrer" title="Zugewiesen an">👤 '+esc(r.indiv.name || '')+'</span>');
+    if(!isTeacher && t){
+      card.classList.add('indiv-geloest');
+      if(h4) h4.insertAdjacentHTML('beforeend', ' <span class="chip-indiv">✅ gelöst</span>');
+    }
+    if(!isTeacher){
+      var acts = card.querySelector('.resource-actions');
+      if(acts && !t){
+        var b = document.createElement('button'); b.type = 'button'; b.className = 'btn btn-ghost btn-sm'; b.textContent = '✅ Als gelöst markieren';
+        b.addEventListener('click', function(){ b.disabled = true; indivGeloestMarkieren(r).then(neuZeichnen); });
+        acts.appendChild(b);
+      }
+    }
+  });
+}
+function indivZuweisenDialog(r){
+  loadStudentRoster().then(function(roster){
+    roster = roster.filter(function(x){ return !x.gruppenGast; }).sort(function(a, b){ return String(a.displayName || a.username).localeCompare(String(b.displayName || b.username), 'de'); });
+    var h = '<h3>👤 Individuell zuweisen: '+esc(r.title || r.fileName)+'</h3>'+
+      '<p class="kz-intro">Die Person bekommt die Übung im Fach ganz unten unter «📌 Individuelle Übung». Sie wird grün, sobald sie gelöst ist, und wandert nach 7 Tagen ins Archiv.</p>'+
+      '<div class="back-row" style="flex-wrap:wrap;margin:0 0 6px;"><button class="btn btn-ghost btn-sm" id="iuAlle" type="button">Ganze Klasse</button><button class="btn btn-ghost btn-sm" id="iuKeine" type="button">Keine</button><span id="iuGruppen"></span></div>'+
+      '<div style="max-height:calc(40vh/var(--lz,1));overflow:auto;">'+roster.map(function(x){
+        return '<label class="lp-check"><input type="checkbox" data-iu="'+esc(x.uid)+'"> <span>'+esc(x.displayName || x.username)+'</span></label>';
+      }).join('')+'</div><p class="kz-intro" id="iuHinweis" style="margin:4px 0;"></p>'+
+      '<div class="modal-actions"><button class="btn btn-ghost btn-sm" id="modalCancel" type="button">Abbrechen</button><button class="btn btn-primary btn-sm" id="iuOk" type="button">Zuweisen</button></div>';
+    openModal(h);
+    function boxen(){ return Array.prototype.slice.call(document.querySelectorAll('[data-iu]')); }
+    document.getElementById('iuKeine').addEventListener('click', function(){ boxen().forEach(function(b){ b.checked = false; }); });
+    document.getElementById('iuAlle').addEventListener('click', function(){ boxen().forEach(function(b){ b.checked = true; }); });
+    if(!isLeitung()) loadMeineGruppen().then(function(gs){
+      var host = document.getElementById('iuGruppen'); if(!host) return;
+      gs.filter(function(g){ return gruppeHatFach(g, r.subject); }).slice(0, 8).forEach(function(g){
+        var b = document.createElement('button'); b.type = 'button'; b.className = 'btn btn-ghost btn-sm'; b.textContent = '👥 ' + g.name;
+        b.addEventListener('click', function(){ boxen().forEach(function(c){ if((g.mitglieder || []).indexOf(c.getAttribute('data-iu')) >= 0) c.checked = true; }); });
+        host.appendChild(b);
+      });
+    }).catch(function(){});
+    document.getElementById('modalCancel').addEventListener('click', closeModal);
+    document.getElementById('iuOk').addEventListener('click', function(){
+      var gew = boxen().filter(function(b){ return b.checked; }).map(function(b){ return b.getAttribute('data-iu'); });
+      if(!gew.length){ document.getElementById('iuHinweis').textContent = 'Bitte mindestens eine Person wählen.'; return; }
+      var namen = {}; roster.forEach(function(x){ namen[x.uid] = x.displayName || x.username; });
+      var batch = writeBatch(db), jetzt = new Date().toISOString();
+      gew.forEach(function(uid, i){
+        var kopie = Object.assign({}, r);
+        ['id','current','empfohlen','ausgeblendet','nurLehrer','niveau','order','imHub'].forEach(function(k){ delete kopie[k]; });
+        kopie.folderId = null; kopie.contentId = r.contentId || r.id;
+        kopie.nurFuer = [uid];
+        kopie.indiv = {uid: uid, name: namen[uid] || '', am: jetzt, von: r.id};
+        kopie.uploadedAt = serverTimestamp(); kopie.uploadedBy = state.user.uid;
+        batch.set(kdoc('resources', r.subject+'_iu_'+Date.now()+'_'+i), kopie);
+      });
+      batch.commit().then(function(){ closeModal(); toast('📌 Zugewiesen an '+gew.length+' Person'+(gew.length === 1 ? '' : 'en')+'.'); })
+        .catch(function(err){ console.error(err); toast('Hat nicht geklappt.'); });
+    });
+  }).catch(function(err){ console.error(err); toast('Klasse konnte nicht geladen werden.'); });
+}
 function uebungZuweisenDialog(r){
   loadStudentRoster().then(function(roster){
     roster = roster.filter(function(x){ return !x.gruppenGast; }).sort(function(a, b){ return String(a.displayName || a.username).localeCompare(String(b.displayName || b.username), 'de'); });
@@ -16881,6 +16983,7 @@ function resourceCardHtml(r, index, total, isTeacher){
     }
     html += '<span class="res-mehr"><button class="btn btn-ghost btn-sm res-mehr-btn" type="button" aria-haspopup="true" aria-expanded="false" title="Weitere Aktionen">⋯</button><span class="res-mehr-menu">';
     if(!lp) html += '<button class="btn btn-sm btn-lehrer'+(r.niveau || Array.isArray(r.nurFuer) ? ' active' : '')+'" id="zu-'+r.id+'" type="button" title="Niveau A/B/C setzen und festlegen, wer diese Übung sieht">🎯 Zuweisen</button>';
+    if(!lp && !r.kzm && !r.virtual && !indivIst(r)) html += '<button class="btn btn-sm btn-lehrer" id="iu-'+r.id+'" type="button" title="Diese Übung einzelnen Personen als «Individuelle Übung» zuweisen">👤 Individuell zuweisen</button>';
     if(!r.externalUrl) html += '<button class="btn btn-sm btn-lehrer'+(lp?' active':'')+'" id="lp-'+r.id+'" type="button" title="'+(lp?'Wieder für alle sichtbar machen':'Nur für Lehrpersonen sichtbar machen (z. B. Unterrichtsplanung)')+'">'+(lp?'🔓 Für alle sichtbar machen':'🔒 Nur Lehrpersonen')+'</button>';
     if(!lp) html += '<button class="btn btn-sm btn-lehrer'+(aus?' active':'')+'" id="aus-'+r.id+'" type="button" title="'+(aus?'Wieder für die Klasse einblenden (z. B. wenn das Thema durch ist)':'Für die Klasse ausblenden (z. B. Lösungsdossier, bis das Thema durch ist)')+'">'+(aus?'👁 Einblenden':'🙈 Ausblenden')+'</button>';
     if(heimKlasse() && !isFremdeKlasse()){
@@ -19544,6 +19647,8 @@ window.addEventListener('message', function(e){
   // Eine Fortschrittsmeldung heisst: in der Übung ist gerade etwas passiert —
   // guter Moment, auch den localStorage-Stand einzusammeln.
   if(fenster) libFensterPlanen(fenster); else checkLocalChanges(resourceId);
+  // 📌 Individuelle Übung: alles bearbeitet → gelöst (einmalig, Zeitpunkt des ersten Lösens).
+  if(indivBekannt[resourceId] && typeof data.total === 'number' && data.total > 0 && data.stats && Object.keys(data.stats).filter(function(k){ return data.stats[k] && data.stats[k].status; }).length >= data.total) indivGeloestMarkieren({id: resourceId});
   // Gedrosselt wie der Stand-Sync: die Meldung wird gemerkt und höchstens alle
   // SYNC_MIN_INTERVAL_MS geschrieben (sofort beim Verlassen der Übung).
   progressMeldung.offen[resourceId] = {stats:data.stats || {}, total:typeof data.total === 'number' ? data.total : null};
@@ -25517,6 +25622,8 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-11-06-individuelle-uebung', datum:'2026-11-06', fuer:'lehrer', text:'📌 Individuelle Übung: Im 🏫 Klassenzimmer gibt es die Kachel «Individuelle Übungen» (Fach, Übung, Personen oder ganze Klasse/Gruppe wählen; Sammelzuweisung: viele Dateien «Vorname – Titel.html» auf einmal hochladen; dazu die Übersicht, wer gelöst hat). Auch bei jeder Übung unter «⋯» gibt es «👤 Individuell zuweisen». Die gewählten Personen sehen die Übung im Fach ganz unten unter «📌 Individuelle Übung». Gelöst = grün (wiederholen geht immer), nach 7 Tagen wandert sie ins 🗄️ Archiv.'},
+  {id:'2026-11-06-individuelle-uebung-sus', datum:'2026-11-06', fuer:'alle', text:'📌 Neu: Ganz unten im Fach kann «Individuelle Übung» stehen – extra für dich, damit du deine Fehler übst. Gelöst = grün, nach 7 Tagen im Archiv.'},
   {id:'2026-11-06-bestell-archiv', datum:'2026-11-06', fuer:'lehrer', text:'🗄️ Bestellungen: Was bestellt ist, wandert schon am Tag danach ins Archiv (vorher nach 4 Wochen).'},
   {id:'2026-11-06-praep-bachmann', datum:'2026-11-06', fuer:'lehrer', text:'🛒 Präp-Planungen: Der Block «Bei Bachmann bestellen» hat einen Knopf, der alle noch offenen Posten direkt in 🏫 Klassenzimmer › Bestellungen einträgt.'},
   {id:'2026-11-06-diktat-mehr', datum:'2026-11-06', fuer:'lehrer', text:'✍️ Diktat-Korrektur: Zusammen-/Getrenntschreibung («vorsich») und mehrfach gleich geschriebene Wörter zählen nur einmal, Folgefehler nach falschem Satzende zählen nicht, ein vorangestellter Titel wird erkannt. Das PDF zeigt Fehlerarten und «schon im Diktat X so geschrieben», dazu gibt es eine _Klassenübersicht. Neu im Monitor: «🔀 Schreibweisen» für gleichwertige Schreibweisen.'},
@@ -32963,6 +33070,7 @@ var KZ_TILES = [
   { id:'sitzplan', bereich:'orga', icon:'🪑', name:'Sitzplan',            desc:'Möbel stellen, Plätze verteilen, Regeln, Zufall und gespeicherte Varianten.' },
   { id:'aemtli',  bereich:'orga', icon:'🧹', name:'Ämtliplan',            desc:'Rotiert von allein bis zu den Sommerferien, Ferienwochen fallen raus.' },
   { id:'vergessen', bereich:'orga', icon:'🗒', name:'Vergessen-Zähler',     desc:'Wer eine Abgabe verpasst hat — automatisch aus der Abgabe-Checkliste.' },
+  { id:'indiv', bereich:'material', icon:'📌', name:'Individuelle Übungen', desc:'Einzelnen Schüler:innen eine Übung zuweisen (z. B. zum Fehler-Üben). Sie erscheint ganz unten im Fach, wird grün beim Lösen und wandert nach 7 Tagen ins Archiv.' },
   { id:'bestellungen', bereich:'material', icon:'🛒', name:'Bestellungen',      desc:'Material nachbestellen: Natur und Technik (mit Bachmann-Katalogsuche), Textiles Werken, Holz-/Metallwerken – gemeinsame Listen zum Ausdrucken.' },
   { id:'raeume',  bereich:'orga', icon:'🚪', name:'Räume',               desc:'Was ist gerade frei? Bio-Zimmer, Turnhalle, Singsaal … für eine Lektion oder jede Woche reservieren.' }
 ];
@@ -33036,6 +33144,108 @@ function renderKlassenzimmer(){
     });
   });
 }
+/* 📌 Klassenzimmer-Kachel «Individuelle Übungen»: neu zuweisen (Fach › Übung › Personen) und Übersicht, wer was hat und gelöst hat. */
+// Sammelzuweisung: Dateiname «Vorname – Titel.html» → Person der Klasse (Vorname gleich, Gross-/Kleinschreibung und «(G3a)»-Zusätze egal).
+function indivNameNorm(x){ return String(x || '').toLowerCase().replace(/\(.*?\)/g, '').replace(/ä/g, 'a').replace(/ö/g, 'o').replace(/ü/g, 'u').replace(/[^a-z0-9]+/g, ' ').trim(); }
+function indivSammelVorschau(fach, dateien){
+  loadStudentRoster().then(function(roster){
+    roster = roster.filter(function(x){ return !x.gruppenGast; });
+    var zeilen = dateien.map(function(f){
+      var stamm = f.name.replace(/\.html?$/i, '');
+      var teile = stamm.split(/\s+[–-]\s+/);
+      var vor = indivNameNorm(teile[0]);
+      var treffer = roster.filter(function(x){ return indivNameNorm(x.displayName || x.username).split(' ')[0] === vor.split(' ')[0]; });
+      if(treffer.length > 1){ var genau = treffer.filter(function(x){ return indivNameNorm(x.displayName || x.username) === vor; }); if(genau.length === 1) treffer = genau; }
+      return {file: f, titel: (teile.length > 1 ? teile.slice(1).join(' – ') : stamm).slice(0, 120), person: treffer.length === 1 ? treffer[0] : null, grund: treffer.length > 1 ? 'mehrere Treffer' : 'keine Person gefunden'};
+    });
+    var ok = zeilen.filter(function(z){ return z.person; });
+    var h = '<h3>📂 Sammelzuweisung · '+esc((subjectById(fach) || {}).name || fach)+'</h3><div style="max-height:calc(45vh/var(--lz,1));overflow:auto;">'+
+      zeilen.map(function(z){ return '<div class="lp-check"><span>'+(z.person ? '✅ <b>'+esc(z.person.displayName || z.person.username)+'</b>' : '⚠️ <b>'+esc(z.grund)+'</b>')+' ← '+esc(z.file.name)+(z.person ? '' : ' (wird übersprungen)')+'</span></div>'; }).join('')+'</div>'+
+      '<p class="kz-intro" id="ivSHinweis"></p><div class="modal-actions"><button class="btn btn-ghost btn-sm" id="modalCancel" type="button">Abbrechen</button><button class="btn btn-primary btn-sm" id="ivSOk" type="button"'+(ok.length ? '' : ' disabled')+'>'+ok.length+' hochladen und zuweisen</button></div>';
+    openModal(h);
+    document.getElementById('modalCancel').addEventListener('click', closeModal);
+    document.getElementById('ivSOk').addEventListener('click', function(){
+      var btn = this; btn.disabled = true;
+      var hin = document.getElementById('ivSHinweis'), fertig = 0, fehler = 0;
+      ok.reduce(function(kette, z, i){
+        return kette.then(function(){
+          hin.textContent = 'Lade hoch … '+(i+1)+' von '+ok.length;
+          return readFileAsText(z.file).then(function(content){
+            var chunks = contentChunkDocs(content), bytes = contentBytes(content);
+            return assertQuota(bytes).then(function(){
+              var resId = fach+'_iu_'+Date.now()+'_'+i, batch = writeBatch(db);
+              batch.set(kdoc('resources', resId), {subject: fach, folderId: null, title: z.titel, fileName: z.file.name, uploadedAt: serverTimestamp(), uploadedBy: state.user.uid, contentId: resId, version: 0,
+                nurFuer: [z.person.uid], indiv: {uid: z.person.uid, name: z.person.displayName || z.person.username, am: new Date().toISOString(), von: ''}});
+              batch.set(doc(db, 'resourceContent', resId), {chunkCount: chunks.length, bytes: bytes, ownerUid: state.user.uid});
+              chunks.forEach(function(chunk, ci){ batch.set(doc(db, 'resourceContent', resId, 'chunks', String(ci)), chunk); });
+              return batch.commit();
+            });
+          }).then(function(){ fertig++; }).catch(function(err){ console.error(err); fehler++; });
+        });
+      }, Promise.resolve()).then(function(){
+        closeModal(); toast('📌 '+fertig+' Übung'+(fertig === 1 ? '' : 'en')+' zugewiesen'+(fehler ? ', '+fehler+' fehlgeschlagen' : '')+'.');
+      });
+    });
+  }).catch(function(err){ console.error(err); toast('Klasse konnte nicht geladen werden.'); });
+}
+function indivVerwaltung(){
+  var h = '<h3>📌 Individuelle Übungen</h3>'+
+    '<label class="modal-label">Neu zuweisen: Fach</label><select id="ivFach" class="modal-input"><option value="">– Fach wählen –</option>'+
+      SUBJECTS.map(function(f){ return '<option value="'+esc(f.id)+'">'+esc(f.name)+'</option>'; }).join('')+'</select>'+
+    '<label class="modal-label">Übung</label><select id="ivUeb" class="modal-input" disabled><option value="">– erst Fach wählen –</option></select>'+
+    '<div class="modal-actions" style="justify-content:flex-start;"><button class="btn btn-primary btn-sm" id="ivWahl" type="button" disabled>👤 Personen wählen …</button></div>'+
+    '<div class="section-label">Sammelzuweisung</div><p class="kz-intro" style="margin:2px 0 6px;">Mehrere HTML-Dateien auf einmal: Der Vorname am Dateianfang bestimmt die Person («Alisia – Meine Fehler.html»). Jede Datei wird hochgeladen und genau dieser Person zugewiesen.</p>'+
+    '<div class="modal-actions" style="justify-content:flex-start;"><button class="btn btn-ghost btn-sm" id="ivSammel" type="button" disabled>📂 Dateien wählen …</button><input type="file" id="ivDateien" accept=".html,.htm" multiple hidden></div>'+
+    '<div class="section-label">Bisher zugewiesen</div><div id="ivListe" style="max-height:calc(36vh/var(--lz,1));overflow:auto;"><p class="muted">Wird geladen …</p></div>'+
+    '<div class="modal-actions"><button class="btn btn-ghost btn-sm" id="modalCancel" type="button">Schliessen</button></div>';
+  openModal(h);
+  document.getElementById('modalCancel').addEventListener('click', closeModal);
+  var fachSel = document.getElementById('ivFach'), uebSel = document.getElementById('ivUeb'), wahl = document.getElementById('ivWahl'), geladen = {};
+  fachSel.addEventListener('change', function(){
+    var f = fachSel.value; wahl.disabled = true; uebSel.disabled = true;
+    if(!f){ uebSel.innerHTML = '<option value="">– erst Fach wählen –</option>'; return; }
+    uebSel.innerHTML = '<option value="">Wird geladen …</option>';
+    getDocs(query(kcol('resources'), where('subject', '==', f))).then(function(snap){
+      geladen = {}; var liste = [];
+      snap.forEach(function(d){ var r = Object.assign({id: d.id}, d.data()); if(!indivIst(r) && !r.kzm && !r.virtual && !r.nurLehrer && !r.imHub){ geladen[r.id] = r; liste.push(r); } });
+      liste.sort(function(a, b){ return String(a.title || a.fileName).localeCompare(String(b.title || b.fileName), 'de'); });
+      uebSel.innerHTML = '<option value="">– Übung wählen –</option>'+liste.map(function(r){ return '<option value="'+esc(r.id)+'">'+esc(r.title || r.fileName)+'</option>'; }).join('');
+      uebSel.disabled = false;
+    }).catch(function(err){ console.error(err); uebSel.innerHTML = '<option value="">Konnte nicht laden</option>'; });
+  });
+  uebSel.addEventListener('change', function(){ wahl.disabled = !geladen[uebSel.value]; });
+  var sammelBtn = document.getElementById('ivSammel'), dateiIn = document.getElementById('ivDateien');
+  fachSel.addEventListener('change', function(){ sammelBtn.disabled = !fachSel.value; });
+  sammelBtn.addEventListener('click', function(){ dateiIn.click(); });
+  dateiIn.addEventListener('change', function(){ if(dateiIn.files.length) indivSammelVorschau(fachSel.value, Array.prototype.slice.call(dateiIn.files)); });
+  wahl.addEventListener('click', function(){ var r = geladen[uebSel.value]; if(r) indivZuweisenDialog(r); });
+  // Übersicht
+  getDocs(query(kcol('resources'), where('indiv.uid', '>', ''))).then(function(snap){
+    var rows = []; snap.forEach(function(d){ rows.push(Object.assign({id: d.id}, d.data())); });
+    var host = document.getElementById('ivListe'); if(!host) return;
+    if(!rows.length){ host.innerHTML = '<p class="muted">Noch nichts zugewiesen.</p>'; return; }
+    var uids = {}; rows.forEach(function(r){ uids[r.indiv.uid] = true; });
+    return Promise.all(Object.keys(uids).map(function(u){
+      return getDoc(doc(db, 'progress', u, 'erledigt', 'liste')).then(function(sn){ uids[u] = (sn.exists() && sn.data().ids) || {}; }).catch(function(){ uids[u] = {}; });
+    })).then(function(){
+      rows.sort(function(a, b){ return String(a.indiv.name).localeCompare(String(b.indiv.name), 'de') || String(b.indiv.am).localeCompare(String(a.indiv.am)); });
+      var fachName = function(id){ var f = subjectById(id); return f ? f.name : id; };
+      host.innerHTML = rows.map(function(r){
+        var t = uids[r.indiv.uid]['iu_'+r.id];
+        var st = typeof t === 'number' ? '<span class="chip-indiv">✅ gelöst '+new Date(t).toLocaleDateString('de-CH')+(Date.now() - t > INDIV_ARCHIV_TAGE * 86400000 ? ' · Archiv' : '')+'</span>' : '<span class="muted">○ offen</span>';
+        return '<div class="lp-check" style="justify-content:space-between;gap:8px;"><span><b>'+esc(r.indiv.name)+'</b> · '+esc(fachName(r.subject))+' · '+esc(r.title || r.fileName)+' '+st+'</span>'+
+          '<button class="btn btn-ghost btn-sm" type="button" data-iuweg="'+esc(r.id)+'" title="Zuweisung entfernen">🗑️</button></div>';
+      }).join('');
+      Array.prototype.forEach.call(host.querySelectorAll('[data-iuweg]'), function(b){
+        b.addEventListener('click', function(){
+          b.disabled = true;
+          deleteDoc(kdoc('resources', b.getAttribute('data-iuweg'))).then(function(){ var z = b.parentNode; if(z && z.parentNode) z.parentNode.removeChild(z); toast('Zuweisung entfernt.'); })
+            .catch(function(err){ console.error(err); b.disabled = false; toast('Hat nicht geklappt.'); });
+        });
+      });
+    });
+  }).catch(function(err){ console.error(err); var host = document.getElementById('ivListe'); if(host) host.innerHTML = '<p class="muted">Liste konnte nicht geladen werden.</p>'; });
+}
 function kzToolStarten(id){
   if(id === 'material'){ state.route = {name:'kzmaterial'}; render(); }
   else if(id === 'beamer') openBeamerTools('ruhe');
@@ -33060,6 +33270,7 @@ function kzToolStarten(id){
   else if(id === 'aemtli'){ aemtliUi.view = 'plan'; aemtliUi.scrollTo = 'now'; state.route = {name:'aemtliplan'}; render(); }
   else if(id === 'vergessen'){ state.route = {name:'vergessen'}; render(); }
   else if(id === 'bestellungen'){ state.route = {name:'bestellungen'}; render(); }
+  else if(id === 'indiv') indivVerwaltung();
 }
 
 /* ===================== 🛒 BESTELLUNGEN (Klassenzimmer) =====================
