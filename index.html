@@ -18701,7 +18701,17 @@ function historyDazu(before, merged, payload){
 // Stand schreiben, ohne Fremdes blind zu überschreiben (04.11.2026: ein Laptop mit altem Stand ersetzte die Stationen vom
 // Handy). In einer Transaktion wird der aktuelle Cloud-Stand gelesen; hat ein anderes Gerät seit unserem letzten Abgleich
 // (basisRev) geschrieben, wird zusammengeführt und der überschriebene Stand als «vorher» im selben Dokument aufgehoben.
-async function standTransaktion(ref_, newFields, basisRev){
+// 08.11.2026: Im Hintergrund-Tab wirft der Firestore-SDK (10.13.0) mitten in runTransaction «INTERNAL ASSERTION FAILED:
+// Unexpected state»; das Promise bleibt dann hängen. Darum Zeitlimit: danach greift der Fallback in writeProgressWithHistory.
+function standTransaktion(ref_, newFields, basisRev){
+  var lauf = standTransaktionLauf(ref_, newFields, basisRev);
+  lauf.catch(function(){});
+  return new Promise(function(ok, fehl){
+    var t = setTimeout(function(){ fehl(new Error('Transaktion Zeitlimit')); }, 15000);
+    lauf.then(function(r){ clearTimeout(t); ok(r); }, function(e){ clearTimeout(t); fehl(e); });
+  });
+}
+async function standTransaktionLauf(ref_, newFields, basisRev){
   return runTransaction(db, async function(tx){
     var snap = await tx.get(ref_), before = snap.exists() ? snap.data() : null;
     var f = Object.assign({}, newFields), zusammen = false;
@@ -25660,6 +25670,7 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-11-08-pruefung-varianten', datum:'2026-11-08', fuer:'lehrer', text:'📝 Prüfung differenzieren: Bei einer Prüfung «➕ Angepasste Variante» wählen (Knopf bei den Prüfungsknöpfen oder im Bearbeiten-Dialog), Personen ankreuzen (z. B. Lernzielanpassung) und Bereiche, Umfang, Antwortart, Anzahl Fragen, Gewichtung und Notenmassstab frei einstellen. Die Angekreuzten sehen nur die Variante, bei der Hauptprüfung fallen sie weg; beliebig viele Varianten möglich. Jede Variante hat eigenes Monitoring, Resultate und Note.'},
   {id:'2026-11-06-individuelle-uebung', datum:'2026-11-06', fuer:'lehrer', text:'📌 Individuelle Übung: Im 🏫 Klassenzimmer gibt es die Kachel «Individuelle Übungen» (Fach, Übung, Personen oder ganze Klasse/Gruppe wählen; Sammelzuweisung: viele Dateien «Vorname – Titel.html» auf einmal hochladen; dazu die Übersicht, wer gelöst hat). Auch bei jeder Übung unter «⋯» gibt es «👤 Individuell zuweisen». Die gewählten Personen sehen die Übung im Fach ganz unten unter «📌 Individuelle Übung». Gelöst = grün (wiederholen geht immer), nach 7 Tagen wandert sie ins 🗄️ Archiv.'},
   {id:'2026-11-06-individuelle-uebung-sus', datum:'2026-11-06', fuer:'alle', text:'📌 Neu: Ganz unten im Fach kann «Individuelle Übung» stehen – extra für dich, damit du deine Fehler übst. Auf der Startseite siehst du einen gelben Hinweis «Neue Übung für dich». Gelöst = grün, nach 7 Tagen im Archiv.'},
   {id:'2026-11-06-bestell-archiv', datum:'2026-11-06', fuer:'lehrer', text:'🗄️ Bestellungen: Was bestellt ist, wandert schon am Tag danach ins Archiv (vorher nach 4 Wochen).'},
@@ -39306,17 +39317,32 @@ function pruefKopfVerdrahten(art){
 }
 // «Für»: ganze Klasse oder eine meiner Gruppen. Die Gruppen kommen asynchron
 // dazu (pruefFuerLaden), damit der Dialog sofort steht.
-function pruefFuerHtml(p, fix){
+function pruefFuerHtml(p, fix, opt){
+  opt = opt || {};
+  var pers = !!opt.personen, vorPers = pers && ((p && p.variantenVon) || opt.vorlage);
   var h = '<label class="modal-label" for="prFuer">Für</label><select class="modal-input" id="prFuer"'+(fix ? ' disabled' : '')+'>';
   h += '<option value="">Ganze Klasse '+esc(klasseLabel())+'</option>';
   if(p && p.gruppeId) h += '<option value="'+esc(p.gruppeId)+'" selected>👥 '+esc(p.gruppeName || 'Gruppe')+'</option>';
-  h += '</select><p class="pr-hinweis">Wählst du eine 👥 Gruppe, sehen nur deren Mitglieder die Prüfung — auch die aus anderen Klassen.</p>';
+  if(pers) h += '<option value="__personen"'+(vorPers ? ' selected' : '')+'>🧍 Einzelne Personen (angepasste Variante) …</option>';
+  h += '</select><p class="pr-hinweis">Wählst du eine 👥 Gruppe, sehen nur deren Mitglieder die Prüfung — auch die aus anderen Klassen.'+(pers ? ' Bei «🧍 Einzelne Personen» (z. B. Lernzielanpassung) schreiben nur die Angekreuzten diese Variante; bei der Hauptprüfung fallen sie automatisch weg. Bereiche, Umfang, Antwortart, Anzahl, Gewichtung und Notenmassstab sind frei einstellbar.' : '')+'</p>';
+  if(pers) h += '<div id="prPersonen" class="pr-kats"'+(vorPers ? '' : ' hidden')+' data-vor="'+esc(JSON.stringify(p && p.variantenVon ? (p.mitglieder || []) : []))+'"><small>Personen werden geladen …</small></div>';
   return h;
 }
 function pruefFuerLaden(onChange){
   var sel = document.getElementById('prFuer');
   if(!sel || sel.disabled) return;
   if(onChange) sel.addEventListener('change', onChange);
+  var peBox = document.getElementById('prPersonen');
+  if(peBox){
+    sel.addEventListener('change', function(){ peBox.hidden = sel.value !== '__personen'; });
+    var vor = []; try{ vor = JSON.parse(peBox.getAttribute('data-vor') || '[]'); }catch(e){}
+    klasseRosterLoad().then(function(list){
+      list = ohneGaeste(list).slice().sort(function(a, b){ return String(a.displayName || a.vorname || '').localeCompare(String(b.displayName || b.vorname || ''), 'de'); });
+      peBox.innerHTML = list.map(function(s){
+        return '<label><input type="checkbox" value="'+esc(s.uid)+'"'+(vor.indexOf(s.uid) >= 0 ? ' checked' : '')+'> '+esc(s.displayName || s.vorname || s.username || s.uid)+'</label>';
+      }).join('') || '<small>Keine Personen gefunden.</small>';
+    }).catch(function(err){ console.error(err); peBox.innerHTML = '<small>Personen konnten nicht geladen werden.</small>'; });
+  }
   loadMeineGruppen().then(function(list){
     var s = document.getElementById('prFuer');
     if(!s) return;
@@ -39324,6 +39350,7 @@ function pruefFuerLaden(onChange){
     var cur = s.value, alt = s.options[s.selectedIndex] ? s.options[s.selectedIndex].textContent : '';
     var h = '<option value="">Ganze Klasse '+esc(klasseLabel())+'</option>';
     list.forEach(function(g){ h += '<option value="'+esc(g.id)+'">👥 '+esc(g.name)+' ('+esc(gruppeKurz(g))+')</option>'; });
+    if(document.getElementById('prPersonen')) h += '<option value="__personen">🧍 Einzelne Personen (angepasste Variante) …</option>';
     if(cur && !list.some(function(g){ return g.id === cur; })) h += '<option value="'+esc(cur)+'">'+esc(alt)+'</option>';
     s.innerHTML = h;
     s.value = cur;
@@ -39340,6 +39367,12 @@ function pruefFuerGruppe(){
 function pruefFuerDaten(p){
   var sel = document.getElementById('prFuer');
   if(!sel || sel.disabled) return {};
+  if(sel.value === '__personen'){
+    var uids = Array.prototype.map.call(document.querySelectorAll('#prPersonen input:checked'), function(i){ return i.value; });
+    var r = {mitglieder:uids.slice(0, 400)};
+    if(p && p.gruppeId){ r.gruppeId = deleteField(); r.gruppeName = deleteField(); }
+    return r;
+  }
   var g = pruefFuerGruppe();
   if(g) return {gruppeId:g.id, gruppeName:g.name, mitglieder:(g.mitglieder || []).slice(0, 400)};
   if(sel.value) return {};    // bisherige Gruppe, noch nicht geladen: unverändert lassen
@@ -39509,8 +39542,24 @@ function uebungOrdnerMenu(sel, uebungen, ordner, extras){
 
 /* ---------- Lehrperson: Prüfung anlegen / bearbeiten ---------- */
 
-async function pruefEditor(p, vorwahl){
-  var neu = !p, c = (p && p.cfg) || {};
+// Angepasste Variante (Lernzielanpassung): Die Personen verschwinden aus der
+// Hauptprüfung und den anderen Varianten (mitglieder), umgekehrt kommen
+// Personen, die aus einer Variante entfernt wurden, wieder in die Hauptprüfung.
+async function pruefVarianteAbgleich(vid, hauptId, neuUids, altUids){
+  var roster = ohneGaeste(await klasseRosterLoad()).map(function(s){ return s.uid; });
+  var geschwister = pruef.list.filter(function(x){ return x.id !== vid && (x.id === hauptId || x.variantenVon === hauptId); });
+  for(var i = 0; i < geschwister.length; i++){
+    var x = geschwister[i], basis = Array.isArray(x.mitglieder) ? x.mitglieder : roster;
+    var nm = basis.filter(function(u){ return neuUids.indexOf(u) < 0; });
+    if(x.id === hauptId && Array.isArray(x.mitglieder)){
+      altUids.forEach(function(u){ if(neuUids.indexOf(u) < 0 && nm.indexOf(u) < 0 && roster.indexOf(u) >= 0) nm.push(u); });
+    }
+    if(nm.length !== basis.length || nm.some(function(u){ return basis.indexOf(u) < 0; })) await updateDoc(pruefRef(x.id), {mitglieder:nm});
+  }
+}
+async function pruefEditor(p, vorwahl, vorlage){
+  var neu = !p, q = p || vorlage || null, c = (q && q.cfg) || {};
+  if(vorlage && !p) vorwahl = vorlage.resourceId;
   var fragenFix = !neu && p.status !== 'entwurf';
   var token = ++prEditorToken, kopf = pruefKopfHtml('uebung', neu);
   openModal('<h3>'+(neu ? '➕ Neue Prüfung' : '✏️ Prüfung bearbeiten')+'</h3>'+kopf+'<p>Übungen werden geladen …</p>', 'pr-modal');
@@ -39546,7 +39595,7 @@ async function pruefEditor(p, vorwahl){
     }
   }
   var h = '<h3>'+(neu ? '➕ Neue Prüfung' : '✏️ Prüfung bearbeiten')+'</h3>' + kopf;
-  h += '<label class="modal-label">Titel</label><input type="text" id="prTitel" class="modal-input" maxlength="80" value="'+esc(p ? p.titel : '')+'" placeholder="z.B. Prüfung Industrialisierung">';
+  h += '<label class="modal-label">Titel</label><input type="text" id="prTitel" class="modal-input" maxlength="80" value="'+esc(p ? p.titel : (vorlage ? (vorlage.titel || '') + ' (angepasst)' : ''))+'" placeholder="z.B. Prüfung Industrialisierung">';
   if(fragenFix){
     h += '<p class="pr-hinweis">Die Prüfung wurde schon freigegeben — die Fragen bleiben, wie sie sind. Ändern lassen sich Titel, Notenmassstab und die Punkte (unter «🧮 Aufgaben & Punkte»).</p>';
     h += '<p class="pr-hinweis"><b>'+esc(pruefBeschreibung(p, true))+'</b></p>';
@@ -39556,34 +39605,37 @@ async function pruefEditor(p, vorwahl){
     uebungen.forEach(function(r){
       var s = subjectById(r.subject), fn = s ? s.name : (r.subject || 'Ohne Fach');
       if(fn !== fach){ h += (fach !== null ? '</optgroup>' : '') + '<optgroup label="'+esc(fn)+'">'; fach = fn; }
-      h += '<option value="'+esc(r.id)+'"'+(p && p.resourceId === r.id ? ' selected' : '')+'>'+esc(r.title || r.fileName || r.id)+'</option>';
+      h += '<option value="'+esc(r.id)+'"'+(q && q.resourceId === r.id ? ' selected' : '')+'>'+esc(r.title || r.fileName || r.id)+'</option>';
     });
     h += (fach !== null ? '</optgroup>' : '');
     if(neu) h += '<optgroup label="Deutsch"><option value="__rsw">✍️ Rechtschreib-Werkstatt (Posten wählen)</option></optgroup>';
     h += '</select>';
     h += '<div id="prInfo"><p class="pr-hinweis">Wähle eine Übung — die Bereiche werden aus ihr ausgelesen.</p></div>';
   }
-  h += pruefFuerHtml(p, fragenFix);
-  var faecherListe = notenFaecher(), fachStd = p && p.fach ? p.fach : '';
+  h += pruefFuerHtml(p, fragenFix, {personen:!fragenFix && (!p || pruefArt(p) !== 'sikore'), vorlage:vorlage});
+  if(p && !fragenFix && !p.diktat) h += '<p><button class="btn btn-ghost btn-sm" id="prVarianteNeu" type="button">➕ Angepasste Variante anlegen (Lernzielanpassung)</button></p>';
+  var faecherListe = notenFaecher(), fachStd = q && q.fach ? q.fach : '';
   h += '<div class="pr-grid2"><div><label class="modal-label">Fach im Notenrechner</label><select id="prFach" class="modal-input">' + faecherListe.map(function(f){
     return '<option value="'+esc(f.id)+'"'+(f.id === fachStd ? ' selected' : '')+'>'+esc(f.name)+'</option>'; }).join('') + '</select></div>';
-  h += '<div><label class="modal-label">Gewichtung</label><input type="number" id="prGewicht" class="modal-input" min="0.5" max="10" step="0.5" value="'+esc(String(p && p.gewicht ? p.gewicht : 1))+'"></div></div>';
+  h += '<div><label class="modal-label">Gewichtung</label><input type="number" id="prGewicht" class="modal-input" min="0.5" max="10" step="0.5" value="'+esc(String(q && q.gewicht ? q.gewicht : 1))+'"></div></div>';
   h += '<p class="pr-hinweis">Bei «📣 Resultate freigeben» wird die Note mit dieser Gewichtung automatisch im 🎶 Notenrechner der Schüler:innen eingetragen. Wird die Prüfung gelöscht oder werden die Resultate wieder verborgen, verschwindet sie dort wieder.</p>';
-  h += '<div class="pr-grid2"><div><label class="modal-label">Zeitlimit in Minuten (leer = keins)</label><input type="number" id="prZeit" class="modal-input" min="1" max="300" step="1" value="'+esc(p && p.zeitMin ? String(p.zeitMin) : '')+'"></div><div></div></div>';
+  h += '<div class="pr-grid2"><div><label class="modal-label">Zeitlimit in Minuten (leer = keins)</label><input type="number" id="prZeit" class="modal-input" min="1" max="300" step="1" value="'+esc(q && q.zeitMin ? String(q.zeitMin) : '')+'"></div><div></div></div>';
   h += '<p class="pr-hinweis">Die Zeit läuft pro Person ab dem Start (auch während einer Sperre). Ist sie um, wird automatisch mit dem aktuellen Stand abgegeben.</p>';
   // Notenmassstab
-  var skw = JSON.parse(JSON.stringify(pruefSkala(p || {}))), skalaBeruehrt = !neu;
+  var skw = JSON.parse(JSON.stringify(pruefSkala(q || {}))), skalaBeruehrt = !neu || !!vorlage;
   h += '<h4 class="pr-h4">Notenmassstab</h4>';
   h += '<div class="pr-grid2"><div><label class="modal-label">Massstab</label><select id="prSkala" class="modal-input">' + PRUEF_SKALEN.map(function(o){
     return '<option value="'+o[0]+'">'+esc(o[1])+'</option>'; }).join('') + '</select></div>';
   h += '<div id="prRundBox"><label class="modal-label">Noten runden auf</label><select id="prRund" class="modal-input">' + [['0.1','Zehntel'],['0.25','Viertel'],['0.5','Halbe']].map(function(o){
-    return '<option value="'+o[0]+'"'+(String((p && p.rundung) || 0.1) === o[0] ? ' selected' : '')+'>'+o[1]+'</option>'; }).join('') + '</select></div></div>';
+    return '<option value="'+o[0]+'"'+(String((q && q.rundung) || 0.1) === o[0] ? ' selected' : '')+'>'+o[1]+'</option>'; }).join('') + '</select></div></div>';
   h += '<div id="prSkalaFelder"></div><p class="pr-hinweis" id="prMaxInfo"></p>';
   h += '<div class="modal-actions"><button class="btn btn-ghost btn-sm" id="modalCancel" type="button">Abbrechen</button><button class="btn btn-primary btn-sm" id="modalOk" type="button"'+(fragenFix ? '' : ' disabled')+'>Speichern</button></div>';
   openModal(h, 'pr-modal');
   if(neu) pruefKopfVerdrahten('uebung');
   pruefFuerLaden();
   document.getElementById('modalCancel').addEventListener('click', closeModal);
+  var vnBtn = document.getElementById('prVarianteNeu');
+  if(vnBtn) vnBtn.addEventListener('click', function(){ pruefEditor(null, null, p); });
 
   var info = null, resource = null, okBtn = document.getElementById('modalOk');
   var seed = Math.floor(Math.random() * 2147483646) + 1;
@@ -39684,7 +39736,7 @@ async function pruefEditor(p, vorwahl){
       box.innerHTML = '<p class="pr-hinweis pr-warn">In dieser Übung wurden keine automatisch korrigierbaren Fragen gefunden. Geht bisher mit: Prüfungsvorbereitungen (Quiz), Mathe-Übungen, Diktaten und Pöstlergeografie.</p>';
       okBtn.disabled = true; maxInfoZeichnen(); return;
     }
-    var gleich = p && p.resourceId === resource.id;
+    var gleich = q && q.resourceId === resource.id;
     // Diktat: Fehlerabzug als Vorschlag, solange nichts von Hand gewählt wurde
     if(!skalaBeruehrt){ skw = info.diktat ? {typ:'fehler', abzug:0.25, frei:0} : {typ:'dbk'}; }
     if(info.diktat){
@@ -39820,7 +39872,16 @@ async function pruefEditor(p, vorwahl){
     var data = {titel:titel, skala:skala, punkteFuer6:null, fehlerAbzug:null, rundung:+document.getElementById('prRund').value || 0.1,
       fach:document.getElementById('prFach').value, gewicht:gewicht,
       zeitMin:Math.min(300, Math.max(0, Math.round(+document.getElementById('prZeit').value || 0))) || null};
+    var persSel = document.getElementById('prFuer');
+    var persWahl = !!persSel && !persSel.disabled && persSel.value === '__personen';
+    if(persWahl && !document.querySelector('#prPersonen input:checked')){ toast('Mindestens eine Person ankreuzen.'); return; }
     Object.assign(data, pruefFuerDaten(p));
+    var hauptId = (p && p.variantenVon) || (vorlage && (vorlage.variantenVon || vorlage.id)) || null;
+    if(persWahl){
+      if(!hauptId && p){ toast('Diese Prüfung ist keine Variante — «Für» bitte nicht auf Einzelpersonen stellen. Lege über «➕ Angepasste Variante» eine an.'); return; }
+      if(!hauptId){ toast('Eine Variante entsteht aus einer bestehenden Prüfung: dort «➕ Angepasste Variante» wählen.'); return; }
+      data.variantenVon = hauptId;
+    }
     var loesung = null;
     if(!fragenFix){
       if(!info || info.art === 'keine' || !resource) return;
@@ -39872,6 +39933,9 @@ async function pruefEditor(p, vorwahl){
       if(loesung) batch.set(loesRef(id), {loesungen:loesung});
       await batch.commit();
       if(loesung) pruef.loes[id] = loesung;
+      if(persWahl && data.variantenVon){
+        try{ await pruefVarianteAbgleich(id, data.variantenVon, data.mitglieder || [], (p && p.mitglieder) || []); }catch(err){ console.error(err); toast('Variante gespeichert, aber die Hauptprüfung konnte nicht angepasst werden.'); }
+      }
       closeModal();
       if(neu){ state.route = {name:'pruefung', id:id}; render(); }
       else {
@@ -41120,6 +41184,7 @@ function pruefMonitorZeichnen(){
   if(!skPapier && pruefArt(p) === 'nativ' && !p.diktat && p.cfg && (p.cfg.optionen || {}).diff != null) h += '<button class="btn btn-sm '+(p.differenz && Object.keys(p.differenz).length ? 'btn-primary' : 'btn-ghost')+'" data-a="differenz" type="button" title="Einzelne Personen schreiben dieselbe Prüfung in einer leichteren (oder anderen) Antwortart — auch Bildtrainer">🎯 Differenzieren</button>';
   if(pruefArt(p) === 'sikore') h += '<button class="btn btn-ghost btn-sm" data-a="sikoreDruck" type="button">🖨️ Blätter drucken</button>';
   h += '<button class="btn btn-ghost btn-sm" data-a="bearbeiten" type="button">✏️ Bearbeiten</button>';
+  if(!skPapier && ['sikore','tippen','mt'].indexOf(pruefArt(p)) < 0 && !p.rsw && !p.diktat) h += '<button class="btn btn-ghost btn-sm" data-a="variante" type="button" title="Eigene Bereiche, Umfang, Antwortart, Anzahl und Note für einzelne Personen (Lernzielanpassung)">➕ Angepasste Variante</button>';
   h += '<button class="btn btn-ghost btn-sm" data-a="ablegen" type="button" title="In einem Ordner des Fachs ablegen – die Klasse sieht sie dort erst nach dem Freigeben">📁 Ablegen</button>';
   if(pruefArt(p) === 'bank' && !p.diktat) h += '<button class="btn btn-ghost btn-sm" data-a="punkte" type="button">🧮 Aufgaben & Punkte</button>';
   if((pruefArt(p) === 'bank' && !p.diktat) || pruefArt(p) === 'mt' || pruefArt(p) === 'nativ') h += '<button class="btn btn-ghost btn-sm" data-a="baukasten" type="button" title="Aufgaben ansehen, einzeln löschen oder austauschen — bis jemand die Prüfung startet">🧩 Baukasten</button>';
@@ -41415,6 +41480,7 @@ function pruefMonitorVerdrahten(p){
     else if(a === 'differenz') pruefDifferenzDialog(p);
     else if(a === 'diktatkurz') pruefDiktatKurzDialog(p);
     else if(a === 'diktatalt') pruefDiktatAltDialog(p);
+    else if(a === 'variante') pruefEditor(null, null, p);
     else if(a === 'bearbeiten'){ if(pruefArt(p) === 'sikore') sikoreEditor(p); else if(pruefArt(p) === 'tippen') tippPrEditor(p); else if(pruefArt(p) === 'mt') mtPrEditor(p); else if(p.rsw) rswPrEditor(p); else pruefEditor(p); }
     else if(a === 'sikoreDruck') sikoreDruckDialog(p);
     else if(a === 'punkte') pruefAufgabenPunkte(p);
