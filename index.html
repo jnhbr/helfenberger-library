@@ -23734,17 +23734,36 @@ function spRulesModal(){
       return '<option value="'+esc(s.uid)+'"'+(sel===s.uid?' selected':'')+'>'+esc(s.displayName)+'</option>';
     }).join('');
   }
+  function ruleChip(r, i, uid){
+    var other = r.a === uid ? r.b : r.a;
+    var o = spStudentById(other);
+    var on = spGroupOn(spRuleGroup(r));
+    var txt;
+    if(r.t === 'nicht') txt = '<b>nicht neben</b> ' + esc(o?o.displayName:'?');
+    else if(r.t === 'zusammen') txt = '<b>neben</b> ' + esc(o?o.displayName:'?');
+    else if(r.t === 'allein') txt = '<b>sitzt allein</b> am Tisch';
+    else if(SP_G_RULES[r.t]) txt = '<b>' + SP_G_RULES[r.t].txt + '</b>';
+    else txt = '<b>sitzt vorne</b>';
+    return '<span class="sp-rule-chip" style="display:inline-flex;gap:6px;align-items:center;margin:2px 6px 2px 0;padding:3px 4px 3px 10px;border-radius:999px;background:#fff;border:1px solid #cbd5e1'+(on?'':';opacity:.45')+'">'+txt+
+      '<button type="button" data-rule-del="'+i+'" title="Entfernen" style="border:0;background:#fde2e4;color:#b42318;border-radius:50%;width:22px;height:22px;cursor:pointer;font-weight:700">×</button></span>';
+  }
   function listHtml(){
     if(!sp.doc.rules.length) return '<div class="sp-rule-empty">Noch keine Regeln.</div>';
-    return sp.doc.rules.map(function(r, i){
-      var a = spStudentById(r.a), b = spStudentById(r.b);
-      var txt;
-      if(r.t === 'nicht') txt = esc(a?a.displayName:'?') + ' <b>nicht neben</b> ' + esc(b?b.displayName:'?');
-      else if(r.t === 'zusammen') txt = esc(a?a.displayName:'?') + ' <b>neben</b> ' + esc(b?b.displayName:'?');
-      else if(r.t === 'allein') txt = esc(a?a.displayName:'?') + ' <b>sitzt allein</b> am Tisch';
-      else if(SP_G_RULES[r.t]) txt = esc(a?a.displayName:'?') + ' <b>' + SP_G_RULES[r.t].txt + '</b>';
-      else txt = esc(a?a.displayName:'?') + ' <b>sitzt vorne</b>';
-      return '<div class="sp-rule"'+(spGroupOn(spRuleGroup(r))?'':' style="opacity:.45"')+'><span>'+txt+'</span><button class="btn btn-danger btn-sm" type="button" data-rule-del="'+i+'">Entfernen</button></div>';
+    var byUid = {}, order = [];
+    sp.doc.rules.forEach(function(r, i){
+      [r.a, (r.t === 'nicht' || r.t === 'zusammen') ? r.b : null].forEach(function(u){
+        if(!u) return;
+        if(!byUid[u]){ byUid[u] = []; order.push(u); }
+        byUid[u].push(ruleChip(r, i, u));
+      });
+    });
+    order.sort(function(x, y){
+      var a = spStudentById(x), b = spStudentById(y);
+      return ((a&&a.displayName)||'').localeCompare((b&&b.displayName)||'', 'de');
+    });
+    return order.map(function(u){
+      var a = spStudentById(u);
+      return '<div class="sp-rule" style="display:block"><div style="font-weight:700;margin-bottom:2px">'+esc(a?a.displayName:'?')+'</div><div>'+byUid[u].join('')+'</div></div>';
     }).join('');
   }
   function build(){
@@ -23757,11 +23776,11 @@ function spRulesModal(){
       return '<label style="display:inline-flex;gap:4px;align-items:center;margin:2px 10px 2px 0"><input type="checkbox" data-rgroup="'+g+'"'+(spGroupOn(g)?' checked':'')+'> '+SP_RULE_GROUPS[g].label+cnt+'</label>';
     }).join('') + '</div>';
     h += '<div class="sp-rule-list" id="spRuleList">'+listHtml()+'</div>';
-    h += '<div class="sp-rule-add">';
+    h += '<div class="sp-rule-add" style="flex-wrap:wrap">';
+    h += '<select class="sp-select" id="spRuleA">'+optionsHtml(sp.ruleSelUid || null)+'</select>';
     h += '<select class="sp-select" id="spRuleType"><option value="nicht">darf nicht neben</option><option value="zusammen">soll neben</option><option value="allein">soll allein am Tisch sitzen</option><option value="vorne">soll vorne sitzen</option>' +
       Object.keys(SP_G_RULES).map(function(k){ return '<option value="'+k+'">'+SP_G_RULES[k].opt+'</option>'; }).join('') + '</select>';
-    h += '<select class="sp-select" id="spRuleA">'+optionsHtml(null)+'</select>';
-    h += '<select class="sp-select" id="spRuleB">'+optionsHtml(null)+'</select>';
+    h += '<div id="spRuleBs" style="flex-basis:100%"></div>';
     h += '<button class="btn btn-primary btn-sm" id="spRuleAdd" type="button">Hinzufügen</button>';
     h += '</div>';
     h += '<div class="modal-actions"><button class="btn btn-primary btn-sm" id="spRuleClose" type="button">Fertig</button></div>';
@@ -23770,19 +23789,37 @@ function spRulesModal(){
   }
   function wire(){
     var typeSel = document.getElementById('spRuleType');
-    var bSel = document.getElementById('spRuleB');
-    // "vorne", "allein" und die Jungen/Mädchen-Regeln betreffen nur EIN Kind — das zweite Feld verschwindet.
+    var aSel = document.getElementById('spRuleA');
+    var bBox = document.getElementById('spRuleBs');
+    // "vorne", "allein" und die Jungen/Mädchen-Regeln betreffen nur EIN Kind - die Namenswahl verschwindet.
     function istEinzeln(t){ return t === 'vorne' || t === 'allein' || !!SP_G_RULES[t]; }
-    function syncB(){ bSel.style.display = istEinzeln(typeSel.value) ? 'none' : ''; }
-    typeSel.addEventListener('change', syncB); syncB();
+    function syncB(){
+      sp.ruleSelUid = aSel.value;
+      if(istEinzeln(typeSel.value)){ bBox.innerHTML = ''; return; }
+      var bestehend = {};
+      sp.doc.rules.forEach(function(r){
+        if(r.t !== typeSel.value) return;
+        if(r.a === aSel.value) bestehend[r.b] = true;
+        if(r.b === aSel.value) bestehend[r.a] = true;
+      });
+      var opts = Array.prototype.map.call(document.querySelectorAll('#spRuleA option'), function(o){ return o; })
+        .filter(function(o){ return o.value !== aSel.value && !bestehend[o.value]; });
+      bBox.innerHTML = '<div style="font-size:.85em;opacity:.7;margin:2px 0">Mit wem? (mehrere möglich)</div>' + opts.map(function(o){
+        return '<label style="display:inline-flex;gap:4px;align-items:center;margin:2px 10px 2px 0"><input type="checkbox" data-rb="'+esc(o.value)+'"> '+esc(o.textContent)+'</label>';
+      }).join('');
+    }
+    typeSel.addEventListener('change', syncB);
+    aSel.addEventListener('change', function(){ syncB(); document.getElementById('spRuleList').scrollTop = 0; });
+    syncB();
     document.getElementById('spRuleAdd').addEventListener('click', function(){
       var t = typeSel.value;
-      var a = document.getElementById('spRuleA').value;
-      var b = bSel.value;
-      var einzeln = istEinzeln(t);
-      if(!einzeln && a === b){ toast('Bitte zwei verschiedene Kinder wählen.'); return; }
-      if(sp.doc.rules.length >= 60){ toast('Maximal 60 Regeln.'); return; }
-      sp.doc.rules.push({ t:t, a:a, b: einzeln ? '' : b });
+      var a = aSel.value;
+      var bs = istEinzeln(t) ? [''] : Array.prototype.map.call(bBox.querySelectorAll('[data-rb]:checked'), function(c){ return c.getAttribute('data-rb'); });
+      if(!bs.length){ toast('Bitte mindestens ein Kind wählen.'); return; }
+      if(sp.doc.rules.length + bs.length > 60){ toast('Maximal 60 Regeln.'); return; }
+      if(istEinzeln(t) && sp.doc.rules.some(function(r){ return r.t === t && r.a === a; })){ toast('Diese Regel gibt es schon.'); return; }
+      bs.forEach(function(b){ sp.doc.rules.push({ t:t, a:a, b:b }); });
+      sp.ruleSelUid = a;
       spSave(); build(); paintSitzplan();
     });
     Array.prototype.forEach.call(document.querySelectorAll('[data-rule-del]'), function(btn){
@@ -25888,6 +25925,7 @@ const NEUIGKEITEN = [
   {id:'2026-10-29-pruefung-2tage', datum:'2026-10-29', fuer:'alle', text:'📝 Freigegebene Prüfungen siehst du 2 Tage lang direkt bei der Prüfung. Danach findest du sie 30 Tage lang im 🎶 Notenrechner: einfach auf den Prüfungsnamen tippen. Die Note bleibt.'},
   {id:'2026-10-19-ausblenden', datum:'2026-10-19', fuer:'lehrer', text:'🙈 Neu bei jeder Übung, jedem PDF und Link: «🙈 Ausblenden». Die Klasse sieht sie dann nicht (z. B. ein Lösungsdossier), du siehst sie gestrichelt. Ist das Thema durch, mit «👁 Einblenden» freigeben.'},
   {id:'2026-10-19-neues-fenster', datum:'2026-10-19', fuer:'alle', text:'🪟 Übungen, LMVZ-Seiten und PDFs kannst du neben «Vollbild» jetzt auch «In neuem Fenster» öffnen. Das Fenster ist bildschirmgross, du kannst es aber kleiner machen und in der Library nebenher etwas anderes machen – dein Stand wird trotzdem gespeichert. In Prüfungen geht das nicht.'},
+  {id:'2026-11-08-sitzplan-regeln-pro-kind', datum:'2026-11-08', fuer:'lehrer', text:'🪑 Sitzplan › ⚖️ Regeln: Die Regeln sind jetzt pro Kind zusammengefasst. Kind wählen, Regel wählen und mehrere Kinder auf einmal abhaken; einzelne Regeln lassen sich mit × entfernen.'},
   {id:'2026-10-19-sitzplan-jm-regeln', datum:'2026-10-19', fuer:'lehrer', text:'🪑 Sitzplan › ⚖️ Regeln: neu auch «darf nicht neben Mädchen/Jungen» und «muss neben Mädchen/Jungen» für einzelne Kinder. Massgebend sind die J/M-Knöpfe; «🎲 Zufällig setzen» hält sich daran.'},
   {id:'2026-10-19-beamer-zoom', datum:'2026-10-19', fuer:'lehrer', text:'🔍 Am Laptop zeigt die Library jetzt alles auf 90 %. Sobald du per AirPlay auf den Beamer spiegelst, stellt sie automatisch auf 125 % um, damit es dort gross genug und nicht verzerrt ist.'},
   {id:'2026-10-19-ferien-ecke', datum:'2026-10-19', fuer:'alle', text:'🚨 Der Ferien-Countdown steht jetzt unten links in der Leiste und stört nicht mehr zwischen den Knöpfen. Auf dem Handy wird er nicht mehr angezeigt.'},
