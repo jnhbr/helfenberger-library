@@ -150,6 +150,9 @@ function winterAn(){ var aus = false; try{ aus = localStorage.getItem('hl_winter
   .coin-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px;font-size:13.5px;}
   .coin-list li{display:flex;justify-content:space-between;gap:10px;border-top:1px dashed var(--border);padding-top:6px;}
   .coin-list li span{min-width:0;overflow-wrap:anywhere;}
+  .coin-esk{display:block;font-size:12px;opacity:.8;margin-top:2px;}
+  .debt-entry{flex-wrap:wrap;}
+  .debt-entry .coin-esk{flex-basis:100%;order:5;}
   .coin-list li b{white-space:nowrap;}
   .debt-list{max-height:calc(calc(85vh/var(--lz,1)) - 320px);overflow-y:auto;margin:10px 0;}
   .debt-row,.debt-entry{display:flex;align-items:center;gap:10px;padding:8px 2px;border-bottom:1px solid var(--border);font-size:14.5px;}
@@ -9085,8 +9088,45 @@ var coinHover = makeHoverPanel({
 });
 
 function fmtChf(n){ return 'CHF ' + (Math.round(Number(n)*100)/100).toFixed(2); }
+/* Aufschlag bei Nichtzahlen: e.esk = {ab (ms, erste Frist), betrag, jede (Wochen, 0 = nur einmal), max (0 = unbegrenzt)}.
+   Der aktuelle Betrag wird nie gespeichert, sondern aus Grundbetrag + Anzahl verstrichener Fristen berechnet —
+   so stimmt er bei Lehrperson und Schüler:in immer, auch ohne Server. */
+function debtAbN(k, n){
+  var d = new Date(k.ab);
+  if(n > 0) d.setDate(d.getDate() + n * k.jede * 7);
+  return d.getTime();
+}
+function debtEskStufen(e, jetzt){
+  var k = e && e.esk;
+  if(!k || !(k.betrag > 0) || !k.ab) return 0;
+  jetzt = jetzt || Date.now();
+  var n = 0, cap = k.max > 0 ? k.max : 520;
+  if(!(k.jede > 0)) cap = 1;
+  while(n < cap && jetzt >= debtAbN(k, n)) n++;
+  return n;
+}
+function debtBetrag(e){
+  var v = Number(e.amount);
+  if(!isFinite(v)) return 0;
+  return Math.round((v + debtEskStufen(e) * (e.esk ? e.esk.betrag : 0)) * 100) / 100;
+}
+function debtEskNaechste(e){
+  var k = e && e.esk;
+  if(!k || !(k.betrag > 0) || !k.ab) return null;
+  var n = debtEskStufen(e);
+  if(k.max > 0 && n >= k.max) return null;
+  if(n >= 1 && !(k.jede > 0)) return null;
+  return {ab:debtAbN(k, n), neu:Math.round((debtBetrag(e) + k.betrag) * 100) / 100};
+}
+function debtJedeText(k){ return k.jede === 1 ? 'jede Woche' : 'alle ' + k.jede + ' Wochen'; }
+function debtEskText(e){
+  var nx = debtEskNaechste(e), k = e.esk;
+  if(!nx) return '';
+  return 'Zahlst du nicht bis am ' + fmtDebtDate(nx.ab) + ', steigt der Betrag um ' + fmtChf(k.betrag) + ' auf ' + fmtChf(nx.neu) + '.' +
+    (k.jede > 0 ? ' Danach wieder ' + debtJedeText(k) + ' um ' + fmtChf(k.betrag) + (k.max > 0 ? ' (höchstens ' + k.max + '×)' : '') + '.' : '');
+}
 function debtSum(entries){
-  return (entries||[]).reduce(function(s,e){ var v = Number(e.amount); return s + (isFinite(v) ? v : 0); }, 0);
+  return (entries||[]).reduce(function(s,e){ return s + debtBetrag(e); }, 0);
 }
 function normalizeDebtEntries(data){
   var arr = (data && Array.isArray(data.entries)) ? data.entries : [];
@@ -9095,7 +9135,8 @@ function normalizeDebtEntries(data){
       id: e.id || ('d_'+Date.now()+'_'+Math.random().toString(36).slice(2,8)),
       amount: Number(e.amount),
       what: (e.what||'').toString(),
-      createdAt: Number(e.createdAt) || 0
+      createdAt: Number(e.createdAt) || 0,
+      esk: (e.esk && Number(e.esk.betrag) > 0 && Number(e.esk.ab) > 0) ? {ab:Number(e.esk.ab), betrag:Math.round(Number(e.esk.betrag)*100)/100, jede:Math.max(0, Math.round(Number(e.esk.jede)) || 0), max:Math.max(0, Math.round(Number(e.esk.max)) || 0)} : null
     };
   });
 }
@@ -9158,7 +9199,7 @@ function refreshMyDebtUi(){
   // Die Sprechblase geht von selbst auf - beim Anmelden und jedes Mal, wenn ein
   // Eintrag dazukommt oder sich ändert. Wer sie wegklickt, hat Ruhe, bis sich
   // wieder etwas an den eigenen Schulden ändert.
-  var sig = myDebt.entries.map(function(e){ return e.id+':'+e.amount+':'+e.what; }).join('|');
+  var sig = myDebt.entries.map(function(e){ return e.id+':'+debtBetrag(e)+':'+e.what+':'+(e.esk ? e.esk.ab+'/'+e.esk.betrag : ''); }).join('|');
   if(sig !== coinAutoShownSig){ coinAutoShownSig = sig; openCoinBubble(); return; }
   if(document.getElementById('coinBubble')) openCoinBubble();
 }
@@ -9166,7 +9207,8 @@ function onCoinClick(){ coinHover.click(); }
 function openCoinBubble(){
   closeCoinBubble();
   var items = myDebt.entries.slice().sort(function(a,b){ return (b.createdAt||0)-(a.createdAt||0); }).map(function(e){
-    return '<li><span>'+esc(e.what || 'Ohne Angabe')+'</span><b>'+esc(fmtChf(e.amount))+'</b></li>';
+    var et = debtEskText(e);
+    return '<li><span>'+esc(e.what || 'Ohne Angabe')+(et ? '<small class="coin-esk">⚠️ '+esc(et)+'</small>' : '')+'</span><b>'+esc(fmtChf(debtBetrag(e)))+'</b></li>';
   }).join('');
   document.body.insertAdjacentHTML('beforeend',
     '<div class="coin-bubble" id="coinBubble">'+
@@ -9271,7 +9313,8 @@ function renderDebtDetail(row, rows){
     return '<div class="debt-entry">'+
       '<span class="debt-entry-what">'+esc(e.what||'Ohne Angabe')+
         (e.createdAt ? '<span class="debt-entry-date"> · '+esc(fmtDebtDate(e.createdAt))+'</span>' : '')+'</span>'+
-      '<span class="debt-row-sum has-debt">'+esc(fmtChf(e.amount))+'</span>'+
+      (debtEskNaechste(e) || debtEskStufen(e) ? '<small class="coin-esk" style="grid-column:1/-1">📈 '+(debtEskStufen(e) ? 'Grundbetrag '+esc(fmtChf(e.amount))+' + '+debtEskStufen(e)+'× '+esc(fmtChf(e.esk.betrag))+'. ' : '')+(debtEskNaechste(e) ? 'Nächste Erhöhung nach dem '+esc(fmtDebtDate(debtEskNaechste(e).ab))+' auf '+esc(fmtChf(debtEskNaechste(e).neu))+(e.esk.jede > 0 ? ', dann '+esc(debtJedeText(e.esk)) : '')+'.' : 'Keine weitere Erhöhung.')+'</small>' : '')+
+      '<span class="debt-row-sum has-debt">'+esc(fmtChf(debtBetrag(e)))+'</span>'+
       '<button class="btn btn-ghost btn-sm debt-del" type="button" data-id="'+esc(e.id)+'" title="Beglichen – Eintrag löschen">🗑</button>'+
       '</div>';
   }).join('') : '<div class="empty-state">Keine offenen Schulden.</div>';
@@ -9288,6 +9331,7 @@ function renderDebtDetail(row, rows){
     '</div>'+
     '<div class="login-err" id="debtErr"></div>'+
     '<div class="modal-actions">'+
+      (row.entries.length ? '<button class="btn btn-ghost btn-sm" id="debtEskBtn" type="button" title="Der Betrag steigt, wenn nicht rechtzeitig bezahlt wird">📈 Aufschlag bei Nichtzahlen</button>' : '')+
       (row.total>0 ? '<button class="btn btn-danger btn-sm" id="debtClearBtn" type="button">Alles beglichen</button>' : '')+
       '<button class="btn btn-ghost btn-sm" id="debtBackBtn" type="button">Zurück</button>'+
     '</div>',
@@ -9315,6 +9359,8 @@ function renderDebtDetail(row, rows){
     }]));
   }
   document.getElementById('debtAddBtn').addEventListener('click', addEntry);
+  var eskBtn = document.getElementById('debtEskBtn');
+  if(eskBtn) eskBtn.addEventListener('click', function(){ debtEskDialog(row, rows); });
   whatEl.addEventListener('keydown', function(e){ if(e.key === 'Enter') addEntry(); });
   amountEl.addEventListener('keydown', function(e){ if(e.key === 'Enter') whatEl.focus(); });
   document.getElementById('debtBackBtn').addEventListener('click', function(){ renderDebtOverview(rows); });
@@ -9331,6 +9377,45 @@ function renderDebtDetail(row, rows){
       var id = b.getAttribute('data-id');
       saveDebtEntries(row, rows, row.entries.filter(function(e){ return e.id !== id; }));
     });
+  });
+}
+function debtEskDialog(row, rows){
+  var bsp = row.entries.filter(function(e){ return e.esk; })[0];
+  var k = bsp ? bsp.esk : null;
+  var opts = '<option value="">Alle Einträge ('+row.entries.length+')</option>' + row.entries.map(function(e){
+    return '<option value="'+esc(e.id)+'">'+esc((e.what || 'Ohne Angabe')+' · '+fmtChf(e.amount))+'</option>'; }).join('');
+  openModal(
+    '<h3>📈 Aufschlag bei Nichtzahlen</h3>'+
+    '<p class="pr-hinweis">'+esc(row.stu.displayName||row.stu.username)+' sieht in der Sprechblase immer, bis wann und um wie viel der Betrag steigt, wenn nicht bezahlt wird. Bezahlt wird mit «Alles beglichen» oder 🗑 am Eintrag.</p>'+
+    '<label class="modal-label" for="eskFuer">Für</label><select class="modal-input" id="eskFuer">'+opts+'</select>'+
+    '<div class="pr-grid2"><div><label class="modal-label" for="eskWochen">Erste Erhöhung nach (Wochen)</label><input type="number" class="modal-input" id="eskWochen" min="1" max="52" step="1" value="2"></div>'+
+    '<div><label class="modal-label" for="eskBetrag">Erhöhung um (CHF)</label><input type="number" class="modal-input" id="eskBetrag" min="0.05" step="0.05" value="'+esc(k ? k.betrag.toFixed(2) : '1.00')+'"></div></div>'+
+    '<div class="pr-grid2"><div><label class="modal-label" for="eskJede">Danach wieder alle … Wochen (0 = nur einmal)</label><input type="number" class="modal-input" id="eskJede" min="0" max="52" step="1" value="'+(k ? k.jede : 1)+'"></div>'+
+    '<div><label class="modal-label" for="eskMax">Höchstens … Erhöhungen (leer = unbegrenzt)</label><input type="number" class="modal-input" id="eskMax" min="1" max="100" step="1" value="'+(k && k.max ? k.max : '')+'"></div></div>'+
+    '<div class="login-err" id="eskErr"></div>'+
+    '<div class="modal-actions"><button class="btn btn-ghost btn-sm" id="eskZurueck" type="button">Zurück</button>'+
+    '<button class="btn btn-danger btn-sm" id="eskWeg" type="button">Aufschlag entfernen</button>'+
+    '<button class="btn btn-primary btn-sm" id="eskOk" type="button">Aufschlag festlegen</button></div>',
+    'modal-wide');
+  var err = document.getElementById('eskErr');
+  function zielEintrag(e){ var v = document.getElementById('eskFuer').value; return !v || e.id === v; }
+  function speichern(esk){
+    saveDebtEntries(row, rows, row.entries.map(function(e){
+      if(!zielEintrag(e)) return e;
+      var n = Object.assign({}, e); n.esk = esk; return n;
+    }));
+  }
+  document.getElementById('eskZurueck').addEventListener('click', function(){ renderDebtDetail(row, rows); });
+  document.getElementById('eskWeg').addEventListener('click', function(){ speichern(null); });
+  document.getElementById('eskOk').addEventListener('click', function(){
+    var w = Math.round(parseFloat(document.getElementById('eskWochen').value.replace(',', '.')));
+    var b = Math.round(parseFloat(document.getElementById('eskBetrag').value.replace(',', '.')) * 100) / 100;
+    var j = Math.round(parseFloat(document.getElementById('eskJede').value.replace(',', '.')));
+    var m = Math.round(parseFloat(document.getElementById('eskMax').value.replace(',', '.')));
+    if(!(w >= 1 && w <= 52)){ err.textContent = 'Wochen bis zur ersten Erhöhung: 1 bis 52.'; err.classList.add('show'); return; }
+    if(!(b > 0)){ err.textContent = 'Die Erhöhung muss grösser als 0 sein.'; err.classList.add('show'); return; }
+    var d = new Date(); d.setDate(d.getDate() + w * 7); d.setHours(23, 59, 59, 0);
+    speichern({ab:d.getTime(), betrag:b, jede:j > 0 ? Math.min(52, j) : 0, max:m > 0 ? Math.min(100, m) : 0});
   });
 }
 function saveDebtEntries(row, rows, entries){
@@ -25670,6 +25755,9 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-11-08-varianten-ein-fenster', datum:'2026-11-08', fuer:'lehrer', text:'🧍 Angepasste Prüfungsvarianten stehen jetzt im selben Fenster wie die Hauptprüfung: unter der geöffneten Prüfung folgen alle Varianten mit eigenen Knöpfen (Freigeben, Beenden, Resultate …) und Teilnehmerliste.'},
+  {id:'2026-11-08-schulden-aufschlag', datum:'2026-11-08', fuer:'lehrer', text:'💸 Schulden: Bei jeder Person gibt es «📈 Aufschlag bei Nichtzahlen» – nach X Wochen steigt der Betrag um CHF Y, auf Wunsch danach alle Z Wochen wieder (optional mit Höchstzahl). Die Schüler:innen sehen in ihrer Sprechblase immer, bis wann und um wie viel es teurer wird. Bezahlt: «Alles beglichen» oder 🗑 am Eintrag.'},
+  {id:'2026-11-08-schulden-aufschlag-sus', datum:'2026-11-08', fuer:'alle', text:'💸 Schulden: In der Sprechblase steht jetzt, bis wann du zahlen musst, damit der Betrag nicht steigt.'},
   {id:'2026-11-08-pruefung-varianten', datum:'2026-11-08', fuer:'lehrer', text:'📝 Prüfung differenzieren: Bei einer Prüfung «➕ Angepasste Variante» wählen (Knopf bei den Prüfungsknöpfen oder im Bearbeiten-Dialog), Personen ankreuzen (z. B. Lernzielanpassung) und Bereiche, Umfang, Antwortart, Anzahl Fragen, Gewichtung und Notenmassstab frei einstellen. Die Angekreuzten sehen nur die Variante, bei der Hauptprüfung fallen sie weg; beliebig viele Varianten möglich. Jede Variante hat eigenes Monitoring, Resultate und Note.'},
   {id:'2026-11-06-individuelle-uebung', datum:'2026-11-06', fuer:'lehrer', text:'📌 Individuelle Übung: Im 🏫 Klassenzimmer gibt es die Kachel «Individuelle Übungen» (Fach, Übung, Personen oder ganze Klasse/Gruppe wählen; Sammelzuweisung: viele Dateien «Vorname – Titel.html» auf einmal hochladen; dazu die Übersicht, wer gelöst hat). Auch bei jeder Übung unter «⋯» gibt es «👤 Individuell zuweisen». Die gewählten Personen sehen die Übung im Fach ganz unten unter «📌 Individuelle Übung». Gelöst = grün (wiederholen geht immer), nach 7 Tagen wandert sie ins 🗄️ Archiv.'},
   {id:'2026-11-06-individuelle-uebung-sus', datum:'2026-11-06', fuer:'alle', text:'📌 Neu: Ganz unten im Fach kann «Individuelle Übung» stehen – extra für dich, damit du deine Fehler übst. Auf der Startseite siehst du einen gelben Hinweis «Neue Übung für dich». Gelöst = grün, nach 7 Tagen im Archiv.'},
@@ -37544,7 +37632,8 @@ function syncPruefTeilWatchers(){
   pruef.list.forEach(function(p){
     if(teacher){
       // Lehrperson: laufende Prüfungen immer (für den Knopf oben), andere nur, solange sie offen angeschaut werden.
-      if(p.status === 'offen' || (state.route.name === 'pruefung' && state.route.id === p.id)) want[p.id] = true;
+      var rp = state.route.name === 'pruefung' ? pruefById(state.route.id) : null, rroot = rp ? (rp.variantenVon || rp.id) : null;
+      if(p.status === 'offen' || (state.route.name === 'pruefung' && state.route.id === p.id) || (rroot && (p.id === rroot || p.variantenVon === rroot))) want[p.id] = true;
     } else if(p.status === 'offen' || p.status === 'beendet'){
       want[p.id] = true;
     }
@@ -41154,21 +41243,9 @@ function pruefErgebnis(p, t){
   }
   return typeof t.punkte === 'number' ? {punkte:t.punkte, max:t.max, details:t.details || []} : null;
 }
-function pruefMonitorZeichnen(){
-  var el = document.getElementById('prMon');
-  if(!el || state.route.name !== 'pruefung') return;
-  var p = pruefById(state.route.id);
-  if(!pruef.unsub || (!p && !pruef.list.length)){ el.innerHTML = '<div class="empty-state">Wird geladen …</div>'; return; }
-  if(!p){ el.innerHTML = '<div class="empty-state">Diese Prüfung gibt es nicht mehr.</div>'; return; }
-  if(pruefArt(p) === 'bank' && !pruef.loes[p.id] && !pruef.loesLaedt){
-    pruef.loesLaedt = true;
-    pruefLoesungLaden(p.id).then(function(){ pruef.loesLaedt = false; pruefMonitorZeichnen(); }, function(err){ pruef.loesLaedt = false; console.error(err); });
-  }
-  var teil = pruef.teil[p.id], roster = pruefRosterFuer(p), anzahl = pruefAnzahl(p);
-  var h = '<h2 class="page-welcome" style="margin-bottom:6px;">📝 '+esc(p.titel)+' '+pruefStatusBadge(p)+'</h2>';
-  h += '<p class="kz-intro">'+esc(pruefBeschreibung(p, true))+'</p>';
+function pruefMonitorKnoepfe(p, skPapier){
+  var h = '';
   h += '<div class="back-row" style="flex-wrap:wrap;">';
-  var skPapier = pruefArt(p) === 'sikore' && p.modus === 'papier';
   if(skPapier) h += '<button class="btn '+(p.resultateFrei ? 'btn-ghost' : 'btn-primary')+' btn-sm" data-a="resultate" type="button">'+(p.resultateFrei ? '🙈 Resultate verbergen' : '📣 Resultate freigeben')+'</button>';
   if(p.status === 'entwurf' && !skPapier) h += '<button class="btn btn-primary btn-sm" data-a="freigeben" type="button">▶️ Freigeben</button>';
   if(pruefWartet(p)) h += '<button class="btn btn-primary btn-sm" data-a="los" type="button">▶️ Test starten</button>';
@@ -41192,19 +41269,10 @@ function pruefMonitorZeichnen(){
   if(!skPapier && p.status !== 'entwurf') h += '<button class="btn btn-ghost btn-sm" data-a="download" type="button" title="Pro Person ein PDF mit Antworten, Punkten, Note und Unterschriftszeile für die Eltern – plus ein Sammel-PDF zum Drucken">📄 Abgaben herunterladen</button>';
   if(p.status !== 'offen') h += '<button class="btn btn-ghost btn-sm" data-a="loeschen" type="button">🗑 Löschen</button>';
   h += '</div>';
-  if(p.seb && !skPapier){
-    h += '<div class="pr-warte-box pr-seb-box">🛡️ <b>Nur im Safe Exam Browser.</b> Wer die Prüfung in einem normalen Browser öffnet, bekommt den Knopf «Im Safe Exam Browser öffnen» – '+
-      'SEB startet dann direkt in der Library, dort anmelden. Link zum Weitergeben: <code>'+esc(sebLink())+'</code> '+
-      '<a class="btn btn-ghost btn-sm" href="'+esc(sebDateiPfad())+'" download>⬇️ SEB-Datei</a></div>';
-  }
-  if(skPapier){
-    // Nicht mitten im Eintippen neu zeichnen (Intervall/Snapshot).
-    if(document.activeElement && document.activeElement.classList.contains('sk-papier-in') && el.contains(document.activeElement)) return;
-    el.innerHTML = h + (roster ? sikorePapierZeilen(p, roster) : '<div class="empty-state">Klasse wird geladen …</div>');
-    pruefMonitorVerdrahten(p); sikorePapierVerdrahten(p);
-    return;
-  }
-  if(!teil || !roster){ el.innerHTML = h + '<div class="empty-state">Klasse wird geladen …</div>'; pruefMonitorVerdrahten(p); return; }
+  return h;
+}
+function pruefMonitorKoerper(p, teil, roster, anzahl){
+  var h = '';
   var rows = pruefMonitorZeilen(p, teil, roster);
   var z = {ab:0, gesperrt:0, laeuft:0, nix:0, warte:0}, notenListe = [];
   rows.forEach(function(r){
@@ -41249,6 +41317,59 @@ function pruefMonitorZeichnen(){
     h += '</div></div>';
   });
   h += '</div>';
+  return h;
+}
+// Hauptprüfung und angepasste Varianten (Lernzielanpassung) im selben Fenster:
+// alle anderen Prüfungen der Gruppe stehen mit eigenen Knöpfen unter der geöffneten.
+function pruefMonitorGruppe(p){
+  var root = p.variantenVon || p.id, h = '';
+  pruef.list.filter(function(x){ return x.id !== p.id && (x.id === root || x.variantenVon === root); })
+    .sort(function(a, b){ return (b.id === root) - (a.id === root) || String(a.titel).localeCompare(String(b.titel), 'de'); })
+    .forEach(function(x){
+      var teil = pruef.teil[x.id], roster = pruefRosterFuer(x);
+      pruef.loesV = pruef.loesV || {};
+      if(pruefArt(x) === 'bank' && !pruef.loes[x.id] && !pruef.loesV[x.id]){
+        pruef.loesV[x.id] = 1;
+        pruefLoesungLaden(x.id).then(function(){ pruefMonitorZeichnen(); }, function(err){ console.error(err); });
+      }
+      h += '<div class="pr-variante" data-vid="'+esc(x.id)+'" style="margin-top:30px;border-top:3px solid var(--border);padding-top:14px;">';
+      h += '<h3 style="margin:0 0 6px;">'+(x.id === root ? '📝 Hauptprüfung' : '🧍 Angepasste Variante')+': '+esc(x.titel)+' '+pruefStatusBadge(x)+'</h3>';
+      h += '<p class="kz-intro">'+esc(pruefBeschreibung(x, true))+'</p>';
+      h += pruefMonitorKnoepfe(x, false);
+      h += (teil && roster) ? pruefMonitorKoerper(x, teil, roster, pruefAnzahl(x)) : '<div class="empty-state">Wird geladen …</div>';
+      h += '</div>';
+    });
+  return h;
+}
+function pruefMonitorZeichnen(){
+  var el = document.getElementById('prMon');
+  if(!el || state.route.name !== 'pruefung') return;
+  var p = pruefById(state.route.id);
+  if(!pruef.unsub || (!p && !pruef.list.length)){ el.innerHTML = '<div class="empty-state">Wird geladen …</div>'; return; }
+  if(!p){ el.innerHTML = '<div class="empty-state">Diese Prüfung gibt es nicht mehr.</div>'; return; }
+  if(pruefArt(p) === 'bank' && !pruef.loes[p.id] && !pruef.loesLaedt){
+    pruef.loesLaedt = true;
+    pruefLoesungLaden(p.id).then(function(){ pruef.loesLaedt = false; pruefMonitorZeichnen(); }, function(err){ pruef.loesLaedt = false; console.error(err); });
+  }
+  var teil = pruef.teil[p.id], roster = pruefRosterFuer(p), anzahl = pruefAnzahl(p);
+  var h = '<h2 class="page-welcome" style="margin-bottom:6px;">📝 '+esc(p.titel)+' '+pruefStatusBadge(p)+'</h2>';
+  h += '<p class="kz-intro">'+esc(pruefBeschreibung(p, true))+'</p>';
+  var skPapier = pruefArt(p) === 'sikore' && p.modus === 'papier';
+  h += pruefMonitorKnoepfe(p, skPapier);
+  if(p.seb && !skPapier){
+    h += '<div class="pr-warte-box pr-seb-box">🛡️ <b>Nur im Safe Exam Browser.</b> Wer die Prüfung in einem normalen Browser öffnet, bekommt den Knopf «Im Safe Exam Browser öffnen» – '+
+      'SEB startet dann direkt in der Library, dort anmelden. Link zum Weitergeben: <code>'+esc(sebLink())+'</code> '+
+      '<a class="btn btn-ghost btn-sm" href="'+esc(sebDateiPfad())+'" download>⬇️ SEB-Datei</a></div>';
+  }
+  if(skPapier){
+    // Nicht mitten im Eintippen neu zeichnen (Intervall/Snapshot).
+    if(document.activeElement && document.activeElement.classList.contains('sk-papier-in') && el.contains(document.activeElement)) return;
+    el.innerHTML = h + (roster ? sikorePapierZeilen(p, roster) : '<div class="empty-state">Klasse wird geladen …</div>');
+    pruefMonitorVerdrahten(p); sikorePapierVerdrahten(p);
+    return;
+  }
+  if(!teil || !roster){ el.innerHTML = h + '<div class="empty-state">Klasse wird geladen …</div>'; pruefMonitorVerdrahten(p); return; }
+  h += pruefMonitorKoerper(p, teil, roster, anzahl) + pruefMonitorGruppe(p);
   el.innerHTML = h;
   pruefMonitorVerdrahten(p);
 }
@@ -41437,10 +41558,12 @@ function pruefDiktatKurzDialog(p){
     updateDoc(pruefRef(p.id), {diktatKurz:map}).then(function(){ closeModal(); toast(Object.keys(map).length ? '✂️ Kürzeres Diktat für '+Object.keys(map).length+' Person'+(Object.keys(map).length === 1 ? '' : 'en')+' gespeichert.' : 'Alle schreiben das ganze Diktat.'); }).catch(pruefFehler);
   });
 }
-function pruefMonitorVerdrahten(p){
+function pruefMonitorVerdrahten(p0){
   var el = document.getElementById('prMon');
   el.onclick = function(e){
     var b = e.target.closest('button'); if(!b) return;
+    // Knöpfe in einem Variantenblock gelten für diese Prüfung, nicht für die geöffnete.
+    var vc = b.closest('[data-vid]'), p = (vc && pruefById(vc.getAttribute('data-vid'))) || p0;
     var a = b.getAttribute('data-a'), eu = b.getAttribute('data-e'), du = b.getAttribute('data-d'), ru = b.getAttribute('data-r');
     var teil = pruef.teil[p.id] || {};
     if(eu){ updateDoc(teilRef(p.id, eu), pruefEntsperrUpd(p, teil[eu])).then(function(){ toast('Entsperrt.'); }).catch(pruefFehler); return; }
@@ -41501,6 +41624,10 @@ function pruefMonitorVerdrahten(p){
         batch.delete(loesRef(p.id));
         batch.delete(pruefRef(p.id));
         await batch.commit();
+        if(p.variantenVon){
+          var hp = pruefById(p.variantenVon);
+          if(hp && Array.isArray(hp.mitglieder)) await updateDoc(pruefRef(hp.id), {mitglieder:hp.mitglieder.concat((p.mitglieder || []).filter(function(u){ return hp.mitglieder.indexOf(u) < 0; }))}).catch(function(err){ console.error(err); });
+        }
         state.route = {name:'pruefungen'}; render();
       }catch(err){ pruefFehler(err); }
     }, true);
