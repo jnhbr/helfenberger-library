@@ -16629,6 +16629,13 @@ function zusatzArt(r){
   if(r.kzmPruef) return 'pruefung';
   return '';
 }
+// Titel mit Datum vorne («Di 03.11. · …», auch hinter einem Emoji): Schlüssel für die Reihenfolge im Schuljahr
+// (August … Juli), sonst null. Damit steht «Di 05.01.» nach «Do 03.12.» und nicht alphabetisch nach Wochentag.
+function titelDatumKey(titel){
+  var m = /^(?:\S+\s)?\s*(?:Mo|Di|Mi|Do|Fr|Sa|So)\.?,?\s+(\d{1,2})\.\s?(\d{1,2})\./.exec(String(titel || ''));
+  if(!m || +m[2] < 1 || +m[2] > 12) return null;
+  return ((+m[2] + 4) % 12) * 100 + (+m[1]);
+}
 function zusatzHtml(liste, subjectId, here){
   var html = '';
   Object.keys(ZUSATZ_ARTEN).forEach(function(art){
@@ -16636,6 +16643,9 @@ function zusatzHtml(liste, subjectId, here){
     if(!teil.length) return;
     var titel = function(r){ return String(r.title || '').replace(/^\S+\s/, ''); };
     teil.sort(function(a, b){
+      // Datum im Titel geht vor: immer chronologisch
+      var da = titelDatumKey(a.title), db = titelDatumKey(b.title);
+      if(da !== null && db !== null && da !== db) return da - db;
       if(art === 'methode'){
         // nach Lektion (L2 vor L17), egal wann hochgeladen
         var lek = function(r){ var m = /\bL\s?(\d+)/.exec((r.methode && r.methode.lektion) || '') || /\bL\s?(\d+)/.exec(String(r.title || '')); return m ? +m[1] : 999; };
@@ -16886,6 +16896,8 @@ function sortResources(resources){
     if(oa !== null) return -1;
     if(ob !== null) return 1;
     // Nummerierte Titel («0.1 …», «2 …», «10 …») gehören in Zahlenreihenfolge nach oben: 1, 2, … 9, 10, 11.
+    var da = titelDatumKey(a.title), db = titelDatumKey(b.title);
+    if(da !== null && db !== null && da !== db) return da - db;
     var na = /^\s*\d/.test(a.title || ''), nb = /^\s*\d/.test(b.title || '');
     if(na && nb) return String(a.title).localeCompare(String(b.title), 'de', {numeric:true});
     var ta = a.uploadedAt && a.uploadedAt.toDate ? a.uploadedAt.toDate().getTime() : 0;
@@ -20088,6 +20100,16 @@ function aktZielAusfuehren(ziel){
       var it2 = kzmItemById(t[1], id);
       if(it2) kzmStartenHier(it2); else toast('Nicht gefunden – wurde es gelöscht?');
     });
+  }
+  // spiel:<art>:<quiz-id> – ein Spiel gleich mit einem bestimmten Set (aus der Unterrichtsplanung, hlKlassenzimmer.oeffnen)
+  else if(t[0] === 'spiel'){
+    var art = t[1];
+    getDoc(kdoc('quizzes', t.slice(2).join(':'))).then(function(d){
+      if(!d.exists()){ toast('Set nicht gefunden – wurde es gelöscht?'); return; }
+      var q = Object.assign({id:d.id}, d.data()), titel = q.title || 'Quiz';
+      if(art === 'quiz') quizStartDialog(q);
+      else liveFuerWenDialog(titel, function(){ spielStarten(art, titel, mioAusQuiz(q)); });
+    }).catch(function(err){ console.error(err); toast('Das Set konnte nicht geladen werden.'); });
   }
 }
 function aktFensterOeffnen(ziel){
@@ -25856,6 +25878,9 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-11-10-datum-sortiert', datum:'2026-11-10', fuer:'lehrer', text:'📅 Material mit Datum im Titel (z. B. «Di 03.11. · Rollenkarten») steht jetzt immer chronologisch, nicht mehr nach Wochentag sortiert.'},
+  {id:'2026-11-10-praep-spielset', datum:'2026-11-10', fuer:'lehrer', text:'🎮 Freie Präp: Beim Block «Aus der Library» wählst du jetzt Spiel, Fach und Set und startest es mit «▶ In der Library öffnen» direkt aus der Planung (eigenes Fenster). Ein Ziel kann mit «↪ weiter» über mehrere Tage gehen.'},
+  {id:'2026-11-10-praep-bloecke', datum:'2026-11-10', fuer:'lehrer', text:'🎯 Freie Präp (Mathe Kapitel 3): Das Tagesziel setzt du selbst – jede Aufgabe des Arbeitsplans einzeln ankreuzen. Lektionen baust du aus Blöcken: ✏️ Arbeitsblock (Aufgaben, Sozialform, still/flüstern, Minuten, Notiz), 📓 Theorie, ⚡ Energizer, 🔢 Schätzquiz oder 🎮 ein Spiel aus dem Klassenzimmer (z. B. Schiffe versenken). Vorgeschlagene Energizer und Quiz lassen sich mit ✕ entfernen. Bisherige Einträge bleiben erhalten.'},
   {id:'2026-11-10-weitermachen', datum:'2026-11-10', fuer:'alle', text:'▶️ Neu auf der Startseite: «Weitermachen» zeigt deine zuletzt geöffneten Übungen – ein Klick und du bist wieder drin. Stört es dich? Mit «✏️ Anordnen» kannst du es ausblenden.'},
   {id:'2026-11-08-varianten-ein-fenster', datum:'2026-11-08', fuer:'lehrer', text:'🧍 Angepasste Prüfungsvarianten stehen jetzt im selben Fenster wie die Hauptprüfung: unter der geöffneten Prüfung folgen alle Varianten mit eigenen Knöpfen (Freigeben, Beenden, Resultate …) und Teilnehmerliste.'},
   {id:'2026-11-08-schulden-aufschlag', datum:'2026-11-08', fuer:'lehrer', text:'💸 Schulden: Bei jeder Person gibt es «📈 Aufschlag bei Nichtzahlen» – nach X Wochen steigt der Betrag um CHF Y, auf Wunsch danach alle Z Wochen wieder (optional mit Höchstzahl). Die Schüler:innen sehen in ihrer Sprechblase immer, bis wann und um wie viel es teurer wird. Bezahlt: «Alles beglichen» oder 🗑 am Eintrag.'},
@@ -32248,6 +32273,40 @@ window.hlEnergizer = {
       if(en.overlay && en.overlay.el) en.overlay.el.style.zIndex = '1500';   // über dem (Pseudo-)Vollbild des Viewers
       return true;
     });
+  }
+};
+
+/* Für die 🔒 Unterrichtsplanung im Viewer (freie Präp, Block «🎮 Aus der Library»): Spiele und Live-Werkzeuge
+   des Klassenzimmers auflisten und eines im eigenen Fenster öffnen – die Präp bleibt dahinter offen. Nur für Lehrpersonen. */
+window.hlKlassenzimmer = {
+  // sets:true = dieses Spiel lässt sich direkt mit einem Set starten (oeffnen(id, setId))
+  liste: function(){
+    if(!state.profile || state.profile.role !== 'teacher') return Promise.resolve([]);
+    return Promise.resolve(KZ_TILES.filter(function(t){ return aktToolOk(t.id) || AKT_FREI[t.id]; })
+      .map(function(t){ return {id:t.id, icon:t.icon, name:t.name, sets:!!SPIEL_ARTEN[t.id] || t.id === 'quiz'}; }));
+  },
+  // Spiel-Sets (💰, für alle Spiele) und Klassen-Quiz (🎮, auch fürs Klassen-Quiz) der Klasse, mit Fach
+  sets: function(){
+    if(!state.profile || state.profile.role !== 'teacher') return Promise.resolve([]);
+    return getDocs(kcol('quizzes')).then(function(snap){
+      var out = [];
+      snap.forEach(function(d){
+        var q = d.data();
+        if(q.art && q.art !== 'million') return;
+        var n = mioAusQuiz(Object.assign({id:d.id}, q)).length;
+        if(!n) return;
+        var f = q.subject === KZM_TRIVIA.id || subjectById(q.subject) ? q.subject : '';
+        out.push({id:d.id, titel:q.title || 'Quiz', fach:f, fachName:f === KZM_TRIVIA.id ? KZM_TRIVIA.name : f ? subjectName(f) : 'Ohne Fach', n:n, set:q.art === 'million'});
+      });
+      return out;
+    });
+  },
+  oeffnen: function(id, setId){
+    if(!state.profile || state.profile.role !== 'teacher') return false;
+    if(!(aktToolOk(id) || AKT_FREI[id])) return false;
+    if(!aktFensterMoeglich()){ toast('Bitte im 🏫 Klassenzimmer öffnen – hier geht kein eigenes Fenster auf.'); return false; }
+    aktFensterOeffnen(setId && (SPIEL_ARTEN[id] || id === 'quiz') ? 'spiel:' + id + ':' + setId : 'tool:' + id);
+    return true;
   }
 };
 
