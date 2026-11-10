@@ -2925,9 +2925,9 @@ function winterAn(){ var aus = false; try{ aus = localStorage.getItem('hl_winter
   body.wackeln [data-sort], body.wackeln [data-ausblendbar]{-webkit-user-select:none;user-select:none;touch-action:none;cursor:grab;}
   body.wackeln .subject-card{animation:wackelnK .26s ease-in-out infinite alternate;}
   body.wackeln .subject-card:nth-child(2n){animation-duration:.3s;animation-direction:alternate-reverse;}
-  body.wackeln .topbar-icons > *, body.wackeln .topbar-todo, body.wackeln .topbar-ferien, body.wackeln #stpJetzt{animation:wackelnI .22s ease-in-out infinite alternate;}
+  body.wackeln .topbar-icons > *, body.wackeln .topbar-todo, body.wackeln .topbar-ferien, body.wackeln #stpJetzt, body.wackeln #weiterWidget{animation:wackelnI .22s ease-in-out infinite alternate;}
   body.wackeln .topbar-icons > *:nth-child(2n){animation-direction:alternate-reverse;}
-  body.wackeln #stpJetzt{animation-name:wackelnK;}
+  body.wackeln #stpJetzt, body.wackeln #weiterWidget{animation-name:wackelnK;}
   body.wackeln .kz-tile{animation:wackelnK .26s ease-in-out infinite alternate;}
   body.wackeln .kz-tile:nth-child(2n){animation-duration:.3s;animation-direction:alternate-reverse;}
   body.wackeln .kz-tile:hover{transform:none;}
@@ -2937,7 +2937,7 @@ function winterAn(){ var aus = false; try{ aus = localStorage.getItem('hl_winter
   @keyframes wackelnK{from{transform:rotate(-.8deg);}to{transform:rotate(.8deg);}}
   @keyframes wackelnI{from{transform:rotate(-3deg);}to{transform:rotate(3deg);}}
   @media (prefers-reduced-motion: reduce){
-    body.wackeln .subject-card, body.wackeln .topbar-icons > *, body.wackeln .topbar-todo, body.wackeln .topbar-ferien, body.wackeln #stpJetzt, body.wackeln .kz-tile{animation:none;outline:2px dashed var(--brand);outline-offset:2px;}
+    body.wackeln .subject-card, body.wackeln .topbar-icons > *, body.wackeln .topbar-todo, body.wackeln .topbar-ferien, body.wackeln #stpJetzt, body.wackeln #weiterWidget, body.wackeln .kz-tile{animation:none;outline:2px dashed var(--brand);outline-offset:2px;}
   }
   body.wackeln .wackel-x{display:flex;position:absolute;top:-8px;left:-8px;z-index:3;width:24px;height:24px;border-radius:50%;background:#5B6272;color:#fff;font-size:17px;font-weight:800;line-height:1;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,.3);cursor:pointer;}
   body.wackeln .topbar-icons .wackel-x, body.wackeln .topbar-todo .wackel-x{width:19px;height:19px;font-size:14px;top:-7px;left:-7px;}
@@ -3057,6 +3057,16 @@ function winterAn(){ var aus = false; try{ aus = localStorage.getItem('hl_winter
   .stp-jchip b{font-size:15.5px;color:var(--text);}
   .stp-jchip span{font-size:12px;color:var(--text-muted);}
   .stp-jetzt-go{align-self:center;font-size:15px;color:var(--text-muted);padding:0 6px;}
+  /* ▶️ Weitermachen (Startseite): zuletzt geöffnete Übungen */
+  #weiterWidget{position:relative;}
+  .weiter{display:flex;align-items:stretch;gap:10px;flex-wrap:wrap;margin-bottom:16px;}
+  .weiter-bild{align-self:center;width:40px;height:40px;object-fit:contain;flex:none;}
+  .weiter-chip{--c:#94A3B8;flex:1 1 190px;min-width:0;display:flex;align-items:center;gap:10px;padding:8px 12px;border:1px solid var(--border);border-left:5px solid var(--c);border-radius:13px;background:var(--surface);box-shadow:var(--shadow);font:inherit;color:inherit;text-align:left;cursor:pointer;}
+  .weiter-chip:hover{background:color-mix(in srgb, var(--c) 10%, var(--surface));}
+  .weiter-chip > span:first-child{font-size:20px;}
+  .weiter-chip div{min-width:0;}
+  .weiter-chip b{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .weiter-chip small{display:block;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   .stp-img.ct,.stp-jchip img.ct{object-fit:contain;padding:2px;box-sizing:border-box;background:transparent;}
 
   /* ==================================================================
@@ -11820,6 +11830,7 @@ function renderHome(){
   html += '<div id="aemtliBanner"></div>';
   html += '<div id="indivHinweis"></div>';
   html += '<div id="stpJetzt"></div>';
+  html += '<div id="weiterWidget"></div>';
   html += '<div id="homeworkWidget"></div>';
   html += '<div class="subject-grid" id="subjectGrid">';
   var visibleSubjects = kachelnSichtbar(isTeacher);
@@ -11858,6 +11869,7 @@ function renderHome(){
   if(fkb) fkb.addEventListener('click', function(){ fehlerSchnellKopieren(fkb); });
   initKachelSort();
   renderStpJetzt();
+  weiterZeichnen();
   renderHomeworkWidget();
   renderAemtliBanner();
   renderIndivHinweis();
@@ -11878,6 +11890,54 @@ function indivGesehenMarkieren(r){
     erledigt.ids['iug_'+r.id] = Date.now();
     return setDoc(erledigtRef(), { ids: erledigt.ids, updatedAt: serverTimestamp() }).then(function(){ return true; });
   }).catch(function(err){ console.error(err); return false; });
+}
+/* ▶️ «Weitermachen» auf der Startseite: die zuletzt geöffneten Übungen dieses Geräts (pro Konto und Klasse),
+   ein Klick führt zurück. Nur die IDs liegen in localStorage; Titel und Fach kommen aus dem Übersichts-Listener
+   (overview.snap) – keine zusätzlichen Lesezugriffe, Gelöschtes/Ausgeblendetes fällt von selbst weg. */
+var WEITER_MAX = 3, WEITER_TAGE = 30;
+function weiterKey(){ return LIB_PREFIX + 'weiter_' + state.user.uid + '_' + state.klasse; }
+function weiterListe(){
+  try{
+    var l = JSON.parse(lsGet(weiterKey()) || '[]'), alt = Date.now() - WEITER_TAGE * 86400000;
+    return Array.isArray(l) ? l.filter(function(e){ return e && e.id && e.t > alt; }) : [];
+  }catch(e){ return []; }
+}
+function weiterMerken(r){
+  if(!state.user || !r || !r.id || r.virtual || r.vorschau || alsSchueler()) return;
+  var l = weiterListe().filter(function(e){ return e.id !== r.id; });
+  l.unshift({id: r.id, t: Date.now()});
+  lsSet(weiterKey(), JSON.stringify(l.slice(0, 8)));
+}
+function weiterWann(t){
+  var tage = Math.round((new Date().setHours(0,0,0,0) - new Date(t).setHours(0,0,0,0)) / 86400000);
+  return tage <= 0 ? 'heute' : tage === 1 ? 'gestern' : 'vor ' + tage + ' Tagen';
+}
+function weiterZeichnen(){
+  var el = document.getElementById('weiterWidget');
+  if(!el || !state.user) return;
+  var aus = layoutIstAus('start:weiter');
+  el.classList.toggle('layout-aus', aus);
+  var isTeacher = state.profile.role === 'teacher', byId = {}, zeigen = [];
+  if(!aus && overview.snap && overview.key === state.user.uid + '|' + state.klasse){
+    overview.snap.docs.forEach(function(d){ byId[d.id] = d; });
+    weiterListe().forEach(function(e){
+      if(zeigen.length >= WEITER_MAX || !byId[e.id]) return;
+      var r = Object.assign({id: e.id}, byId[e.id].data()), s = subjectById(r.subject);
+      if(!s || (s.teacherOnly && !isTeacher) || !fuerRolleSichtbar(r)) return;
+      zeigen.push({r: r, s: s, t: e.t});
+    });
+  }
+  if(!zeigen.length){ el.removeAttribute('data-ausblendbar'); el.innerHTML = ''; return; }
+  el.setAttribute('data-ausblendbar', 'start:weiter');
+  el.innerHTML = '<div class="weiter"><img class="weiter-bild" src="assets/icons/start-weiter.webp" alt="Weitermachen" title="Weitermachen: zuletzt geöffnet">' + zeigen.map(function(z, i){
+    return '<button type="button" class="weiter-chip" data-weiter="'+i+'" style="--c:'+z.s.color+'">'+
+      '<span>'+(z.r.pdf ? '📄' : z.r.externalUrl || z.r.linkUrl ? '🔗' : '✏️')+'</span>'+
+      '<div><b>'+esc(z.r.title || z.r.fileName)+'</b><small>'+esc(z.s.name)+' · '+weiterWann(z.t)+'</small></div></button>';
+  }).join('') + '</div>';
+  Array.prototype.forEach.call(el.querySelectorAll('[data-weiter]'), function(b){
+    b.addEventListener('click', function(){ if(!wackelnAktiv()) goResource(zeigen[+b.getAttribute('data-weiter')].r); });
+  });
+  wackelMarken();
 }
 function renderIndivHinweis(){
   var host = document.getElementById('indivHinweis');
@@ -11965,6 +12025,7 @@ function paintSubjectsOverview(){
     (proFach[x.subject] = proFach[x.subject] || []).push(d);
   });
   overview.subjects.forEach(function(subjectId){ paintSubjectOverview(subjectId, proFach[subjectId] || []); });
+  weiterZeichnen();
 }
 function paintSubjectOverview(subjectId, eigene){
   var metaEl = document.getElementById('meta-'+subjectId);
@@ -19146,6 +19207,7 @@ function renderResource(r){
   clearSubjectWatchers();
   unwatchAllProgress();
   currentViewerResourceId = r.id;
+  weiterMerken(r);
   if(r.sikore){ renderSikoreTrainer(r); return; }
   if(r.tippen){ renderTippTrainer(r); return; }
   if(r.mtHub){ renderMtHub(r); return; }
@@ -25794,6 +25856,7 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-11-10-weitermachen', datum:'2026-11-10', fuer:'alle', text:'▶️ Neu auf der Startseite: «Weitermachen» zeigt deine zuletzt geöffneten Übungen – ein Klick und du bist wieder drin. Stört es dich? Mit «✏️ Anordnen» kannst du es ausblenden.'},
   {id:'2026-11-08-varianten-ein-fenster', datum:'2026-11-08', fuer:'lehrer', text:'🧍 Angepasste Prüfungsvarianten stehen jetzt im selben Fenster wie die Hauptprüfung: unter der geöffneten Prüfung folgen alle Varianten mit eigenen Knöpfen (Freigeben, Beenden, Resultate …) und Teilnehmerliste.'},
   {id:'2026-11-08-schulden-aufschlag', datum:'2026-11-08', fuer:'lehrer', text:'💸 Schulden: Bei jeder Person gibt es «📈 Aufschlag bei Nichtzahlen» – nach X Wochen steigt der Betrag um CHF Y, auf Wunsch danach alle Z Wochen wieder (optional mit Höchstzahl). Die Schüler:innen sehen in ihrer Sprechblase immer, bis wann und um wie viel es teurer wird. Bezahlt: «Alles beglichen» oder 🗑 am Eintrag.'},
   {id:'2026-11-08-schulden-aufschlag-sus', datum:'2026-11-08', fuer:'alle', text:'💸 Schulden: In der Sprechblase steht jetzt, bis wann du zahlen musst, damit der Betrag nicht steigt.'},
@@ -49538,7 +49601,7 @@ var LEISTE_ITEMS = [
   {id:'linksBtn', label:'🔗 Links'},
   {id:'ferienInfo', label:'🚨 Ferien-Countdown'}
 ];
-var START_ITEMS = [ {id:'stpJetzt', label:'🗓️ Jetzt / Als Nächstes (Stundenplan)'} ];
+var START_ITEMS = [ {id:'stpJetzt', label:'🗓️ Jetzt / Als Nächstes (Stundenplan)'}, {id:'weiter', label:'▶️ Weitermachen (zuletzt geöffnet)'} ];
 
 function layoutIstLehrer(){ return !!(state.profile && state.profile.role === 'teacher'); }
 function layoutRef(){ return doc(db, 'progress', state.user.uid, 'einstellungen', 'layout'); }
