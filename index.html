@@ -4111,7 +4111,7 @@ if(EMULATOR) connectFirestoreEmulator(db, '127.0.0.1', 8080);
    fsSetDoc (ohne Klassen-/Schulleitungs-Wrapper) und ohne selbst zu loggen. */
 var FEHLER_MAX = 5, fehlerGesendet = 0, fehlerGesehen = {};
 // NotAllowedError / «denied»: Mikrofon oder Mitteilungen von der Person selbst abgelehnt.
-var FEHLER_IGNORIEREN = /NotAllowedError|Permission dismissed|(^|\s)denied$|ResizeObserver loop|^Script error\.?$|Load failed|Failed to fetch|NetworkError|network-request-failed|unavailable|offline|AbortError|aborted|QuotaExceeded|abgebrochen|extension:\/\/|Could not reach Cloud Firestore/i;
+var FEHLER_IGNORIEREN = /NotAllowedError|Permission dismissed|(^|\s)denied$|ResizeObserver loop|^Script error\.?$|Load failed|Failed to fetch|NetworkError|network-request-failed|unavailable|offline|AbortError|aborted|QuotaExceeded|abgebrochen|extension:\/\/|Could not reach Cloud Firestore|INTERNAL ASSERTION FAILED: Unexpected state/i;   // letzteres: bekannter SDK-Fehler im Hintergrund-Tab, abgefangen durch das Zeitlimit in standTransaktion
 var konsoleFehler = console.error.bind(console);
 function fehlerText(x){
   if(!x) return '';
@@ -4877,7 +4877,9 @@ var erledigt = { ids:{}, loaded:false, uid:null };
 function erledigtRef(){ return doc(db, 'progress', state.user.uid, 'erledigt', 'liste'); }
 
 function erledigtLoad(){
-  if(!state.user || state.profile.role === 'teacher') return Promise.resolve({});
+  if(!state.user) return Promise.resolve({});
+  // Lehrpersonen haben keine Häkchen, gelten aber als «geladen» (sonst zeichnete die Fachseite endlos neu und fror ein).
+  if(state.profile.role === 'teacher'){ erledigt.loaded = true; erledigt.uid = state.user.uid; return Promise.resolve({}); }
   if(erledigt.loaded && erledigt.uid === state.user.uid) return Promise.resolve(erledigt.ids);
   return getDoc(erledigtRef()).then(function(snap){
     erledigt.ids = (snap.exists() && snap.data().ids) || {};
@@ -35735,7 +35737,7 @@ function startAbstWatcher(){
     });
     updateAbstBanner();
     if(abst.voteOpen) paintAbstVote();
-  }, function(err){ console.error('Abstimmungen', err); });
+  }, function(err){ listenerFehler('Abstimmungen', err, stopAbstWatcher, startAbstWatcher); });
 }
 function stopAbstWatcher(){
   if(abst.unsub){ abst.unsub(); abst.unsub = null; }
@@ -36568,7 +36570,9 @@ function lphListen(){
     // Aus dem lokalen Cache ohne Serverbestätigung kein «beendet» ableiten.
     lphVerarbeiten(snap.docs, snap.metadata && snap.metadata.fromCache);
   }, function(err){
-    console.error('Lernphasen-Listener', err);
+    // Kurzes «permission-denied» direkt nach der Anmeldung: erst frisches Token, erst beim zweiten Mal melden.
+    if(err && err.code === 'permission-denied' && auth.currentUser && !lph.deniedGesehen){ lph.deniedGesehen = true; auth.currentUser.getIdToken(true).catch(function(){}); }
+    else console.error('Lernphasen-Listener', err);
     lph.unsub = null;
     clearTimeout(lph.retry);
     lph.retry = setTimeout(function(){ if(state.user && !lph.unsub) lphListen(); }, 5000);
@@ -36785,7 +36789,13 @@ function lphHandKlick(){
   lph.hand = oben ? Date.now() : 0;
   lphHandBtnZeichnen();
   toast(oben ? '✋ Die Lehrperson sieht jetzt, dass du eine Frage hast.' : 'Hand ist wieder unten.');
-  fsSetDoc(doc(db, 'lernphasen', lph.aktiv.id, 'praesenz', state.user.uid), {hand:lph.hand, phase:lph.aktiv.startMs || 0, ts:serverTimestamp()}, {merge:true})
+  var handDoc = doc(db, 'lernphasen', lph.aktiv.id, 'praesenz', state.user.uid), handDaten = {hand:lph.hand, phase:lph.aktiv.startMs || 0, ts:serverTimestamp()};
+  fsSetDoc(handDoc, handDaten, {merge:true})
+    .catch(function(err){
+      // Veraltetes Token (z.B. nach Tagen offenem Tab): einmal frisch holen und nochmals senden.
+      if(err && err.code === 'permission-denied' && auth.currentUser) return auth.currentUser.getIdToken(true).then(function(){ return fsSetDoc(handDoc, handDaten, {merge:true}); });
+      throw err;
+    })
     .catch(function(err){ console.error('Lernphase: Handzeichen', err); toast('Handzeichen konnte nicht gesendet werden — nochmals versuchen.'); lph.hand = oben ? 0 : lph.hand; lphHandBtnZeichnen(); });
 }
 
@@ -37586,7 +37596,7 @@ function startPruefungWatcher(){
     if(state.profile.role !== 'teacher') list = list.filter(pruefFuerMich);
     pruef.eigene = list;
     pruefListeNeu();
-  }, function(err){ console.error('Prüfungs-Listener', err); });
+  }, function(err){ listenerFehler('Prüfungs-Listener', err, stopPruefungWatcher, startPruefungWatcher); });
   if(!pruefIstLehrer() && !isLeitung()) pruefFremdStarten();
 }
 // Schüler:in: Prüfungen der Seiten, auf denen ich in einer 👥 Gruppe bin.
