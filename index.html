@@ -25880,6 +25880,7 @@ function aemtliMeineTermine_(cfg, uid){
 const NEUIGKEITEN = [
   {id:'2026-11-10-datum-sortiert', datum:'2026-11-10', fuer:'lehrer', text:'📅 Material mit Datum im Titel (z. B. «Di 03.11. · Rollenkarten») steht jetzt immer chronologisch, nicht mehr nach Wochentag sortiert.'},
   {id:'2026-11-10-praep-spielset', datum:'2026-11-10', fuer:'lehrer', text:'🎮 Freie Präp: Beim Block «Aus der Library» wählst du jetzt Spiel, Fach und Set und startest es mit «▶ In der Library öffnen» direkt aus der Planung (eigenes Fenster). Ein Ziel kann mit «↪ weiter» über mehrere Tage gehen.'},
+  {id:'2026-11-10-praep-schaetzfragen', datum:'2026-11-10', fuer:'lehrer', text:'🔢 Freie Präp: Ein neuer Schätzquiz-Block schlägt jetzt gleich eine Schätzfrage mit Auflösung vor – 🎲 «Andere Frage» wechselt sie. Jede Frage kommt nur einmal dran.'},
   {id:'2026-11-10-praep-bloecke', datum:'2026-11-10', fuer:'lehrer', text:'🎯 Freie Präp (Mathe Kapitel 3): Das Tagesziel setzt du selbst – jede Aufgabe des Arbeitsplans einzeln ankreuzen. Lektionen baust du aus Blöcken: ✏️ Arbeitsblock (Aufgaben, Sozialform, still/flüstern, Minuten, Notiz), 📓 Theorie, ⚡ Energizer, 🔢 Schätzquiz oder 🎮 ein Spiel aus dem Klassenzimmer (z. B. Schiffe versenken). Vorgeschlagene Energizer und Quiz lassen sich mit ✕ entfernen. Bisherige Einträge bleiben erhalten.'},
   {id:'2026-11-10-weitermachen', datum:'2026-11-10', fuer:'alle', text:'▶️ Neu auf der Startseite: «Weitermachen» zeigt deine zuletzt geöffneten Übungen – ein Klick und du bist wieder drin. Stört es dich? Mit «✏️ Anordnen» kannst du es ausblenden.'},
   {id:'2026-11-08-varianten-ein-fenster', datum:'2026-11-08', fuer:'lehrer', text:'🧍 Angepasste Prüfungsvarianten stehen jetzt im selben Fenster wie die Hauptprüfung: unter der geöffneten Prüfung folgen alle Varianten mit eigenen Knöpfen (Freigeben, Beenden, Resultate …) und Teilnehmerliste.'},
@@ -32307,6 +32308,20 @@ window.hlKlassenzimmer = {
     if(!aktFensterMoeglich()){ toast('Bitte im 🏫 Klassenzimmer öffnen – hier geht kein eigenes Fenster auf.'); return false; }
     aktFensterOeffnen(setId && (SPIEL_ARTEN[id] || id === 'quiz') ? 'spiel:' + id + ':' + setId : 'tool:' + id);
     return true;
+  }
+};
+
+/* Für die 🔒 Unterrichtsplanung im Viewer (freie Präp): eine kurze Nachricht an Jan, landet bei den 💬 Rückmeldungen
+   (z. B. «Alle Schätzfragen gebraucht»). Nur für Lehrpersonen, Antwort true/false. */
+window.hlMeldung = {
+  anJan: function(text){
+    text = String(text || '').trim().slice(0, 4000);
+    if(!text || !state.profile || state.profile.role !== 'teacher' || !state.user) return Promise.resolve(false);
+    return setDoc(doc(rmCol()), {
+      art:'sonstiges', fach:'', text:text,
+      vonUid:state.user.uid, vonName:state.profile.displayName || state.profile.username || '',
+      klasse:state.profile.klasse || '', status:'offen', am:serverTimestamp()
+    }).then(function(){ toast('💬 Nachricht an Jan gesendet.'); return true; }, function(err){ console.error('hlMeldung', err); return false; });
   }
 };
 

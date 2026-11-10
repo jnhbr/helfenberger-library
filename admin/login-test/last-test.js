@@ -65,15 +65,20 @@ const pruefungen = [], fehler = [];
 // über dem gesuchten Element aufklappen wie eine Lehrperson (Klick auf die Überschrift).
 async function aufklappen(p, sel){
   await p.waitForSelector(sel, { state: 'attached' });
-  for(let i = 0; i < 4; i++){
-    const h = await p.evaluateHandle(q => {
+  // Der Klick passiert in der Seite selbst: die Liste wird bei jedem Live-Update neu
+  // gezeichnet, ein vorher geholtes Element wäre dann «not attached to the DOM».
+  for(let i = 0; i < 8; i++){
+    const offen = await p.evaluate(q => {
       const e = document.querySelector(q);
-      let d = e && e.closest('details:not([open])'), aussen = d;
+      if(!e) return false;
+      let d = e.closest('details:not([open])'), aussen = d;
       while(aussen && aussen.parentElement && (aussen = aussen.parentElement.closest('details:not([open])'))) d = aussen;
-      return d ? d.querySelector(':scope > summary') : null;
+      const s = d ? d.querySelector(':scope > summary') : null;
+      if(!s) return true;
+      s.click(); return false;
     }, sel);
-    const el = h.asElement(); if(!el) break;
-    await el.click();
+    if(offen) break;
+    await p.waitForTimeout(150);
   }
   await p.waitForSelector(sel);
 }
