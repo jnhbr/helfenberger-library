@@ -19,6 +19,8 @@
  *                                      Quittung + Übersicht «1 von 2 eingeworfen»
  *                                      (nicht geprüft: «Leeren» in einen Ordner – braucht einen echten Ordner-Dialog)
  *   👀 Schulleitung                    sieht alles, kann nichts anlegen oder einwerfen
+ *   🎯 Lernziele                       Ordner mit Lernzielen: Selbsteinschätzung, «Dazu üben» gibt der Übung die
+ *                                      Fragen mit, Übungsstand pro Lernziel, Raster der Lehrperson
  */
 const B = require('./_basis.js');
 const { db, ok, bis, abschnitt } = B;
@@ -33,7 +35,23 @@ const UEBUNG = '<!doctype html><html><head><meta charset="utf-8"><title>Sync-Üb
   'document.getElementById("melden").addEventListener("click",function(){parent.postMessage({__libProgress:true,stats:{q1:{status:"correct"},q2:{status:"wrong"}},total:2},"*");});' +
   '<\/script></body></html>';
 
+// Übung, die das Lernziel-Protokoll spricht (wie die echten Übungsseiten ab 11.11.2026).
+const LZ_UEBUNG = '<!doctype html><html><head><meta charset="utf-8"><title>Lernziel-Übung</title></head><body>' +
+  '<div id="start"></div><div id="ziele"></div><button id="melden" type="button">melden</button><button id="schaetzen" type="button">schätzen</button><script>' +
+  'window.addEventListener("message",function(e){var d=e.data||{};' +
+  'if(d.__libStart)document.getElementById("start").textContent=d.__libStart.titel+":"+d.__libStart.ids.slice().sort().join(",");' +
+  'if(d.__libLernziele)document.getElementById("ziele").textContent=JSON.stringify(d.__libLernziele);});' +
+  'document.getElementById("melden").addEventListener("click",function(){parent.postMessage({__libProgress:true,stats:{q1:{status:"correct"},q2:{status:"wrong"}},total:3},"*");});' +
+  'document.getElementById("schaetzen").addEventListener("click",function(){parent.postMessage({__libLernziel:true,idx:1,val:"amber"},"*");});' +
+  'parent.postMessage({__libBereit:true,ziele:{2:"red"}},"*");' +
+  '<\/script></body></html>';
+const LZ_SET = { id: 'lz_test', titel: 'Test-Lernziele', ziele: [{ nr: 1, text: 'Erstes Lernziel' }, { nr: 2, text: 'Zweites Lernziel' }, { nr: 3, text: 'Drittes Lernziel' }],
+  fragen: { r_lz: { q1: [1], q2: [1], q3: [2] } } };
+const lzDoc = uid => db.doc('progress/' + uid + '/erledigt/lernziele').get().then(s => (s.data() || {}).lz_test || {});
+
 async function seed(){
+  await db.doc('klassen/' + K + '/folders/f_lz').set({ subject: 'mathe', parentId: null, name: 'Lernziel-Ordner', order: 1, lernziele: [LZ_SET] });
+  await B.uebung(K, 'r_lz', { subject: 'mathe', title: 'Lernziel-Übung', folderId: 'f_lz' }, LZ_UEBUNG);
   await B.konto('testlehrer', 'Test Lehrperson', 'teacher', K);
   await B.konto('anna', 'Anna', 'student', K);
   await B.konto('ben', 'Ben', 'student', K);
@@ -44,10 +62,12 @@ async function seed(){
   // Eine Prüfung als Entwurf, so wie der Editor sie ablegt: Fragen ohne Lösungen, Lösungen nur für die Lehrperson.
   await db.doc('klassen/' + K + '/pruefungen/' + PID).set({ titel: 'Ablauf-Prüfung', skala: { typ: 'dbk' }, punkteFuer6: null, fehlerAbzug: null, rundung: 0.1,
     fach: 'mathe', gewicht: 1, zeitMin: null, art: 'bank', diktat: false, subject: 'mathe', seed: 1, bilder: [], maxPunkte: 4,
+    // 🎯 Lernziele: q0/q1 über die Frage-ID der Übung (qid → Lernziel 1 bzw. 2), q2 direkt (lz).
+    resourceId: 'r_lz', resourceTitel: 'Lernziel-Übung',
     fragen: [
-      { id: 'q0', typ: 'tf', frage: 'Die Erde ist rund.', kat: 'Test', punkte: 1 },
-      { id: 'q1', typ: 'mc', frage: 'Wie viel gibt 2 + 2?', kat: 'Test', punkte: 2, optionen: ['3', '4', '5'] },
-      { id: 'q2', typ: 'text', frage: 'Wie heisst die Bundesstadt der Schweiz?', kat: 'Test', punkte: 1 }
+      { id: 'q0', typ: 'tf', frage: 'Die Erde ist rund.', kat: 'Test', punkte: 1, qid: 'q1' },
+      { id: 'q1', typ: 'mc', frage: 'Wie viel gibt 2 + 2?', kat: 'Test', punkte: 2, optionen: ['3', '4', '5'], qid: 'q3' },
+      { id: 'q2', typ: 'text', frage: 'Wie heisst die Bundesstadt der Schweiz?', kat: 'Test', punkte: 1, lz: [3] }
     ],
     cfg: { optionen: {}, optNamen: {}, anzahl: 3, mischen: false }, status: 'entwurf', resultateFrei: false, createdAt: B.TS, createdBy: 'u_testlehrer' });
   await db.doc('klassen/' + K + '/pruefungen/' + PID + '/intern/loesung').set({ loesungen: {
@@ -202,6 +222,14 @@ const feldWert = p => feld(p).inputValue().catch(() => null);
     const zeilen = await lp.$$eval('#prMon .pr-zeile', els => els.map(e => e.innerText.replace(/\s+/g, ' ')));
     ok(/4 \/ 4 Pkt/.test(zeilen.find(z => /^Anna/.test(z)) || '') && /1 \/ 4 Pkt/.test(zeilen.find(z => /^Ben/.test(z)) || ''), 'Monitor korrigiert sofort: Anna 4 / 4, Ben 1 / 4 Punkte');
 
+    // 🎯 Punkte pro Lernziel im Monitor (Anna alles richtig; Ben: Lernziel 1 richtig, 2 falsch, 3 leer).
+    await lp.click('#prMon [data-a="lernziele"]');
+    await lp.waitForSelector('.lz-raster tbody tr.lz-schnitt');
+    const lzr = await lp.$$eval('.lz-raster tbody tr', l => l.map(e => e.innerText.replace(/\s+/g, ' ')));
+    ok(/^Anna 1\/1 2\/2 1\/1/.test(lzr.find(z => /^Anna/.test(z)) || '') && /^Ben 1\/1 0\/2 0\/1/.test(lzr.find(z => /^Ben/.test(z)) || ''), 'Monitor › «🎯 Lernziele»: Anna 1/1 2/2 1/1, Ben 1/1 0/2 0/1');
+    ok(/^Klasse 100 % 50 % 50 %/.test(lzr.find(z => /^Klasse/.test(z)) || ''), 'Zeile «Klasse»: 100 %, 50 %, 50 %');
+    await lp.click('#lzZu');
+
     // Erst beenden, dann lassen sich die Resultate freigeben.
     await lp.click('#prMon [data-a="beenden"]');
     await lp.click('.modal button:has-text("Beenden")');
@@ -217,6 +245,17 @@ const feldWert = p => feld(p).inputValue().catch(() => null);
     await anna.waitForSelector('.pr-resultat');
     const res = (await anna.$eval('.pr-resultat', e => e.innerText)).replace(/\s+/g, ' ');
     ok(/Note 6/.test(res) && /4/.test(res), 'Anna öffnet ihr Resultat: Note 6 mit 4 Punkten (' + res + ')');
+    await anna.waitForSelector('#prLz .lz-pr-zeile');
+    const lza = (await anna.$eval('#prLz', e => e.innerText)).replace(/\s+/g, ' ');
+    ok(/So steht es bei deinen Lernzielen/.test(lza) && /2 \/ 2 P\./.test(lza) && (await anna.$$('#prLz [data-lzpr]')).length === 0, 'Annas Resultat zeigt die Punkte pro Lernziel, ohne «Dazu üben» (alles erreicht)');
+    await bis(async () => /Prüfungsresultat/.test(await ben.$eval('#pruefungBtn', e => e.hidden ? '' : e.innerText).catch(() => '')), 'Ben sieht «Prüfungsresultat»', 30000);
+    if(await ben.isVisible('.modal button:has-text("Verstanden")')) await ben.click('.modal button:has-text("Verstanden")');
+    await ben.click('#pruefungBtn');
+    await ben.waitForSelector('#prLz [data-lzpr="2"]');
+    ok((await ben.$$('#prLz [data-lzpr]')).length === 1 && /0 \/ 2 P\./.test(await ben.$eval('#prLz', e => e.innerText)), 'Bens Resultat: Lernziel 2 mit 0 / 2 P. und «Dazu üben» (Lernziel 3 hat keine Übungsfragen)');
+    await ben.click('#prLz [data-lzpr="2"]');
+    await bis(async () => (await ben.frameLocator('#resourceFrame').locator('#start').textContent().catch(() => '')) === 'Lernziel 2:q3', 'Übung startet mit Lernziel 2');
+    ok(true, '«Dazu üben» im Resultat öffnet die Übung mit der Frage von Lernziel 2');
     for(const p of [lp, anna, ben]) await p.context().close();
   });
 
@@ -277,6 +316,53 @@ const feldWert = p => feld(p).inputValue().catch(() => null);
     await sl.waitForTimeout(500);
     ok((await db.collection('klassen/' + K + '/resources').get()).size === vorher, 'In der Klasse hat sich durch den Besuch nichts verändert');
     await sl.context().close();
+  });
+
+  await abschnitt('🎯 Lernziele', async () => {
+    const anna = await B.geraet('anna-lz'), lp = await B.geraet('lehrer-lz');
+    await B.anmelden(anna, 'anna'); await B.fach(anna, 'mathe');
+    ok(!(await anna.$('.lz-karte')), 'Auf der Fach-Hauptebene (ohne Lernziele) steht keine Lernziel-Karte');
+    await anna.click('#fopen-f_lz');
+    await anna.waitForSelector('.lz-karte [data-lz]');
+    ok(/Test-Lernziele/.test(await anna.$eval('.lz-karte', e => e.innerText)), 'Im Ordner erscheint die Karte «Lernziele: Test-Lernziele»');
+    await anna.click('.lz-karte [data-lz]');
+    await anna.waitForSelector('.lz-zeile');
+    const zeilen = await anna.$$eval('.lz-zeile', l => l.map(e => e.innerText.replace(/\s+/g, ' ')));
+    ok(zeilen.length === 3 && /0 von 2 Fragen richtig/.test(zeilen[0]) && /0 von 1 Fragen/.test(zeilen[1]) && /keine Fragen/.test(zeilen[2]), 'Drei Lernziele mit Übungsstand (0 von 2, 0 von 1, ohne Fragen)');
+    ok((await anna.$$('.lz-zeile:nth-child(3) [data-ueben]')).length === 0, 'Lernziel ohne Fragen hat kein «Dazu üben»');
+    await anna.click('.lz-wahl[data-nr="1"][data-w="g"]');
+    await bis(async () => (await lzDoc('u_anna'))['1'] === 'g', 'Selbsteinschätzung gespeichert');
+    ok(true, 'Selbsteinschätzung «erreicht» für Lernziel 1 ist gespeichert');
+    await anna.click('[data-ueben="1"]');
+    const f = anna.frameLocator('#resourceFrame');
+    await bis(async () => (await f.locator('#start').textContent().catch(() => '')) === 'Lernziel 1:q1,q2', '«Dazu üben» gibt die Fragen mit');
+    ok(true, '«Dazu üben» öffnet die Übung mit genau den Fragen des Lernziels (q1, q2)');
+    ok(/"0":"green"/.test(await f.locator('#ziele').textContent()), 'Die Übung bekommt die Einschätzung aus der Library');
+    await bis(async () => (await lzDoc('u_anna'))['3'] === 'r', 'Einschätzung aus der Übung übernommen');
+    ok(true, 'Eine Einschätzung, die es nur in der Übung gab, wird übernommen (Lernziel 3)');
+    await f.locator('#schaetzen').click();
+    await bis(async () => (await lzDoc('u_anna'))['2'] === 'a', 'Klick in der Übung gespeichert');
+    ok(true, 'Einschätzen in der Übung landet in der Library (Lernziel 2 «teilweise»)');
+    await f.locator('#melden').click();
+    await anna.click('#backBtn');
+    await bis(async () => ((await db.doc('progress/u_anna/resources/r_lz').get()).data() || {}).stats, 'Übungsstand gespeichert');
+    await anna.waitForSelector('.lz-karte [data-lz]');
+    await anna.click('.lz-karte [data-lz]');
+    await bis(async () => /1 von 2 Fragen richtig/.test(await anna.$eval('.modal', e => e.innerText).catch(() => '')), 'Balken zeigt 1 von 2');
+    ok(true, 'Nach dem Üben zeigt Lernziel 1 «1 von 2 Fragen richtig»');
+
+    await B.anmelden(lp, 'testlehrer'); await B.fach(lp, 'mathe');
+    await lp.click('#fopen-f_lz');
+    await lp.waitForSelector('.lz-karte [data-lzk]');
+    await lp.click('.lz-karte [data-lzk]');
+    await lp.waitForSelector('.lz-raster tbody tr');
+    const raster = await lp.$$eval('.lz-raster tbody tr', l => l.map(e => e.innerText.replace(/\s+/g, ' ')));
+    const za = raster.find(z => /^Anna/.test(z)) || '', zb = raster.find(z => /^Ben/.test(z)) || '';
+    ok(/1\/2 ?🟢/.test(za) && /0\/1 ?🟡/.test(za) && /– ?🔴/.test(za), 'Lehrperson: Annas Zeile zeigt 1/2 🟢, 0/1 🟡, – 🔴');
+    // Ben hat die Übung nur aus dem Prüfungsresultat geöffnet (dort meldete sie 🔴 für Lernziel 3), selbst nichts eingeschätzt.
+    ok(/0\/2/.test(zb) && !/🟢|🟡/.test(zb), 'Ben: nichts geübt, keine eigene Einschätzung in der Library');
+    if(process.env.DEBUG_DIR) await lp.screenshot({ path: process.env.DEBUG_DIR + '/lz-raster.png' });
+    for(const p of [anna, lp]) await p.context().close();
   });
 
   await B.ende('Ablauf-Test');
