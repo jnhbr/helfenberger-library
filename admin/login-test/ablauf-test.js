@@ -325,6 +325,7 @@ const feldWert = p => feld(p).inputValue().catch(() => null);
     await anna.click('#fopen-f_lz');
     await anna.waitForSelector('.lz-karte [data-lz]');
     ok(/Test-Lernziele/.test(await anna.$eval('.lz-karte', e => e.innerText)), 'Im Ordner erscheint die Karte «Lernziele: Test-Lernziele»');
+    ok(await anna.$eval('.lz-karte', e => !!e.previousElementSibling && e.previousElementSibling.id === 'card-r_lz') && (await anna.$$('.lz-karte')).length === 1, 'Die Karte steht direkt unter ihrer Übung (einmal)');
     await anna.click('.lz-karte [data-lz]');
     await anna.waitForSelector('.lz-zeile');
     const zeilen = await anna.$$eval('.lz-zeile', l => l.map(e => e.innerText.replace(/\s+/g, ' ')));

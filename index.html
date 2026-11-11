@@ -501,6 +501,7 @@ function winterAn(){ var aus = false; try{ aus = localStorage.getItem('hl_winter
   /* 🎯 Lernziele (Pilot) */
   #lzKarte:not(:empty){margin-bottom:14px;display:flex;flex-direction:column;gap:10px;}
   .lz-karte{background:var(--surface);border:1px solid var(--border);border-left:5px solid #2e9e6b;border-radius:var(--radius-sm);padding:14px 16px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;}
+  .lz-karte.lz-unter{margin:-6px 0 4px 26px;}
   .lz-k-icon{font-size:26px;line-height:1;}
   .lz-k-text{flex:1;min-width:180px;display:flex;flex-direction:column;gap:2px;}
   .lz-k-text small{color:var(--text-muted);font-size:13px;}
@@ -16540,17 +16541,25 @@ function lzKarteZeichnen(){
   var el = document.getElementById('lzKarte');
   if(!el || state.route.name !== 'subject') return;
   var here = state.route.folderId || null, sets = here ? lzSets(here) : [];
+  // Früher einsortierte Karten (unter einer Übung) wegräumen, sonst stehen sie doppelt.
+  Array.prototype.forEach.call(document.querySelectorAll('#resourceList .lz-karte'), function(k){ k.parentNode.removeChild(k); });
   if(!sets.length){ el.innerHTML = ''; return; }
   var isTeacher = state.profile.role === 'teacher';
   sets.forEach(function(set){ Object.keys(set.fragen || {}).forEach(function(rid){ lz.bekannt[rid] = set; }); });
   el.innerHTML = sets.map(function(set, i){
-    return '<div class="lz-karte"><div class="lz-k-icon" aria-hidden="true">🎯</div>'+
+    return '<div class="lz-karte" data-rid="'+esc(Object.keys(set.fragen || {})[0] || '')+'"><div class="lz-k-icon" aria-hidden="true">🎯</div>'+
       '<div class="lz-k-text"><b>Lernziele: '+esc(set.titel || '')+'</b><small id="lzKarteInfo'+i+'">'+set.ziele.length+' Lernziele – wo stehst du?</small></div>'+
       '<div class="lz-k-knoepfe">'+(isTeacher ? '<button class="btn btn-primary btn-sm" data-lzk="'+i+'" type="button">👥 Klasse ansehen</button>' : '')+
       '<button class="btn '+(isTeacher ? 'btn-ghost' : 'btn-primary')+' btn-sm" data-lz="'+i+'" type="button">'+(isTeacher ? 'Schüleransicht' : 'Ansehen')+'</button></div></div>';
   }).join('');
   Array.prototype.forEach.call(el.querySelectorAll('[data-lz]'), function(b){ b.addEventListener('click', function(){ lzDialog(sets[+b.getAttribute('data-lz')]); }); });
   Array.prototype.forEach.call(el.querySelectorAll('[data-lzk]'), function(b){ b.addEventListener('click', function(){ lzKlasseDialog(sets[+b.getAttribute('data-lzk')]); }); });
+  // Die Karte gehört direkt unter ihre Übung (Jans Wunsch, 11.11.2026); steht die Übung
+  // nicht in der Liste, bleibt die Karte zuoberst im Ordner.
+  Array.prototype.slice.call(el.querySelectorAll('.lz-karte')).forEach(function(k){
+    var rid = k.getAttribute('data-rid'), ziel = rid && (document.getElementById('card-' + rid) || document.getElementById('open-' + rid));
+    if(ziel && ziel.closest('#resourceList')){ ziel.insertAdjacentElement('afterend', k); k.classList.add('lz-unter'); }
+  });
   if(!isTeacher) lzEigenLaden().then(function(eigen){
     sets.forEach(function(set, i){
       var info = document.getElementById('lzKarteInfo'+i), m = eigen[set.id] || {};
@@ -16923,6 +16932,7 @@ function renderFolderContents(){
   }
   if(indivAlle.length && erledigt.loaded) html += indivBereichHtml(indivAlle, isTeacher);
   listEl.innerHTML = html;
+  lzKarteZeichnen();   // 🎯 erst jetzt stehen die Übungskarten da, unter die die Lernziel-Karte gehört
   if(indivAlle.length && erledigt.loaded) indivKartenAufwerten(indivAlle, isTeacher, renderFolderContents);
   zusatzVerdrahten(listEl);
 
