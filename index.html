@@ -25878,6 +25878,8 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-11-11-pip-app', datum:'2026-11-11', fuer:'lehrer', text:'📌 Anpinnen (Lernphase, Prüfung): In der installierten Library-App öffnet sich jetzt zuverlässig ein schwebendes Fenster, das sich frei verschieben lässt – auch auf den zweiten Bildschirm.'},
+  {id:'2026-11-11-lernphase-zwei-tabs', datum:'2026-11-11', fuer:'lehrer', text:'📚 Lernphase: Wer die Library in zwei Tabs oder Fenstern offen hat, wird nicht mehr fälschlich rot — der Tab im Hintergrund überschreibt den Tab, in dem gearbeitet wird, nicht mehr.'},
   {id:'2026-11-10-datum-sortiert', datum:'2026-11-10', fuer:'lehrer', text:'📅 Material mit Datum im Titel (z. B. «Di 03.11. · Rollenkarten») steht jetzt immer chronologisch, nicht mehr nach Wochentag sortiert.'},
   {id:'2026-11-10-praep-spielset', datum:'2026-11-10', fuer:'lehrer', text:'🎮 Freie Präp: Beim Block «Aus der Library» wählst du jetzt Spiel, Fach und Set und startest es mit «▶ In der Library öffnen» direkt aus der Planung (eigenes Fenster). Ein Ziel kann mit «↪ weiter» über mehrere Tage gehen.'},
   {id:'2026-11-10-praep-schaetzfragen', datum:'2026-11-10', fuer:'lehrer', text:'🔢 Freie Präp: Ein neuer Schätzquiz-Block schlägt jetzt gleich eine Schätzfrage mit Auflösung vor – 🎲 «Andere Frage» wechselt sie. Jede Frage kommt nur einmal dran.'},
@@ -36440,6 +36442,11 @@ function abstExcel(a, stimmen, berechtigt){
    Nur Anzeige, nicht klickbar. */
 var pipv = { art:null, id:null, canvas:null, video:null, timer:null, offen:false };
 
+var pipVideoTot = false;
+function pipAlsApp(){
+  try{ return !!window.documentPictureInPicture && ['standalone','window-controls-overlay','minimal-ui'].some(function(m){ return window.matchMedia('(display-mode: '+m+')').matches; }); }
+  catch(e){ return false; }
+}
 function pipMoeglich(){
   var v = document.createElement('video');
   return !!((document.pictureInPictureEnabled || v.webkitSupportsPresentationMode) && HTMLCanvasElement.prototype.captureStream);
@@ -36471,7 +36478,9 @@ function pipStarten(art, id){
   // Video-Bild-in-Bild (Canvas-Stream) bevorzugt: Es schwebt auch vor Apps im
   // Vollbild. Das Dokument-Bild-in-Bild von Chrome tut das auf dem Mac nicht.
   // Nur ohne Video-Weg: HTML-Fenster (Document PiP bzw. kleines eigenes Fenster).
-  if(!pipMoeglich()){ pipFensterStarten(art, id); return; }
+  // Installierte App (eigenes App-Fenster) oder der Video-Weg hat schon einmal
+  // versagt: gleich das HTML-Fenster, solange der Klick noch gilt.
+  if(!pipMoeglich() || pipVideoTot || pipAlsApp()){ pipFensterStarten(art, id); return; }
   if(pipv.video && pipv.art === art && pipv.id === (id || null) && document.pictureInPictureElement !== pipv.video && !pipv.video.webkitPresentationMode){ pipStoppen(); }
   else if(pipv.video && pipv.art === art && pipv.id === (id || null)){ pipAnfordern(); return; }
   pipStoppen();
@@ -36517,7 +36526,14 @@ function pipAnfordern(){
         anpassen();
       }
     })
-      .catch(function(err){ console.error('Bild-in-Bild', err); toast('📌 Bitte nochmals klicken, dann öffnet sich das Fenster.'); });
+      .catch(function(err){
+        // Video-Weg abgelehnt: ab jetzt das HTML-Fenster nehmen und es gleich versuchen.
+        console.error('Bild-in-Bild', err);
+        var art = pipv.art, id = pipv.id;
+        if(pipv.video !== v) return;
+        pipVideoTot = true; pipStoppen();
+        try{ pipFensterStarten(art, id); }catch(e){ console.error('Bild-in-Bild', e); toast('📌 Bitte nochmals klicken, dann öffnet sich das Fenster.'); }
+      });
   };
   if(v.readyState >= 1) los();
   else {
@@ -36526,6 +36542,7 @@ function pipAnfordern(){
     v.addEventListener('loadedmetadata', function(){ ok = true; los(); }, {once:true});
     setTimeout(function(){
       if(ok || pipv.video !== v) return;
+      pipVideoTot = true;   // nächster Klick öffnet direkt das HTML-Fenster
       pipStoppen();
       try{ pipFensterStarten(art, id); }catch(e){ console.error('Bild-in-Bild', e); toast('📌 Das Fenster liess sich nicht öffnen.'); }
     }, 2000);
@@ -36546,7 +36563,13 @@ function pipFensterStarten(art, id){
   };
   if(window.documentPictureInPicture){
     documentPictureInPicture.requestWindow({width:440, height:520}).then(fertig)
-      .catch(function(err){ console.error('Bild-in-Bild', err); toast('📌 Bitte nochmals klicken, dann öffnet sich das Fenster.'); });
+      .catch(function(err){
+        // Schwebendes Fenster abgelehnt: wenigstens ein normales, verschiebbares Fenster.
+        console.error('Bild-in-Bild', err);
+        var w = null;
+        try{ w = window.open('', 'libPip', 'popup=yes,width=440,height=560'); }catch(e){}
+        if(w) fertig(w); else toast('📌 Bitte nochmals klicken, dann öffnet sich das Fenster.');
+      });
   } else {
     fertig(window.open('', 'libPip', 'popup=yes,width=440,height=560'));
   }
@@ -36797,10 +36820,32 @@ function lphIstDrin(){
   if(f && lph.aktiv && lph.aktiv.nurFach && lph.aktiv.nurFach.id) return true;
   return !!f && (!n || !n.id || String(f.rid) === String(n.id));
 }
+// Mehrere Library-Tabs (⧉ Neues Fenster, zweiter Tab): alle melden ins selbe
+// Präsenz-Dokument. Der Tab im Hintergrund darf den Tab, in dem gearbeitet wird,
+// nicht mit «raus» überschreiben — wer drin ist, hinterlegt das für die anderen.
+var LPH_TAB_KEY = 'lib_lph_drin', LPH_TAB_ID = Math.random().toString(36).slice(2);
+function lphTabLesen(){ try{ return JSON.parse(localStorage.getItem(LPH_TAB_KEY) || 'null'); }catch(e){ return null; } }
+function lphTabMerken(drin){
+  try{
+    if(drin) localStorage.setItem(LPH_TAB_KEY, JSON.stringify({t:LPH_TAB_ID, ts:Date.now(), p:(lph.aktiv && lph.aktiv.startMs) || 0}));
+    else { var x = lphTabLesen(); if(x && x.t === LPH_TAB_ID) localStorage.removeItem(LPH_TAB_KEY); }
+  }catch(e){}
+}
+function lphAndererTabDrin(){
+  var x = lphTabLesen();
+  return !!x && x.t !== LPH_TAB_ID && x.p === ((lph.aktiv && lph.aktiv.startMs) || 0) && Date.now() - x.ts < LPH_HB_MS * 1.5;
+}
 function lphMelden(heartbeat, erzwungenRaus){
   if(!lph.aktiv || !state.user || alsSchueler()) return;
   var drin = erzwungenRaus ? false : lphIstDrin();
   var falsch = !erzwungenRaus && !drin && lphImFenster();
+  lphTabMerken(drin);
+  if(!drin && lphAndererTabDrin()){
+    // Ein anderer Tab ist am richtigen Ort: dieser hier schweigt.
+    if(lph.entprellt){ clearTimeout(lph.entprellt); lph.entprellt = null; }
+    lph.drin = false; lph.falsch = falsch; lph.erste = false;
+    return;
+  }
   if(!heartbeat && drin === lph.drin && falsch === lph.falsch) return;
   // Mit eigenem Übungsfenster flackert hasFocus() beim Klicken kurz: «raus» erst
   // melden, wenn es nach 2 s noch stimmt.
