@@ -5375,7 +5375,8 @@ function gastImFach(s, subject){
   return !f || f === subject || f === GRUPPE_ALLE_FAECHER || alle.indexOf(subject) >= 0 || alle.indexOf(GRUPPE_ALLE_FAECHER) >= 0;
 }
 function rosterFuerFach(list, subject){
-  return (list||[]).filter(function(s){ return gastImFach(s, subject); });
+  // Gäste aus Parallelklassen (G3a …) gehören nie automatisch zur Klasse – nur über eine 👥 Gruppe (Jan, 11.11.2026).
+  return (list||[]).filter(function(s){ return !gastFach(s) && gastImFach(s, subject); });
 }
 // Fach-Gäste in Namen-Spielen und Live-Zählern: dabei, wenn sie in der Auswahl
 // «👥 Wer macht mit?» angehakt sind (früher der Knopf «👭 Gäste»).
@@ -16484,7 +16485,13 @@ var LZ_WERTE = [['r','keine Ahnung'],['a','teilweise'],['g','erreicht']];
 var LZ_ZU_UEBUNG = {r:'red', a:'amber', g:'green'}, LZ_VON_UEBUNG = {red:'r', amber:'a', green:'g'};
 function lzSets(folderId){
   var f = folderById(folderId);
-  return f && Array.isArray(f.lernziele) ? f.lernziele.filter(function(s){ return s && s.id && Array.isArray(s.ziele) && s.ziele.length; }) : [];
+  return f && Array.isArray(f.lernziele) ? f.lernziele.filter(function(s){ return s && s.id && Array.isArray(s.ziele) && s.ziele.length && lzSetSichtbar(s); }) : [];
+}
+// Lernziele folgen ihrer Übung: Ist die dazugehörige Datei für diese Person ausgeblendet (🙈), ist es das Set auch.
+function lzSetSichtbar(set){
+  var ids = Object.keys(set.fragen || {}), res = state.resources || [];
+  var da = ids.map(function(id){ return res.find(function(r){ return r.id === id; }); }).filter(Boolean);
+  return !da.length || da.some(fuerRolleSichtbar);
 }
 function lzRef(uid){ return doc(db, 'progress', uid, 'erledigt', 'lernziele'); }
 function lzEigenLaden(){
@@ -16645,7 +16652,7 @@ function lzKlasseDialog(set){
   var subj = state.route.subject;
   openModal('<h2>🎯 '+esc(set.titel || 'Lernziele')+' – Klasse</h2><p class="lz-lead">Wird geladen …</p>', 'lz-modal lz-modal-breit');
   loadStudentRoster().then(function(list){
-    list = list.filter(function(s){ return gastImFach(s, subj); });
+    list = rosterFuerFach(list, subj);
     return Promise.all(list.map(function(s){
       return Promise.all([
         lzStatsLaden(s.uid, set),
@@ -26293,6 +26300,9 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-11-12-pruefung-schreibt-status', datum:'2026-11-12', fuer:'lehrer', text:'📝 Live-Übersicht: Wer nach dem Entsperren schon weiterschrieb, stand teils noch auf «entsperrt, noch nicht weiter». Behoben – die laufende Prüfung meldet sich jetzt sofort wieder als «schreibt».'},
+  {id:'2026-11-11-lernziele-ausblenden', datum:'2026-11-11', fuer:'lehrer', text:'🙈 Lernziele folgen ihrer Übung: Blendest du die Übung aus, sehen die Schüler:innen auch die Lernziele dazu nicht mehr. Du siehst sie weiterhin.'},
+  {id:'2026-11-11-ohne-gaeste', datum:'2026-11-11', fuer:'lehrer', text:'Gäste aus Parallelklassen (z. B. G3a) erscheinen nicht mehr automatisch in den Listen deiner Klasse (Lernziele, Lernstand, Live, Prüfungen) – nur noch, wenn du sie über eine 👥 Gruppe wählst.'},
   {id:'2026-11-11-lernziele-pruefung', datum:'2026-11-11', fuer:'lehrer', text:'🎯 Lernziele in Prüfungen (Pilot): Gehört die Übung einer Online-Prüfung zu einem Ordner mit Lernzielen, zeigt der Monitor unter «🎯 Lernziele» die Punkte der Klasse pro Lernziel. Die Schüler:innen sehen im Resultat ihre Punkte pro Lernziel und üben mit «Dazu üben» gezielt die Lücken. Gilt für Prüfungen, die ab heute erstellt werden.'},
   {id:'2026-11-11-lernziele', datum:'2026-11-11', fuer:'lehrer', text:'🎯 Lernziele (Pilot in Biologie G3b): Ein Ordner kann neu die Lernziele einer Prüfung tragen. Die Klasse sieht pro Lernziel einen Balken aus dem Übungsstand, schätzt sich mit drei Farben selbst ein und übt mit «Dazu üben» genau die passenden Fragen. Du siehst unter «👥 Klasse ansehen» das Raster Schüler:in × Lernziel.'},
   {id:'2026-11-11-pip-app', datum:'2026-11-11', fuer:'lehrer', text:'📌 Anpinnen (Lernphase, Prüfung): In der installierten Library-App öffnet sich jetzt zuverlässig ein schwebendes Fenster, das sich frei verschieben lässt – auch auf den zweiten Bildschirm.'},
@@ -38648,7 +38658,7 @@ function pruefWaechterAn(){
     if(++s.missed >= 2) pruefVerstoss('Anderes Fenster oder Programm geöffnet');
   }, 500);
   s.beat = setInterval(function(){
-    if(pruef.sess === s) updateDoc(teilRef(s.pid, state.user.uid), {lebt:serverTimestamp()}).catch(function(){});
+    if(pruef.sess === s) updateDoc(teilRef(s.pid, state.user.uid), {lebt:serverTimestamp(), aktiv:true}).catch(function(){});
   }, 30000);
 }
 function pruefWaechterAus(){
@@ -38784,6 +38794,13 @@ function pruefStudentUpdate(){
       pruefSessionStopp(); pruefFullscreenAus();
       pruefZeigeGesperrt(p0, v0 ? v0.grund : '');
       return;
+    }
+    // Läuft hier eine Sitzung, die Teilnahme steht aber auf «nicht aktiv» (z. B. Entsperren
+    // und «Weiter» fast gleichzeitig): sofort wieder aktiv setzen, sonst steht in der Live-Übersicht «entsperrt» statt «schreibt».
+    if(t0.status === 'laeuft' && t0.aktiv === false && !s.ending && !s.reaktiviert){
+      s.reaktiviert = true;
+      pruefLokal(s.pid, {aktiv:true});
+      updateDoc(teilRef(s.pid, state.user.uid), {aktiv:true, lebt:serverTimestamp()}).catch(function(){}).then(function(){ s.reaktiviert = false; });
     }
     if(p0.status === 'beendet') pruefErzwingeAbgabe();
     return;
