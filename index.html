@@ -14500,7 +14500,7 @@ function bkEinwurfDialog(klasse, bk){
           '<div class="bk-knoepfe"><button class="btn btn-ghost btn-sm" id="bkWaehlen" type="button">📄 Dateien wählen</button>'+
           '<button class="btn btn-primary btn-sm" id="bkEinwerfen" type="button" disabled>📮 Einwerfen</button></div>'+
           '<p class="bk-zeile bk-klein">Oder zieh die Dateien auf den Briefkasten. Nach dem Einwurf kannst du sie hier nicht mehr öffnen. '+
-            (bk.proPerson ? 'Du kannst mehrmals einwerfen, alles kommt in deinen Ordner. Wirfst du eine Datei mit gleichem Namen nochmals ein, ersetzt sie die frühere.'
+            (bk.proPerson ? 'Du kannst mehrmals einwerfen, alles kommt in deinen Ordner. Wirfst du eine Datei nochmals ein (gleicher Name oder gleiche Nummer am Anfang, z. B. «3_Fünfeck.dwg»), ersetzt sie die frühere.'
               : 'Bis zur Leerung darfst du neu einwerfen, dann zählt die neue Abgabe.')+'</p>'+
           '<div class="bk-balken" id="bkBalken"><div></div></div>')+
         (nurAnsicht ? '<p class="bk-zeile bk-klein">Vorschau: So sieht die Klasse den Briefkasten.</p>' : '')+
@@ -15002,6 +15002,23 @@ function bkSicher(name){
   return s.slice(0, 80);
 }
 function bkTeilen(name){ var i = name.lastIndexOf('.'); return i > 0 && name.length - i <= 9 ? [name.slice(0, i), name.slice(i)] : [name, '']; }
+// «Ordner pro Person»: welche früheren Dateien ersetzt eine neu eingeworfene Datei? (Gleiche Logik wie admin/briefkasten-abholen.js)
+// 1) gleicher Name (Gross/Klein, Leerzeichen, «(1)» und Unicode-Schreibweise egal), 2) sonst dieselbe Nummer am Anfang
+// («3_…») und dieselbe Endung, wenn die alte Datei nicht ohnehin im selben Einwurf neu kommt (Tippfehler im Namen).
+function bkNormKey(n){ return String(n || '').normalize('NFC').toLowerCase().replace(/\s+/g, '').replace(/\(\d+\)(?=\.[a-z0-9]{1,8}$|$)/, ''); }
+function bkZuErsetzen(pro, key, roh, einNorm){
+  var norm = bkNormKey(roh), out = [];
+  if(pro[key]) out.push(key);
+  Object.keys(pro).forEach(function(k){ if(k !== key && bkNormKey(k) === norm) out.push(k); });
+  if(out.length) return out;
+  var nr = /^\s*(\d{1,3})[\s_.\-]/.exec(String(roh).toLowerCase()), ext = bkExt(roh);
+  if(!nr || !ext) return out;
+  Object.keys(pro).forEach(function(k){
+    var kn = /^\s*(\d{1,3})[\s_.\-]/.exec(k);
+    if(kn && kn[1] === nr[1] && bkExt(k) === ext && einNorm.indexOf(bkNormKey(k)) < 0) out.push(k);
+  });
+  return out;
+}
 function bkLokalName(label, original, spaet){
   var t = bkTeilen(bkSicher(original) || 'Datei');
   return label + '_' + t[0] + (spaet ? ' (verspätet)' : '') + t[1];
@@ -15128,16 +15145,21 @@ async function bkLeerenLauf(klasse, bk, basis, melde){
     var spaet = bkIstSpaet(bk, a);
     var alt = stand.personen[a.uid], namen = [], pos = 0, verschoben = false, f, df;
     if(bk.proPerson){
-      // 📁 Ordner pro Person: Dateien sammeln sich in <Name>/, nur gleiche Dateinamen werden ersetzt.
+      // 📁 Ordner pro Person: Dateien sammeln sich in <Name>/, nur gleiche Dateinamen (oder gleiche Nummer + Endung) werden ersetzt.
       var pdir = await dir.getDirectoryHandle(label, {create:true});
       var pro = (alt && alt.proDatei) || {}, gesehen = {};
+      var einNorm = (a.dateien || []).map(function(x){ return bkNormKey(bkSicher(x.n) || 'Datei'); });
       for(f = 0; f < (a.dateien || []).length; f++){
         df = a.dateien[f];
         var roh = bkSicher(df.n) || 'Datei', key = roh.toLowerCase(), z = 2;
         while(gesehen[key]) key = roh.toLowerCase()+'#'+(z++);
         gesehen[key] = true;
-        var vor = pro[key];
-        if(vor && await bkInsBackup(pdir, vor.name, await pdir.getDirectoryHandle('_Backup', {create:true}), vor.am)) verschoben = true;
+        var weg = bkZuErsetzen(pro, key, roh, einNorm);
+        for(var wi = 0; wi < weg.length; wi++){
+          var vor = pro[weg[wi]];
+          if(vor && await bkInsBackup(pdir, vor.name, await pdir.getDirectoryHandle('_Backup', {create:true}), vor.am)) verschoben = true;
+          if(weg[wi] !== key) delete pro[weg[wi]];
+        }
         var tr = bkTeilen(roh);
         var pname = await bkFreierName(pdir, tr[0]+(spaet ? ' (verspätet)' : '')+tr[1]);
         await bkDateiSchreiben(pdir, pname, teile.slice(pos, pos + df.c));
@@ -26300,6 +26322,7 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-11-12-briefkasten-ersetzen', datum:'2026-11-12', fuer:'alle', text:'📮 Briefkasten mit «Ordner pro Person»: Wirfst du eine Datei nochmals ein, ersetzt sie die frühere auch dann, wenn der Name nur wenig anders ist (Gross-/Kleinschreibung, «(1)», Tippfehler) – solange die Nummer am Anfang («3_…») und die Endung gleich sind. Die alte Fassung landet im _Backup.'},
   {id:'2026-11-12-pruefung-schreibt-status', datum:'2026-11-12', fuer:'lehrer', text:'📝 Live-Übersicht: Wer nach dem Entsperren schon weiterschrieb, stand teils noch auf «entsperrt, noch nicht weiter». Behoben – die laufende Prüfung meldet sich jetzt sofort wieder als «schreibt».'},
   {id:'2026-11-11-lernziele-ausblenden', datum:'2026-11-11', fuer:'lehrer', text:'🙈 Lernziele folgen ihrer Übung: Blendest du die Übung aus, sehen die Schüler:innen auch die Lernziele dazu nicht mehr. Du siehst sie weiterhin.'},
   {id:'2026-11-11-ohne-gaeste', datum:'2026-11-11', fuer:'lehrer', text:'Gäste aus Parallelklassen (z. B. G3a) erscheinen nicht mehr automatisch in den Listen deiner Klasse (Lernziele, Lernstand, Live, Prüfungen) – nur noch, wenn du sie über eine 👥 Gruppe wählst.'},

@@ -58,6 +58,24 @@ function sicher(name) {
   return s.slice(0, 80);
 }
 function teilen(name) { const i = name.lastIndexOf('.'); return i > 0 && name.length - i <= 9 ? [name.slice(0, i), name.slice(i)] : [name, '']; }
+// «Ordner pro Person»: welche früheren Dateien ersetzt eine neu eingeworfene Datei? (Gleiche Logik wie im Knopf «Leeren» in index.html)
+// 1) gleicher Name (Gross/Klein, Leerzeichen, «(1)», Unicode-Schreibweise egal), 2) sonst dieselbe Nummer am Anfang
+// («3_…») und dieselbe Endung, wenn die alte Datei nicht ohnehin im selben Einwurf neu kommt (Tippfehler im Namen).
+function normKey(n) { return String(n || '').normalize('NFC').toLowerCase().replace(/\s+/g, '').replace(/\(\d+\)(?=\.[a-z0-9]{1,8}$|$)/, ''); }
+function endung(n) { const m = /\.([A-Za-z0-9]{1,8})$/.exec(n || ''); return m ? m[1].toLowerCase() : ''; }
+function zuErsetzen(pro, key, roh, einNorm) {
+  const norm = normKey(roh), out = [];
+  if (pro[key]) out.push(key);
+  Object.keys(pro).forEach((k) => { if (k !== key && normKey(k) === norm) out.push(k); });
+  if (out.length) return out;
+  const nr = /^\s*(\d{1,3})[\s_.\-]/.exec(String(roh).toLowerCase()), ext = endung(roh);
+  if (!nr || !ext) return out;
+  Object.keys(pro).forEach((k) => {
+    const kn = /^\s*(\d{1,3})[\s_.\-]/.exec(k);
+    if (kn && kn[1] === nr[1] && endung(k) === ext && einNorm.indexOf(normKey(k)) < 0) out.push(k);
+  });
+  return out;
+}
 function lokalName(label, original, spaet) {
   const t = teilen(sicher(original) || 'Datei');
   return label + '_' + t[0] + (spaet ? ' (verspätet)' : '') + t[1];
@@ -128,13 +146,17 @@ function ablegen(dir, bk, einwurf, dateien, person) {
     const pdir = path.join(dir, label), pback = path.join(pdir, '_Backup');
     fs.mkdirSync(pdir, { recursive: true });
     const pro = (alt && alt.proDatei) || {}, gesehen = {};
+    const einNorm = dateien.map((d) => normKey(sicher(d.n) || 'Datei'));
     dateien.forEach((d) => {
       const roh = sicher(d.n) || 'Datei';
       let key = roh.toLowerCase(), z = 2;
       while (gesehen[key]) key = roh.toLowerCase() + '#' + (z++);
       gesehen[key] = true;
-      const vor = pro[key];
-      if (vor && insBackup(pdir, vor.name, pback, vor.am)) ersetzt = true;
+      zuErsetzen(pro, key, roh, einNorm).forEach((k) => {
+        const vor = pro[k];
+        if (vor && insBackup(pdir, vor.name, pback, vor.am)) ersetzt = true;
+        if (k !== key) delete pro[k];
+      });
       const t = teilen(roh);
       const name = freierName(pdir, t[0] + (spaet ? ' (verspätet)' : '') + t[1]);
       schreiben(path.join(pdir, name), d.inhalt);
@@ -280,7 +302,7 @@ async function lauf(cfg, laut) {
   return geholt;
 }
 
-module.exports = { sicher, teilen, lokalName, stempel, ablegen, zielOrdner, istSpaet, labelFuer, umziehen };
+module.exports = { normKey, zuErsetzen, sicher, teilen, lokalName, stempel, ablegen, zielOrdner, istSpaet, labelFuer, umziehen };
 
 if (require.main === module) {
   const args = process.argv.slice(2);
