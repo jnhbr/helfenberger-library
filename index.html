@@ -5091,7 +5091,7 @@ function uiCalendarEntryForm(existing, onSaved){
     '<label class="modal-label">Art</label><select id="calType">'+typeOptions+'</select>'+
     '<label class="modal-label">Fach</label><select id="calSubject">'+subjectOptions+'</select>'+
     (isPrivate ? '' : '<label class="modal-label">Für</label><select id="calFuer"></select><div class="cal-fuer-hint" id="calFuerHint"></div>')+
-    (isPrivate || existing ? '' : '<div id="calWeitereWrap" style="margin:6px 0;"><label class="modal-label">Zusätzlich auch für andere Klassen</label><div id="calWeitere" style="display:flex;flex-wrap:wrap;gap:4px 12px;">'+
+    (isPrivate || existing ? '' : '<div id="calWeitereWrap" style="margin:6px 0;"><label class="modal-label">Zusätzlich auch für (andere Klassen, eigene Gruppen)</label><div id="calWeitere" style="display:flex;flex-wrap:wrap;gap:4px 12px;">'+
       KLASSEN.filter(function(k){ return k.art === 'klasse' && k.id !== state.klasse; }).map(function(k){ return '<label class="lp-check" style="margin:0;"><input type="checkbox" data-wk="'+esc(k.id)+'"> <span>'+esc(k.id)+'</span></label>'; }).join('')+'</div></div>')+
     '<label class="modal-label">Titel</label><input type="text" id="calTitle" maxlength="120" value="'+esc(existing?existing.title:'')+'" placeholder="z.B. Seite 42, Aufgabe 3–5">'+
     '<label class="modal-label">Datum</label><input type="date" id="calDate" value="'+esc(existing?existing.dueDate:todayStr())+'">'+
@@ -5191,8 +5191,19 @@ function uiCalendarEntryForm(existing, onSaved){
         : (!passend.length ? 'Noch keine Gruppe für dieses Fach – im Kalender unter «👥 Gruppen» anlegen.' : '');
     }
   }
-  var weitereWrap = document.getElementById('calWeitereWrap');
-  function weitereZeigen(){ if(weitereWrap) weitereWrap.hidden = !!(fuerEl && fuerEl.value); }
+  // Weitere Ziele: andere Klassen + meine übrigen Gruppen (im gewählten Fach, nicht die oben gewählte).
+  function weitereZeigen(){
+    var host = document.getElementById('calWeitere'); if(!host) return;
+    var haken = {}; Array.prototype.forEach.call(host.querySelectorAll('[data-wg]'), function(c){ if(c.checked) haken[c.getAttribute('data-wg')] = true; });
+    Array.prototype.forEach.call(host.querySelectorAll('label[data-gl]'), function(l){ l.remove(); });
+    var aktuell = fuerEl ? fuerEl.value : '';
+    meineGruppen.filter(function(g){ return g.id !== aktuell && gruppeHatFach(g, subjectEl.value); }).forEach(function(g){
+      var l = document.createElement('label'); l.className = 'lp-check'; l.style.margin = '0'; l.setAttribute('data-gl', '1');
+      l.innerHTML = '<input type="checkbox" data-wg="'+esc(g.id)+'"'+(haken[g.id] ? ' checked' : '')+'> <span>👥 '+esc(g.name)+'</span>';
+      host.appendChild(l);
+    });
+  }
+  subjectEl.addEventListener('change', weitereZeigen);
   if(fuerEl){
     fuerFuellen(); weitereZeigen();
     fuerEl.addEventListener('change', weitereZeigen);
@@ -5282,8 +5293,21 @@ function uiCalendarEntryForm(existing, onSaved){
           var newId = (isPrivate ? 'mine_' : 'cal_')+Date.now()+'_'+Math.random().toString(36).slice(2,8);
           await setDoc(isPrivate ? doc(eigeneEintraegeCol(), newId) : kdoc('calendarEntries', newId), data);
           // Mehrere Klassen gleichzeitig: dieselbe Kopie in jeder angehakten Klasse (nur bei «Ganze Klasse»).
-          var weitere = isPrivate || (data.gruppeId) ? [] : Array.prototype.slice.call(document.querySelectorAll('[data-wk]')).filter(function(c){ return c.checked; }).map(function(c){ return c.getAttribute('data-wk'); });
-          for(var wi = 0; wi < weitere.length; wi++) await setDoc(kdocFor(weitere[wi], 'calendarEntries', newId), data);
+          var gewaehlt = isPrivate ? [] : Array.prototype.slice.call(document.querySelectorAll('[data-wk],[data-wg]')).filter(function(c){ return c.checked; });
+          var weitere = [];
+          for(var wi = 0; wi < gewaehlt.length; wi++){
+            var cb = gewaehlt[wi], kopie = Object.assign({}, data), gid2 = cb.getAttribute('data-wg');
+            if(gid2){
+              var g2 = meineGruppen.filter(function(g){ return g.id === gid2; })[0]; if(!g2) continue;
+              kopie.gruppeId = g2.id; kopie.gruppeName = g2.name; kopie.mitglieder = (g2.mitglieder || []).slice();
+              await setDoc(kdocFor(g2.ownerKlasse || state.profile.klasse || state.klasse, 'calendarEntries', newId), kopie);
+              weitere.push('👥 '+g2.name);
+            } else {
+              delete kopie.gruppeId; delete kopie.gruppeName; delete kopie.mitglieder;
+              await setDoc(kdocFor(cb.getAttribute('data-wk'), 'calendarEntries', newId), kopie);
+              weitere.push(cb.getAttribute('data-wk'));
+            }
+          }
           if(weitere.length) toast('Eintrag auch für '+weitere.join(', ')+' hinzugefügt.');
         }
         closeModal();
