@@ -5091,6 +5091,8 @@ function uiCalendarEntryForm(existing, onSaved){
     '<label class="modal-label">Art</label><select id="calType">'+typeOptions+'</select>'+
     '<label class="modal-label">Fach</label><select id="calSubject">'+subjectOptions+'</select>'+
     (isPrivate ? '' : '<label class="modal-label">Für</label><select id="calFuer"></select><div class="cal-fuer-hint" id="calFuerHint"></div>')+
+    (isPrivate || existing ? '' : '<div id="calWeitereWrap" style="margin:6px 0;"><label class="modal-label">Zusätzlich auch für andere Klassen</label><div id="calWeitere" style="display:flex;flex-wrap:wrap;gap:4px 12px;">'+
+      KLASSEN.filter(function(k){ return k.art === 'klasse' && k.id !== state.klasse; }).map(function(k){ return '<label class="lp-check" style="margin:0;"><input type="checkbox" data-wk="'+esc(k.id)+'"> <span>'+esc(k.id)+'</span></label>'; }).join('')+'</div></div>')+
     '<label class="modal-label">Titel</label><input type="text" id="calTitle" maxlength="120" value="'+esc(existing?existing.title:'')+'" placeholder="z.B. Seite 42, Aufgabe 3–5">'+
     '<label class="modal-label">Datum</label><input type="date" id="calDate" value="'+esc(existing?existing.dueDate:todayStr())+'">'+
     '<div id="calWoWrap" hidden><label class="modal-label">Wo wird die Prüfung geschrieben?</label><select id="calWo"></select><div class="cal-fuer-hint" id="calWoHint"></div></div>'+
@@ -5189,10 +5191,13 @@ function uiCalendarEntryForm(existing, onSaved){
         : (!passend.length ? 'Noch keine Gruppe für dieses Fach – im Kalender unter «👥 Gruppen» anlegen.' : '');
     }
   }
+  var weitereWrap = document.getElementById('calWeitereWrap');
+  function weitereZeigen(){ if(weitereWrap) weitereWrap.hidden = !!(fuerEl && fuerEl.value); }
   if(fuerEl){
-    fuerFuellen();
+    fuerFuellen(); weitereZeigen();
+    fuerEl.addEventListener('change', weitereZeigen);
     if(state.profile.role === 'teacher' && !isLeitung()){
-      loadMeineGruppen().then(function(list){ meineGruppen = list; fuerFuellen(); }).catch(function(err){ console.error(err); });
+      loadMeineGruppen().then(function(list){ meineGruppen = list; fuerFuellen(); weitereZeigen(); }).catch(function(err){ console.error(err); });
     }
   }
 
@@ -5276,9 +5281,13 @@ function uiCalendarEntryForm(existing, onSaved){
           data.createdBy = state.user.uid;
           var newId = (isPrivate ? 'mine_' : 'cal_')+Date.now()+'_'+Math.random().toString(36).slice(2,8);
           await setDoc(isPrivate ? doc(eigeneEintraegeCol(), newId) : kdoc('calendarEntries', newId), data);
+          // Mehrere Klassen gleichzeitig: dieselbe Kopie in jeder angehakten Klasse (nur bei «Ganze Klasse»).
+          var weitere = isPrivate || (data.gruppeId) ? [] : Array.prototype.slice.call(document.querySelectorAll('[data-wk]')).filter(function(c){ return c.checked; }).map(function(c){ return c.getAttribute('data-wk'); });
+          for(var wi = 0; wi < weitere.length; wi++) await setDoc(kdocFor(weitere[wi], 'calendarEntries', newId), data);
+          if(weitere.length) toast('Eintrag auch für '+weitere.join(', ')+' hinzugefügt.');
         }
         closeModal();
-        toast(existing ? 'Eintrag aktualisiert.' : 'Eintrag hinzugefügt.');
+        if(!(!existing && document.querySelector('[data-wk]:checked'))) toast(existing ? 'Eintrag aktualisiert.' : 'Eintrag hinzugefügt.');
         onSaved();
       }catch(err){
         console.error(err);
@@ -26322,6 +26331,7 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-11-13-mehrere-klassen-nicht-dabei', datum:'2026-11-13', fuer:'lehrer', text:'📅 Kalender: Beim neuen Eintrag (Hausaufgabe, Prüfung …) kannst du unter «Zusätzlich auch für andere Klassen» weitere Klassen ankreuzen, der Eintrag landet in allen gleichzeitig. 🚪 Prüfung: In der Live-Übersicht nimmt der Knopf 🚪 eine Person aus der Prüfung (schreibt nicht mit): nicht mehr gesperrt, wieder in der Library, keine Note. Mit ↩︎ unten kommt sie wieder dazu.'},
   {id:'2026-11-12-briefkasten-ersetzen', datum:'2026-11-12', fuer:'alle', text:'📮 Briefkasten mit «Ordner pro Person»: Wirfst du eine Datei nochmals ein, ersetzt sie die frühere auch dann, wenn der Name nur wenig anders ist (Gross-/Kleinschreibung, «(1)», Tippfehler) – solange die Nummer am Anfang («3_…») und die Endung gleich sind. Die alte Fassung landet im _Backup.'},
   {id:'2026-11-12-pruefung-schreibt-status', datum:'2026-11-12', fuer:'lehrer', text:'📝 Live-Übersicht: Wer nach dem Entsperren schon weiterschrieb, stand teils noch auf «entsperrt, noch nicht weiter». Behoben – die laufende Prüfung meldet sich jetzt sofort wieder als «schreibt».'},
   {id:'2026-11-11-lernziele-ausblenden', datum:'2026-11-11', fuer:'lehrer', text:'🙈 Lernziele folgen ihrer Übung: Blendest du die Übung aus, sehen die Schüler:innen auch die Lernziele dazu nicht mehr. Du siehst sie weiterhin.'},
@@ -37965,6 +37975,7 @@ function pruefById(id){ return pruef.list.find(function(p){ return p.id === id; 
 function pruefFach(p){ return (p && (p.subject || p.fach)) || ''; }
 // Prüfung nur für eine 👥 Gruppe (p.mitglieder): die anderen sehen sie gar nicht.
 function pruefFuerMich(p){
+  if(state.user && Array.isArray(p.ausgeschlossen) && p.ausgeschlossen.indexOf(state.user.uid) >= 0) return false;   // 🚪 Nicht dabei
   return !Array.isArray(p.mitglieder) || !state.user || p.mitglieder.indexOf(state.user.uid) >= 0;
 }
 // Eigene Teilnahme sofort lokal nachführen: die Prüfungsliste und die eigene
@@ -42016,9 +42027,16 @@ function pruefMonitorKoerper(p, teil, roster, anzahl){
     if(t && t.status === 'gesperrt') h += '<button class="btn btn-primary btn-sm" data-e="'+esc(r.uid)+'" type="button">🔓 Entsperren</button>';
     if(t && t.status === 'abgegeben' && r.erg) h += '<button class="btn btn-ghost btn-sm" data-d="'+esc(r.uid)+'" type="button">Details</button>';
     if(t) h += '<button class="btn btn-ghost btn-sm" data-r="'+esc(r.uid)+'" type="button" title="Teilnahme löschen — die Person kann neu beginnen">↺</button>';
+    if(!t || t.status !== 'abgegeben') h += '<button class="btn btn-ghost btn-sm" data-x="'+esc(r.uid)+'" type="button" title="Schreibt die Prüfung nicht mit: Person wird aus der Prüfung genommen, kann wieder in die Library und bekommt keine Note">🚪</button>';
     h += '</div></div>';
   });
   h += '</div>';
+  if(Array.isArray(p.ausgeschlossen) && p.ausgeschlossen.length){
+    h += '<div class="pr-warte-box">🚪 Nicht dabei (keine Note): '+p.ausgeschlossen.map(function(u){
+      var n = (pruef.nameVon && pruef.nameVon[u]) || ((pruefRosterCache.list || []).filter(function(s){ return s.uid === u; })[0] || {}).displayName || u;
+      return esc(n)+' <button class="btn btn-ghost btn-sm" data-w="'+esc(u)+'" type="button" title="Wieder dabei">↩︎</button>';
+    }).join(' · ')+'</div>';
+  }
   return h;
 }
 // Hauptprüfung und angepasste Varianten (Lernzielanpassung) im selben Fenster:
@@ -42112,6 +42130,11 @@ function pruefRosterFuer(p){
   return out;
 }
 function pruefMonitorZeilen(p, teil, roster){
+  var ausg = Array.isArray(p.ausgeschlossen) ? p.ausgeschlossen : [];
+  if(ausg.length){
+    roster = roster.filter(function(s){ return ausg.indexOf(s.uid) < 0; });
+    teil = Object.keys(teil).reduce(function(o, k){ if(ausg.indexOf(k) < 0) o[k] = teil[k]; return o; }, {});
+  }
   if(Array.isArray(p.mitglieder)) roster = roster.filter(function(s){ return p.mitglieder.indexOf(s.uid) >= 0; });
   if(pruefArt(p) === 'sikore') roster = roster.filter(function(s){ return p.levels && p.levels[s.uid]; });
   var rows = roster.map(function(s){ return {uid:s.uid, name:s.displayName || s.username || s.uid, t:teil[s.uid] || null}; });
@@ -42267,7 +42290,15 @@ function pruefMonitorVerdrahten(p0){
     // Knöpfe in einem Variantenblock gelten für diese Prüfung, nicht für die geöffnete.
     var vc = b.closest('[data-vid]'), p = (vc && pruefById(vc.getAttribute('data-vid'))) || p0;
     var a = b.getAttribute('data-a'), eu = b.getAttribute('data-e'), du = b.getAttribute('data-d'), ru = b.getAttribute('data-r');
+    var xu = b.getAttribute('data-x'), wu = b.getAttribute('data-w');
     var teil = pruef.teil[p.id] || {};
+    if(wu){ updateDoc(pruefRef(p.id), {ausgeschlossen:arrayRemove(wu)}).then(function(){ toast('Wieder dabei.'); }).catch(pruefFehler); return; }
+    if(xu){
+      uiConfirm('Nicht dabei?', (teil[xu] && teil[xu].name || 'Die Person')+' schreibt diese Prüfung nicht mit: wird aus der Prüfung genommen, ist nicht mehr gesperrt, kommt wieder in die Library und bekommt keine Note.', 'Aus Prüfung nehmen', function(){
+        writeBatch().update(pruefRef(p.id), {ausgeschlossen:arrayUnion(xu)}).delete(teilRef(p.id, xu)).delete(pruefNoteRef(xu, p.id)).commit().then(function(){ toast('🚪 Aus der Prüfung genommen.'); }).catch(pruefFehler);
+      }, true);
+      return;
+    }
     if(eu){ updateDoc(teilRef(p.id, eu), pruefEntsperrUpd(p, teil[eu])).then(function(){ toast('Entsperrt.'); }).catch(pruefFehler); return; }
     if(du){ if(pruefArt(p) === 'sikore') sikoreDetailsLehrer(p, du); else if(pruefArt(p) === 'tippen') tippPrDetailsLehrer(p, du); else pruefDetailsLehrer(p, du); return; }
     if(ru){
