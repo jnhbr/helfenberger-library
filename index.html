@@ -303,7 +303,7 @@ function winterAn(){ var aus = false; try{ aus = localStorage.getItem('hl_winter
   .indiv-hinweis-zeile{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-top:8px;}
   .resource-card.indiv-geloest{border-color:#2e9e5b;background:color-mix(in srgb,#2e9e5b 14%,var(--surface));}
   .chip-indiv{display:inline-block;font-size:.72rem;font-weight:700;color:#1f7a45;background:color-mix(in srgb,#2e9e5b 18%,transparent);border-radius:99px;padding:1px 8px;margin-left:4px;}
-  .indiv-archiv{margin-top:10px;} .indiv-archiv summary{cursor:pointer;color:var(--text-muted);font-weight:600;margin-bottom:8px;} .indiv-archiv .resource-card{margin-bottom:8px;} .indiv-leer{margin:6px 2px;}
+  .indiv-ordner>summary,.indiv-thema>summary{cursor:pointer;font-weight:700;margin:8px 0;} .indiv-thema{margin:6px 0 10px 14px;} .indiv-thema>.resource-card{margin-bottom:8px;} .indiv-archiv{margin-top:10px;} .indiv-archiv summary{cursor:pointer;color:var(--text-muted);font-weight:600;margin-bottom:8px;} .indiv-archiv .resource-card{margin-bottom:8px;} .indiv-leer{margin:6px 2px;}
   .resource-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:16px 18px;box-shadow:var(--shadow);display:flex;align-items:center;gap:16px;flex-wrap:wrap;transition:border-color .15s ease, box-shadow .15s ease;}
   .resource-card.sk-karte{width:100%;font:inherit;color:inherit;text-align:left;cursor:pointer;}
   .resource-card.sk-karte:hover{border-color:var(--brand);}
@@ -17475,13 +17475,27 @@ function indivGeloestMarkieren(r){
     return setDoc(erledigtRef(), { ids: erledigt.ids, updatedAt: serverTimestamp() }).then(function(){ return true; });
   }).catch(function(err){ console.error(err); return false; });
 }
+var indivOffen = {};
+function indivToggle(el){ indivOffen[el.getAttribute('data-k')] = el.open; }
 function indivBereichHtml(liste, isTeacher){
   var aktiv = liste.filter(function(r){ return !indivArchiviert(r); });
   var arch = liste.filter(indivArchiviert);
   function nach(a, b){ return String((b.indiv && b.indiv.am) || '').localeCompare(String((a.indiv && a.indiv.am) || '')); }
   aktiv.sort(nach); arch.sort(nach);
+  function offen(k){ return indivOffen[k] === false ? '' : ' open'; }
   var h = '<div class="section-label">📌 Individuelle Übung</div>';
-  h += aktiv.length ? aktiv.map(function(r){ return resourceCardHtml(r, 0, 1, isTeacher); }).join('') : '<p class="muted indiv-leer">Alles erledigt – gut gemacht! 🎉</p>';
+  if(!aktiv.length) h += '<p class="muted indiv-leer">Alles erledigt – gut gemacht! 🎉</p>';
+  else {
+    // 📁 Ordner «Individuelle Übungen» mit je einem Unterordner pro Thema (seit 17.11.2026)
+    var gr = {}, reihe = [];
+    aktiv.forEach(function(r){ var t = String((r.indiv && r.indiv.thema) || '').trim() || 'Weitere Übungen'; if(!gr[t]){ gr[t] = []; reihe.push(t); } gr[t].push(r); });
+    h += '<details class="indiv-ordner" data-k="_" ontoggle="indivToggle(this)"'+offen('_')+'><summary>📁 Individuelle Übungen ('+aktiv.length+')</summary>';
+    reihe.forEach(function(t){
+      h += '<details class="indiv-thema" data-k="t:'+esc(t)+'" ontoggle="indivToggle(this)"'+offen('t:'+t)+'><summary>📂 '+esc(t)+' ('+gr[t].length+')</summary>'+
+        gr[t].map(function(r){ return resourceCardHtml(r, 0, 1, isTeacher); }).join('')+'</details>';
+    });
+    h += '</details>';
+  }
   if(arch.length) h += '<details class="indiv-archiv"><summary>🗄️ Archiv ('+arch.length+')</summary>'+arch.map(function(r){ return resourceCardHtml(r, 0, 1, isTeacher); }).join('')+'</details>';
   return h;
 }
@@ -17513,6 +17527,7 @@ function indivZuweisenDialog(r){
     roster = roster.filter(function(x){ return !x.gruppenGast; }).sort(function(a, b){ return String(a.displayName || a.username).localeCompare(String(b.displayName || b.username), 'de'); });
     var h = '<h3>👤 Individuell zuweisen: '+esc(r.title || r.fileName)+'</h3>'+
       '<p class="kz-intro">Die Person bekommt die Übung im Fach ganz unten unter «📌 Individuelle Übung». Sie wird grün, sobald sie gelöst ist, und wandert nach 7 Tagen ins Archiv.</p>'+
+      '<label class="modal-label">Thema (Unterordner im Ordner «Individuelle Übungen»)</label><input id="iuThema" class="modal-input" type="text" maxlength="60" value="'+esc(((r.folderId && state.folders.filter(function(f){ return f.id === r.folderId; })[0]) || {}).name || r.title || '')+'">'+
       '<div class="back-row" style="flex-wrap:wrap;margin:0 0 6px;"><button class="btn btn-ghost btn-sm" id="iuAlle" type="button">Ganze Klasse</button><button class="btn btn-ghost btn-sm" id="iuKeine" type="button">Keine</button><span id="iuGruppen"></span></div>'+
       '<div style="max-height:calc(40vh/var(--lz,1));overflow:auto;">'+roster.map(function(x){
         return '<label class="lp-check"><input type="checkbox" data-iu="'+esc(x.uid)+'"> <span>'+esc(x.displayName || x.username)+'</span></label>';
@@ -17541,7 +17556,7 @@ function indivZuweisenDialog(r){
         ['id','current','empfohlen','ausgeblendet','nurLehrer','niveau','order','imHub'].forEach(function(k){ delete kopie[k]; });
         kopie.folderId = null; kopie.contentId = r.contentId || r.id;
         kopie.nurFuer = [uid];
-        kopie.indiv = {uid: uid, name: namen[uid] || '', am: jetzt, von: r.id};
+        kopie.indiv = {uid: uid, name: namen[uid] || '', am: jetzt, von: r.id, thema: (document.getElementById('iuThema').value || '').trim().slice(0, 60)};
         kopie.uploadedAt = serverTimestamp(); kopie.uploadedBy = state.user.uid;
         batch.set(kdoc('resources', r.subject+'_iu_'+Date.now()+'_'+i), kopie);
       });
@@ -17829,6 +17844,138 @@ function isPptxFile(file){
   return /\.pptx$/i.test(file.name);
 }
 var MAX_PPTX_BYTES = 60 * 1024 * 1024;   // PowerPoint vor der Umwandlung; die fertigen Folien dürfen MAX_RESOURCE_BYTES nicht überschreiten
+/* 🎲 Zufall in den Folien (seit 17.11.2026, nur Lehrpersonen): Knopf in der Folienleiste und in der Referentenansicht,
+   Popup (verschiebbar, bleibt bis zum nächsten Klick auf den Knopf) mit Glücksrad oder «Normal», in beiden Fenstern gleich.
+   Läuft IM Folien-Frame (wird als Text in die Folien eingespritzt) – deshalb keine Variablen von aussen, nur window.__libNamen. */
+function folienZufallSkript(){
+  var S = { open:false, mode:'rad', weg:true, rot:0, res:'', lauf:false, gez:{}, pos:{}, ids:[], hist:[] };
+  var ref = null, ow = window.open;
+  window.open = function(){ var w = ow.apply(window, arguments); if(arguments[1] === 'folienReferent' && w) ref = w; return w; };
+  var FARBEN = ['#3A3F73','#E63950','#2E9E5B','#E8B72C','#4A7FD9','#8E5BC8','#F08A3C','#1FA3A3'];
+  var TAU = Math.PI * 2;
+  function alle(){
+    var n = (window.__libNamen || []).filter(Boolean);
+    if(!n.length){ n = []; for(var i = 1; i <= 24; i++) n.push(String(i)); }
+    return n;
+  }
+  function pool(){ var p = alle().filter(function(x){ return !S.gez[x]; }); if(!p.length){ S.gez = {}; p = alle(); } return p; }
+  function docs(){
+    var d = [{ d: document, k: 'main' }];
+    try{ if(ref && !ref.closed && ref.document && ref.document.getElementById('r-top')) d.push({ d: ref.document, k: 'ref' }); }catch(e){}
+    return d;
+  }
+  function el(d, id){ return d.getElementById(id); }
+  function bauen(o){
+    var d = o.d, p = d.createElement('div'); p.id = 'zf-pop';
+    var pos = S.pos[o.k] || { x: o.k === 'main' ? Math.max(10, (d.defaultView.innerWidth || 800) - 380) : 40, y: 90 };
+    p.style.cssText = 'position:fixed;z-index:2147483000;width:340px;left:' + pos.x + 'px;top:' + pos.y + 'px;background:#fff;color:#1d1d1d;border-radius:14px;box-shadow:0 10px 40px rgba(0,0,0,.45);font:15px system-ui,sans-serif;overflow:hidden;user-select:none';
+    p.innerHTML = '<div id="zf-h" style="cursor:move;background:#3A3F73;color:#fff;padding:9px 12px;font-weight:700;display:flex;justify-content:space-between;align-items:center">🎲 Zufall <span style="font-weight:400;font-size:12px;opacity:.8">zum Verschieben ziehen</span></div>' +
+      '<div style="padding:10px 12px;display:flex;flex-direction:column;gap:8px;align-items:center">' +
+      '<div style="display:flex;gap:6px"><button id="zf-mr" type="button">🎡 Rad</button><button id="zf-mn" type="button">🎲 Normal</button></div>' +
+      '<canvas id="zf-c" width="300" height="300" style="width:300px;height:300px"></canvas>' +
+      '<div id="zf-n" style="display:none;height:70px;align-items:center;justify-content:center;font-size:30px;font-weight:700;text-align:center"></div>' +
+      '<div id="zf-r" style="min-height:38px;font-size:26px;font-weight:800;color:#E63950;text-align:center"></div>' +
+      '<button id="zf-go" type="button" style="font-size:18px;font-weight:700;padding:8px 22px;border:0;border-radius:10px;background:#E63950;color:#fff;cursor:pointer">Los!</button>' +
+      '<label style="font-size:13px"><input type="checkbox" id="zf-w"> Gezogene rausnehmen</label><div id="zf-i" style="font-size:12px;color:#666"></div></div>';
+    d.body.appendChild(p);
+    var kopf = el(d, 'zf-h'), x0, y0, px, py, zieht = false;
+    kopf.addEventListener('mousedown', function(e){ zieht = true; x0 = e.clientX; y0 = e.clientY; px = p.offsetLeft; py = p.offsetTop; e.preventDefault(); });
+    d.addEventListener('mousemove', function(e){ if(!zieht) return; var x = Math.max(0, Math.min(px + e.clientX - x0, d.defaultView.innerWidth - 60)), y = Math.max(0, Math.min(py + e.clientY - y0, d.defaultView.innerHeight - 40)); p.style.left = x + 'px'; p.style.top = y + 'px'; S.pos[o.k] = { x: x, y: y }; });
+    d.addEventListener('mouseup', function(){ zieht = false; });
+    el(d, 'zf-mr').onclick = function(){ if(!S.lauf){ S.mode = 'rad'; malen(); } };
+    el(d, 'zf-mn').onclick = function(){ if(!S.lauf){ S.mode = 'normal'; malen(); } };
+    el(d, 'zf-go').onclick = ziehen;
+    el(d, 'zf-w').onchange = function(){ S.weg = this.checked; malen(); };
+    // Tasten der Folien (Pfeile …) nicht stören, solange man im Popup klickt
+    p.addEventListener('keydown', function(e){ e.stopPropagation(); });
+    return p;
+  }
+  function knopfStil(b, an){ b.style.cssText = 'border:2px solid #3A3F73;border-radius:8px;padding:4px 12px;font-weight:700;cursor:pointer;background:' + (an ? '#3A3F73' : '#fff') + ';color:' + (an ? '#fff' : '#3A3F73'); }
+  function rad(c, list){
+    var cx = c.getContext('2d'), n = list.length, g = c.width, m = g / 2, r = m - 8;
+    cx.clearRect(0, 0, g, g);
+    var seg = TAU / n, px = Math.max(10, Math.min(24, r * 0.13, r * seg * 0.45));
+    for(var i = 0; i < n; i++){
+      var a = S.rot - Math.PI / 2 + i * seg;
+      cx.beginPath(); cx.moveTo(m, m); cx.arc(m, m, r, a, a + seg); cx.closePath();
+      cx.fillStyle = FARBEN[(i === n - 1 && i % 8 === 0 && n > 1) ? 1 : i % 8]; cx.fill();
+      cx.lineWidth = 2; cx.strokeStyle = '#fff'; cx.stroke();
+      cx.save(); cx.translate(m, m); cx.rotate(a + seg / 2);
+      cx.fillStyle = (i % 8 === 3 || i % 8 === 6) ? '#1C2033' : '#fff'; cx.font = '700 ' + px + 'px system-ui,sans-serif'; cx.textAlign = 'right'; cx.textBaseline = 'middle';
+      var t = list[i]; while(t.length > 1 && cx.measureText(t).width > r - 40) t = t.slice(0, -1);
+      cx.fillText(t, r - 12, 0); cx.restore();
+    }
+    cx.beginPath(); cx.arc(m, m, 16, 0, TAU); cx.fillStyle = '#fff'; cx.fill();
+    cx.beginPath(); cx.moveTo(m - 11, 2); cx.lineTo(m + 11, 2); cx.lineTo(m, 30); cx.closePath(); cx.fillStyle = '#1C2033'; cx.fill();
+  }
+  function malen(){
+    var list = S.liste || pool();
+    docs().forEach(function(o){
+      var d = o.d, p = el(d, 'zf-pop');
+      if(!S.open){ if(p) p.remove(); return; }
+      if(!p) p = bauen(o);
+      knopfStil(el(d, 'zf-mr'), S.mode === 'rad'); knopfStil(el(d, 'zf-mn'), S.mode === 'normal');
+      el(d, 'zf-c').style.display = S.mode === 'rad' ? '' : 'none';
+      el(d, 'zf-n').style.display = S.mode === 'normal' ? 'flex' : 'none';
+      el(d, 'zf-n').textContent = S.anz || '';
+      el(d, 'zf-r').textContent = S.res || '';
+      el(d, 'zf-w').checked = S.weg;
+      el(d, 'zf-go').disabled = S.lauf; el(d, 'zf-go').style.opacity = S.lauf ? .5 : 1;
+      el(d, 'zf-i').textContent = (window.__libNamen && window.__libNamen.length ? '' : 'Keine Klassenliste gefunden – es werden Nummern gezogen. ') + pool().length + ' von ' + alle().length + ' im Topf';
+      if(S.mode === 'rad') rad(el(d, 'zf-c'), list);
+      var b = el(d, o.k === 'main' ? 'fl-zufall' : 'r-zf'); if(b) b.classList.toggle('on', S.open);
+    });
+  }
+  function ziehen(){
+    if(S.lauf) return;
+    var list = pool(), n = list.length, w = Math.floor(Math.random() * n);
+    S.lauf = true; S.res = ''; S.liste = list;
+    if(S.mode === 'rad'){
+      var seg = TAU / n, start = S.rot, ziel = -(w + 0.5) * seg + (Math.random() - .5) * seg * .7;
+      while(ziel < start + 5 * TAU) ziel += TAU;
+      var t0 = Date.now(), dauer = 4500;
+      var iv = setInterval(function(){
+        var f = Math.min(1, (Date.now() - t0) / dauer), e = 1 - Math.pow(1 - f, 3);
+        S.rot = start + (ziel - start) * e; malen();
+        if(f >= 1){ clearInterval(iv); fertig(list[w]); }
+      }, 30);
+    } else {
+      var k = 0, steps = 22;
+      (function schritt(){
+        k++; S.anz = k >= steps ? list[w] : list[Math.floor(Math.random() * n)]; malen();
+        if(k >= steps) return fertig(list[w]);
+        setTimeout(schritt, 50 + k * k * 0.9);
+      })();
+    }
+  }
+  function fertig(name){
+    S.lauf = false; S.res = '🎉 ' + name; S.anz = name;
+    if(S.weg) S.gez[name] = true;
+    malen();
+  }
+  function umschalten(){ S.open = !S.open; malen(); }
+  function knoepfe(){
+    var bar = document.getElementById('fl-bar');
+    if(bar && !document.getElementById('fl-zufall')){
+      var b = document.createElement('button'); b.className = 'fl-b'; b.id = 'fl-zufall'; b.type = 'button'; b.textContent = '🎲 Zufall';
+      b.title = 'Zufallsgenerator (Rad oder Normal) – Popup erscheint auch in der Referentenansicht';
+      b.onclick = umschalten;
+      var v = document.getElementById('fl-voll'); bar.insertBefore(b, v || null);
+      if(S.open) malen();
+    }
+    docs().forEach(function(o){
+      if(o.k !== 'ref') return;
+      var top = el(o.d, 'r-top');
+      if(top && !el(o.d, 'r-zf')){
+        var r = o.d.createElement('button'); r.className = 'fl-b'; r.id = 'r-zf'; r.type = 'button'; r.textContent = '🎲 Zufall'; r.onclick = umschalten;
+        top.insertBefore(r, el(o.d, 'r-timer'));
+        if(S.open) malen();
+      }
+    });
+  }
+  setInterval(knoepfe, 400);
+  document.addEventListener('DOMContentLoaded', knoepfe);
+}
 // 🎞️ Folien: PowerPoint (.pptx) → eigenständige HTML-Präsentation (folien.js, auch von admin/folien-import.js genutzt).
 function folienLaden(){
   if(window.FolienKonverter) return Promise.resolve(window.FolienKonverter);
@@ -19348,10 +19495,33 @@ function standTransaktion(ref_, newFields, basisRev){
     lauf.then(function(r){ clearTimeout(t); ok(r); }, function(e){ clearTimeout(t); fehl(e); });
   });
 }
+// Lesereise-Schutz (17.11.2026, Feyza: 32 Stationen auf 22 zurückgefallen): Stationen werden bei JEDEM Schreiben mit dem Cloud-Stand
+// zusammengeführt – unabhängig von basisRev, Zwischenspeicher oder Fallback. Nur der Schlüssel kbz_lesereise_v1 wird angefasst.
+function lesereiseSchutz(neuJson, altJson){
+  try{
+    var N = JSON.parse(neuJson), A = JSON.parse(altJson);
+    if(!N || !A || typeof N[LESEREISE_KEY] !== 'string' || typeof A[LESEREISE_KEY] !== 'string') return neuJson;
+    var nl = N[LESEREISE_KEY];
+    // Neuer Stand ganz ohne gelöste Station, Cloud hat welche: frisches/leeres Gerät, kein Zurücksetzen → Cloud-Stand gewinnt.
+    // (Ein gewolltes Zurücksetzen macht die Lehrperson in der Cloud, nicht ein Schüler-Gerät beim blossen Speichern.)
+    try{
+      var no = JSON.parse(nl), ao = JSON.parse(A[LESEREISE_KEY]);
+      var gel = function(o){ return o && o.st && Object.keys(o.st).some(function(i){ return o.st[i] && o.st[i].done; }); };
+      if(!gel(no) && gel(ao)){ no.savedAt = 0; nl = JSON.stringify(no); }
+    }catch(e){}
+    var z = lesereiseZusammen(nl, A[LESEREISE_KEY]);
+    if(!z || z.json === N[LESEREISE_KEY]) return neuJson;
+    N[LESEREISE_KEY] = z.json; return JSON.stringify(N);
+  }catch(e){ return neuJson; }
+}
 async function standTransaktionLauf(ref_, newFields, basisRev){
   return runTransaction(db, async function(tx){
     var snap = await tx.get(ref_), before = snap.exists() ? snap.data() : null;
     var f = Object.assign({}, newFields), zusammen = false;
+    if(before && before.storeJson && f.storeJson){
+      var s2 = lesereiseSchutz(f.storeJson, before.storeJson);
+      if(s2 !== f.storeJson){ f.storeJson = s2; zusammen = true; if(typeof before.storeRev === 'number') f.vorher = {at: Date.now(), rev: before.storeRev, storeJson: before.storeJson}; }
+    }
     if(before && before.storeJson && typeof before.storeRev === 'number' && before.storeRev > basisRev){
       try{
         var z = standZusammen(f.storeJson, before.storeJson);
@@ -19361,6 +19531,10 @@ async function standTransaktionLauf(ref_, newFields, basisRev){
         }
       }catch(e){ console.error('Stand zusammenführen', e); }
       if(before.storeJson !== f.storeJson) f.vorher = {at: Date.now(), rev: before.storeRev, storeJson: before.storeJson};
+    }
+    // Für ALLE Übungen: wird ein anderer Cloud-Stand ersetzt, bleibt die Fassung davor im Dokument («vorher») – unabhängig von basisRev.
+    if(!f.vorher && before && before.storeJson && typeof before.storeRev === 'number' && f.storeJson && before.storeJson !== f.storeJson){
+      f.vorher = {at: Date.now(), rev: before.storeRev, storeJson: before.storeJson};
     }
     var vor = f.vorher || (before && before.vorher);
     if(vor && vor.storeJson && f.storeJson.length + vor.storeJson.length > 850000) f.vorher = deleteField();
@@ -19385,7 +19559,23 @@ async function writeProgressWithHistory(uid, rid, newFields, basisRev){
     }
   }
   var before = null, bk = progressBekannt[uid + '/' + rid];
-  if(bk && Date.now() - bk.at < PROGRESS_BEKANNT_MS) before = bk.data;
+  if(newFields.storeJson){
+    // Für ALLE Übungen (17.11.2026): ein Übungsstand wird nie ohne frischen Blick auf den Server geschrieben – kein blindes
+    // Überschreiben aus Zwischenspeicher/Offline-Warteschlange. Server nicht erreichbar → nichts schreiben, der Stand bleibt lokal.
+    try{
+      var sv = await getDocFromServer(ref_);
+      before = sv.exists() ? sv.data() : null;
+      if(before && before.storeJson){ newFields = Object.assign({}, newFields, {storeJson: lesereiseSchutz(newFields.storeJson, before.storeJson)}); }
+      if(before && before.storeJson && typeof before.storeRev === 'number' && newFields.storeJson !== before.storeJson && !newFields.vorher){
+        newFields = Object.assign({}, newFields, {vorher: {at: Date.now(), rev: before.storeRev, storeJson: before.storeJson}});
+      }
+      bk = null;
+    }catch(e){
+      console.warn('Übungsstand: Server nicht erreichbar – nicht überschrieben, bleibt lokal bis zum nächsten Speichern', e);
+      return;
+    }
+  }
+  else if(bk && Date.now() - bk.at < PROGRESS_BEKANNT_MS) before = bk.data;
   else try{
     var snap = await getDoc(ref_);
     before = snap.exists() ? snap.data() : null;
@@ -19771,8 +19961,14 @@ function renderResource(r){
     i18nFrame(frame, r.subject);
     if(r.folien){
       // 🎞️ Folien bringen ihre Ansicht mit; Lehrpersonen bekommen Notizen + Referentenansicht (__libLehrer).
-      frame.addEventListener('load', function(){ try{ frame.contentWindow.focus(); }catch(e){} }, {once:true});
-      frame.srcdoc = html.replace(/<head>/i, '<head><script>window.__libLehrer = '+(state.profile.role === 'teacher' ? 'true' : 'false')+';<\/script>');
+      var istLP = state.profile.role === 'teacher';
+      frame.addEventListener('load', function(){
+        try{ frame.contentWindow.focus(); }catch(e){}
+        // 🎲 Zufall: Namen der Klasse («Wer macht mit?») an die Folien reichen
+        if(istLP) mitRoster().then(function(l){ try{ frame.contentWindow.__libNamen = l.filter(function(x){ return !x.mitAus; }).map(function(x){ return x.displayName; }); }catch(e){} }).catch(function(){});
+      }, {once:true});
+      var kopf = '<head><script>window.__libLehrer = '+(istLP ? 'true' : 'false')+';<\/script>' + (istLP ? '<script>('+folienZufallSkript.toString()+')();<\/script>' : '');
+      frame.srcdoc = html.replace(/<head>/i, function(){ return kopf; });
     } else
     frame.srcdoc = injectExerciseHelpers(html, r.id, r.subject === 'sva');
   }).catch(function(err){
@@ -26373,6 +26569,8 @@ const NEUIGKEITEN = [
   {id:'2026-11-08-schulden-aufschlag', datum:'2026-11-08', fuer:'lehrer', text:'💸 Schulden: Bei jeder Person gibt es «📈 Aufschlag bei Nichtzahlen» – nach X Wochen steigt der Betrag um CHF Y, auf Wunsch danach alle Z Wochen wieder (optional mit Höchstzahl). Die Schüler:innen sehen in ihrer Sprechblase immer, bis wann und um wie viel es teurer wird. Bezahlt: «Alles beglichen» oder 🗑 am Eintrag.'},
   {id:'2026-11-08-schulden-aufschlag-sus', datum:'2026-11-08', fuer:'alle', text:'💸 Schulden: In der Sprechblase steht jetzt, bis wann du zahlen musst, damit der Betrag nicht steigt.'},
   {id:'2026-11-08-pruefung-varianten', datum:'2026-11-08', fuer:'lehrer', text:'📝 Prüfung differenzieren: Bei einer Prüfung «➕ Angepasste Variante» wählen (Knopf bei den Prüfungsknöpfen oder im Bearbeiten-Dialog), Personen ankreuzen (z. B. Lernzielanpassung) und Bereiche, Umfang, Antwortart, Anzahl Fragen, Gewichtung und Notenmassstab frei einstellen. Die Angekreuzten sehen nur die Variante, bei der Hauptprüfung fallen sie weg; beliebig viele Varianten möglich. Jede Variante hat eigenes Monitoring, Resultate und Note.'},
+  {id:'2026-11-17-folien-zufall', datum:'2026-11-17', fuer:'lehrer', text:'🎲 Folien: In jeder PowerPoint gibt es oben den Knopf «🎲 Zufall» (auch in der 🎤 Referentenansicht). Das Popup (🎡 Rad oder 🎲 Normal, die Namen aus «Wer macht mit?») lässt sich verschieben und erscheint gleichzeitig im normalen Fenster und in der Referentenansicht – bis du nochmals auf den Knopf klickst.'},
+  {id:'2026-11-17-indiv-ordner', datum:'2026-11-17', fuer:'alle', text:'📁 Die individuellen Übungen stehen jetzt im Ordner «Individuelle Übungen», darin ein Unterordner pro Thema.'},
   {id:'2026-11-06-individuelle-uebung', datum:'2026-11-06', fuer:'lehrer', text:'📌 Individuelle Übung: Im 🏫 Klassenzimmer gibt es die Kachel «Individuelle Übungen» (Fach, Übung, Personen oder ganze Klasse/Gruppe wählen; Sammelzuweisung: viele Dateien «Vorname – Titel.html» auf einmal hochladen; dazu die Übersicht, wer gelöst hat). Auch bei jeder Übung unter «⋯» gibt es «👤 Individuell zuweisen». Die gewählten Personen sehen die Übung im Fach ganz unten unter «📌 Individuelle Übung». Gelöst = grün (wiederholen geht immer), nach 7 Tagen wandert sie ins 🗄️ Archiv.'},
   {id:'2026-11-06-individuelle-uebung-sus', datum:'2026-11-06', fuer:'alle', text:'📌 Neu: Ganz unten im Fach kann «Individuelle Übung» stehen – extra für dich, damit du deine Fehler übst. Auf der Startseite siehst du einen gelben Hinweis «Neue Übung für dich». Gelöst = grün, nach 7 Tagen im Archiv.'},
   {id:'2026-11-06-bestell-archiv', datum:'2026-11-06', fuer:'lehrer', text:'🗄️ Bestellungen: Was bestellt ist, wandert schon am Tag danach ins Archiv (vorher nach 4 Wochen).'},
@@ -33961,11 +34159,13 @@ function indivSammelVorschau(fach, dateien){
     var ok = zeilen.filter(function(z){ return z.person; });
     var h = '<h3>📂 Sammelzuweisung · '+esc((subjectById(fach) || {}).name || fach)+'</h3><div style="max-height:calc(45vh/var(--lz,1));overflow:auto;">'+
       zeilen.map(function(z){ return '<div class="lp-check"><span>'+(z.person ? '✅ <b>'+esc(z.person.displayName || z.person.username)+'</b>' : '⚠️ <b>'+esc(z.grund)+'</b>')+' ← '+esc(z.file.name)+(z.person ? '' : ' (wird übersprungen)')+'</span></div>'; }).join('')+'</div>'+
+      '<label class="modal-label">Thema (Unterordner im Ordner «Individuelle Übungen»)</label><input id="ivSThema" class="modal-input" type="text" maxlength="60" placeholder="z. B. Dezimalzahlen">'+
       '<p class="kz-intro" id="ivSHinweis"></p><div class="modal-actions"><button class="btn btn-ghost btn-sm" id="modalCancel" type="button">Abbrechen</button><button class="btn btn-primary btn-sm" id="ivSOk" type="button"'+(ok.length ? '' : ' disabled')+'>'+ok.length+' hochladen und zuweisen</button></div>';
     openModal(h);
     document.getElementById('modalCancel').addEventListener('click', closeModal);
     document.getElementById('ivSOk').addEventListener('click', function(){
       var btn = this; btn.disabled = true;
+      var thema = (document.getElementById('ivSThema').value || '').trim().slice(0, 60);
       var hin = document.getElementById('ivSHinweis'), fertig = 0, fehler = 0;
       ok.reduce(function(kette, z, i){
         return kette.then(function(){
@@ -33975,7 +34175,7 @@ function indivSammelVorschau(fach, dateien){
             return assertQuota(bytes).then(function(){
               var resId = fach+'_iu_'+Date.now()+'_'+i, batch = writeBatch(db);
               batch.set(kdoc('resources', resId), {subject: fach, folderId: null, title: z.titel, fileName: z.file.name, uploadedAt: serverTimestamp(), uploadedBy: state.user.uid, contentId: resId, version: 0,
-                nurFuer: [z.person.uid], indiv: {uid: z.person.uid, name: z.person.displayName || z.person.username, am: new Date().toISOString(), von: ''}});
+                nurFuer: [z.person.uid], indiv: {uid: z.person.uid, name: z.person.displayName || z.person.username, am: new Date().toISOString(), von: '', thema: thema}});
               batch.set(doc(db, 'resourceContent', resId), {chunkCount: chunks.length, bytes: bytes, ownerUid: state.user.uid});
               chunks.forEach(function(chunk, ci){ batch.set(doc(db, 'resourceContent', resId, 'chunks', String(ci)), chunk); });
               return batch.commit();
