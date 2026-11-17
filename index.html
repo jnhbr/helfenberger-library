@@ -5556,6 +5556,20 @@ window.folienNamenLaden = function(){
   return mitRoster().then(function(l){ var n = l.filter(function(x){ return !x.mitAus; }).map(function(x){ return x.displayName; }); window.__libNamenFolien = n; return n; });
 };
 window.folienMitKurz = function(){ try{ return mitKurz(); }catch(e){ return ''; } };
+// Klassenwahl direkt im Popup (eigenes Folien-Fenster: der Dialog der Library läge im verdeckten Hauptfenster)
+window.folienKlassenOptionen = function(){
+  var w = mitWahlNorm(JSON.parse(JSON.stringify(mitWahl())));
+  var o = [{q:'', text:klasseLabel()}];
+  abstAlleKlassen().forEach(function(k){ if(k !== state.klasse) o.push({q:'k:'+k, text:k}); });
+  ((mit.gruppen)||[]).forEach(function(g){ o.push({q:'g:'+g.id, text:'👥 '+g.name}); });
+  o.forEach(function(x){ x.an = w.quellen.indexOf(x.q) >= 0; });
+  return o;
+};
+window.folienKlasseSetzen = function(q, fertig){
+  var w = mitWahlNorm({quellen:[q]});
+  mitWahlSetzen(w);
+  return window.folienNamenLaden().then(function(){ if(fertig) fertig(); });
+};
 window.folienWerMachtMit = function(fertig){
   try{ window.focus(); }catch(e){}
   mitDialog(function(){ window.folienNamenLaden().then(function(){ fertig(); }); }, function(){});
@@ -17883,7 +17897,7 @@ var MAX_PPTX_BYTES = 60 * 1024 * 1024;   // PowerPoint vor der Umwandlung; die f
    Popup (verschiebbar, bleibt bis zum nächsten Klick auf den Knopf) mit Glücksrad oder «Normal», in beiden Fenstern gleich.
    Läuft IM Folien-Frame (wird als Text in die Folien eingespritzt) – deshalb keine Variablen von aussen, nur window.__libNamen. */
 function folienZufallSkript(){
-  var S = { open:false, mode:'rad', weg:true, rot:0, res:'', lauf:false, gez:{}, pos:{}, ids:[], hist:[] };
+  var S = { open:false, mode:'rad', weg:true, rot:0, res:'', lauf:false, gez:{}, aus:{}, pos:{}, ids:[], hist:[] };
   var ref = null, ow = window.open;
   window.open = function(){ var w = ow.apply(window, arguments); if(arguments[1] === 'folienReferent' && w) ref = w; return w; };
   var FARBEN = ['#3A3F73','#E63950','#2E9E5B','#E8B72C','#4A7FD9','#8E5BC8','#F08A3C','#1FA3A3'];
@@ -17909,7 +17923,14 @@ function folienZufallSkript(){
     if(!n.length){ n = []; for(var i = 1; i <= 24; i++) n.push(String(i)); }
     return n;
   }
-  function pool(){ var p = alle().filter(function(x){ return !S.gez[x]; }); if(!p.length){ S.gez = {}; p = alle(); } return p; }
+  function aktiv(){ return alle().filter(function(x){ return !S.aus[x]; }); }
+  function entfernen(name){
+    if(S.lauf || !name || aktiv().length <= 1) return;
+    S.aus[name] = true; delete S.gez[name]; S.liste = null; S.res = ''; S.anz = ''; malen();
+  }
+  function zurueck(name){ if(S.lauf) return; delete S.aus[name]; S.liste = null; malen();
+  }
+  function pool(){ var p = aktiv().filter(function(x){ return !S.gez[x]; }); if(!p.length){ S.gez = {}; p = aktiv(); } return p; }
   function docs(){
     var d = [{ d: document, k: 'main' }];
     try{ if(ref && !ref.closed && ref.document && ref.document.getElementById('r-top')) d.push({ d: ref.document, k: 'ref' }); }catch(e){}
@@ -17928,7 +17949,7 @@ function folienZufallSkript(){
       '<div id="zf-n" style="display:none;height:70px;align-items:center;justify-content:center;font-size:30px;font-weight:700;text-align:center"></div>' +
       '<div id="zf-r" style="min-height:38px;font-size:26px;font-weight:800;color:#E63950;text-align:center"></div>' +
       '<button id="zf-go" type="button" style="font-size:18px;font-weight:700;padding:8px 22px;border:0;border-radius:10px;background:#E63950;color:#fff;cursor:pointer">Los!</button>' +
-      '<label style="font-size:13px"><input type="checkbox" id="zf-w"> Gezogene rausnehmen</label><div id="zf-i" style="font-size:12px;color:#666"></div></div>';
+      '<label style="font-size:13px"><input type="checkbox" id="zf-w"> Gezogene rausnehmen</label><div id="zf-i" style="font-size:12px;color:#666"></div><div id="zf-a" style="display:none;flex-wrap:wrap;gap:5px;justify-content:center"></div><div style="font-size:11px;color:#888;text-align:center">Name anklicken = entfernen</div></div>';
     d.body.appendChild(p);
     var kopf = el(d, 'zf-h'), x0, y0, px, py, zieht = false;
     kopf.addEventListener('mousedown', function(e){ zieht = true; x0 = e.clientX; y0 = e.clientY; px = p.offsetLeft; py = p.offsetTop; e.preventDefault(); });
@@ -17938,9 +17959,34 @@ function folienZufallSkript(){
     el(d, 'zf-mn').onclick = function(){ if(!S.lauf){ S.mode = 'normal'; malen(); } };
     el(d, 'zf-wer').onclick = function(){
       var h = host(); if(!h || S.lauf) return;
-      h.folienWerMachtMit(function(){ S.gez = {}; S.res = ''; S.anz = ''; S.liste = null; malen(); });
+      if(h.folienKlassenOptionen && h === window.opener && window.parent === window){
+        var m = el(d, 'zf-wm');
+        if(m){ m.remove(); return; }
+        m = d.createElement('div'); m.id = 'zf-wm';
+        m.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px;justify-content:center;padding:6px 0';
+        h.folienKlassenOptionen().forEach(function(x){
+          var b = d.createElement('button'); b.type = 'button'; b.textContent = x.text + (x.an ? ' ✓' : ''); knopfStil(b, x.an);
+          b.onclick = function(){ h.folienKlasseSetzen(x.q, function(){ S.gez = {}; S.aus = {}; S.res = ''; S.anz = ''; S.liste = null; malen(); }); };
+          m.appendChild(b);
+        });
+        el(d, 'zf-wer').insertAdjacentElement('afterend', m);
+        return;
+      }
+      h.folienWerMachtMit(function(){ S.gez = {}; S.aus = {}; S.res = ''; S.anz = ''; S.liste = null; malen(); });
     };
     el(d, 'zf-go').onclick = ziehen;
+    el(d, 'zf-c').onclick = function(e){
+      if(S.lauf || S.mode !== 'rad') return;
+      var list = S.liste || pool(), n = list.length, c = this, rc = c.getBoundingClientRect();
+      var m = c.width / 2, x = (e.clientX - rc.left) * c.width / rc.width - m, y = (e.clientY - rc.top) * c.height / rc.height - m;
+      if(Math.sqrt(x * x + y * y) > m - 8 || Math.sqrt(x * x + y * y) < 16) return;
+      var rel = (Math.atan2(y, x) - (S.rot - Math.PI / 2)) % TAU; if(rel < 0) rel += TAU;
+      entfernen(list[Math.floor(rel / (TAU / n))]);
+    };
+    el(d, 'zf-c').style.cursor = 'pointer';
+    el(d, 'zf-n').onclick = function(){ if(S.anz && !S.lauf) entfernen(S.anz); };
+    el(d, 'zf-n').style.cursor = 'pointer';
+    el(d, 'zf-r').onclick = function(){ if(S.anz && !S.lauf) entfernen(S.anz); };
     el(d, 'zf-w').onchange = function(){ S.weg = this.checked; malen(); };
     // Tasten der Folien (Pfeile …) nicht stören, solange man im Popup klickt
     p.addEventListener('keydown', function(e){ e.stopPropagation(); });
@@ -17980,6 +18026,13 @@ function folienZufallSkript(){
       el(d, 'zf-go').disabled = S.lauf; el(d, 'zf-go').style.opacity = S.lauf ? .5 : 1;
       el(d, 'zf-i').textContent = (namen().length ? '' : 'Keine Klassenliste gefunden – es werden Nummern gezogen. ') + pool().length + ' von ' + alle().length + ' im Topf';
       if(S.mode === 'rad') rad(el(d, 'zf-c'), list);
+      var az = el(d, 'zf-a'), ausl = Object.keys(S.aus);
+      az.style.display = ausl.length ? 'flex' : 'none'; az.innerHTML = '';
+      ausl.forEach(function(nm){
+        var bb = d.createElement('button'); bb.type = 'button'; bb.textContent = '＋ ' + nm; bb.title = 'Wieder dazunehmen';
+        bb.style.cssText = 'border:1px solid #bbb;border-radius:12px;padding:2px 9px;font-size:12px;cursor:pointer;background:#f3f3f3;color:#333';
+        bb.onclick = function(){ zurueck(nm); }; az.appendChild(bb);
+      });
       var b = el(d, o.k === 'main' ? 'fl-zufall' : 'r-zf'); if(b) b.classList.toggle('on', S.open);
     });
   }
