@@ -12324,6 +12324,7 @@ function lmvzMerge(){
   state.folders = state.folders.filter(function(f){ return !f.virtual; });
   state.resources = state.resources.filter(function(r){ return !r.virtual; }).concat(tippVirtuell(state.route.subject))
     .concat(mtVirtuell(state.route.subject)).concat(kkVirtuell(state.route.subject)).concat(kzmVirtuell(state.route.subject)).concat(svaVirtuell(state.route.subject)).concat(schachVirtuell(state.route.subject)).concat(jassenVirtuell(state.route.subject)).concat(raetselVirtuell(state.route.subject)).concat(hallenplanerVirtuell(state.route.subject)).concat(praepVirtuell(state.route.subject)).concat(praepOrdnerVirtuell(state.route.subject));
+  indivOrdnerMerge();
   if(state.route.subject !== LMVZ_SUBJECT) return;
   var sv = sikoreVirtuell();
   state.folders = state.folders.concat(sv.folders);
@@ -16975,10 +16976,12 @@ function renderFolderContents(){
   // unter den eigentlichen Übungen; ab zwei Stück derselben Art als Sammelordner.
   // wzBereich: Werkzeug-Einträge (Mathe › 3D-Körper, Algebra-Kacheln) direkt im Bereich «Werkzeuge».
   var indivAlle = resources.filter(indivIst);
-  if(indivAlle.length && !erledigt.loaded && state.user) erledigtLoad().then(function(){ if(document.getElementById('resourceList')) renderFolderContents(); });
+  if(indivAlle.length && !erledigt.loaded && state.user) erledigtLoad().then(function(){ if(document.getElementById('resourceList')){ lmvzMerge(); renderFolderContents(); } });
   var werkzeugRes = resources.filter(function(r){ return r.wzBereich; });
+  var indivImOrdner = !!here && indivAlle.length > 0;   // im Themen-Ordner stehen sie als normale Karten
+  if(isTeacher && !isFremdeKlasse()) indivThemaNachtragen(resources);
   var zusatz = resources.filter(function(r){ return !r.wzBereich && !indivIst(r) && zusatzArt(r); });
-  var material = resources.filter(function(r){ return !r.wzBereich && !indivIst(r) && !zusatzArt(r); });
+  var material = resources.filter(function(r){ return !r.wzBereich && (indivImOrdner || !indivIst(r)) && !zusatzArt(r); });
   if(material.length){
     if(ordnerNorm.length) html += '<div class="section-label">Übungen</div>';
     html += material.map(function(r){ return resourceCardHtml(r, realResources.indexOf(r), realResources.length, isTeacher && !r.virtual); }).join('');
@@ -16992,7 +16995,7 @@ function renderFolderContents(){
     html += werkzeugRes.map(function(r){ return resourceCardHtml(r, 0, 1, false); }).join('');
     html += werkzeugOrdner.map(function(f){ return folderCardHtml(f, 0, 1, false); }).join('');
   }
-  if(indivAlle.length && erledigt.loaded) html += indivBereichHtml(indivAlle, isTeacher);
+  if(indivAlle.length && erledigt.loaded && !here) html += indivBereichHtml(indivAlle, isTeacher);
   listEl.innerHTML = html;
   lzKarteZeichnen();   // 🎯 erst jetzt stehen die Übungskarten da, unter die die Lernziel-Karte gehört
   if(indivAlle.length && erledigt.loaded) indivKartenAufwerten(indivAlle, isTeacher, renderFolderContents);
@@ -17475,29 +17478,50 @@ function indivGeloestMarkieren(r){
     return setDoc(erledigtRef(), { ids: erledigt.ids, updatedAt: serverTimestamp() }).then(function(){ return true; });
   }).catch(function(err){ console.error(err); return false; });
 }
-var indivOffen = {};
-function indivToggle(el){ indivOffen[el.getAttribute('data-k')] = el.open; }
+/* 📁 Ordner «Individuelle Übungen» mit Unterordnern pro Thema (seit 17.11.2026): echte Ordner-Ansicht wie sonst, aber virtuell
+   (state.folders, jedes Mal aus den Übungen gebaut). resources/{id}.indiv.thema = Name des Unterordners. */
+var INDIV_ROOT = 'iu_root', INDIV_THEMA_STANDARD = 'Weitere Übungen';
+function indivThemaVon(r){ var t = r.indiv && r.indiv.thema; return typeof t === 'string' && t.trim() ? t.trim() : INDIV_THEMA_STANDARD; }
+function indivThemaId(t){ return 'iu_t_' + encodeURIComponent(t).replace(/%/g, '_').slice(0, 120); }
+function indivOrdnerMerge(){
+  var subj = state.route.subject;
+  state.folders = state.folders.filter(function(f){ return !f.indivVirt; });
+  var liste = state.resources.filter(function(r){ return indivIst(r) && !r.virtual; });
+  var aktiv = liste.filter(function(r){ return !(erledigt.loaded && indivArchiviert(r)); });
+  liste.forEach(function(r){ if(r.folderId && String(r.folderId).indexOf('iu_t_') === 0) r.folderId = null; });
+  if(!aktiv.length) return;
+  var themen = {};
+  aktiv.forEach(function(r){ var t = indivThemaVon(r); themen[t] = true; r.folderId = indivThemaId(t); });
+  state.folders.push({id:INDIV_ROOT, subject:subj, parentId:null, name:'Individuelle Übungen', order:8000, virtual:true, indivVirt:true});
+  Object.keys(themen).sort(function(a, b){ return a.localeCompare(b, 'de'); }).forEach(function(t, i){
+    state.folders.push({id:indivThemaId(t), subject:subj, parentId:INDIV_ROOT, name:t, order:i, virtual:true, indivVirt:true});
+  });
+}
+// Einmalig: Übungen aus der Zeit vor den Themen-Ordnern bekamen alle «Diktat: Der Verräter».
+var indivThemaGemacht = {};
+function indivThemaNachtragen(resources){
+  var alt = resources.filter(function(r){ return indivIst(r) && r.indiv.thema === undefined && !indivThemaGemacht[r.id]; });
+  if(!alt.length) return;
+  var batch = writeBatch(db);
+  alt.forEach(function(r){ indivThemaGemacht[r.id] = true; batch.update(kdoc('resources', r.id), {'indiv.thema': 'Diktat: Der Verräter'}); });
+  batch.commit().catch(function(err){ console.error(err); alt.forEach(function(r){ delete indivThemaGemacht[r.id]; }); });
+}
+function indivThemenListe(subject){
+  var t = {}; state.resources.forEach(function(r){ if(indivIst(r) && r.subject === subject) t[indivThemaVon(r)] = true; });
+  return Object.keys(t);
+}
+function indivThemaFeld(subject, vorschlag, id){
+  var letzte = ''; try{ letzte = lsGet(LIB_PREFIX+'iu_thema') || ''; }catch(e){}
+  return '<label class="modal-label">Ordner (Thema) in «Individuelle Übungen» – neu eintippen oder bestehenden wählen</label>'+
+    '<input id="'+id+'" class="modal-input" type="text" maxlength="60" list="'+id+'L" value="'+esc(letzte || vorschlag || '')+'" placeholder="z. B. Diktat: Der Verräter">'+
+    '<datalist id="'+id+'L">'+indivThemenListe(subject).map(function(t){ return '<option value="'+esc(t)+'">'; }).join('')+'</datalist>';
+}
 function indivBereichHtml(liste, isTeacher){
-  var aktiv = liste.filter(function(r){ return !indivArchiviert(r); });
   var arch = liste.filter(indivArchiviert);
   function nach(a, b){ return String((b.indiv && b.indiv.am) || '').localeCompare(String((a.indiv && a.indiv.am) || '')); }
-  aktiv.sort(nach); arch.sort(nach);
-  function offen(k){ return indivOffen[k] === false ? '' : ' open'; }
-  var h = '<div class="section-label">📌 Individuelle Übung</div>';
-  if(!aktiv.length) h += '<p class="muted indiv-leer">Alles erledigt – gut gemacht! 🎉</p>';
-  else {
-    // 📁 Ordner «Individuelle Übungen» mit je einem Unterordner pro Thema (seit 17.11.2026)
-    var gr = {}, reihe = [];
-    aktiv.forEach(function(r){ var t = String((r.indiv && r.indiv.thema) || '').trim() || 'Weitere Übungen'; if(!gr[t]){ gr[t] = []; reihe.push(t); } gr[t].push(r); });
-    h += '<details class="indiv-ordner" data-k="_" ontoggle="indivToggle(this)"'+offen('_')+'><summary>📁 Individuelle Übungen ('+aktiv.length+')</summary>';
-    reihe.forEach(function(t){
-      h += '<details class="indiv-thema" data-k="t:'+esc(t)+'" ontoggle="indivToggle(this)"'+offen('t:'+t)+'><summary>📂 '+esc(t)+' ('+gr[t].length+')</summary>'+
-        gr[t].map(function(r){ return resourceCardHtml(r, 0, 1, isTeacher); }).join('')+'</details>';
-    });
-    h += '</details>';
-  }
-  if(arch.length) h += '<details class="indiv-archiv"><summary>🗄️ Archiv ('+arch.length+')</summary>'+arch.map(function(r){ return resourceCardHtml(r, 0, 1, isTeacher); }).join('')+'</details>';
-  return h;
+  arch.sort(nach);
+  if(!arch.length) return '';
+  return '<details class="indiv-archiv"><summary>🗄️ Archiv individuelle Übungen ('+arch.length+')</summary>'+arch.map(function(r){ return resourceCardHtml(r, 0, 1, isTeacher); }).join('')+'</details>';
 }
 // Nach dem Zeichnen: Namens-/Gelöst-Chips, grüne Karte, «Als gelöst markieren».
 function indivKartenAufwerten(liste, isTeacher, neuZeichnen){
@@ -17527,7 +17551,7 @@ function indivZuweisenDialog(r){
     roster = roster.filter(function(x){ return !x.gruppenGast; }).sort(function(a, b){ return String(a.displayName || a.username).localeCompare(String(b.displayName || b.username), 'de'); });
     var h = '<h3>👤 Individuell zuweisen: '+esc(r.title || r.fileName)+'</h3>'+
       '<p class="kz-intro">Die Person bekommt die Übung im Fach ganz unten unter «📌 Individuelle Übung». Sie wird grün, sobald sie gelöst ist, und wandert nach 7 Tagen ins Archiv.</p>'+
-      '<label class="modal-label">Thema (Unterordner im Ordner «Individuelle Übungen»)</label><input id="iuThema" class="modal-input" type="text" maxlength="60" value="'+esc(((r.folderId && state.folders.filter(function(f){ return f.id === r.folderId; })[0]) || {}).name || r.title || '')+'">'+
+      indivThemaFeld(r.subject, ((r.folderId && state.folders.filter(function(f){ return f.id === r.folderId; })[0]) || {}).name || r.title || '', 'iuThema')+
       '<div class="back-row" style="flex-wrap:wrap;margin:0 0 6px;"><button class="btn btn-ghost btn-sm" id="iuAlle" type="button">Ganze Klasse</button><button class="btn btn-ghost btn-sm" id="iuKeine" type="button">Keine</button><span id="iuGruppen"></span></div>'+
       '<div style="max-height:calc(40vh/var(--lz,1));overflow:auto;">'+roster.map(function(x){
         return '<label class="lp-check"><input type="checkbox" data-iu="'+esc(x.uid)+'"> <span>'+esc(x.displayName || x.username)+'</span></label>';
@@ -17551,12 +17575,14 @@ function indivZuweisenDialog(r){
       if(!gew.length){ document.getElementById('iuHinweis').textContent = 'Bitte mindestens eine Person wählen.'; return; }
       var namen = {}; roster.forEach(function(x){ namen[x.uid] = x.displayName || x.username; });
       var batch = writeBatch(db), jetzt = new Date().toISOString();
+      var thema = (document.getElementById('iuThema').value || '').trim().slice(0, 60);
+      try{ lsSet(LIB_PREFIX+'iu_thema', thema); }catch(e){}
       gew.forEach(function(uid, i){
         var kopie = Object.assign({}, r);
         ['id','current','empfohlen','ausgeblendet','nurLehrer','niveau','order','imHub'].forEach(function(k){ delete kopie[k]; });
         kopie.folderId = null; kopie.contentId = r.contentId || r.id;
         kopie.nurFuer = [uid];
-        kopie.indiv = {uid: uid, name: namen[uid] || '', am: jetzt, von: r.id, thema: (document.getElementById('iuThema').value || '').trim().slice(0, 60)};
+        kopie.indiv = {uid: uid, name: namen[uid] || '', am: jetzt, von: r.id, thema: thema};
         kopie.uploadedAt = serverTimestamp(); kopie.uploadedBy = state.user.uid;
         batch.set(kdoc('resources', r.subject+'_iu_'+Date.now()+'_'+i), kopie);
       });
@@ -17853,8 +17879,18 @@ function folienZufallSkript(){
   window.open = function(){ var w = ow.apply(window, arguments); if(arguments[1] === 'folienReferent' && w) ref = w; return w; };
   var FARBEN = ['#3A3F73','#E63950','#2E9E5B','#E8B72C','#4A7FD9','#8E5BC8','#F08A3C','#1FA3A3'];
   var TAU = Math.PI * 2;
+  // Obere Leiste im Schwarz des Library-Rahmens (#1D1D1B)
+  try{ var st = document.createElement('style'); st.textContent = ':root{--fl-bar:#1D1D1B !important}#fl-bar{background:#1D1D1B !important}'; document.head.appendChild(st); }catch(e){}
+  // Namen: im Viewer-Frame vom Elternfenster, im eigenen Fenster vom Opener (die Library setzt window.__libNamenFolien)
+  function namen(){
+    var q = [window.__libNamen];
+    try{ q.push(window.parent && window.parent.__libNamenFolien); }catch(e){}
+    try{ q.push(window.opener && window.opener.__libNamenFolien); }catch(e){}
+    for(var i = 0; i < q.length; i++) if(q[i] && q[i].length) return q[i];
+    return [];
+  }
   function alle(){
-    var n = (window.__libNamen || []).filter(Boolean);
+    var n = namen().filter(Boolean);
     if(!n.length){ n = []; for(var i = 1; i <= 24; i++) n.push(String(i)); }
     return n;
   }
@@ -17921,7 +17957,7 @@ function folienZufallSkript(){
       el(d, 'zf-r').textContent = S.res || '';
       el(d, 'zf-w').checked = S.weg;
       el(d, 'zf-go').disabled = S.lauf; el(d, 'zf-go').style.opacity = S.lauf ? .5 : 1;
-      el(d, 'zf-i').textContent = (window.__libNamen && window.__libNamen.length ? '' : 'Keine Klassenliste gefunden – es werden Nummern gezogen. ') + pool().length + ' von ' + alle().length + ' im Topf';
+      el(d, 'zf-i').textContent = (namen().length ? '' : 'Keine Klassenliste gefunden – es werden Nummern gezogen. ') + pool().length + ' von ' + alle().length + ' im Topf';
       if(S.mode === 'rad') rad(el(d, 'zf-c'), list);
       var b = el(d, o.k === 'main' ? 'fl-zufall' : 'r-zf'); if(b) b.classList.toggle('on', S.open);
     });
@@ -19965,7 +20001,7 @@ function renderResource(r){
       frame.addEventListener('load', function(){
         try{ frame.contentWindow.focus(); }catch(e){}
         // 🎲 Zufall: Namen der Klasse («Wer macht mit?») an die Folien reichen
-        if(istLP) mitRoster().then(function(l){ try{ frame.contentWindow.__libNamen = l.filter(function(x){ return !x.mitAus; }).map(function(x){ return x.displayName; }); }catch(e){} }).catch(function(){});
+        if(istLP) mitRoster().then(function(l){ var n = l.filter(function(x){ return !x.mitAus; }).map(function(x){ return x.displayName; }); window.__libNamenFolien = n; try{ frame.contentWindow.__libNamen = n; }catch(e){} }).catch(function(){});
       }, {once:true});
       var kopf = '<head><script>window.__libLehrer = '+(istLP ? 'true' : 'false')+';<\/script>' + (istLP ? '<script>('+folienZufallSkript.toString()+')();<\/script>' : '');
       frame.srcdoc = html.replace(/<head>/i, function(){ return kopf; });
@@ -26571,7 +26607,7 @@ const NEUIGKEITEN = [
   {id:'2026-11-08-schulden-aufschlag-sus', datum:'2026-11-08', fuer:'alle', text:'💸 Schulden: In der Sprechblase steht jetzt, bis wann du zahlen musst, damit der Betrag nicht steigt.'},
   {id:'2026-11-08-pruefung-varianten', datum:'2026-11-08', fuer:'lehrer', text:'📝 Prüfung differenzieren: Bei einer Prüfung «➕ Angepasste Variante» wählen (Knopf bei den Prüfungsknöpfen oder im Bearbeiten-Dialog), Personen ankreuzen (z. B. Lernzielanpassung) und Bereiche, Umfang, Antwortart, Anzahl Fragen, Gewichtung und Notenmassstab frei einstellen. Die Angekreuzten sehen nur die Variante, bei der Hauptprüfung fallen sie weg; beliebig viele Varianten möglich. Jede Variante hat eigenes Monitoring, Resultate und Note.'},
   {id:'2026-11-17-folien-zufall', datum:'2026-11-17', fuer:'lehrer', text:'🎲 Folien: In jeder PowerPoint gibt es oben den Knopf «🎲 Zufall» (auch in der 🎤 Referentenansicht). Das Popup (🎡 Rad oder 🎲 Normal, die Namen aus «Wer macht mit?») lässt sich verschieben und erscheint gleichzeitig im normalen Fenster und in der Referentenansicht – bis du nochmals auf den Knopf klickst.'},
-  {id:'2026-11-17-indiv-ordner', datum:'2026-11-17', fuer:'alle', text:'📁 Die individuellen Übungen stehen jetzt im Ordner «Individuelle Übungen», darin ein Unterordner pro Thema.'},
+  {id:'2026-11-17-indiv-ordner', datum:'2026-11-17', fuer:'alle', text:'📁 Die individuellen Übungen stehen jetzt in einem Ordner «Individuelle Übungen», darin ein Ordner pro Thema (zum Aufklappen antippen).'},
   {id:'2026-11-06-individuelle-uebung', datum:'2026-11-06', fuer:'lehrer', text:'📌 Individuelle Übung: Im 🏫 Klassenzimmer gibt es die Kachel «Individuelle Übungen» (Fach, Übung, Personen oder ganze Klasse/Gruppe wählen; Sammelzuweisung: viele Dateien «Vorname – Titel.html» auf einmal hochladen; dazu die Übersicht, wer gelöst hat). Auch bei jeder Übung unter «⋯» gibt es «👤 Individuell zuweisen». Die gewählten Personen sehen die Übung im Fach ganz unten unter «📌 Individuelle Übung». Gelöst = grün (wiederholen geht immer), nach 7 Tagen wandert sie ins 🗄️ Archiv.'},
   {id:'2026-11-06-individuelle-uebung-sus', datum:'2026-11-06', fuer:'alle', text:'📌 Neu: Ganz unten im Fach kann «Individuelle Übung» stehen – extra für dich, damit du deine Fehler übst. Auf der Startseite siehst du einen gelben Hinweis «Neue Übung für dich». Gelöst = grün, nach 7 Tagen im Archiv.'},
   {id:'2026-11-06-bestell-archiv', datum:'2026-11-06', fuer:'lehrer', text:'🗄️ Bestellungen: Was bestellt ist, wandert schon am Tag danach ins Archiv (vorher nach 4 Wochen).'},
@@ -34251,13 +34287,14 @@ function indivSammelVorschau(fach, dateien){
     var ok = zeilen.filter(function(z){ return z.person; });
     var h = '<h3>📂 Sammelzuweisung · '+esc((subjectById(fach) || {}).name || fach)+'</h3><div style="max-height:calc(45vh/var(--lz,1));overflow:auto;">'+
       zeilen.map(function(z){ return '<div class="lp-check"><span>'+(z.person ? '✅ <b>'+esc(z.person.displayName || z.person.username)+'</b>' : '⚠️ <b>'+esc(z.grund)+'</b>')+' ← '+esc(z.file.name)+(z.person ? '' : ' (wird übersprungen)')+'</span></div>'; }).join('')+'</div>'+
-      '<label class="modal-label">Thema (Unterordner im Ordner «Individuelle Übungen»)</label><input id="ivSThema" class="modal-input" type="text" maxlength="60" placeholder="z. B. Dezimalzahlen">'+
+      indivThemaFeld(fach, '', 'ivSThema')+
       '<p class="kz-intro" id="ivSHinweis"></p><div class="modal-actions"><button class="btn btn-ghost btn-sm" id="modalCancel" type="button">Abbrechen</button><button class="btn btn-primary btn-sm" id="ivSOk" type="button"'+(ok.length ? '' : ' disabled')+'>'+ok.length+' hochladen und zuweisen</button></div>';
     openModal(h);
     document.getElementById('modalCancel').addEventListener('click', closeModal);
     document.getElementById('ivSOk').addEventListener('click', function(){
       var btn = this; btn.disabled = true;
       var thema = (document.getElementById('ivSThema').value || '').trim().slice(0, 60);
+      try{ lsSet(LIB_PREFIX+'iu_thema', thema); }catch(e){}
       var hin = document.getElementById('ivSHinweis'), fertig = 0, fehler = 0;
       ok.reduce(function(kette, z, i){
         return kette.then(function(){
