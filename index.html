@@ -5551,6 +5551,15 @@ function mitKnopfVerdrahten(btn, onChange){
     });
   });
 }
+// 🎲 Folien-Zufall: Namen und «Wer macht mit?»-Auswahl für das Popup in den Folien (Frame oder eigenes Fenster)
+window.folienNamenLaden = function(){
+  return mitRoster().then(function(l){ var n = l.filter(function(x){ return !x.mitAus; }).map(function(x){ return x.displayName; }); window.__libNamenFolien = n; return n; });
+};
+window.folienMitKurz = function(){ try{ return mitKurz(); }catch(e){ return ''; } };
+window.folienWerMachtMit = function(fertig){
+  try{ window.focus(); }catch(e){}
+  mitDialog(function(){ window.folienNamenLaden().then(function(){ fertig(); }); }, function(){});
+};
 function mitDialog(onChange, onCancel){
   var w = mitWahlNorm(JSON.parse(JSON.stringify(mitWahl())));
   var alleLaden = null, lauf = 0;
@@ -17883,11 +17892,17 @@ function folienZufallSkript(){
   try{ var st = document.createElement('style'); st.textContent = ':root{--fl-bar:#1D1D1B !important}#fl-bar{background:#1D1D1B !important}'; document.head.appendChild(st); }catch(e){}
   // Namen: im Viewer-Frame vom Elternfenster, im eigenen Fenster vom Opener (die Library setzt window.__libNamenFolien)
   function namen(){
-    var q = [window.__libNamen];
+    var q = [];
     try{ q.push(window.parent && window.parent.__libNamenFolien); }catch(e){}
     try{ q.push(window.opener && window.opener.__libNamenFolien); }catch(e){}
+    q.push(window.__libNamen);
     for(var i = 0; i < q.length; i++) if(q[i] && q[i].length) return q[i];
     return [];
+  }
+  function host(){
+    var c = [window.parent, window.opener];
+    for(var i = 0; i < c.length; i++){ try{ if(c[i] && c[i] !== window && c[i].folienWerMachtMit) return c[i]; }catch(e){} }
+    return null;
   }
   function alle(){
     var n = namen().filter(Boolean);
@@ -17908,6 +17923,7 @@ function folienZufallSkript(){
     p.innerHTML = '<div id="zf-h" style="cursor:move;background:#3A3F73;color:#fff;padding:9px 12px;font-weight:700;display:flex;justify-content:space-between;align-items:center">🎲 Zufall <span style="font-weight:400;font-size:12px;opacity:.8">zum Verschieben ziehen</span></div>' +
       '<div style="padding:10px 12px;display:flex;flex-direction:column;gap:8px;align-items:center">' +
       '<div style="display:flex;gap:6px"><button id="zf-mr" type="button">🎡 Rad</button><button id="zf-mn" type="button">🎲 Normal</button></div>' +
+      '<button id="zf-wer" type="button" style="border:2px solid #3A3F73;border-radius:8px;padding:4px 10px;font-weight:700;cursor:pointer;background:#fff;color:#3A3F73;max-width:310px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="Klasse, Gruppe oder einzelne Personen wählen">👥 Wer macht mit?</button>' +
       '<canvas id="zf-c" width="300" height="300" style="width:300px;height:300px"></canvas>' +
       '<div id="zf-n" style="display:none;height:70px;align-items:center;justify-content:center;font-size:30px;font-weight:700;text-align:center"></div>' +
       '<div id="zf-r" style="min-height:38px;font-size:26px;font-weight:800;color:#E63950;text-align:center"></div>' +
@@ -17920,6 +17936,10 @@ function folienZufallSkript(){
     d.addEventListener('mouseup', function(){ zieht = false; });
     el(d, 'zf-mr').onclick = function(){ if(!S.lauf){ S.mode = 'rad'; malen(); } };
     el(d, 'zf-mn').onclick = function(){ if(!S.lauf){ S.mode = 'normal'; malen(); } };
+    el(d, 'zf-wer').onclick = function(){
+      var h = host(); if(!h || S.lauf) return;
+      h.folienWerMachtMit(function(){ S.gez = {}; S.res = ''; S.anz = ''; S.liste = null; malen(); });
+    };
     el(d, 'zf-go').onclick = ziehen;
     el(d, 'zf-w').onchange = function(){ S.weg = this.checked; malen(); };
     // Tasten der Folien (Pfeile …) nicht stören, solange man im Popup klickt
@@ -17956,6 +17976,7 @@ function folienZufallSkript(){
       el(d, 'zf-n').textContent = S.anz || '';
       el(d, 'zf-r').textContent = S.res || '';
       el(d, 'zf-w').checked = S.weg;
+      var hh = host(); el(d, 'zf-wer').textContent = '👥 ' + (hh ? hh.folienMitKurz() : 'Klasse'); el(d, 'zf-wer').style.display = hh ? '' : 'none';
       el(d, 'zf-go').disabled = S.lauf; el(d, 'zf-go').style.opacity = S.lauf ? .5 : 1;
       el(d, 'zf-i').textContent = (namen().length ? '' : 'Keine Klassenliste gefunden – es werden Nummern gezogen. ') + pool().length + ' von ' + alle().length + ' im Topf';
       if(S.mode === 'rad') rad(el(d, 'zf-c'), list);
@@ -20001,7 +20022,7 @@ function renderResource(r){
       frame.addEventListener('load', function(){
         try{ frame.contentWindow.focus(); }catch(e){}
         // 🎲 Zufall: Namen der Klasse («Wer macht mit?») an die Folien reichen
-        if(istLP) mitRoster().then(function(l){ var n = l.filter(function(x){ return !x.mitAus; }).map(function(x){ return x.displayName; }); window.__libNamenFolien = n; try{ frame.contentWindow.__libNamen = n; }catch(e){} }).catch(function(){});
+        if(istLP) window.folienNamenLaden().catch(function(){});
       }, {once:true});
       var kopf = '<head><script>window.__libLehrer = '+(istLP ? 'true' : 'false')+';<\/script>' + (istLP ? '<script>('+folienZufallSkript.toString()+')();<\/script>' : '');
       frame.srcdoc = html.replace(/<head>/i, function(){ return kopf; });
