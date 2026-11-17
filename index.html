@@ -26551,6 +26551,7 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-11-17-gruppenpuzzle', datum:'2026-11-17', fuer:'lehrer', text:'🧩 Gruppen & Partner: Neu «Gruppenpuzzle». Du wählst die Anzahl Themen, jedes Kind bekommt eins (Expertengruppen), danach Mischgruppen mit je einem Vertreter pro Thema. Idee von Schoch (E1c).'},
   {id:'2026-11-13-mehrere-klassen-nicht-dabei', datum:'2026-11-13', fuer:'lehrer', text:'📅 Kalender: Beim neuen Eintrag (Hausaufgabe, Prüfung …) kannst du unter «Zusätzlich auch für andere Klassen» weitere Klassen ankreuzen, der Eintrag landet in allen gleichzeitig. 🚪 Prüfung: In der Live-Übersicht nimmt der Knopf 🚪 eine Person aus der Prüfung (schreibt nicht mit): nicht mehr gesperrt, wieder in der Library, keine Note. Mit ↩︎ unten kommt sie wieder dazu.'},
   {id:'2026-11-12-briefkasten-ersetzen', datum:'2026-11-12', fuer:'alle', text:'📮 Briefkasten mit «Ordner pro Person»: Wirfst du eine Datei nochmals ein, ersetzt sie die frühere auch dann, wenn der Name nur wenig anders ist (Gross-/Kleinschreibung, «(1)», Tippfehler) – solange die Nummer am Anfang («3_…») und die Endung gleich sind. Die alte Fassung landet im _Backup.'},
   {id:'2026-11-12-pruefung-schreibt-status', datum:'2026-11-12', fuer:'lehrer', text:'📝 Live-Übersicht: Wer nach dem Entsperren schon weiterschrieb, stand teils noch auf «entsperrt, noch nicht weiter». Behoben – die laufende Prüfung meldet sich jetzt sofort wieder als «schreibt».'},
@@ -31709,6 +31710,7 @@ var GRUPPEN_ROLLEN = ['⏱ Zeit', '✍️ Schreiben', '🗣 Vorstellen', '📦 M
 var gruppen = {
   overlay:null, roster:[], aus:{}, rules:[], meta:{}, rollenListe:GRUPPEN_ROLLEN.slice(),
   modus:'paare', groesse:3, rollen:false, vermeiden:true, regeln:true, mix:false,
+  themen:4, themenNamen:[], ansicht:'misch', puzzle:null,
   result:null
 };
 
@@ -31831,17 +31833,52 @@ function gruppenBuild(order, sizes){
   return groups;
 }
 
-function gruppenDraw(){
-  var kids = gruppenAnwesend();
-  if(kids.length < 2){ toast('Zu wenig anwesende Kinder.'); return; }
-  var sizes = gruppenSizes(kids.length);
-  var best = null, bestScore = Infinity;
+/* ---------- Gruppenpuzzle (Think-Pair-Share / Expertenmethode) ----------
+   Phase 1: Jedes Kind bekommt ein Thema, wer dasselbe hat, bildet die
+   Expertengruppe. Phase 2 (Share): Mischgruppen mit je einem Vertreter pro
+   Thema. Bleiben Kinder übrig (Anzahl nicht durch Themenzahl teilbar), kommen sie
+   als zweiter Vertreter in eine Mischgruppe — niemand ist allein. */
+function gruppenThemaName(i){ return (gruppen.themenNamen[i] || '').trim() || ('Thema '+(i+1)); }
+
+function gruppenPuzzleBauen(kids){
+  var T = gruppen.themen;
+  if(kids.length < T*2){ toast('Zu wenig anwesende Kinder für '+T+' Themen (mindestens '+(T*2)+').'); return null; }
+  var G = Math.floor(kids.length / T), best = null, bestScore = Infinity, bestTopic = null;
   for(var r=0; r<500; r++){
     var order = kids.slice();
     for(var i=order.length-1; i>0; i--){ var j = Math.floor(Math.random()*(i+1)); var t = order[i]; order[i] = order[j]; order[j] = t; }
-    var g = gruppenBuild(order, sizes);
-    var sc = gruppenScore(g);
-    if(sc < bestScore){ bestScore = sc; best = g; if(sc === 0) break; }
+    var groups = [], topicOf = {};
+    for(var k=0; k<G; k++){
+      var grp = order.slice(k*T, (k+1)*T);
+      grp.forEach(function(u, jj){ topicOf[u] = jj; });
+      groups.push(grp);
+    }
+    order.slice(G*T).forEach(function(u, ii){ groups[ii % G].push(u); topicOf[u] = ii % T; });
+    var sc = gruppenScore(groups);
+    if(sc < bestScore){ bestScore = sc; best = groups; bestTopic = topicOf; if(sc === 0) break; }
+  }
+  gruppen.puzzle = { T:T, topicOf:bestTopic };
+  gruppen.ansicht = 'experten';
+  return best;
+}
+
+function gruppenDraw(){
+  var kids = gruppenAnwesend();
+  if(kids.length < 2){ toast('Zu wenig anwesende Kinder.'); return; }
+  var best = null, bestScore = Infinity;
+  if(gruppen.modus === 'puzzle'){
+    best = gruppenPuzzleBauen(kids);
+    if(!best) return;
+  } else {
+    var sizes = gruppenSizes(kids.length);
+    for(var r=0; r<500; r++){
+      var order = kids.slice();
+      for(var i=order.length-1; i>0; i--){ var j = Math.floor(Math.random()*(i+1)); var t = order[i]; order[i] = order[j]; order[j] = t; }
+      var g = gruppenBuild(order, sizes);
+      var sc = gruppenScore(g);
+      if(sc < bestScore){ bestScore = sc; best = g; if(sc === 0) break; }
+    }
+    gruppen.puzzle = null;
   }
   gruppen.result = best;
   // Ziehung merken, damit dieselben Paare beim nächsten Mal seltener kommen.
@@ -31972,6 +32009,43 @@ function paintGruppen(){
   var anwesend = gruppenAnwesend().length;
   var h = '<div class="uf-stage">';
 
+  if(gruppen.result && gruppen.puzzle){
+    var pz = gruppen.puzzle, ex = gruppen.ansicht === 'experten';
+    h += '<div class="gr-panel" style="justify-content:center;">';
+    h += '<button class="kz-tab'+(ex ? ' kz-tab-on' : '')+'" data-ansicht="experten" type="button">1 · Expertengruppen (nach Thema)</button>';
+    h += '<button class="kz-tab'+(!ex ? ' kz-tab-on' : '')+'" data-ansicht="misch" type="button">2 · Mischgruppen (Share)</button>';
+    h += '</div>';
+    h += '<div class="gr-grid">';
+    if(ex){
+      for(var ti=0; ti<pz.T; ti++){
+        var mem = [];
+        gruppen.result.forEach(function(g){ g.forEach(function(u){ if(pz.topicOf[u] === ti) mem.push(u); }); });
+        h += '<div class="gr-card" style="animation-delay:'+(ti*0.06).toFixed(2)+'s;"><h4>🧠 '+esc(gruppenThemaName(ti))+'</h4><ul>';
+        mem.forEach(function(u){ h += '<li>'+esc(gruppenName(u))+'</li>'; });
+        h += '</ul></div>';
+      }
+    } else {
+      gruppen.result.forEach(function(g, i){
+        var sorted = g.slice().sort(function(a, b){ return pz.topicOf[a] - pz.topicOf[b]; });
+        h += '<div class="gr-card" style="animation-delay:'+(i*0.06).toFixed(2)+'s;"><h4>Gruppe '+(i+1)+'</h4><ul>';
+        sorted.forEach(function(u){ h += '<li>'+esc(gruppenName(u))+' <span class="gr-role">'+esc(gruppenThemaName(pz.topicOf[u]))+'</span></li>'; });
+        h += '</ul></div>';
+      });
+    }
+    h += '</div>';
+    h += '<div class="back-row" style="margin:4px 0 0;justify-content:center;flex-wrap:wrap;">';
+    h += '<button class="btn btn-primary btn-sm" id="grAgain" type="button">🎲 Nochmal ziehen</button>';
+    h += '<button class="btn btn-ghost btn-sm" id="grBack" type="button">⚙️ Einstellungen</button>';
+    h += '</div></div>';
+    stage.innerHTML = h;
+    Array.prototype.forEach.call(stage.querySelectorAll('[data-ansicht]'), function(b){
+      b.addEventListener('click', function(){ gruppen.ansicht = b.getAttribute('data-ansicht'); paintGruppen(); });
+    });
+    stage.querySelector('#grAgain').addEventListener('click', gruppenDraw);
+    stage.querySelector('#grBack').addEventListener('click', function(){ gruppen.result = null; gruppen.puzzle = null; paintGruppen(); });
+    return;
+  }
+
   if(gruppen.result){
     h += '<div class="gr-grid">';
     gruppen.result.forEach(function(g, i){
@@ -32001,7 +32075,19 @@ function paintGruppen(){
     h += '<button class="btn btn-ghost btn-sm" id="grMinus" type="button">−</button>';
     h += '<button class="btn btn-ghost btn-sm" id="grPlus" type="button">+</button>';
   }
+  h += '<button class="kz-tab'+(gruppen.modus === 'puzzle' ? ' kz-tab-on' : '')+'" data-modus="puzzle" type="button">🧩 Gruppenpuzzle</button>';
   h += '</div>';
+  if(gruppen.modus === 'puzzle'){
+    h += '<div class="gr-panel"><span>Anzahl Themen: <b>'+gruppen.themen+'</b></span>';
+    h += '<button class="btn btn-ghost btn-sm" id="grThMinus" type="button">−</button>';
+    h += '<button class="btn btn-ghost btn-sm" id="grThPlus" type="button">+</button></div>';
+    h += '<div class="gr-panel">';
+    for(var q=0; q<gruppen.themen; q++){
+      h += '<input class="modal-input" data-thema="'+q+'" style="max-width:170px;" value="'+esc(gruppen.themenNamen[q] || '')+'" placeholder="Thema '+(q+1)+'">';
+    }
+    h += '</div>';
+    h += '<div class="uf-meta">Erst arbeitet jede:r an einem Thema (Expertengruppe), danach mischen sich die Gruppen: in jeder sitzt ein:e Vertreter:in pro Thema.</div>';
+  }
   h += '<div class="gr-panel">';
   h += '<label class="gr-opt"><input type="checkbox" id="grVermeiden"'+(gruppen.vermeiden ? ' checked' : '')+'> Wiederholungen vermeiden</label>';
   h += '<label class="gr-opt"><input type="checkbox" id="grRegeln"'+(gruppen.regeln ? ' checked' : '')+'> Sitz-Regeln beachten</label>';
@@ -32028,6 +32114,12 @@ function paintGruppen(){
     b.addEventListener('click', function(){ gruppen.modus = b.getAttribute('data-modus'); paintGruppen(); });
   });
   var minus = stage.querySelector('#grMinus'), plus = stage.querySelector('#grPlus');
+  var thM = stage.querySelector('#grThMinus'), thP = stage.querySelector('#grThPlus');
+  if(thM) thM.addEventListener('click', function(){ gruppen.themen = Math.max(2, gruppen.themen-1); paintGruppen(); });
+  if(thP) thP.addEventListener('click', function(){ gruppen.themen = Math.min(8, gruppen.themen+1); paintGruppen(); });
+  Array.prototype.forEach.call(stage.querySelectorAll('[data-thema]'), function(inp){
+    inp.addEventListener('input', function(){ gruppen.themenNamen[+inp.getAttribute('data-thema')] = inp.value; });
+  });
   if(minus) minus.addEventListener('click', function(){ gruppen.groesse = Math.max(2, gruppen.groesse-1); paintGruppen(); });
   if(plus) plus.addEventListener('click', function(){ gruppen.groesse = Math.min(8, gruppen.groesse+1); paintGruppen(); });
   [['grVermeiden','vermeiden'], ['grRegeln','regeln'], ['grMix','mix'], ['grRollen','rollen']].forEach(function(p){
