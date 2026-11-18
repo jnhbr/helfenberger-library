@@ -151,6 +151,10 @@ function rueckZeigen(){
 function laden(){ var o; try{ o = JSON.parse(localStorage.getItem(KEY) || '{}'); }catch(e){ o = {}; } o.g = o.g || {}; o.j = o.j || []; o.r = o.r || {}; o.a = o.a || {}; o.a.zeigt = o.a.zeigt || {}; o.a.bedarf = o.a.bedarf || {}; o.a.check = o.a.check || {}; o.bk = o.bk || {}; return o; }
 var spTimer = null;
 function sichern(sofort){ clearTimeout(spTimer); var f = function(){ try{ S.t = Date.now(); localStorage.setItem(KEY, JSON.stringify(S)); }catch(e){} melden(); }; if(sofort) f(); else spTimer = setTimeout(f, 500); }
+// Änderungszeit pro Feld (S.mt) und Journal-Kennung (S.jx = gelöschte Einträge): damit führt die Library zwei Geräte feldweise zusammen,
+// statt den Stand eines veralteten Geräts über den neueren zu schreiben (index.html: svaMpZusammen).
+function mk(pfad){ S.mt = S.mt || {}; S.mt[pfad] = Date.now(); }
+function jKey(e){ return e.id || (e.d+'|'+(e.von || '')+'|'+(e.bis || '')+'|'+(e.was || '')); }
 window.addEventListener('pagehide', function(){ sichern(true); });
 document.addEventListener('visibilitychange', function(){ if(document.visibilityState === 'hidden') sichern(true); });   // Handy: pagehide kommt beim Wegwischen oft nicht
 function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
@@ -268,6 +272,7 @@ function ansichtName(id){ var a = ANSICHTEN.filter(function(x){ return x[0] === 
 function neuZeichnen(){ var id = S.v, el = document.getElementById('v-'+id); if(el) ({start:zStart, konzept:zKonzept, journal:zJournal, rapport:zRapport, ausstellung:zAusstellung})[id](el); melden(); }
 function leeren(id){
   if(!LEHRER) return;
+  S.zr = Date.now();   // bewusstes Leeren (nur Lehrperson): die Library führt dann nicht mit dem Cloud-Stand zusammen
   var a = {zeigt:{}, bedarf:{}, check:{}};
   if(id === 'konzept'){ S.g = {}; delete S.bk.grob; }
   else if(id === 'journal') S.j = [];
@@ -293,7 +298,7 @@ function einwerfen(t, meld, bestaetigt){
   Promise.resolve().then(function(){ return LIB.__svaEinwurf(art, k ? blattRapport(k) : blattKonzept()); }).then(function(r){
     if(!r || !r.ok){ zurueck(); meld((r && r.text) || 'Der Einwurf hat nicht geklappt.', 'rot'); return; }
     S.bk[art] = r.am || Date.now();
-    if(k){ S.r[k] = S.r[k] || {}; if(!S.r[k].am) S.r[k].am = heute(); }   // eingeworfen = abgeschlossen
+    if(k){ S.r[k] = S.r[k] || {}; if(!S.r[k].am){ S.r[k].am = heute(); mk('r.'+k+'.am'); } }   // eingeworfen = abgeschlossen
     sichern(true); neuZeichnen();
   }, function(){ zurueck(); meld('Der Einwurf hat nicht geklappt. Versuch es nochmals.', 'rot'); });
 }
@@ -323,14 +328,14 @@ function zStart(el){
     '<div class="zeile"><span>Rapporte</span><span class="leiter"></span><b>'+RAPPORTE.filter(function(r){ return S.r[r[0]] && S.r[r[0]].am; }).length+' von 2 abgeschlossen</b></div>'+
     '<div class="zeile"><span>Im Briefkasten</span><span class="leiter"></span><b>'+([['grob','Grobkonzept'],['rapDez','Rapport Dezember'],['rapJan','Rapport Januar']].filter(function(x){ return S.bk[x[0]]; }).map(function(x){ return x[1]+' ✓'; }).join(', ') || 'noch nichts')+'</b></div></div>'+
     '<div class="hinweis">Alles, was du hier einträgst, sieht deine Lehrperson. Trag nach <b>jeder</b> Arbeitsphase kurz ins Arbeitsjournal ein – daraus schreibst du später dein Arbeitsprotokoll im Dossier.</div>'+werkzeug('start');
-  el.oninput = function(e){ var k = e.target.getAttribute('data-k'); if(k){ S[k] = e.target.value; sichern(); } };
+  el.oninput = function(e){ var k = e.target.getAttribute('data-k'); if(k){ S[k] = e.target.value; mk(k); sichern(); } };
 }
 
 function zKonzept(el){
   el.innerHTML = '<h2>Thema und Grobkonzept</h2><div class="hinweis">Abgabe bis <b>Montag, 2. November 2026, 12 Uhr</b>. Du kannst schon jetzt selbstständig beginnen; am Montagmorgen schreibst du es in der Schule fertig. Ein gutes Grobkonzept ist das A und O! Fülle alle Felder aus und besprich das Grobkonzept mit deiner Lehrperson. Dann '+(LIB ? 'wirfst du es mit dem Knopf unten als PDF <b>direkt in den Briefkasten</b> und druckst' : 'druckst')+' es zum Unterschreiben aus (du, deine Eltern, deine Lehrperson).</div>'+
     FELDER.map(function(f){ return '<div class="karte"><label class="fl">'+esc(f[1])+'</label><div class="hilfe">'+esc(f[2])+'</div>'+feld(f[0], S.g[f[0]], f[3])+'<div class="lprueck" data-rb="'+f[0]+'" hidden></div></div>'; }).join('')+
     '<div class="karte checks"><label'+(S.g.bereit?' class="an"':'')+'><input type="checkbox" id="bereit"'+(S.g.bereit?' checked':'')+'><span>Mein Grobkonzept ist vollständig – ich möchte es mit meiner Lehrperson besprechen.</span></label></div>'+werkzeug('konzept', einwurfKnopf('grob'));
-  el.oninput = function(e){ var f = e.target.getAttribute('data-f'); if(f){ S.g[f] = e.target.value; sichern(); } };
+  el.oninput = function(e){ var f = e.target.getAttribute('data-f'); if(f){ S.g[f] = e.target.value; mk('g.'+f); sichern(); } };
   el.onchange = function(e){ if(e.target.id === 'bereit'){ S.g.bereit = e.target.checked; S.g.bereitAm = e.target.checked ? heute() : ''; e.target.parentNode.classList.toggle('an', e.target.checked); sichern(true); } };
   rueckZeigen();
 }
@@ -408,6 +413,7 @@ function zJournal(el, offenKopie){
       '<div class="reihe"><button class="btn leise klein" type="button" data-kop="'+x.i+'">📋 Text fürs Protokoll kopieren</button><button class="btn leise klein" type="button" data-kopteil="kopf|'+x.i+'" title="Nur Datum, Zeit und Ort – für die obere Zelle">📋 nur oben</button><button class="btn leise klein" type="button" data-kopteil="text|'+x.i+'" title="Nur Text und Kommentar – für die untere Zelle">📋 nur unten</button><button class="btn leise klein" type="button" data-del="'+x.i+'">Löschen</button></div></div>'; }).join('') : '<div class="karte">Noch kein Eintrag.</div>')+werkzeug('journal');
   document.getElementById('jAdd').onclick = function(){
     var e = {d:document.getElementById('jD').value, von:document.getElementById('jV').value, bis:document.getElementById('jB').value, ort:document.getElementById('jO').value.trim(), was:document.getElementById('jW').value.trim(), kom:document.getElementById('jK').value.trim()};
+    e.id = Date.now().toString(36)+Math.random().toString(36).slice(2, 7); e.m = Date.now();
     var err = !e.d ? 'Bitte ein Datum wählen.' : !e.was ? 'Bitte schreiben, was du gemacht hast.' : (e.von && e.bis && !minuten(e)) ? 'Die Endzeit muss nach der Startzeit liegen.' : '';
     if(err){ document.getElementById('jErr').textContent = err; return; }
     S.j.push(e); sichern(true); zJournal(el);
@@ -416,7 +422,7 @@ function zJournal(el, offenKopie){
     var d = ev.target.closest('[data-del]'), k = ev.target.closest('[data-kop]'), kt = ev.target.closest('[data-kopteil]');
     if(kt){ var kp = kt.getAttribute('data-kopteil').split('|'), tt = protokollTeil(S.j[+kp[1]], kp[0]); var kl = kt.textContent;
       kopieren(tt.text, tt.html).then(function(){ kt.textContent = '✓ Kopiert'; setTimeout(function(){ kt.textContent = kl; }, 1800); }, function(){ kt.textContent = 'Kopieren nicht möglich'; }); }
-    if(d){ if(d.getAttribute('data-sicher')){ S.j.splice(+d.getAttribute('data-del'), 1); sichern(true); zJournal(el); } else { d.setAttribute('data-sicher', '1'); d.textContent = 'Wirklich löschen?'; } }
+    if(d){ if(d.getAttribute('data-sicher')){ var ent = S.j.splice(+d.getAttribute('data-del'), 1)[0]; if(ent){ S.jx = S.jx || {}; S.jx[jKey(ent)] = Date.now(); } sichern(true); zJournal(el); } else { d.setAttribute('data-sicher', '1'); d.textContent = 'Wirklich löschen?'; } }
     if(k){ var e = S.j[+k.getAttribute('data-kop')];
       kopieren(protokollText(e), protokollHtml(e)).then(function(){ k.textContent = '✓ Kopiert'; }, function(){ k.textContent = 'Kopieren nicht möglich'; }); }
   };
@@ -430,11 +436,12 @@ function zRapport(el){
       '<div class="checks"><label'+(x.hilfe?' class="an"':'')+'><input type="checkbox" data-rf="hilfe"'+(x.hilfe?' checked':'')+'><span>Ich brauche ein Gespräch mit meiner Lehrperson.</span></label></div>'+
       '<div class="reihe" style="margin-top:8px"><button class="btn'+(LIB ? ' leise' : '')+'" type="button" data-rab="1">'+(x.am ? 'Rapport wieder öffnen' : 'Rapport abschliessen')+'</button>'+einwurfKnopf(r[0] === 'dez' ? 'rapDez' : 'rapJan')+
       '<button class="btn leise" type="button" data-druck="rapport" data-r="'+r[0]+'">🖨️ Drucken</button></div><div class="meldung"></div></div>'; }).join('')+werkzeug('rapport', '', true);
-  var rx = function(t){ var k = t.closest('[data-r]').getAttribute('data-r'); S.r[k] = S.r[k] || {}; return S.r[k]; };
+  var rk = function(t){ return t.closest('[data-r]').getAttribute('data-r'); };
+  var rx = function(t){ var k = rk(t); S.r[k] = S.r[k] || {}; return S.r[k]; };
   el.oninput = function(e){ var t = e.target, f = t.getAttribute('data-f'), rf = t.getAttribute('data-rf'); if(!t.closest('[data-r]')) return;
-    if(f){ rx(t)[f] = t.value; sichern(); } if(rf === 'stand'){ rx(t).stand = +t.value; t.parentNode.querySelector('.proz').textContent = t.value+' %'; sichern(); } };
-  el.onchange = function(e){ var t = e.target; if(t.getAttribute('data-rf') === 'hilfe'){ rx(t).hilfe = t.checked; t.parentNode.classList.toggle('an', t.checked); sichern(true); } };
-  el.onclick = function(e){ var b = e.target.closest('[data-rab]'); if(b){ var x = rx(b); x.am = x.am ? '' : heute(); sichern(true); zRapport(el); } };
+    if(f){ rx(t)[f] = t.value; mk('r.'+rk(t)+'.'+f); sichern(); } if(rf === 'stand'){ rx(t).stand = +t.value; mk('r.'+rk(t)+'.stand'); t.parentNode.querySelector('.proz').textContent = t.value+' %'; sichern(); } };
+  el.onchange = function(e){ var t = e.target; if(t.getAttribute('data-rf') === 'hilfe'){ rx(t).hilfe = t.checked; mk('r.'+rk(t)+'.hilfe'); t.parentNode.classList.toggle('an', t.checked); sichern(true); } };
+  el.onclick = function(e){ var b = e.target.closest('[data-rab]'); if(b){ var x = rx(b); x.am = x.am ? '' : heute(); mk('r.'+rk(b)+'.am'); sichern(true); zRapport(el); } };
 }
 
 function haken(liste, obj, gruppe){ return '<div class="checks">'+liste.map(function(t, i){ return '<label'+(obj[i]?' class="an"':'')+'><input type="checkbox" data-g="'+gruppe+'" data-i="'+i+'"'+(obj[i]?' checked':'')+'><span>'+esc(t)+'</span></label>'; }).join('')+'</div>'; }
@@ -445,8 +452,8 @@ function zAusstellung(el){
     '<div class="karte"><label class="fl">Das brauche ich von der Schule</label><div class="hilfe">Nur ankreuzen, was wirklich nötig ist.</div>'+haken(BEDARF, S.a.bedarf, 'bedarf')+'<label>Anderes<input type="text" data-a="anderes" value="'+esc(S.a.anderes)+'"></label></div>'+
     '<div class="karte"><label class="fl">Checkliste vor der Ausstellung</label>'+haken(CHECK, S.a.check, 'check')+'</div>'+
     '<div class="karte"><b>Ablauf</b><div class="zeile"><span>Do, 18. März</span><span class="leiter"></span><span>Nachmittag: Platz einrichten</span></div><div class="zeile"><span>Fr, 19. März</span><span class="leiter"></span><span>Besuchstag und 2. Klassen, bis ca. 15 Uhr</span></div><div class="zeile"><span>Sa, 20. März</span><span class="leiter"></span><span>Öffentliche Ausstellung, danach aufräumen (ca. 12 Uhr)</span></div></div>'+werkzeug('ausstellung');
-  el.oninput = function(e){ var a = e.target.getAttribute('data-a'); if(a){ S.a[a] = e.target.value; sichern(); } };
-  el.onchange = function(e){ var t = e.target, g = t.getAttribute('data-g'); if(g){ S.a[g][+t.getAttribute('data-i')] = t.checked; t.parentNode.classList.toggle('an', t.checked); sichern(true); } };
+  el.oninput = function(e){ var a = e.target.getAttribute('data-a'); if(a){ S.a[a] = e.target.value; mk('a.'+a); sichern(); } };
+  el.onchange = function(e){ var t = e.target, g = t.getAttribute('data-g'); if(g){ S.a[g][+t.getAttribute('data-i')] = t.checked; mk('a.'+g+'.'+t.getAttribute('data-i')); t.parentNode.classList.toggle('an', t.checked); sichern(true); } };
 }
 melden();
 zeige(S.v && ANSICHTEN.some(function(a){ return a[0] === S.v; }) ? S.v : 'start');

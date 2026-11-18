@@ -19597,6 +19597,85 @@ function historyDazu(before, merged, payload){
 // (basisRev) geschrieben, wird zusammengeführt und der überschriebene Stand als «vorher» im selben Dokument aufgehoben.
 // 08.11.2026: Im Hintergrund-Tab wirft der Firestore-SDK (10.13.0) mitten in runTransaction «INTERNAL ASSERTION FAILED:
 // Unexpected state»; das Promise bleibt dann hängen. Darum Zeitlimit: danach greift der Fallback in writeProgressWithHistory.
+// SVA-Projekt-Schutz (18.11.2026, Rapporte): «Mein SVA-Projekt» liegt als ein Eintrag (sva_mp_v1) in der Cloud. Schreibt ein Gerät mit
+// älterem Stand, wird feldweise zusammengeführt statt der ganze Stand ersetzt: Grobkonzept-Felder, Rapport-Felder und Ausstellungsangaben nach
+// Änderungszeit (S.mt, sonst gewinnt der längere Text), Journal-Einträge werden vereint (gelöschte stehen in S.jx), eingeworfene Abgaben (S.bk) auch.
+// Bewusstes Leeren durch die Lehrperson (S.zr) wird nicht zurückgeholt.
+var SVA_MP_KEY = 'sva_mp_v1';
+function svaMpZusammen(neuStr, altStr){
+  var N = JSON.parse(neuStr), A = JSON.parse(altStr);
+  if(!N || !A || typeof N !== 'object' || typeof A !== 'object' || Array.isArray(N) || Array.isArray(A)) return neuStr;
+  if((N.zr || 0) > (A.zr || 0)) return neuStr;
+  var mn = N.mt || {}, ma = A.mt || {}, R = JSON.parse(neuStr);
+  var leer = function(v){ return v == null || v === '' || v === false; };
+  var wahl = function(pfad, n, a){
+    if(JSON.stringify(n) === JSON.stringify(a)) return n;
+    var tn = mn[pfad] || 0, ta = ma[pfad] || 0;
+    if(tn || ta) return tn >= ta ? n : a;
+    if(leer(n)) return a;
+    if(leer(a)) return n;
+    return JSON.stringify(a).length > JSON.stringify(n).length ? a : n;
+  };
+  var objekt = function(o){ return o && typeof o === 'object' && !Array.isArray(o); };
+  var mische = function(pfad, n, a){
+    if(!objekt(n) || !objekt(a)) return wahl(pfad, n, a);
+    var out = {};
+    Object.keys(n).concat(Object.keys(a)).forEach(function(k){
+      if(Object.prototype.hasOwnProperty.call(out, k)) return;
+      var hn = Object.prototype.hasOwnProperty.call(n, k), ha = Object.prototype.hasOwnProperty.call(a, k);
+      out[k] = hn && ha ? mische(pfad + '.' + k, n[k], a[k]) : (hn ? n[k] : a[k]);
+    });
+    return out;
+  };
+  ['g', 'r', 'a'].forEach(function(k){ if(objekt(N[k]) || objekt(A[k])) R[k] = mische(k, N[k] || {}, A[k] || {}); });
+  ['name', 'klasse'].forEach(function(k){ if(k in N || k in A) R[k] = wahl(k, N[k], A[k]); });
+  // Abgaben im Briefkasten: der spätere Zeitpunkt zählt
+  if(objekt(N.bk) || objekt(A.bk)){
+    R.bk = Object.assign({}, A.bk || {}, N.bk || {});
+    Object.keys(A.bk || {}).forEach(function(k){ if((A.bk[k] || 0) > ((N.bk || {})[k] || 0)) R.bk[k] = A.bk[k]; });
+  }
+  // Journal: Vereinigung nach Kennung, gelöschte Einträge bleiben gelöscht
+  var jk = function(e){ return e.id || (e.d + '|' + (e.von || '') + '|' + (e.bis || '') + '|' + (e.was || '')); };
+  var jx = Object.assign({}, A.jx || {}, N.jx || {});
+  var vorhanden = {}, liste = [];
+  (Array.isArray(N.j) ? N.j : []).concat(Array.isArray(A.j) ? A.j : []).forEach(function(e){
+    if(!e || typeof e !== 'object') return;
+    var k = jk(e);
+    if(vorhanden[k] || jx[k]) return;
+    vorhanden[k] = true; liste.push(e);
+  });
+  if(Array.isArray(N.j) || Array.isArray(A.j)) R.j = liste;
+  if(Object.keys(jx).length) R.jx = jx;
+  R.mt = Object.assign({}, ma, mn);
+  Object.keys(ma).forEach(function(k){ if(ma[k] > (mn[k] || 0)) R.mt[k] = ma[k]; });
+  R.t = Math.max(N.t || 0, A.t || 0);
+  Object.keys(A).forEach(function(k){ if(!(k in R)) R[k] = A[k]; });
+  // Nichts Inhaltliches dazugekommen → Stand unverändert lassen (sonst gälte jedes Schreiben als «zusammengeführt»)
+  var geaendert = ['g', 'r', 'a', 'bk', 'j', 'jx', 'name', 'klasse'].some(function(k){ return JSON.stringify(R[k]) !== JSON.stringify(N[k]); });
+  return geaendert ? JSON.stringify(R) : neuStr;
+}
+function svaMpSchutz(neuJson, altJson){
+  try{
+    var N = JSON.parse(neuJson), A = JSON.parse(altJson);
+    if(!N || !A || typeof N[SVA_MP_KEY] !== 'string' || typeof A[SVA_MP_KEY] !== 'string') return neuJson;
+    var z = svaMpZusammen(N[SVA_MP_KEY], A[SVA_MP_KEY]);
+    if(z === N[SVA_MP_KEY]) return neuJson;
+    N[SVA_MP_KEY] = z; return JSON.stringify(N);
+  }catch(e){ return neuJson; }
+}
+// Alle Schutzstufen für einen Übungsstand (Lesereise pro Station, SVA-Projekt pro Feld).
+function standSchutz(neuJson, altJson){ return svaMpSchutz(lesereiseSchutz(neuJson, altJson), altJson); }
+// Verlauf der letzten Fassungen (nur SVA-Projekt): höchstens 6, alle 30 Min. eine, sofort eine, wenn der Stand deutlich schrumpft.
+function svaVerlaufDazu(f, before){
+  if(!before || !before.storeJson || !f.storeJson || before.storeJson === f.storeJson) return;
+  var v = Array.isArray(before.verlauf) ? before.verlauf.slice() : [], letzte = v[v.length - 1];
+  var schrumpft = f.storeJson.length < before.storeJson.length * 0.9;
+  if(!letzte || Date.now() - letzte.at > 30*60*1000 || schrumpft) v.push({at: Date.now(), rev: before.storeRev || 0, storeJson: before.storeJson});
+  while(v.length > 6) v.shift();
+  var summe = function(){ return v.reduce(function(s, e){ return s + e.storeJson.length; }, 0); };
+  while(v.length && summe() + f.storeJson.length > 600000) v.shift();
+  f.verlauf = v;
+}
 function standTransaktion(ref_, newFields, basisRev){
   var lauf = standTransaktionLauf(ref_, newFields, basisRev);
   lauf.catch(function(){});
@@ -19629,7 +19708,7 @@ async function standTransaktionLauf(ref_, newFields, basisRev){
     var snap = await tx.get(ref_), before = snap.exists() ? snap.data() : null;
     var f = Object.assign({}, newFields), zusammen = false;
     if(before && before.storeJson && f.storeJson){
-      var s2 = lesereiseSchutz(f.storeJson, before.storeJson);
+      var s2 = standSchutz(f.storeJson, before.storeJson);
       if(s2 !== f.storeJson){ f.storeJson = s2; zusammen = true; if(typeof before.storeRev === 'number') f.vorher = {at: Date.now(), rev: before.storeRev, storeJson: before.storeJson}; }
     }
     if(before && before.storeJson && typeof before.storeRev === 'number' && before.storeRev > basisRev){
@@ -19648,6 +19727,7 @@ async function standTransaktionLauf(ref_, newFields, basisRev){
     }
     var vor = f.vorher || (before && before.vorher);
     if(vor && vor.storeJson && f.storeJson.length + vor.storeJson.length > 850000) f.vorher = deleteField();
+    if(ref_.id === SVA_PROJ_ID) svaVerlaufDazu(f, before);
     var merged = Object.assign({}, before || {}, f), payload = Object.assign({}, f);
     historyDazu(before, merged, payload);
     tx.set(ref_, payload, {merge:true});
@@ -19675,10 +19755,11 @@ async function writeProgressWithHistory(uid, rid, newFields, basisRev){
     try{
       var sv = await getDocFromServer(ref_);
       before = sv.exists() ? sv.data() : null;
-      if(before && before.storeJson){ newFields = Object.assign({}, newFields, {storeJson: lesereiseSchutz(newFields.storeJson, before.storeJson)}); }
+      if(before && before.storeJson){ newFields = Object.assign({}, newFields, {storeJson: standSchutz(newFields.storeJson, before.storeJson)}); }
       if(before && before.storeJson && typeof before.storeRev === 'number' && newFields.storeJson !== before.storeJson && !newFields.vorher){
         newFields = Object.assign({}, newFields, {vorher: {at: Date.now(), rev: before.storeRev, storeJson: before.storeJson}});
       }
+      if(rid === SVA_PROJ_ID){ newFields = Object.assign({}, newFields); svaVerlaufDazu(newFields, before); }
       bk = null;
     }catch(e){
       console.warn('Übungsstand: Server nicht erreichbar – nicht überschrieben, bleibt lokal bis zum nächsten Speichern', e);
@@ -26661,6 +26742,7 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-11-18-sva-sicher', datum:'2026-11-18', fuer:'alle', text:'🎓 SVA: Dein Projekt (Grobkonzept, Journal, Rapporte) ist jetzt doppelt gesichert. Arbeitest du auf zwei Geräten, werden die Stände zusammengeführt – nichts geht mehr verloren, auch wenn ein Gerät noch einen älteren Stand hat.'},
   {id:'2026-11-17-gruppenpuzzle', datum:'2026-11-17', fuer:'lehrer', text:'🧩 Gruppen & Partner: Neu «Gruppenpuzzle». Du wählst die Anzahl Themen, jedes Kind bekommt eins (Expertengruppen), danach Mischgruppen mit je einem Vertreter pro Thema. Idee von Schoch (E1c).'},
   {id:'2026-11-13-mehrere-klassen-nicht-dabei', datum:'2026-11-13', fuer:'lehrer', text:'📅 Kalender: Beim neuen Eintrag (Hausaufgabe, Prüfung …) kannst du unter «Zusätzlich auch für andere Klassen» weitere Klassen ankreuzen, der Eintrag landet in allen gleichzeitig. 🚪 Prüfung: In der Live-Übersicht nimmt der Knopf 🚪 eine Person aus der Prüfung (schreibt nicht mit): nicht mehr gesperrt, wieder in der Library, keine Note. Mit ↩︎ unten kommt sie wieder dazu.'},
   {id:'2026-11-12-briefkasten-ersetzen', datum:'2026-11-12', fuer:'alle', text:'📮 Briefkasten mit «Ordner pro Person»: Wirfst du eine Datei nochmals ein, ersetzt sie die frühere auch dann, wenn der Name nur wenig anders ist (Gross-/Kleinschreibung, «(1)», Tippfehler) – solange die Nummer am Anfang («3_…») und die Endung gleich sind. Die alte Fassung landet im _Backup.'},
