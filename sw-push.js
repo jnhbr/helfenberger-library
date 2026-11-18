@@ -137,6 +137,8 @@ self.addEventListener('fetch', function(event){
   if(url.protocol !== 'http:' && url.protocol !== 'https:') return;
 
   var sameOrigin = url.origin === self.location.origin;
+  // Pflicht-Update-Meldung nie aus dem Cache (index.html: pflichtUpdateHolen)
+  if(sameOrigin && /\/pflicht-update\.json$/.test(url.pathname)) return;
 
   // Die App-Hülle (Startadresse bzw. index.html im eigenen Ordner): sofort aus
   // dem Cache, im Hintergrund auffrischen — siehe oben.

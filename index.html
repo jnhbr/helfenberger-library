@@ -50655,6 +50655,7 @@ function neueVersionNachsehen(){
   });
 }
 function neueVersionBeobachten(){
+  pflichtUpdateHolen();
   var merk = function(){ neueVersion.bedient = true; };
   document.addEventListener('keydown', merk, true);
   document.addEventListener('pointerdown', merk, true);
@@ -50672,6 +50673,54 @@ function neueVersionBeobachten(){
   document.addEventListener('visibilitychange', function(){
     if(document.visibilityState === 'visible' && Date.now() - neueVersion.zuletzt > 2 * 60 * 1000) neueVersionNachsehen();
   });
+}
+/* ---------- ⏰ Pflicht-Update (18.11.2026) ----------
+   Für wichtige Korrekturen (z. B. Schutz der SVA-Stände): Die Datei pflicht-update.json im Hauptordner nennt eine Kennung (id),
+   den Zeitpunkt der Veröffentlichung (seit) und den Zeitpunkt, ab dem offene Tabs neu laden (ab, z. B. die Pause). Eine Seite, die VOR
+   «seit» geladen wurde, speichert zu «ab» alle Stände, zeigt 5 Sekunden einen Hinweis und lädt dann neu – nie während einer Prüfung.
+   Pro Kennung höchstens einmal pro Tab (sessionStorage), damit nie eine Schleife entsteht. Wirkt erst auf Seiten, die diesen Code
+   schon haben; ältere Tabs holen sich die neue Version wie bisher über den Knopf bzw. beim nächsten Öffnen.
+   Neues Pflicht-Update: pflicht-update.json mit neuer id, seit = jetzt, ab = gewünschte Zeit pushen. */
+var pflichtUpdate = { id:null, ab:0, timer:null, laeuft:false };
+function pflichtUpdateHolen(){
+  if(navigator.onLine === false) return;
+  fetch(new URL('pflicht-update.json', location.href).href, { cache:'no-store' }).then(function(r){ return r.ok ? r.json() : null; }).then(function(j){
+    if(!j || !j.id || !j.ab) return;
+    var ab = Date.parse(j.ab), seit = Date.parse(j.seit || j.ab);
+    if(isNaN(ab) || isNaN(seit)) return;
+    if(neueVersion.start >= seit) return;                 // diese Seite wurde nach der Veröffentlichung geladen
+    if(Date.now() > ab + 6*3600*1000) return;             // veraltete Meldung
+    try{ if(sessionStorage.getItem('hl_pflicht') === j.id) return; }catch(e){}
+    pflichtUpdate.id = j.id; pflichtUpdate.ab = ab;
+    clearTimeout(pflichtUpdate.timer);
+    pflichtUpdate.timer = setTimeout(pflichtUpdateLos, Math.max(0, ab - Date.now()));
+  }).catch(function(){});
+}
+document.addEventListener('visibilitychange', function(){
+  if(document.visibilityState === 'visible'){
+    if(pflichtUpdate.id && Date.now() >= pflichtUpdate.ab) pflichtUpdateLos(); else if(!pflichtUpdate.id) pflichtUpdateHolen();
+  }
+});
+function pflichtUpdateSichern(){
+  try{ flushResourceSync(); }catch(e){}
+  try{ Object.keys(libFensterListe).forEach(function(rid){ var f = libFensterListe[rid]; if(f && f.uebung) libFensterSpeichern(f); }); }catch(e){}
+}
+function pflichtUpdateLos(){
+  if(!pflichtUpdate.id || pflichtUpdate.laeuft) return;
+  if(pruef.sess){ clearTimeout(pflichtUpdate.timer); pflichtUpdate.timer = setTimeout(pflichtUpdateLos, 30000); return; }
+  pflichtUpdate.laeuft = true;
+  pflichtUpdateSichern();
+  var d = document.createElement('div');
+  d.style.cssText = 'position:fixed;left:0;right:0;top:0;z-index:99999;padding:14px 16px;background:#B42318;color:#fff;font:600 16px/1.4 system-ui,sans-serif;text-align:center;';
+  d.textContent = '🔄 Wichtiges Update – deine Arbeit ist gespeichert. Die Library lädt in 5 Sekunden neu.';
+  document.body.appendChild(d);
+  setTimeout(function(){
+    pflichtUpdateSichern();
+    setTimeout(function(){
+      try{ sessionStorage.setItem('hl_pflicht', pflichtUpdate.id); sessionStorage.setItem('hl_neu_zeit', String(Date.now())); }catch(e){}
+      location.reload();
+    }, 1500);
+  }, 5000);
 }
 function neueVersionDa(){
   if(neueVersion.gemeldet) return;
