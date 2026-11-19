@@ -14538,6 +14538,10 @@ function bkEinwurfDialog(klasse, bk){
   var zustand = bkZustand(bk, uid);
   var erlaubt = bkErlaubt(bk);
   var nurAnsicht = state.profile.role === 'teacher' && !bkIstMeiner(bk) || isLeitung() || !!state.profile.alsAnsicht;
+  // Schüler:innen einer anderen Klasse (z. B. G3a im G3b-Briefkasten) geben bei ihrer eigenen Lehrperson ab.
+  var fremdeKlasse = state.profile.role !== 'teacher' && !isLeitung() && !bk.gruppeId && state.profile.klasse && istKlasse(state.profile.klasse) && state.profile.klasse !== klasse;
+  var eigeneLp = fremdeKlasse ? (klasseInfo(state.profile.klasse).lp || 'deiner Lehrperson') : '';
+  if(fremdeKlasse) nurAnsicht = true;
   var accept = erlaubt ? erlaubt.map(function(e){ return '.'+e; }).join(',') : '';
   openModal(
     '<h3>📮 '+esc(bk.titel)+'</h3>'+
@@ -14560,7 +14564,8 @@ function bkEinwurfDialog(klasse, bk){
             (bk.proPerson ? 'Du kannst mehrmals einwerfen, alles kommt in deinen Ordner. Wirfst du eine Datei nochmals ein (gleicher Name oder gleiche Nummer am Anfang, z. B. «3_Fünfeck.dwg»), ersetzt sie die frühere.'
               : 'Bis zur Leerung darfst du neu einwerfen, dann zählt die neue Abgabe.')+'</p>'+
           '<div class="bk-balken" id="bkBalken"><div></div></div>')+
-        (nurAnsicht ? '<p class="bk-zeile bk-klein">Vorschau: So sieht die Klasse den Briefkasten.</p>' : '')+
+        (fremdeKlasse ? '<p class="bk-zeile bk-warn">Das ist der Briefkasten von '+esc(bk.ownerName || 'einer anderen Klasse')+' ('+esc(klasseLabel(klasse))+'). Du gibst bei '+esc(eigeneLp)+' ab, nicht hier.</p>' :
+          nurAnsicht ? '<p class="bk-zeile bk-klein">Vorschau: So sieht die Klasse den Briefkasten.</p>' : '')+
         '<div class="login-err" id="bkErr"></div>'+
       '</div></div>'+
     '<div class="modal-actions"><button class="btn btn-ghost btn-sm" id="modalCancel" type="button">Schliessen</button></div>',
