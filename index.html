@@ -302,6 +302,15 @@ function winterAn(){ var aus = false; try{ aus = localStorage.getItem('hl_winter
   .indiv-hinweis{background:color-mix(in srgb,var(--ge, #feeb15) 28%,var(--surface));border:2px solid var(--ge, #feeb15);border-radius:var(--radius-sm);padding:14px 18px;margin:0 0 16px;box-shadow:var(--shadow);}
   .indiv-hinweis-zeile{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-top:8px;}
   .resource-card.indiv-geloest{border-color:#2e9e5b;background:color-mix(in srgb,#2e9e5b 14%,var(--surface));}
+  .modal.iv-modal{max-width:620px;}
+  .iv-top{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:4px 0 12px;} .iv-form{border:1px solid var(--border);border-radius:var(--radius-sm);padding:2px 14px 12px;margin:0 0 14px;background:var(--surface-2);}
+  .iv-leiste{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 10px;} .iv-modus{display:inline-flex;border:1px solid var(--border);border-radius:99px;overflow:hidden;} .iv-modus button{border:0;background:none;font:inherit;font-size:13px;font-weight:700;padding:5px 12px;cursor:pointer;color:var(--text-muted);} .iv-modus button.on{background:var(--brand);color:var(--brand-contrast);} .iv-zahl{margin-left:auto;font-size:13px;color:var(--text-muted);}
+  .iv-karte{border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;margin:0 0 8px;background:var(--surface);} .iv-kopf{display:flex;align-items:center;gap:8px;} .iv-fach{flex:none;font-size:11px;font-weight:700;border-radius:99px;padding:1px 8px;color:#fff;background:var(--fc,#475569);} .iv-titel{font-weight:700;flex:1;min-width:0;line-height:1.3;} .iv-titel2{display:block;font-weight:700;line-height:1.3;margin-top:4px;} .iv-stand{flex:none;font-size:12px;color:var(--text-muted);white-space:nowrap;}
+  .iv-mehr{flex:none;border:0;background:none;cursor:pointer;color:var(--text-muted);font-size:18px;line-height:1;padding:0 4px;border-radius:8px;} .iv-mehr:hover{background:var(--surface-2);} .iv-aktion{display:flex;gap:8px;justify-content:flex-end;margin-top:8px;}
+  .iv-balken{height:4px;background:var(--border);border-radius:2px;margin:8px 0;} .iv-balken>i{display:block;height:100%;background:var(--good);border-radius:2px;}
+  .iv-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;} .iv-balken+.iv-chips{margin-top:0;} .iv-chip{display:inline-flex;align-items:center;gap:2px;font-size:13px;border:1px solid var(--border);border-radius:99px;padding:2px 2px 2px 10px;background:var(--surface-2);max-width:100%;} .iv-chip>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .iv-chip.ok{background:var(--good-soft);border-color:var(--good);color:color-mix(in srgb,var(--good) 70%,var(--text));font-weight:700;} .iv-chip button{border:0;background:none;cursor:pointer;color:var(--text-muted);font-size:15px;line-height:1;padding:1px 6px;border-radius:99px;} .iv-chip button:hover{background:var(--bad-soft);color:var(--bad);}
+  .iv-archiv{border-top:1px solid var(--border);margin-top:12px;padding-top:4px;} .iv-archiv>summary,.iv-afach>summary{cursor:pointer;font-weight:700;margin:8px 0;} .iv-archiv>summary{color:var(--text-muted);} .iv-afach{margin:0 0 4px 12px;}
   .chip-indiv{display:inline-block;font-size:.72rem;font-weight:700;color:#1f7a45;background:color-mix(in srgb,#2e9e5b 18%,transparent);border-radius:99px;padding:1px 8px;margin-left:4px;}
   .indiv-ordner>summary,.indiv-thema>summary{cursor:pointer;font-weight:700;margin:8px 0;} .indiv-thema{margin:6px 0 10px 14px;} .indiv-thema>.resource-card{margin-bottom:8px;} .indiv-archiv{margin-top:10px;} .indiv-archiv summary{cursor:pointer;color:var(--text-muted);font-weight:600;margin-bottom:8px;} .indiv-archiv .resource-card{margin-bottom:8px;} .indiv-leer{margin:6px 2px;}
   .resource-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:16px 18px;box-shadow:var(--shadow);display:flex;align-items:center;gap:16px;flex-wrap:wrap;transition:border-color .15s ease, box-shadow .15s ease;}
@@ -7586,6 +7595,9 @@ var DIKTAT_RULE_META = {
   ableiten:    {name:'Ableiten/Stammprinzip', icon:'🔄', color:'#7a4a5a'},
   merkwoerter: {name:'Merkwörter', icon:'🎯', color:'#b8355c'},
   endungen:    {name:'Endungen', icon:'📝', color:'#556270'},
+  dasdass:     {name:'das oder dass', icon:'⚖️', color:'#3b5b5b'},
+  dehnung_ie:  {name:'Dehnung mit ie', icon:'🌾', color:'#c27c0e'},
+  satzzeichen: {name:'Satzzeichen', icon:'✒️', color:'#26201a'},
   sonstige:    {name:'Sonstige Fehler', icon:'❓', color:'#6b5f4e'}
 };
 
@@ -7593,6 +7605,21 @@ var DIKTAT_RULE_META = {
 // den jeweils letzten Diktatversuch (aus progress/{uid}/resources/{rid}) und
 // fasst die Fehlerkategorien pro Schüler:in zusammen. Einmaliger Ladevorgang
 // (kein Live-Listener) - die Ansicht hat einen "Neu laden"-Knopf.
+// Neuester Diktatversuch über alle "..._attempts"-Schlüssel einer Übung
+// (Niveau-Diktate speichern pro Niveau einen eigenen Schlüssel _n1/_n2/_n3_attempts).
+function diktatLetzterVersuch(store){
+  var best = null, anzahl = 0;
+  Object.keys(store || {}).forEach(function(k){
+    if(!/_attempts$/.test(k)) return;
+    var arr; try{ arr = JSON.parse(store[k]); }catch(e){ return; }
+    if(!Array.isArray(arr) || !arr.length) return;
+    anzahl += arr.length;
+    var l = arr[arr.length-1];
+    if(!best || String(l.date||'') > String(best.date||'')) best = l;
+  });
+  return best ? { last: best, anzahl: anzahl } : null;
+}
+
 async function loadDiktatAuswertung(){
   var result = { resources: [], students: [], perStudent: {} };
 
@@ -7634,14 +7661,11 @@ async function loadDiktatAuswertung(){
     if(!data.storeJson) return;
     var store;
     try{ store = JSON.parse(data.storeJson); }catch(e){ return; }
-    var attemptsKey = Object.keys(store).filter(function(k){ return /_attempts$/.test(k); })[0];
-    if(!attemptsKey) return;
-    var attempts;
-    try{ attempts = JSON.parse(store[attemptsKey]); }catch(e){ return; }
-    if(!Array.isArray(attempts) || !attempts.length) return;
-    var last = attempts[attempts.length-1];
+    var lv = diktatLetzterVersuch(store);
+    if(!lv) return;
+    var last = lv.last;
     var bucket = result.perStudent[r.uid];
-    bucket.byResource[r.resId] = { pct: last.pct, date: last.date, attemptCount: attempts.length };
+    bucket.byResource[r.resId] = { pct: last.pct, date: last.date, attemptCount: lv.anzahl, level: last.level, note: last.note };
     Object.keys(last.weakness||{}).forEach(function(catId){
       var meta = DIKTAT_RULE_META[catId] ? catId : 'sonstige';
       bucket.categoryTotals[meta] = (bucket.categoryTotals[meta]||0) + last.weakness[catId];
@@ -7677,7 +7701,7 @@ function renderDiktatAuswertung(){
       h += '<tr><td>'+esc(stu.displayName)+'</td>';
       result.resources.forEach(function(res){
         var by = bucket.byResource[res.id];
-        h += '<td>'+(by ? by.pct+'%' : '<span class="muted">–</span>')+'</td>';
+        h += '<td>'+(by ? by.pct+'%' + (typeof by.note === 'number' ? '<br><span class="muted small">N' + esc(String(by.level||'')) + ' · Note ' + by.note.toFixed(1) + '</span>' : '') : '<span class="muted">–</span>')+'</td>';
       });
       h += '</tr>';
     });
@@ -19549,13 +19573,10 @@ function learnedSummary(data){
   if(data.storeJson){
     try{
       var store = JSON.parse(data.storeJson);
-      var attemptsKey = Object.keys(store).filter(function(k){ return /_attempts$/.test(k); })[0];
-      if(attemptsKey){
-        var attempts = JSON.parse(store[attemptsKey]);
-        if(Array.isArray(attempts) && attempts.length){
-          var last = attempts[attempts.length-1];
-          return { kind:'diktat', attemptCount:attempts.length, pct:last.pct, correct:last.correct, total:last.total, lastDate:last.date };
-        }
+      var lv = diktatLetzterVersuch(store);
+      if(lv){
+        var last = lv.last;
+        return { kind:'diktat', attemptCount:lv.anzahl, pct:last.pct, correct:last.correct, total:last.total, lastDate:last.date };
       }
     }catch(e){}
   }
@@ -26747,6 +26768,10 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-11-20-niveau-diktate', datum:'2026-11-20', fuer:'lehrer', text:'📊 Fehleranalyse Diktate kennt jetzt die neuen Niveau-Diktate (Deutsch › Diktate › Niveau-Diktate): gezählt wird der neueste Versuch über alle drei Niveaus, in der Tabelle stehen Niveau und Note. Neu als Fehlerarten: das/dass, Dehnung mit ie und Satzzeichen.'},
+  {id:'2026-11-20-indiv-uebersicht', datum:'2026-11-20', fuer:'lehrer', text:'📌 Individuelle Übungen aufgeräumt: Die Übersicht zeigt pro Übung eine Karte mit «x/y gelöst» und den Namen als Chips (× entfernt eine Person, ⋯ entfernt für alle). Umschalter «Nach Person» zeigt alles pro Kind. Zuweisen und Sammelzuweisung sind hinter zwei Knöpfen oben, das Archiv ist unten nach Fächern eingeklappt.'},
+  {id:'2026-11-20-rsw-abstreichen', datum:'2026-11-20', fuer:'alle', text:'✍️ Rechtschreib-Werkstatt: Bei Lückentexten mit «Wörter zum Einsetzen» kannst du ein Wort antippen, um es abzustreichen (nochmals antippen holt es zurück). Was du abgestrichen hast, bleibt gespeichert, dein bisheriger Stand auch.'},
+  {id:'2026-11-20-pin-vollbild', datum:'2026-11-20', fuer:'lehrer', text:'📌 Das angepinnte Fenster (Lernphase/Prüfung) bleibt jetzt auch in der installierten App vor Apps im Vollbild sichtbar (als Bild-in-Bild). Es ist nur eine Anzeige, anklicken geht nicht.'},
   {id:'2026-11-18-sva-journal-bearbeiten', datum:'2026-11-18', fuer:'alle', text:'🎓 SVA-Arbeitsjournal: Einträge kannst du jetzt nachträglich bearbeiten – mit «✏️ Bearbeiten» beim Eintrag.'},
   {id:'2026-11-18-sva-sicher', datum:'2026-11-18', fuer:'alle', text:'🎓 SVA: Dein Projekt (Grobkonzept, Journal, Rapporte) ist jetzt doppelt gesichert. Arbeitest du auf zwei Geräten, werden die Stände zusammengeführt – nichts geht mehr verloren, auch wenn ein Gerät noch einen älteren Stand hat.'},
   {id:'2026-11-17-gruppenpuzzle', datum:'2026-11-17', fuer:'lehrer', text:'🧩 Gruppen & Partner: Neu «Gruppenpuzzle». Du wählst die Anzahl Themen, jedes Kind bekommt eins (Expertengruppen), danach Mischgruppen mit je einem Vertreter pro Thema. Idee von Schoch (E1c).'},
@@ -34481,16 +34506,30 @@ function indivSammelVorschau(fach, dateien){
 }
 function indivVerwaltung(){
   var h = '<h3>📌 Individuelle Übungen</h3>'+
-    '<label class="modal-label">Neu zuweisen: Fach</label><select id="ivFach" class="modal-input"><option value="">– Fach wählen –</option>'+
+    '<div class="iv-top"><button class="btn btn-primary btn-sm" id="ivNeuBtn" type="button">＋ Zuweisen</button><button class="btn btn-ghost btn-sm" id="ivSammelBtn" type="button">📂 Sammelzuweisung</button></div>'+
+    '<div class="iv-form" id="ivForm" hidden>'+
+    '<label class="modal-label">Fach</label><select id="ivFach" class="modal-input"><option value="">– Fach wählen –</option>'+
       SUBJECTS.map(function(f){ return '<option value="'+esc(f.id)+'">'+esc(f.name)+'</option>'; }).join('')+'</select>'+
-    '<label class="modal-label">Übung</label><select id="ivUeb" class="modal-input" disabled><option value="">– erst Fach wählen –</option></select>'+
-    '<div class="modal-actions" style="justify-content:flex-start;"><button class="btn btn-primary btn-sm" id="ivWahl" type="button" disabled>👤 Personen wählen …</button></div>'+
-    '<div class="section-label">Sammelzuweisung</div><p class="kz-intro" style="margin:2px 0 6px;">Mehrere HTML-Dateien auf einmal: Der Vorname am Dateianfang bestimmt die Person («Alisia – Meine Fehler.html»). Jede Datei wird hochgeladen und genau dieser Person zugewiesen.</p>'+
-    '<div class="modal-actions" style="justify-content:flex-start;"><button class="btn btn-ghost btn-sm" id="ivSammel" type="button" disabled>📂 Dateien wählen …</button><input type="file" id="ivDateien" accept=".html,.htm" multiple hidden></div>'+
-    '<div class="section-label">Bisher zugewiesen</div><div id="ivListe" style="max-height:calc(36vh/var(--lz,1));overflow:auto;"><p class="muted">Wird geladen …</p></div>'+
+    '<div id="ivTeilNeu"><label class="modal-label">Übung</label><select id="ivUeb" class="modal-input" disabled><option value="">– erst Fach wählen –</option></select>'+
+    '<div class="modal-actions" style="justify-content:flex-start;"><button class="btn btn-primary btn-sm" id="ivWahl" type="button" disabled>👤 Personen wählen …</button></div></div>'+
+    '<div id="ivTeilSammel" hidden><p class="kz-intro" style="margin:8px 0 6px;">Mehrere HTML-Dateien auf einmal: Der Vorname am Dateianfang bestimmt die Person («Alisia – Meine Fehler.html»). Jede Datei wird hochgeladen und genau dieser Person zugewiesen.</p>'+
+    '<div class="modal-actions" style="justify-content:flex-start;"><button class="btn btn-primary btn-sm" id="ivSammel" type="button" disabled>📂 Dateien wählen …</button><input type="file" id="ivDateien" accept=".html,.htm" multiple hidden></div></div>'+
+    '</div>'+
+    '<div class="section-label">Bisher zugewiesen</div><div id="ivListe"><p class="muted">Wird geladen …</p></div>'+
     '<div class="modal-actions"><button class="btn btn-ghost btn-sm" id="modalCancel" type="button">Schliessen</button></div>';
-  openModal(h);
+  openModal(h, 'iv-modal');
   document.getElementById('modalCancel').addEventListener('click', closeModal);
+  var formEl = document.getElementById('ivForm'), formArt = '';
+  function formZeigen(art){
+    formArt = (formArt === art && !formEl.hidden) ? '' : art;
+    formEl.hidden = !formArt;
+    document.getElementById('ivTeilNeu').hidden = formArt !== 'neu';
+    document.getElementById('ivTeilSammel').hidden = formArt !== 'sammel';
+    document.getElementById('ivNeuBtn').className = 'btn btn-sm '+(formArt === 'neu' ? 'btn-ghost' : 'btn-primary');
+    if(formArt) document.getElementById('ivFach').focus();
+  }
+  document.getElementById('ivNeuBtn').addEventListener('click', function(){ formZeigen('neu'); });
+  document.getElementById('ivSammelBtn').addEventListener('click', function(){ formZeigen('sammel'); });
   var fachSel = document.getElementById('ivFach'), uebSel = document.getElementById('ivUeb'), wahl = document.getElementById('ivWahl'), geladen = {};
   fachSel.addEventListener('change', function(){
     var f = fachSel.value; wahl.disabled = true; uebSel.disabled = true;
@@ -34510,7 +34549,7 @@ function indivVerwaltung(){
   sammelBtn.addEventListener('click', function(){ dateiIn.click(); });
   dateiIn.addEventListener('change', function(){ if(dateiIn.files.length) indivSammelVorschau(fachSel.value, Array.prototype.slice.call(dateiIn.files)); });
   wahl.addEventListener('click', function(){ var r = geladen[uebSel.value]; if(r) indivZuweisenDialog(r); });
-  // Übersicht
+  // Übersicht (seit 20.11.2026 geordnet): oben aktiv nach Übung (Chips pro Person) oder nach Person, unten das Archiv nach Fächern.
   getDocs(query(kcol('resources'), where('indiv.uid', '>', ''))).then(function(snap){
     var rows = []; snap.forEach(function(d){ rows.push(Object.assign({id: d.id}, d.data())); });
     var host = document.getElementById('ivListe'); if(!host) return;
@@ -34518,24 +34557,108 @@ function indivVerwaltung(){
     var uids = {}; rows.forEach(function(r){ uids[r.indiv.uid] = true; });
     return Promise.all(Object.keys(uids).map(function(u){
       return getDoc(doc(db, 'progress', u, 'erledigt', 'liste')).then(function(sn){ uids[u] = (sn.exists() && sn.data().ids) || {}; }).catch(function(){ uids[u] = {}; });
-    })).then(function(){
-      rows.sort(function(a, b){ return String(a.indiv.name).localeCompare(String(b.indiv.name), 'de') || String(b.indiv.am).localeCompare(String(a.indiv.am)); });
-      var fachName = function(id){ var f = subjectById(id); return f ? f.name : id; };
-      host.innerHTML = rows.map(function(r){
-        var t = uids[r.indiv.uid]['iu_'+r.id];
-        var st = typeof t === 'number' ? '<span class="chip-indiv">✅ gelöst '+new Date(t).toLocaleDateString('de-CH')+(Date.now() - t > INDIV_ARCHIV_TAGE * 86400000 ? ' · Archiv' : '')+'</span>' : '<span class="muted">○ offen</span>';
-        return '<div class="lp-check" style="justify-content:space-between;gap:8px;"><span><b>'+esc(r.indiv.name)+'</b> · '+esc(fachName(r.subject))+' · '+esc(r.title || r.fileName)+' '+st+'</span>'+
-          '<button class="btn btn-ghost btn-sm" type="button" data-iuweg="'+esc(r.id)+'" title="Zuweisung entfernen">🗑️</button></div>';
-      }).join('');
-      Array.prototype.forEach.call(host.querySelectorAll('[data-iuweg]'), function(b){
-        b.addEventListener('click', function(){
-          b.disabled = true;
-          deleteDoc(kdoc('resources', b.getAttribute('data-iuweg'))).then(function(){ var z = b.parentNode; if(z && z.parentNode) z.parentNode.removeChild(z); toast('Zuweisung entfernt.'); })
-            .catch(function(err){ console.error(err); b.disabled = false; toast('Hat nicht geklappt.'); });
-        });
-      });
-    });
+    })).then(function(){ indivUebersicht(host, rows, uids); });
   }).catch(function(err){ console.error(err); var host = document.getElementById('ivListe'); if(host) host.innerHTML = '<p class="muted">Liste konnte nicht geladen werden.</p>'; });
+}
+function indivUebersicht(host, rows, uids){
+  var modus = lsGet(LIB_PREFIX+'iv_modus') === 'person' ? 'person' : 'uebung', offeneDetails = {}, offenesMenu = '';
+  var fachOrd = {}; SUBJECTS.forEach(function(f, i){ fachOrd[f.id] = i; });
+  var fachName = function(id){ var f = subjectById(id); return f ? f.name : id; };
+  var fachEtikett = function(id){ var f = subjectById(id); return '<span class="iv-fach" style="--fc:'+esc((f && f.color) || '#475569')+'">'+esc(f ? f.name : id)+'</span>'; };
+  var geloestAm = function(r){ var t = (uids[r.indiv.uid] || {})['iu_'+r.id]; return typeof t === 'number' ? t : 0; };
+  var imArchiv = function(r){ var t = geloestAm(r); return !!t && Date.now() - t > INDIV_ARCHIV_TAGE * 86400000; };
+  var datum = function(t){ return new Date(t).toLocaleDateString('de-CH', {day:'numeric', month:'numeric'}); };
+  var name = function(r){ return r.indiv.name || '?'; };
+  function chip(r, text){
+    var t = geloestAm(r);
+    return '<span class="iv-chip'+(t ? ' ok' : '')+'" title="'+esc(t ? 'gelöst am '+new Date(t).toLocaleDateString('de-CH') : 'offen')+'"><span>'+(t ? '✓ ' : '')+esc(text)+(t ? ' · '+datum(t) : '')+'</span>'+
+      '<button type="button" data-iuweg="'+esc(r.id)+'" title="Zuweisung entfernen" aria-label="Zuweisung entfernen">×</button></span>';
+  }
+  function chipSort(a, b){ return (geloestAm(a) ? 1 : 0) - (geloestAm(b) ? 1 : 0) || String(name(a)).localeCompare(String(name(b)), 'de'); }
+  function gruppen(liste){
+    var map = {}, out = [];
+    liste.forEach(function(r){
+      var key = r.subject+'|'+(r.indiv.von || 't:'+(r.title || r.fileName));
+      if(!map[key]){ map[key] = {key: key, subject: r.subject, titel: r.title || r.fileName, rows: []}; out.push(map[key]); }
+      map[key].rows.push(r);
+    });
+    out.forEach(function(g){
+      g.rows.sort(chipSort);
+      g.geloest = g.rows.filter(geloestAm).length;
+      g.neu = g.rows.reduce(function(m, r){ return String(r.indiv.am || '') > m ? String(r.indiv.am || '') : m; }, '');
+      g.zuletzt = g.rows.reduce(function(m, r){ return Math.max(m, geloestAm(r)); }, 0);
+    });
+    return out;
+  }
+  function uebKarte(g){
+    var n = g.rows.length, offen = offenesMenu === g.key;
+    return '<div class="iv-karte"><div class="iv-kopf">'+fachEtikett(g.subject)+'<span style="flex:1"></span>'+
+      '<span class="iv-stand">'+g.geloest+'/'+n+' gelöst</span><button class="iv-mehr" type="button" data-ivmenu="'+esc(g.key)+'" title="Mehr" aria-label="Mehr">⋯</button></div>'+
+      '<span class="iv-titel2">'+esc(g.titel)+'</span>'+
+      (n > 1 ? '<div class="iv-balken"><i style="width:'+Math.round(g.geloest / n * 100)+'%"></i></div>' : '')+
+      '<div class="iv-chips">'+g.rows.map(function(r){ return chip(r, name(r)); }).join('')+'</div>'+
+      (offen ? '<div class="iv-aktion"><button class="btn btn-danger btn-sm" type="button" data-ivalle="'+esc(g.key)+'">🗑️ Für alle entfernen ('+n+')</button></div>' : '')+'</div>';
+  }
+  function personKarten(liste, mitFach){
+    var map = {}, out = [];
+    liste.forEach(function(r){ var u = r.indiv.uid; if(!map[u]){ map[u] = {name: name(r), rows: []}; out.push(map[u]); } map[u].rows.push(r); });
+    out.sort(function(a, b){ return String(a.name).localeCompare(String(b.name), 'de'); });
+    return out.map(function(p){
+      p.rows.sort(function(a, b){ return (geloestAm(a) ? 1 : 0) - (geloestAm(b) ? 1 : 0) || String(b.indiv.am || '').localeCompare(String(a.indiv.am || '')); });
+      var offen = p.rows.filter(function(r){ return !geloestAm(r); }).length;
+      return '<div class="iv-karte"><div class="iv-kopf"><span class="iv-titel">'+esc(p.name)+'</span><span class="iv-stand">'+(offen ? offen+' offen' : 'alles gelöst ✓')+'</span></div>'+
+        '<div class="iv-chips">'+p.rows.map(function(r){ return chip(r, (mitFach ? fachName(r.subject)+' · ' : '')+(r.title || r.fileName)); }).join('')+'</div></div>';
+    }).join('');
+  }
+  function archivHtml(nachFach){
+    var faecher = Object.keys(nachFach).sort(function(a, b){ return (fachOrd[a] == null ? 999 : fachOrd[a]) - (fachOrd[b] == null ? 999 : fachOrd[b]); });
+    if(!faecher.length) return '';
+    var total = faecher.reduce(function(s, f){ return s + nachFach[f].anzahl; }, 0);
+    return '<details class="iv-archiv" data-ivdet="archiv"'+(offeneDetails.archiv ? ' open' : '')+'><summary>🗄️ Archiv · '+total+'</summary>'+
+      faecher.map(function(f){ return '<details class="iv-afach" data-ivdet="f:'+esc(f)+'"'+(offeneDetails['f:'+f] ? ' open' : '')+'><summary>'+fachEtikett(f)+' · '+nachFach[f].anzahl+'</summary>'+nachFach[f].html+'</details>'; }).join('')+'</details>';
+  }
+  function zeichnen(){
+    Array.prototype.forEach.call(host.querySelectorAll('details[data-ivdet]'), function(d){ offeneDetails[d.getAttribute('data-ivdet')] = d.open; });
+    if(!rows.length){ host.innerHTML = '<p class="muted">Noch nichts zugewiesen.</p>'; return; }
+    var nOffen = rows.filter(function(r){ return !geloestAm(r); }).length;
+    var h = '<div class="iv-leiste"><div class="iv-modus"><button type="button" data-ivmodus="uebung" class="'+(modus === 'uebung' ? 'on' : '')+'">Nach Übung</button><button type="button" data-ivmodus="person" class="'+(modus === 'person' ? 'on' : '')+'">Nach Person</button></div>'+
+      '<span class="iv-zahl">'+nOffen+' offen · '+(rows.length - nOffen)+' gelöst</span></div>';
+    var aktiv = '', archiv = {};
+    if(modus === 'uebung'){
+      var gs = gruppen(rows);
+      var akt = gs.filter(function(g){ return !g.rows.every(imArchiv); }), alt = gs.filter(function(g){ return g.rows.every(imArchiv); });
+      akt.sort(function(a, b){ return ((a.geloest === a.rows.length) ? 1 : 0) - ((b.geloest === b.rows.length) ? 1 : 0) || b.neu.localeCompare(a.neu); });
+      aktiv = akt.map(uebKarte).join('');
+      alt.sort(function(a, b){ return b.zuletzt - a.zuletzt; });
+      alt.forEach(function(g){ var a = archiv[g.subject] || (archiv[g.subject] = {anzahl: 0, html: ''}); a.anzahl++; a.html += uebKarte(g); });
+    } else {
+      aktiv = personKarten(rows.filter(function(r){ return !imArchiv(r); }), true);
+      var proFach = {};
+      rows.filter(imArchiv).forEach(function(r){ (proFach[r.subject] || (proFach[r.subject] = [])).push(r); });
+      Object.keys(proFach).forEach(function(f){ archiv[f] = {anzahl: proFach[f].length, html: personKarten(proFach[f], false)}; });
+    }
+    h += (aktiv || '<p class="muted">Alles erledigt – nichts Aktuelles.</p>') + archivHtml(archiv);
+    host.innerHTML = h;
+  }
+  function entfernen(ids, btn){
+    if(btn) btn.disabled = true;
+    Promise.all(ids.map(function(id){ return deleteDoc(kdoc('resources', id)); })).then(function(){
+      rows = rows.filter(function(r){ return ids.indexOf(r.id) < 0; }); offenesMenu = ''; zeichnen();
+      toast(ids.length === 1 ? 'Zuweisung entfernt.' : ids.length+' Zuweisungen entfernt.');
+    }).catch(function(err){ console.error(err); if(btn) btn.disabled = false; toast('Hat nicht geklappt.'); });
+  }
+  host.addEventListener('click', function(e){
+    var b = e.target.closest('button'); if(!b || !host.contains(b)) return;
+    if(b.hasAttribute('data-ivmodus')){ modus = b.getAttribute('data-ivmodus'); lsSet(LIB_PREFIX+'iv_modus', modus); offenesMenu = ''; zeichnen(); }
+    else if(b.hasAttribute('data-iuweg')) entfernen([b.getAttribute('data-iuweg')], b);
+    else if(b.hasAttribute('data-ivmenu')){ var k = b.getAttribute('data-ivmenu'); offenesMenu = offenesMenu === k ? '' : k; zeichnen(); }
+    else if(b.hasAttribute('data-ivalle')){
+      if(!b.getAttribute('data-sicher')){ b.setAttribute('data-sicher', '1'); b.textContent = 'Wirklich für alle entfernen?'; return; }
+      var key = b.getAttribute('data-ivalle'), g = gruppen(rows).filter(function(x){ return x.key === key; })[0];
+      if(g) entfernen(g.rows.map(function(r){ return r.id; }), b);
+    }
+  });
+  zeichnen();
 }
 function kzToolStarten(id){
   if(id === 'material'){ state.route = {name:'kzmaterial'}; render(); }
@@ -37453,9 +37576,10 @@ function pipStarten(art, id){
   // Video-Bild-in-Bild (Canvas-Stream) bevorzugt: Es schwebt auch vor Apps im
   // Vollbild. Das Dokument-Bild-in-Bild von Chrome tut das auf dem Mac nicht.
   // Nur ohne Video-Weg: HTML-Fenster (Document PiP bzw. kleines eigenes Fenster).
-  // Installierte App (eigenes App-Fenster) oder der Video-Weg hat schon einmal
-  // versagt: gleich das HTML-Fenster, solange der Klick noch gilt.
-  if(!pipMoeglich() || pipVideoTot || pipAlsApp()){ pipFensterStarten(art, id); return; }
+  // 20.11.2026: Auch in der installierten App zuerst der Video-Weg, damit das Fenster vor
+  // Vollbild-Apps (PowerPoint, Keynote, Beamer) sichtbar bleibt. Startet das Video nicht
+  // (nach 2 s oder Fehler), springt pipAnfordern von selbst aufs HTML-Fenster (pipVideoTot).
+  if(!pipMoeglich() || pipVideoTot){ pipFensterStarten(art, id); return; }
   if(pipv.video && pipv.art === art && pipv.id === (id || null) && document.pictureInPictureElement !== pipv.video && !pipv.video.webkitPresentationMode){ pipStoppen(); }
   else if(pipv.video && pipv.art === art && pipv.id === (id || null)){ pipAnfordern(); return; }
   pipStoppen();
