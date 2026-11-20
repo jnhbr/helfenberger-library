@@ -17598,22 +17598,46 @@ function indivKartenAufwerten(liste, isTeacher, neuZeichnen){
     }
   });
 }
-function indivZuweisenDialog(r){
-  loadStudentRoster().then(function(roster){
-    roster = roster.filter(function(x){ return !x.gruppenGast; }).sort(function(a, b){ return String(a.displayName || a.username).localeCompare(String(b.displayName || b.username), 'de'); });
+/* Klassenwahl bei individuellen Übungen (seit 20.11.2026): Zuweisen geht auch an Schüler:innen anderer Klassen.
+   Die Zuweisung landet dann als Metadaten-Kopie in klassen/{andere}/resources (Inhalt bleibt global über contentId). */
+function indivKlassenIds(){
+  var ids = KLASSEN.filter(function(k){ return k.art === 'klasse'; }).map(function(k){ return k.id; });
+  if(ids.indexOf(state.klasse) < 0) ids.unshift(state.klasse);
+  return ids;
+}
+function indivKlassenOptionen(akt){
+  return indivKlassenIds().map(function(k){ return '<option value="'+esc(k)+'"'+(k === akt ? ' selected' : '')+'>'+esc(klasseLabel(k))+(k === state.klasse ? ' (diese Seite)' : '')+'</option>'; }).join('');
+}
+function indivRoster(klasse){
+  var sortiert = function(l){ return l.sort(function(a, b){ return String(a.displayName || a.username).localeCompare(String(b.displayName || b.username), 'de'); }); };
+  if(!klasse || klasse === state.klasse) return loadStudentRoster().then(function(l){ return sortiert(l.filter(function(x){ return !x.gruppenGast; })); });
+  return getDocs(query(collection(db, 'students'), where('klasse', '==', klasse))).then(function(snap){
+    var l = [];
+    snap.forEach(function(d){ var x = d.data(); if(x.role === 'student' && String(x.username || '').toLowerCase() !== 'schueler') l.push(Object.assign({uid: d.id}, x)); });
+    return sortiert(l);
+  });
+}
+function indivZuweisenDialog(r, klasse){
+  klasse = klasse || state.klasse;
+  indivRoster(klasse).then(function(roster){
     var h = '<h3>👤 Individuell zuweisen: '+esc(r.title || r.fileName)+'</h3>'+
+      '<label class="modal-label">Klasse</label><select id="iuKlasse" class="modal-input">'+indivKlassenOptionen(klasse)+'</select>'+
       '<p class="kz-intro">Die Person bekommt die Übung im Fach ganz unten unter «📌 Individuelle Übung». Sie wird grün, sobald sie gelöst ist, und wandert nach 7 Tagen ins Archiv.</p>'+
-      indivThemaFeld(r.subject, ((r.folderId && state.folders.filter(function(f){ return f.id === r.folderId; })[0]) || {}).name || r.title || '', 'iuThema')+
+      indivThemaFeld(r.subject, r._iuThema || ((r.folderId && state.folders.filter(function(f){ return f.id === r.folderId; })[0]) || {}).name || r.title || '', 'iuThema')+
       '<div class="back-row" style="flex-wrap:wrap;margin:0 0 6px;"><button class="btn btn-ghost btn-sm" id="iuAlle" type="button">Ganze Klasse</button><button class="btn btn-ghost btn-sm" id="iuKeine" type="button">Keine</button><span id="iuGruppen"></span></div>'+
-      '<div style="max-height:calc(40vh/var(--lz,1));overflow:auto;">'+roster.map(function(x){
+      '<div style="max-height:calc(40vh/var(--lz,1));overflow:auto;">'+(roster.length ? roster.map(function(x){
         return '<label class="lp-check"><input type="checkbox" data-iu="'+esc(x.uid)+'"> <span>'+esc(x.displayName || x.username)+'</span></label>';
-      }).join('')+'</div><p class="kz-intro" id="iuHinweis" style="margin:4px 0;"></p>'+
+      }).join('') : '<p class="muted">In dieser Klasse sind keine Schüler:innen erfasst.</p>')+'</div><p class="kz-intro" id="iuHinweis" style="margin:4px 0;"></p>'+
       '<div class="modal-actions"><button class="btn btn-ghost btn-sm" id="modalCancel" type="button">Abbrechen</button><button class="btn btn-primary btn-sm" id="iuOk" type="button">Zuweisen</button></div>';
     openModal(h);
     function boxen(){ return Array.prototype.slice.call(document.querySelectorAll('[data-iu]')); }
     document.getElementById('iuKeine').addEventListener('click', function(){ boxen().forEach(function(b){ b.checked = false; }); });
     document.getElementById('iuAlle').addEventListener('click', function(){ boxen().forEach(function(b){ b.checked = true; }); });
-    if(!isLeitung()) loadMeineGruppen().then(function(gs){
+    document.getElementById('iuKlasse').addEventListener('change', function(){
+      r._iuThema = (document.getElementById('iuThema').value || '').trim();
+      indivZuweisenDialog(r, this.value);
+    });
+    if(!isLeitung() && klasse === state.klasse) loadMeineGruppen().then(function(gs){
       var host = document.getElementById('iuGruppen'); if(!host) return;
       gs.filter(function(g){ return gruppeHatFach(g, r.subject); }).slice(0, 8).forEach(function(g){
         var b = document.createElement('button'); b.type = 'button'; b.className = 'btn btn-ghost btn-sm'; b.textContent = '👥 ' + g.name;
@@ -17631,14 +17655,14 @@ function indivZuweisenDialog(r){
       try{ lsSet(LIB_PREFIX+'iu_thema', thema); }catch(e){}
       gew.forEach(function(uid, i){
         var kopie = Object.assign({}, r);
-        ['id','current','empfohlen','ausgeblendet','nurLehrer','niveau','order','imHub'].forEach(function(k){ delete kopie[k]; });
+        ['id','current','empfohlen','ausgeblendet','nurLehrer','niveau','order','imHub','_iuThema'].forEach(function(k){ delete kopie[k]; });
         kopie.folderId = null; kopie.contentId = r.contentId || r.id;
         kopie.nurFuer = [uid];
         kopie.indiv = {uid: uid, name: namen[uid] || '', am: jetzt, von: r.id, thema: thema};
         kopie.uploadedAt = serverTimestamp(); kopie.uploadedBy = state.user.uid;
-        batch.set(kdoc('resources', r.subject+'_iu_'+Date.now()+'_'+i), kopie);
+        batch.set(kdocFor(klasse, 'resources', r.subject+'_iu_'+Date.now()+'_'+i), kopie);
       });
-      batch.commit().then(function(){ closeModal(); toast('📌 Zugewiesen an '+gew.length+' Person'+(gew.length === 1 ? '' : 'en')+'.'); })
+      batch.commit().then(function(){ delete r._iuThema; closeModal(); toast('📌 Zugewiesen an '+gew.length+' Person'+(gew.length === 1 ? '' : 'en')+(klasse !== state.klasse ? ' der '+klasseLabel(klasse) : '')+'.'); })
         .catch(function(err){ console.error(err); toast('Hat nicht geklappt.'); });
     });
   }).catch(function(err){ console.error(err); toast('Klasse konnte nicht geladen werden.'); });
@@ -26769,6 +26793,7 @@ function aemtliMeineTermine_(cfg, uid){
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
   {id:'2026-11-20-niveau-diktate', datum:'2026-11-20', fuer:'lehrer', text:'📊 Fehleranalyse Diktate kennt jetzt die neuen Niveau-Diktate 12–21 (Deutsch › Diktate): gezählt wird der neueste Versuch über alle drei Niveaus, in der Tabelle stehen Niveau und Note. Neu als Fehlerarten: das/dass, Dehnung mit ie und Satzzeichen.'},
+  {id:'2026-11-20-indiv-klassen', datum:'2026-11-20', fuer:'lehrer', text:'📌 Individuelle Übungen: Beim Zuweisen und bei der Sammelzuweisung kannst du jetzt auch eine andere Klasse wählen. Deine Zuweisungen in anderen Klassen erscheinen in der Übersicht mit der Klasse hinter dem Namen, z. B. «Lea (G3a)».'},
   {id:'2026-11-20-indiv-uebersicht', datum:'2026-11-20', fuer:'lehrer', text:'📌 Individuelle Übungen aufgeräumt: Die Übersicht zeigt pro Übung eine Karte mit «x/y gelöst» und den Namen als Chips (× entfernt eine Person, ⋯ entfernt für alle). Umschalter «Nach Person» zeigt alles pro Kind. Zuweisen und Sammelzuweisung sind hinter zwei Knöpfen oben, das Archiv ist unten nach Fächern eingeklappt.'},
   {id:'2026-11-20-rsw-abstreichen', datum:'2026-11-20', fuer:'alle', text:'✍️ Rechtschreib-Werkstatt: Bei Lückentexten mit «Wörter zum Einsetzen» kannst du ein Wort antippen, um es abzustreichen (nochmals antippen holt es zurück). Was du abgestrichen hast, bleibt gespeichert, dein bisheriger Stand auch.'},
   {id:'2026-11-20-pin-vollbild', datum:'2026-11-20', fuer:'lehrer', text:'📌 Das angepinnte Fenster (Lernphase/Prüfung) bleibt jetzt auch in der installierten App vor Apps im Vollbild sichtbar (als Bild-in-Bild). Es ist nur eine Anzeige, anklicken geht nicht.'},
@@ -34460,9 +34485,9 @@ function renderKlassenzimmer(){
 /* 📌 Klassenzimmer-Kachel «Individuelle Übungen»: neu zuweisen (Fach › Übung › Personen) und Übersicht, wer was hat und gelöst hat. */
 // Sammelzuweisung: Dateiname «Vorname – Titel.html» → Person der Klasse (Vorname gleich, Gross-/Kleinschreibung und «(G3a)»-Zusätze egal).
 function indivNameNorm(x){ return String(x || '').toLowerCase().replace(/\(.*?\)/g, '').replace(/ä/g, 'a').replace(/ö/g, 'o').replace(/ü/g, 'u').replace(/[^a-z0-9]+/g, ' ').trim(); }
-function indivSammelVorschau(fach, dateien){
-  loadStudentRoster().then(function(roster){
-    roster = roster.filter(function(x){ return !x.gruppenGast; });
+function indivSammelVorschau(fach, dateien, klasse){
+  klasse = klasse || state.klasse;
+  indivRoster(klasse).then(function(roster){
     var zeilen = dateien.map(function(f){
       var stamm = f.name.replace(/\.html?$/i, '');
       var teile = stamm.split(/\s+[–-]\s+/);
@@ -34472,7 +34497,7 @@ function indivSammelVorschau(fach, dateien){
       return {file: f, titel: (teile.length > 1 ? teile.slice(1).join(' – ') : stamm).slice(0, 120), person: treffer.length === 1 ? treffer[0] : null, grund: treffer.length > 1 ? 'mehrere Treffer' : 'keine Person gefunden'};
     });
     var ok = zeilen.filter(function(z){ return z.person; });
-    var h = '<h3>📂 Sammelzuweisung · '+esc((subjectById(fach) || {}).name || fach)+'</h3><div style="max-height:calc(45vh/var(--lz,1));overflow:auto;">'+
+    var h = '<h3>📂 Sammelzuweisung · '+esc((subjectById(fach) || {}).name || fach)+' · '+esc(klasseLabel(klasse))+'</h3><div style="max-height:calc(45vh/var(--lz,1));overflow:auto;">'+
       zeilen.map(function(z){ return '<div class="lp-check"><span>'+(z.person ? '✅ <b>'+esc(z.person.displayName || z.person.username)+'</b>' : '⚠️ <b>'+esc(z.grund)+'</b>')+' ← '+esc(z.file.name)+(z.person ? '' : ' (wird übersprungen)')+'</span></div>'; }).join('')+'</div>'+
       indivThemaFeld(fach, '', 'ivSThema')+
       '<p class="kz-intro" id="ivSHinweis"></p><div class="modal-actions"><button class="btn btn-ghost btn-sm" id="modalCancel" type="button">Abbrechen</button><button class="btn btn-primary btn-sm" id="ivSOk" type="button"'+(ok.length ? '' : ' disabled')+'>'+ok.length+' hochladen und zuweisen</button></div>';
@@ -34490,7 +34515,7 @@ function indivSammelVorschau(fach, dateien){
             var chunks = contentChunkDocs(content), bytes = contentBytes(content);
             return assertQuota(bytes).then(function(){
               var resId = fach+'_iu_'+Date.now()+'_'+i, batch = writeBatch(db);
-              batch.set(kdoc('resources', resId), {subject: fach, folderId: null, title: z.titel, fileName: z.file.name, uploadedAt: serverTimestamp(), uploadedBy: state.user.uid, contentId: resId, version: 0,
+              batch.set(kdocFor(klasse, 'resources', resId), {subject: fach, folderId: null, title: z.titel, fileName: z.file.name, uploadedAt: serverTimestamp(), uploadedBy: state.user.uid, contentId: resId, version: 0,
                 nurFuer: [z.person.uid], indiv: {uid: z.person.uid, name: z.person.displayName || z.person.username, am: new Date().toISOString(), von: '', thema: thema}});
               batch.set(doc(db, 'resourceContent', resId), {chunkCount: chunks.length, bytes: bytes, ownerUid: state.user.uid});
               chunks.forEach(function(chunk, ci){ batch.set(doc(db, 'resourceContent', resId, 'chunks', String(ci)), chunk); });
@@ -34508,6 +34533,7 @@ function indivVerwaltung(){
   var h = '<h3>📌 Individuelle Übungen</h3>'+
     '<div class="iv-top"><button class="btn btn-primary btn-sm" id="ivNeuBtn" type="button">＋ Zuweisen</button><button class="btn btn-ghost btn-sm" id="ivSammelBtn" type="button">📂 Sammelzuweisung</button></div>'+
     '<div class="iv-form" id="ivForm" hidden>'+
+    '<label class="modal-label">Klasse</label><select id="ivKlasse" class="modal-input">'+indivKlassenOptionen(state.klasse)+'</select>'+
     '<label class="modal-label">Fach</label><select id="ivFach" class="modal-input"><option value="">– Fach wählen –</option>'+
       SUBJECTS.map(function(f){ return '<option value="'+esc(f.id)+'">'+esc(f.name)+'</option>'; }).join('')+'</select>'+
     '<div id="ivTeilNeu"><label class="modal-label">Übung</label><select id="ivUeb" class="modal-input" disabled><option value="">– erst Fach wählen –</option></select>'+
@@ -34547,11 +34573,18 @@ function indivVerwaltung(){
   var sammelBtn = document.getElementById('ivSammel'), dateiIn = document.getElementById('ivDateien');
   fachSel.addEventListener('change', function(){ sammelBtn.disabled = !fachSel.value; });
   sammelBtn.addEventListener('click', function(){ dateiIn.click(); });
-  dateiIn.addEventListener('change', function(){ if(dateiIn.files.length) indivSammelVorschau(fachSel.value, Array.prototype.slice.call(dateiIn.files)); });
-  wahl.addEventListener('click', function(){ var r = geladen[uebSel.value]; if(r) indivZuweisenDialog(r); });
+  var klSel = document.getElementById('ivKlasse');
+  dateiIn.addEventListener('change', function(){ if(dateiIn.files.length) indivSammelVorschau(fachSel.value, Array.prototype.slice.call(dateiIn.files), klSel.value); });
+  wahl.addEventListener('click', function(){ var r = geladen[uebSel.value]; if(r) indivZuweisenDialog(r, klSel.value); });
   // Übersicht (seit 20.11.2026 geordnet): oben aktiv nach Übung (Chips pro Person) oder nach Person, unten das Archiv nach Fächern.
-  getDocs(query(kcol('resources'), where('indiv.uid', '>', ''))).then(function(snap){
-    var rows = []; snap.forEach(function(d){ rows.push(Object.assign({id: d.id}, d.data())); });
+  // Diese Seite: alle Zuweisungen; andere Klassen: nur die eigenen (indiv.uid-Abfrage pro Klasse, ein where()).
+  Promise.all(indivKlassenIds().map(function(k){
+    return getDocs(query(kcolFor(k, 'resources'), where('indiv.uid', '>', ''))).then(function(snap){
+      var l = []; snap.forEach(function(d){ var x = Object.assign({id: d.id, _kl: k}, d.data()); if(k === state.klasse || x.uploadedBy === state.user.uid) l.push(x); });
+      return l;
+    }, function(err){ if(k === state.klasse) throw err; return []; });
+  })).then(function(listen){
+    var rows = [].concat.apply([], listen);
     var host = document.getElementById('ivListe'); if(!host) return;
     if(!rows.length){ host.innerHTML = '<p class="muted">Noch nichts zugewiesen.</p>'; return; }
     var uids = {}; rows.forEach(function(r){ uids[r.indiv.uid] = true; });
@@ -34568,7 +34601,8 @@ function indivUebersicht(host, rows, uids){
   var geloestAm = function(r){ var t = (uids[r.indiv.uid] || {})['iu_'+r.id]; return typeof t === 'number' ? t : 0; };
   var imArchiv = function(r){ var t = geloestAm(r); return !!t && Date.now() - t > INDIV_ARCHIV_TAGE * 86400000; };
   var datum = function(t){ return new Date(t).toLocaleDateString('de-CH', {day:'numeric', month:'numeric'}); };
-  var name = function(r){ return r.indiv.name || '?'; };
+  var name = function(r){ return (r.indiv.name || '?') + (r._kl && r._kl !== state.klasse ? ' ('+klasseLabel(r._kl)+')' : ''); };
+  var klVon = {}; rows.forEach(function(r){ klVon[r.id] = r._kl || state.klasse; });
   function chip(r, text){
     var t = geloestAm(r);
     return '<span class="iv-chip'+(t ? ' ok' : '')+'" title="'+esc(t ? 'gelöst am '+new Date(t).toLocaleDateString('de-CH') : 'offen')+'"><span>'+(t ? '✓ ' : '')+esc(text)+(t ? ' · '+datum(t) : '')+'</span>'+
@@ -34642,7 +34676,7 @@ function indivUebersicht(host, rows, uids){
   }
   function entfernen(ids, btn){
     if(btn) btn.disabled = true;
-    Promise.all(ids.map(function(id){ return deleteDoc(kdoc('resources', id)); })).then(function(){
+    Promise.all(ids.map(function(id){ return deleteDoc(kdocFor(klVon[id] || state.klasse, 'resources', id)); })).then(function(){
       rows = rows.filter(function(r){ return ids.indexOf(r.id) < 0; }); offenesMenu = ''; zeichnen();
       toast(ids.length === 1 ? 'Zuweisung entfernt.' : ids.length+' Zuweisungen entfernt.');
     }).catch(function(err){ console.error(err); if(btn) btn.disabled = false; toast('Hat nicht geklappt.'); });
