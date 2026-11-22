@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stumme Karten</title>
+<link rel="stylesheet" href="../assets/vendor/fonts/schriften.css">
+<!--
+  🗺️ Stumme Karten (Geografie, Lehrpersonen) — Helfenberger's Library
+  Region wählen, Länder bekommen Nummern (zufällig oder von Nord nach Süd), Antwortzeilen, Lösungsblatt.
+  Länder antippen = Nummer an/aus. Druck A4 quer im Altnau-Stil, ohne Kopfzeilen des Browsers.
+  Projektion: Equal Earth (flächentreu) für Welt und Kontinente, für kleine Regionen eine einfache Zylinderprojektion.
+  Daten: ../wahre-groesse/laender.json (Natural Earth 1:50m, gemeinfrei, deutsche Namen). Kein Firestore.
+-->
+<style>
+  :root{ --bg:#F3F4F8; --surface:#FFFFFF; --border:#D9DCE6; --text:#1B2133; --muted:#626A82; --akzent:#1F7A8C; --akzent-soft:#DCEFF2; color-scheme: light; }
+  @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){ --bg:#141720; --surface:#1D2130; --border:#30364A; --text:#ECEEF5; --muted:#A1A7BD; --akzent:#4FB3C6; --akzent-soft:#173843; color-scheme: dark; } }
+  :root[data-theme="dark"]{ --bg:#141720; --surface:#1D2130; --border:#30364A; --text:#ECEEF5; --muted:#A1A7BD; --akzent:#4FB3C6; --akzent-soft:#173843; color-scheme: dark; }
+  *{box-sizing:border-box;}
+  html,body{margin:0;height:100%;}
+  body{background:var(--bg);color:var(--text);font-family:'Atkinson Hyperlegible',-apple-system,BlinkMacSystemFont,sans-serif;font-size:15px;display:flex;}
+  button,input,select{font:inherit;color:inherit;}
+  aside{width:310px;flex:none;background:var(--surface);border-right:1px solid var(--border);padding:16px;overflow:auto;height:100vh;}
+  h1{font-size:1.15rem;margin:0 0 12px;}
+  .regionen{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:12px;}
+  .regionen button,.knopf{border:1px solid var(--border);background:var(--bg);border-radius:10px;padding:7px 8px;cursor:pointer;text-align:left;font-size:.9rem;}
+  .regionen button.an{border-color:var(--akzent);background:var(--akzent-soft);font-weight:700;}
+  label.feld{display:flex;justify-content:space-between;align-items:center;gap:10px;margin:8px 0;font-size:.92rem;}
+  label.feld select{width:150px;padding:5px 8px;border:1px solid var(--border);border-radius:8px;background:var(--bg);}
+  label.check{display:flex;gap:8px;align-items:center;margin:8px 0;font-size:.92rem;}
+  .reihe{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0;}
+  .gruppe{border-top:1px solid var(--border);padding-top:8px;margin-top:10px;}
+  .druck{width:100%;margin-top:10px;padding:10px;border-radius:10px;border:0;background:var(--akzent);color:#fff;font-weight:700;cursor:pointer;}
+  .druck.zwei{background:var(--surface);color:var(--text);border:1px solid var(--border);}
+  .tipp{font-size:.82rem;color:var(--muted);line-height:1.4;}
+  main{flex:1;overflow:auto;padding:24px;height:100vh;}
+  .blatt-wrap{transform-origin:top left;}
+  .blatt{background:#fff;box-shadow:0 2px 6px rgba(0,0,0,.12),0 18px 40px -20px rgba(0,0,0,.35);display:block;}
+  .land{cursor:pointer;}
+  .land:hover{fill:#FFF3C4;}
+  @page{ size:A4 landscape; margin:0; }
+  @media print{
+    body{display:block;background:#fff;}
+    aside{display:none;}
+    main{padding:0;height:auto;overflow:visible;}
+    .blatt-wrap{transform:none !important;width:auto !important;height:auto !important;}
+    .blatt{box-shadow:none;}
+    .nur-loesung,.nur-blatt{display:none;}
+    body.druck-loesung .nur-loesung{display:block;}
+    body.druck-blatt .nur-blatt{display:block;}
+  }
+</style>
+</head>
+<body>
+<aside>
+  <h1>🗺️ Stumme Karten</h1>
+  <div class="regionen" id="regionen"></div>
+  <label class="feld">Beschriftung <select id="beschriftung"><option value="nummern">Nummern</option><option value="namen">Namen (Lernkarte)</option><option value="leer">Nichts (ganz stumm)</option></select></label>
+  <label class="feld">Reihenfolge <select id="reihenfolge"><option value="zufall">zufällig</option><option value="nord">von Nord nach Süd</option><option value="abc">alphabetisch</option></select></label>
+  <label class="feld">Welche Länder <select id="auswahl"><option value="gross">grosse und mittlere</option><option value="alle">alle</option><option value="keine">keine (selbst antippen)</option></select></label>
+  <div class="reihe"><button class="knopf" id="mischen" type="button">🔀 Neu mischen</button></div>
+  <p class="tipp">Auf der Karte ein Land antippen: Nummer an oder aus.</p>
+  <div class="gruppe">
+    <label class="check"><input type="checkbox" id="zeilen" checked> Antwortzeilen neben der Karte</label>
+    <label class="check"><input type="checkbox" id="meer" checked> Meer hellblau</label>
+    <label class="feld">Titel <input id="titel" style="width:150px;padding:5px 8px;border:1px solid var(--border);border-radius:8px;background:var(--bg);"></label>
+  </div>
+  <button class="druck" id="druckBlatt" type="button">🖨️ Arbeitsblatt drucken</button>
+  <button class="druck zwei" id="druckLoesung" type="button">🖨️ Lösung drucken</button>
+  <p class="tipp" style="margin-top:8px">A4 quer, im Druckdialog «Tatsächliche Grösse» wählen. Kopf- und Fusszeilen des Browsers sind ausgeschaltet.</p>
+</aside>
+<main><div class="blatt-wrap" id="wrap"></div></main>
+<script>
+(function(){
+  'use strict';
+  var NS = 'http://www.w3.org/2000/svg', RAD = Math.PI/180;
+  var REGIONEN = [
+    {id:'welt', n:'🌍 Welt', box:[-180,180,-57,84], proj:'ee', l0:0, min:600000},
+    {id:'europa', n:'🇪🇺 Europa', box:[-25,45,34,71.5], proj:'ee', l0:12, min:1500, nur:[-25,45,34,72]},
+    {id:'afrika', n:'🌍 Afrika', box:[-19,53,-36,38], proj:'ee', l0:17, min:20000},
+    {id:'asien', n:'🌏 Asien', box:[25,150,-11,56], proj:'ee', l0:88, min:30000},
+    {id:'nordamerika', n:'🌎 Nord- & Mittelamerika', box:[-170,-52,6,74], proj:'ee', l0:-100, min:9000},
+    {id:'suedamerika', n:'🌎 Südamerika', box:[-83,-33,-56,13], proj:'ee', l0:-60, min:20000},
+    {id:'ozeanien', n:'🌏 Ozeanien', box:[110,180,-48,0], proj:'ee', l0:150, min:10000},
+    {id:'schweiz', n:'🇨🇭 Schweiz & Nachbarn', box:[4.3,17.5,43.2,51.2], proj:'zyl', l0:10, min:100, nur:['CH','DE','FR','IT','AT','LI']}
+  ];
+  var st = {region:'europa', beschriftung:'nummern', reihenfolge:'zufall', auswahl:'gross', zeilen:true, meer:true, titel:'', seed:1};
+  var laender = [], markiert = {}, mm = 1;   // markiert[a2|name] = true
+
+  // ---------- Projektion ----------
+  var A1 = 1.340264, A2 = -0.081106, A3 = 0.000893, A4 = 0.003796, M = Math.sqrt(3)/2;
+  function equalEarth(l, p){ var th = Math.asin(M * Math.sin(p)), t2 = th*th, t6 = t2*t2*t2;
+    return [2*Math.sqrt(3)*l*Math.cos(th) / (3*(9*A4*t6*t2 + 7*A3*t6 + 3*A2*t2 + A1)), A4*t6*t2*th + A3*t6*th + A2*t2*th + A1*th]; }
+  function projektor(R){
+    var c = Math.cos(((R.box[2] + R.box[3]) / 2) * RAD);
+    return function(lon, lat){
+      var dl = lon - R.l0;
+      if(R.proj === 'zyl') return [dl * RAD * c, -lat * RAD];
+      var q = equalEarth(dl * RAD, lat * RAD); return [q[0], -q[1]];
+    };
+  }
+  function el(tag, a, p){ var e = document.createElementNS(NS, tag); for(var k in a) e.setAttribute(k, a[k]); if(p) p.appendChild(e); return e; }
+  function rnd(seed){ return function(){ seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646; }; }
+  function schluessel(l){ return l.a || l.n; }
+
+  // Ringe für die Region: Länge stetig relativ zu l0 halten (Datumsgrenze)
+  function regionRinge(l, R){
+    return l.ringe.map(function(r){
+      var o = r.slice(), mitte = o[0];
+      var shift = 0; while(mitte + shift - R.l0 > 180) shift -= 360; while(mitte + shift - R.l0 < -180) shift += 360;
+      for(var i = 0; i < o.length; i += 2) o[i] += shift;
+      return o;
+    });
+  }
+  function grossterRing(ringe){ var b = ringe[0]; ringe.forEach(function(r){ if(r.length > b.length) b = r; }); return b; }
+  function schwerpunkt(r, P){ // Flächenschwerpunkt des projizierten Rings
+    var A = 0, cx = 0, cy = 0, pts = [];
+    for(var i = 0; i < r.length; i += 2) pts.push(P(r[i], r[i+1]));
+    for(i = 0; i < pts.length; i++){ var a = pts[i], b = pts[(i+1) % pts.length], f = a[0]*b[1] - b[0]*a[1]; A += f; cx += (a[0] + b[0]) * f; cy += (a[1] + b[1]) * f; }
+    if(Math.abs(A) < 1e-12) return pts[0];
+    return [cx / (3*A), cy / (3*A)];
+  }
+
+  function zeichnen(){
+    var R = REGIONEN.find(function(r){ return r.id === st.region; }), P = projektor(R);
+    var W = 297, H = 210, rand = 10, kopfH = 16, fussH = 7;
+    var listeB = st.zeilen && st.beschriftung === 'nummern' ? 70 : 0;
+    var kx = rand, ky = rand + kopfH, kw = W - 2*rand - listeB - (listeB ? 6 : 0), kh = H - rand - kopfH - fussH - rand + 4;
+    // Ausdehnung der Region in Projektionskoordinaten (Raster über die Box)
+    var minX = 1e9, maxX = -1e9, minY = 1e9, maxY = -1e9;
+    for(var lo = R.box[0]; lo <= R.box[1] + 1e-9; lo += (R.box[1] - R.box[0]) / 40) for(var la = R.box[2]; la <= R.box[3] + 1e-9; la += (R.box[3] - R.box[2]) / 40){
+      var q = P(lo, la); minX = Math.min(minX, q[0]); maxX = Math.max(maxX, q[0]); minY = Math.min(minY, q[1]); maxY = Math.max(maxY, q[1]); }
+    var s = Math.min(kw / (maxX - minX), kh / (maxY - minY));
+    var ox = kx + (kw - (maxX - minX) * s) / 2 - minX * s, oy = ky + (kh - (maxY - minY) * s) / 2 - minY * s;
+    function T(lon, lat){ var q = P(lon, lat); return [ox + q[0]*s, oy + q[1]*s]; }
+    var mapX0 = ox + minX*s, mapY0 = oy + minY*s, mapW = (maxX - minX)*s, mapH = (maxY - minY)*s;
+
+    // Länder der Region bestimmen
+    var drin = [];
+    laender.forEach(function(l){
+      var ringe = regionRinge(l, R), g = grossterRing(ringe), c = schwerpunkt(g, function(a, b){ return [P(a, b)[0], P(a, b)[1]]; });
+      var cxy = [ox + c[0]*s, oy + c[1]*s];
+      l._ringe = ringe; l._c = cxy;
+      var imBild = cxy[0] > mapX0 + 2 && cxy[0] < mapX0 + mapW - 2 && cxy[1] > mapY0 + 2 && cxy[1] < mapY0 + mapH - 2;
+      if(R.nur && typeof R.nur[0] === 'string') imBild = R.nur.indexOf(l.a) >= 0;
+      l._drin = imBild;
+      // Schwerpunkt ausserhalb des Ausschnitts (z. B. Frankreich bei «Schweiz & Nachbarn»): Mitte des sichtbaren Teils nehmen
+      var rx0 = mapX0 + 8, rx1 = mapX0 + mapW - 8, ry0 = mapY0 + 8, ry1 = mapY0 + mapH - 8;
+      if(imBild && (cxy[0] < rx0 || cxy[0] > rx1 || cxy[1] < ry0 || cxy[1] > ry1)){
+        var sx = 0, sy = 0, n = 0;
+        ringe.forEach(function(r){ for(var i = 0; i < r.length; i += 2){ var p = T(r[i], r[i+1]); if(p[0] > rx0 && p[0] < rx1 && p[1] > ry0 && p[1] < ry1){ sx += p[0]; sy += p[1]; n++; } } });
+        if(n) l._c = [sx / n, sy / n];
+      }
+      if(imBild) drin.push(l);
+    });
+    // Auswahl (nur beim Regionswechsel oder Auswahl-Änderung neu)
+    if(!markiert.__region || markiert.__region !== R.id + st.auswahl){
+      markiert = {__region: R.id + st.auswahl};
+      drin.forEach(function(l){ if(st.auswahl === 'alle' || (st.auswahl === 'gross' && l.km >= R.min)) markiert[schluessel(l)] = true; });
+    }
+    var nummeriert = drin.filter(function(l){ return markiert[schluessel(l)]; });
+    if(st.reihenfolge === 'nord') nummeriert.sort(function(a, b){ return (a._c[1] - b._c[1]) || (a._c[0] - b._c[0]); });
+    else if(st.reihenfolge === 'abc') nummeriert.sort(function(a, b){ return a.n.localeCompare(b.n, 'de'); });
+    else { var r = rnd(st.seed * 9973 + 7); nummeriert.forEach(function(l){ l._z = r(); }); nummeriert.sort(function(a, b){ return a._z - b._z; }); }
+    nummeriert.forEach(function(l, i){ l._nr = i + 1; });
+
+    function seite(loesung){
+      var svg = el('svg', {xmlns:NS, width:W + 'mm', height:(H - 0.4) + 'mm', viewBox:'0 0 ' + W + ' ' + (H - 0.4), class:'blatt ' + (loesung ? 'nur-loesung' : 'nur-blatt'), 'font-family':'Calibri, Carlito, Arial, sans-serif'});
+      // Kopf im Altnau-Stil
+      var titel = st.titel || (R.n.replace(/^\S+\s/, '') + ' – Länder');
+      var t = el('text', {x:rand, y:rand + 6, 'font-size':6.2, 'font-weight':700, fill:'#111'}, svg); t.textContent = titel + (loesung ? ' (Lösung)' : '');
+      t = el('text', {x:rand, y:rand + 12.5, 'font-size':3.6, fill:'#222'}, svg); t.textContent = 'Name: ______________________   Klasse: ________   Datum: ____________';
+      el('image', {href:'../assets/logo.png', x:W - rand - 34, y:rand - 2, width:34, height:15, preserveAspectRatio:'xMaxYMid meet'}, svg);
+      el('line', {x1:rand, x2:W - rand, y1:rand + kopfH - 1.5, y2:rand + kopfH - 1.5, stroke:'#222', 'stroke-width':0.3}, svg);
+      // Karte
+      var clipId = 'clip' + (loesung ? 'L' : 'A');
+      var cp = el('clipPath', {id:clipId}, svg); el('rect', {x:mapX0, y:mapY0, width:mapW, height:mapH}, cp);
+      var gk = el('g', {'clip-path':'url(#' + clipId + ')'}, svg);
+      el('rect', {x:mapX0, y:mapY0, width:mapW, height:mapH, fill:st.meer ? '#E3F0F8' : '#fff'}, gk);
+      var gl = el('g', {}, gk);
+      laender.forEach(function(l){
+        var d = '';
+        l._ringe.forEach(function(r){ for(var i = 0; i < r.length; i += 2){ var p = T(r[i], Math.max(-89, Math.min(89, r[i+1]))); d += (i ? 'L' : 'M') + p[0].toFixed(2) + ' ' + p[1].toFixed(2); } d += 'Z'; });
+        var p = el('path', {d:d, fill:l._drin ? '#fff' : '#E4E4E4', stroke:'#333', 'stroke-width':l._drin ? 0.22 : 0.15, 'fill-rule':'evenodd', 'stroke-linejoin':'round', class:l._drin && !loesung ? 'land' : ''}, gl);
+        if(l._drin && !loesung) p.addEventListener('click', function(){ var k = schluessel(l); if(markiert[k]) delete markiert[k]; else markiert[k] = true; zeichnen(); });
+        var tt = el('title', {}, p); tt.textContent = l.n;
+      });
+      el('rect', {x:mapX0, y:mapY0, width:mapW, height:mapH, fill:'none', stroke:'#333', 'stroke-width':0.35}, svg);
+      // Beschriftung
+      var gb = el('g', {'pointer-events':'none'}, svg), rr = Math.max(1.9, Math.min(2.6, mapW / 110));
+      if(st.beschriftung === 'nummern' || loesung){
+        nummeriert.forEach(function(l){
+          var c = l._c;
+          if(st.beschriftung === 'namen' || (loesung && !listeB)){
+            var tx = el('text', {x:c[0], y:c[1] + 1, 'font-size':2.4, 'text-anchor':'middle', fill:'#000', 'paint-order':'stroke', stroke:'#fff', 'stroke-width':0.8}, gb); tx.textContent = l.n;
+          } else {
+            el('circle', {cx:c[0], cy:c[1], r:rr, fill:'#fff', stroke:'#000', 'stroke-width':0.25}, gb);
+            var tn = el('text', {x:c[0], y:c[1] + rr*0.42, 'font-size':rr*1.15, 'text-anchor':'middle', 'font-weight':700, fill:'#000'}, gb); tn.textContent = l._nr;
+            if(loesung && !listeB){}
+          }
+        });
+      } else if(st.beschriftung === 'namen'){
+        nummeriert.forEach(function(l){ var tx = el('text', {x:l._c[0], y:l._c[1] + 1, 'font-size':2.4, 'text-anchor':'middle', fill:'#000', 'paint-order':'stroke', stroke:'#fff', 'stroke-width':0.8}, gb); tx.textContent = l.n; });
+      }
+      // Antwortzeilen / Lösungsliste
+      if(listeB){
+        var lx = W - rand - listeB, ly = ky + 2, n = nummeriert.length, spalten = n > 26 ? 2 : 1, proSpalte = Math.ceil(n / spalten);
+        var zh = Math.min(8, (kh - 4) / Math.max(1, proSpalte)), sw = listeB / spalten, fs = Math.min(3.6, zh * 0.55);
+        nummeriert.forEach(function(l, i){
+          var sp = Math.floor(i / proSpalte), zi = i % proSpalte, x = lx + sp*sw, y = ly + zi*zh + zh*0.75;
+          var a = el('text', {x:x + 5, y:y, 'font-size':fs, 'text-anchor':'end', 'font-weight':700, fill:'#000'}, svg); a.textContent = l._nr;
+          if(loesung){ var b = el('text', {x:x + 7, y:y, 'font-size':fs, fill:'#C0392B'}, svg); b.textContent = l.n; }
+          else el('line', {x1:x + 7, x2:x + sw - 2, y1:y + 0.6, y2:y + 0.6, stroke:'#555', 'stroke-width':0.2}, svg);
+        });
+      }
+      // Fusszeile
+      el('line', {x1:rand, x2:W - rand, y1:H - rand - 2, y2:H - rand - 2, stroke:'#999', 'stroke-width':0.2}, svg);
+      t = el('text', {x:rand, y:H - rand + 2, 'font-size':2.8, fill:'#555'}, svg); t.textContent = 'Sekundarschule Altnau · Geografie';
+      t = el('text', {x:W - rand, y:H - rand + 2, 'font-size':2.8, fill:'#555', 'text-anchor':'end'}, svg); t.textContent = 'Karte: Natural Earth · flächentreue Projektion';
+      return svg;
+    }
+    var wrap = document.getElementById('wrap'); wrap.innerHTML = '';
+    var a = seite(false), b = seite(true);
+    a.style.marginBottom = '24px';
+    wrap.appendChild(a); wrap.appendChild(b);
+    skalieren();
+  }
+  function skalieren(){
+    var wrap = document.getElementById('wrap'), main = wrap.parentNode, px = 297 * 96 / 25.4;
+    var sc = Math.min(1.25, (main.clientWidth - 48) / px);
+    wrap.style.transform = 'scale(' + sc + ')';
+    wrap.style.width = px + 'px';
+    wrap.style.height = (wrap.scrollHeight * sc) + 'px';
+  }
+
+  // ---------- Bedienung ----------
+  var rb = document.getElementById('regionen');
+  REGIONEN.forEach(function(R){
+    var b = document.createElement('button'); b.type = 'button'; b.textContent = R.n; b.dataset.id = R.id;
+    b.addEventListener('click', function(){ st.region = R.id; st.titel = ''; document.getElementById('titel').value = ''; markiere(); zeichnen(); });
+    rb.appendChild(b);
+  });
+  function markiere(){ [].forEach.call(rb.children, function(b){ b.classList.toggle('an', b.dataset.id === st.region); }); }
+  ['beschriftung','reihenfolge','auswahl'].forEach(function(id){ var e = document.getElementById(id); e.value = st[id]; e.addEventListener('change', function(){ st[id] = e.value; zeichnen(); }); });
+  ['zeilen','meer'].forEach(function(id){ var e = document.getElementById(id); e.checked = st[id]; e.addEventListener('change', function(){ st[id] = e.checked; zeichnen(); }); });
+  document.getElementById('titel').addEventListener('input', function(e){ st.titel = e.target.value; zeichnen(); });
+  document.getElementById('mischen').addEventListener('click', function(){ st.seed++; st.reihenfolge = 'zufall'; document.getElementById('reihenfolge').value = 'zufall'; zeichnen(); });
+  function drucken(cls){ document.body.classList.add(cls); window.print(); setTimeout(function(){ document.body.classList.remove(cls); }, 500); }
+  document.getElementById('druckBlatt').addEventListener('click', function(){ drucken('druck-blatt'); });
+  document.getElementById('druckLoesung').addEventListener('click', function(){ drucken('druck-loesung'); });
+  window.addEventListener('resize', skalieren);
+  markiere();
+  fetch('../wahre-groesse/laender.json').then(function(r){ return r.json(); }).then(function(d){
+    laender = d.map(function(x){ return {n:x.n, a:x.a, km:x.km, ringe:x.r.map(function(r){ return r.map(function(v){ return v/100; }); })}; });
+    st.seed = Math.floor(Math.random() * 1000) + 1;
+    zeichnen();
+  });
+})();
+</script>
+</body>
+</html>

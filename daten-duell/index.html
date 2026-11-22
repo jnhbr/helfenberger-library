@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Daten-Duell</title>
+<link rel="stylesheet" href="../assets/vendor/fonts/schriften.css">
+<!--
+  📊 Daten-Duell (Geografie, ERG) — Helfenberger's Library
+  «Welches Land hat mehr …?» mit echten Zahlen. Zwei Teams abwechselnd oder allein mit Serie. Für den Beamer gebaut.
+  Daten: daten.json (Our World in Data, CC BY 4.0, Stand 22.11.2026; Fläche aus Natural Earth). Neu erzeugen mit
+  admin/daten-duell-daten.py. Kein Firestore; nur der Rekord im Allein-Modus liegt im Browser (localStorage daten_duell_rekord).
+-->
+<style>
+  :root{ --bg:#EEF2F7; --surface:#FFFFFF; --border:#D6DDE8; --text:#16233A; --muted:#5E6C84; --akzent:#2F6FB5; --gut:#2E9E5B; --schlecht:#D64545; --a:#E4572E; --b:#2E86AB; color-scheme: light; }
+  @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){ --bg:#111823; --surface:#1A2333; --border:#2C3A50; --text:#E8EEF6; --muted:#9AAAC0; --akzent:#6EA6E6; --gut:#4CC27E; --schlecht:#F06A6A; color-scheme: dark; } }
+  :root[data-theme="dark"]{ --bg:#111823; --surface:#1A2333; --border:#2C3A50; --text:#E8EEF6; --muted:#9AAAC0; --akzent:#6EA6E6; --gut:#4CC27E; --schlecht:#F06A6A; color-scheme: dark; }
+  *{box-sizing:border-box;}
+  html,body{margin:0;height:100%;}
+  body{background:var(--bg);color:var(--text);font-family:'Atkinson Hyperlegible',-apple-system,BlinkMacSystemFont,sans-serif;display:flex;flex-direction:column;}
+  button,select{font:inherit;color:inherit;}
+  header{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:10px 16px;background:var(--surface);border-bottom:1px solid var(--border);}
+  h1{font-size:1.2rem;margin:0 12px 0 0;}
+  header label{font-size:.9rem;color:var(--muted);display:flex;gap:6px;align-items:center;}
+  header select{padding:5px 8px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);}
+  .punkte{margin-left:auto;display:flex;gap:10px;align-items:center;}
+  .team{display:flex;align-items:center;gap:8px;padding:6px 12px;border-radius:12px;border:2px solid transparent;font-weight:700;}
+  .team.dran{border-color:currentColor;}
+  .team b{font-size:1.4rem;min-width:1.4em;text-align:center;}
+  .team.a{color:var(--a);} .team.b{color:var(--b);}
+  main{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;gap:22px;min-height:0;}
+  .frage{font-size:clamp(1.3rem,3.2vw,2.4rem);font-weight:700;text-align:center;max-width:1100px;}
+  .frage small{display:block;font-size:.5em;color:var(--muted);font-weight:400;margin-top:6px;}
+  .karten{display:flex;gap:clamp(12px,3vw,40px);width:100%;max-width:1100px;justify-content:center;align-items:stretch;}
+  .karte{flex:1;max-width:480px;background:var(--surface);border:3px solid var(--border);border-radius:22px;padding:clamp(16px,3vw,32px);display:flex;flex-direction:column;align-items:center;gap:10px;cursor:pointer;transition:transform .15s,border-color .2s;box-shadow:0 2px 4px rgba(0,0,0,.06),0 18px 34px -22px rgba(0,0,0,.4);}
+  .karte:hover{transform:translateY(-3px);border-color:var(--akzent);}
+  .karte.zu{cursor:default;transform:none;}
+  .karte.richtig{border-color:var(--gut);}
+  .karte.falsch{border-color:var(--schlecht);}
+  .flagge{font-size:clamp(3rem,9vw,6.5rem);line-height:1;}
+  .name{font-size:clamp(1.3rem,3vw,2.2rem);font-weight:700;text-align:center;}
+  .wert{font-size:clamp(1.1rem,2.6vw,1.9rem);font-weight:700;min-height:1.4em;opacity:0;transition:opacity .3s;}
+  .wert.da{opacity:1;}
+  .einheit{font-size:.95rem;color:var(--muted);min-height:1.2em;opacity:0;transition:opacity .3s;text-align:center;}
+  .einheit.da{opacity:1;}
+  .balken{width:100%;height:14px;background:var(--bg);border-radius:7px;overflow:hidden;}
+  .balken i{display:block;height:100%;width:0;background:var(--akzent);border-radius:7px;transition:width .8s cubic-bezier(.2,.8,.2,1);}
+  .vs{align-self:center;font-weight:800;color:var(--muted);font-size:1.4rem;}
+  .weiter{padding:12px 26px;border-radius:14px;border:0;background:var(--akzent);color:#fff;font-weight:700;font-size:1.1rem;cursor:pointer;visibility:hidden;}
+  .weiter.da{visibility:visible;}
+  .meldung{font-size:1.2rem;font-weight:700;min-height:1.5em;text-align:center;}
+  footer{font-size:.75rem;color:var(--muted);text-align:center;padding:6px 10px 10px;}
+  @media (max-width:640px){ .karten{flex-direction:column;align-items:center;} .vs{display:none;} .karte{width:100%;} .punkte{margin-left:0;} }
+</style>
+</head>
+<body>
+<header>
+  <h1>📊 Daten-Duell</h1>
+  <label>Thema <select id="kennzahl"><option value="zufall">🎲 Gemischt</option></select></label>
+  <label>Schwierigkeit <select id="stufe"><option value="leicht">leicht</option><option value="mittel" selected>mittel</option><option value="schwer">schwer</option></select></label>
+  <label>Länder <select id="laender"><option value="bekannt">bekannte</option><option value="alle">alle</option></select></label>
+  <label>Modus <select id="modus"><option value="teams">2 Teams</option><option value="allein">allein (Serie)</option></select></label>
+  <div class="punkte" id="punkte"></div>
+</header>
+<main>
+  <div class="frage" id="frage">Daten werden geladen …</div>
+  <div class="karten">
+    <div class="karte" id="k0" role="button" tabindex="0"><div class="flagge"></div><div class="name"></div><div class="wert"></div><div class="einheit"></div><div class="balken"><i></i></div></div>
+    <div class="vs">oder</div>
+    <div class="karte" id="k1" role="button" tabindex="0"><div class="flagge"></div><div class="name"></div><div class="wert"></div><div class="einheit"></div><div class="balken"><i></i></div></div>
+  </div>
+  <div class="meldung" id="meldung"></div>
+  <button class="weiter" id="weiter" type="button">Weiter ➜</button>
+</main>
+<footer id="quelle">Daten: Our World in Data (CC BY 4.0), Fläche: Natural Earth</footer>
+<script>
+(function(){
+  'use strict';
+  var BEKANNT = 'CH DE FR IT AT ES PT GB IE NL BE DK SE NO FI IS PL CZ SK HU SI HR RS RO BG GR TR RU UA KZ US CA MX CU JM BR AR CL PE CO VE CN JP KR MN IN PK BD NP LK ID TH VN PH MY SG AU NZ EG MA DZ TN NG GH SN KE ET TZ ZA MG CD SA IR IQ IL AE QA AF LU'.split(' ');
+  var STUFE = {leicht:[2.5, 1e9], mittel:[1.4, 2.5], schwer:[1.06, 1.4]};
+  var D = null, st = {kennzahl:'zufall', stufe:'mittel', laender:'bekannt', modus:'teams'}, runde = null, punkte = {a:0, b:0}, dran = 'a', serie = 0, rekord = 0;
+  try{ rekord = +localStorage.getItem('daten_duell_rekord') || 0; }catch(e){}
+  function flagge(a2){ return a2 && a2.length === 2 ? String.fromCodePoint(0x1F1E6 + a2.charCodeAt(0) - 65, 0x1F1E6 + a2.charCodeAt(1) - 65) : '🏳️'; }
+  function fmt(v, k){
+    if(k.id === 'einwohner'){ if(v >= 1e9) return (v / 1e9).toFixed(2).replace('.', ',') + ' Mrd.'; if(v >= 1e6) return (v / 1e6).toFixed(1).replace('.', ',') + ' Mio.'; return Math.round(v).toLocaleString('de-CH'); }
+    return k.nk ? v.toFixed(k.nk).replace('.', ',') : Math.round(v).toLocaleString('de-CH');
+  }
+  function kennzahl(id){ return D.kennzahlen.find(function(k){ return k.id === id; }); }
+  function zufall(a){ return a[Math.floor(Math.random() * a.length)]; }
+  function neueRunde(){
+    var pool = Object.keys(D.laender).filter(function(a2){ return st.laender === 'alle' || BEKANNT.indexOf(a2) >= 0; });
+    var grenzen = STUFE[st.stufe];
+    for(var versuch = 0; versuch < 2000; versuch++){
+      var k = st.kennzahl === 'zufall' ? zufall(D.kennzahlen) : kennzahl(st.kennzahl);
+      var a = zufall(pool), b = zufall(pool);
+      if(a === b) continue;
+      var va = D.laender[a].w[k.id], vb = D.laender[b].w[k.id];
+      if(va == null || vb == null || va === vb || va <= 0 || vb <= 0) continue;
+      var r = Math.max(va, vb) / Math.min(va, vb);
+      if(r < grenzen[0] || r > grenzen[1]) continue;
+      runde = {k:k, l:[a, b], v:[va, vb], fertig:false};
+      break;
+    }
+    if(!runde || runde.fertig !== false){ document.getElementById('meldung').textContent = 'Keine passende Runde gefunden – andere Einstellung wählen.'; return; }
+    zeigen();
+  }
+  function zeigen(){
+    var k = runde.k;
+    document.getElementById('frage').innerHTML = '';
+    var f = document.getElementById('frage');
+    f.textContent = 'Welches Land hat ' + k.frage + '?';
+    var sm = document.createElement('small'); sm.textContent = st.modus === 'teams' ? (dran === 'a' ? '🟠 Team A' : '🔵 Team B') + ' ist dran' : 'Tippe auf ein Land';
+    f.appendChild(sm);
+    [0, 1].forEach(function(i){
+      var c = document.getElementById('k' + i), a2 = runde.l[i];
+      c.className = 'karte';
+      c.querySelector('.flagge').textContent = flagge(a2);
+      c.querySelector('.name').textContent = D.laender[a2].n;
+      var w = c.querySelector('.wert'); w.textContent = ''; w.classList.remove('da');
+      var e = c.querySelector('.einheit'); e.textContent = ''; e.classList.remove('da');
+      c.querySelector('.balken i').style.width = '0';
+    });
+    document.getElementById('meldung').textContent = '';
+    document.getElementById('weiter').classList.remove('da');
+    var jahr = k.jahr ? ', meist ' + k.jahr : '';
+    document.getElementById('quelle').textContent = 'Daten: ' + (k.id === 'flaeche' ? 'Natural Earth' : 'Our World in Data (CC BY 4.0)' + jahr) + ' · Stand der Library-Daten: 22.11.2026';
+  }
+  function waehle(i){
+    if(!runde || runde.fertig) return;
+    runde.fertig = true;
+    var k = runde.k, gross = runde.v[0] > runde.v[1] ? 0 : 1, richtig = i === gross, max = Math.max(runde.v[0], runde.v[1]);
+    [0, 1].forEach(function(j){
+      var c = document.getElementById('k' + j);
+      c.classList.add('zu');
+      if(j === gross) c.classList.add('richtig'); else if(j === i) c.classList.add('falsch');
+      var w = c.querySelector('.wert'); w.textContent = fmt(runde.v[j], k); w.classList.add('da');
+      var e = c.querySelector('.einheit'); e.textContent = k.einheit; e.classList.add('da');
+      setTimeout(function(){ c.querySelector('.balken i').style.width = (runde.v[j] / max * 100) + '%'; }, 30);
+    });
+    var m = document.getElementById('meldung');
+    if(st.modus === 'teams'){
+      if(richtig) punkte[dran]++;
+      m.textContent = (richtig ? '✅ Richtig! ' : '❌ Leider nicht. ') + (dran === 'a' ? 'Team A' : 'Team B') + (richtig ? ' bekommt einen Punkt.' : ' geht leer aus.');
+      dran = dran === 'a' ? 'b' : 'a';
+    } else {
+      if(richtig){ serie++; if(serie > rekord){ rekord = serie; try{ localStorage.setItem('daten_duell_rekord', String(rekord)); }catch(e){} } }
+      m.textContent = richtig ? '✅ Richtig! Serie: ' + serie : '❌ Leider nicht. Deine Serie war ' + serie + '.';
+      if(!richtig) serie = 0;
+    }
+    m.style.color = richtig ? 'var(--gut)' : 'var(--schlecht)';
+    punkteZeigen();
+    var wb = document.getElementById('weiter'); wb.classList.add('da'); wb.focus();
+  }
+  function punkteZeigen(){
+    var p = document.getElementById('punkte');
+    if(st.modus === 'teams'){
+      p.innerHTML = '<span class="team a' + (dran === 'a' ? ' dran' : '') + '">🟠 Team A <b>' + punkte.a + '</b></span><span class="team b' + (dran === 'b' ? ' dran' : '') + '">🔵 Team B <b>' + punkte.b + '</b></span>';
+    } else {
+      p.innerHTML = '<span class="team a dran">🔥 Serie <b>' + serie + '</b></span><span class="team b">🏆 Rekord <b>' + rekord + '</b></span>';
+    }
+  }
+  [0, 1].forEach(function(i){
+    var c = document.getElementById('k' + i);
+    c.addEventListener('click', function(){ waehle(i); });
+    c.addEventListener('keydown', function(e){ if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); waehle(i); } });
+  });
+  document.getElementById('weiter').addEventListener('click', neueRunde);
+  document.addEventListener('keydown', function(e){
+    if(e.target.tagName === 'SELECT') return;
+    if(e.key === 'ArrowLeft' || e.key === '1') waehle(0);
+    if(e.key === 'ArrowRight' || e.key === '2') waehle(1);
+    if((e.key === 'Enter' || e.key === ' ') && runde && runde.fertig && e.target.id !== 'weiter'){ e.preventDefault(); neueRunde(); }
+  });
+  ['kennzahl','stufe','laender','modus'].forEach(function(id){
+    document.getElementById(id).addEventListener('change', function(e){
+      st[id] = e.target.value;
+      if(id === 'modus'){ punkte = {a:0, b:0}; dran = 'a'; serie = 0; }
+      punkteZeigen(); neueRunde();
+    });
+  });
+  fetch('daten.json').then(function(r){ return r.json(); }).then(function(d){
+    D = d;
+    var sel = document.getElementById('kennzahl');
+    var NAMEN = {flaeche:'Fläche', einwohner:'Einwohner', lebenserwartung:'Lebenserwartung', co2:'CO₂ pro Kopf', kinder:'Kinder pro Frau', internet:'Internetnutzung', wald:'Waldanteil', fleisch:'Fleischkonsum', bip:'Einkommen (BIP pro Kopf)', median:'Medianalter', stadt:'Stadtbevölkerung'};
+    D.kennzahlen.forEach(function(k){ var o = document.createElement('option'); o.value = k.id; o.textContent = NAMEN[k.id] || k.id; sel.appendChild(o); });
+    var q = new URLSearchParams(location.search);
+    if(q.get('thema') && kennzahl(q.get('thema'))){ st.kennzahl = q.get('thema'); sel.value = st.kennzahl; }
+    punkteZeigen(); neueRunde();
+  }).catch(function(){ document.getElementById('frage').textContent = 'Die Daten konnten nicht geladen werden.'; });
+})();
+</script>
+</body>
+</html>

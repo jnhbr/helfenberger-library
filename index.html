@@ -12386,7 +12386,7 @@ function lmvzMerge(){
   var v = state.lmvzV;
   state.folders = state.folders.filter(function(f){ return !f.virtual; });
   state.resources = state.resources.filter(function(r){ return !r.virtual; }).concat(tippVirtuell(state.route.subject))
-    .concat(mtVirtuell(state.route.subject)).concat(kkVirtuell(state.route.subject)).concat(kzmVirtuell(state.route.subject)).concat(svaVirtuell(state.route.subject)).concat(schachVirtuell(state.route.subject)).concat(jassenVirtuell(state.route.subject)).concat(raetselVirtuell(state.route.subject)).concat(hallenplanerVirtuell(state.route.subject)).concat(wahreGroesseVirtuell(state.route.subject)).concat(praepVirtuell(state.route.subject)).concat(praepOrdnerVirtuell(state.route.subject));
+    .concat(mtVirtuell(state.route.subject)).concat(kkVirtuell(state.route.subject)).concat(kzmVirtuell(state.route.subject)).concat(svaVirtuell(state.route.subject)).concat(schachVirtuell(state.route.subject)).concat(jassenVirtuell(state.route.subject)).concat(raetselVirtuell(state.route.subject)).concat(hallenplanerVirtuell(state.route.subject)).concat(wahreGroesseVirtuell(state.route.subject)).concat(stummeKartenVirtuell(state.route.subject)).concat(datenDuellVirtuell(state.route.subject)).concat(papiervorlagenVirtuell(state.route.subject)).concat(praepVirtuell(state.route.subject)).concat(praepOrdnerVirtuell(state.route.subject));
   indivOrdnerMerge();
   if(state.route.subject !== LMVZ_SUBJECT) return;
   var sv = sikoreVirtuell();
@@ -15434,6 +15434,27 @@ function wahreGroesseVirtuell(subject){
   return [{id:'wahre-groesse', subject:'geografie', folderId:null, order:-1900, virtual:true, werkzeug:true, linkUrl:'wahre-groesse/?v='+WAHRE_GROESSE_VERSION, linkLabel:'Werkzeug',
     title:'🌍 Wahre Grösse – wie gross Länder wirklich sind', meta:'Länder über die Weltkarte ziehen · Grönland neben Afrika, die Schweiz in Skandinavien · zeigt, wie stark die Mercator-Karte verzerrt'}];
 }
+/* 📄 PAPIERVORLAGEN (Mathe, Algebra, GTZ, Musik – nur Lehrpersonen), 🗺️ STUMME KARTEN (Geografie – nur Lehrpersonen),
+   📊 DATEN-DUELL (Geografie, ERG – alle): statische Seiten im Link-Viewer (iframe src). Kein Firestore.
+   papiervorlagen/: Karo, Millimeter, Isometrie, Punkte, Koordinatensysteme, Linien, Notenlinien in echten mm, Druck A4 ohne Browser-Kopfzeilen.
+   stumme-karten/: Region wählen, Nummern + Antwortzeilen + Lösungsblatt, Equal-Earth-Projektion, Daten aus wahre-groesse/laender.json.
+   daten-duell/: «Welches Land hat mehr …?» mit OWID-Zahlen (daten-duell/daten.json, Generator admin/daten-duell-daten.py), 2 Teams oder Serie. */
+var WERKZEUGE_GEO_VERSION = 1;   // nach jeder Änderung an papiervorlagen/, stumme-karten/ oder daten-duell/ erhöhen (Browser-Cache)
+function papiervorlagenVirtuell(subject){
+  if(['mathe','algebra','gtz','musik'].indexOf(subject) < 0 || !(state.profile && state.profile.role === 'teacher')) return [];
+  return [{id:'papiervorlagen-'+subject, subject:subject, folderId:null, order:-1850, virtual:true, werkzeug:true, linkUrl:'papiervorlagen/?v='+WERKZEUGE_GEO_VERSION, linkLabel:'Werkzeug',
+    title:'📄 Papiervorlagen zum Drucken', meta:'Karo, Millimeter, Isometrie, Punktraster, Koordinatensysteme, Linien, Notenlinien · massstabsgetreu auf A4 · nur Lehrpersonen'}];
+}
+function stummeKartenVirtuell(subject){
+  if(subject !== 'geografie' || !(state.profile && state.profile.role === 'teacher')) return [];
+  return [{id:'stumme-karten', subject:'geografie', folderId:null, order:-1880, virtual:true, werkzeug:true, linkUrl:'stumme-karten/?v='+WERKZEUGE_GEO_VERSION, linkLabel:'Werkzeug',
+    title:'🗺️ Stumme Karten zum Drucken', meta:'Welt, Kontinente, Schweiz & Nachbarn · Länder nummeriert, Antwortzeilen und Lösungsblatt · A4 quer im Altnau-Stil · nur Lehrpersonen'}];
+}
+function datenDuellVirtuell(subject){
+  if(subject !== 'geografie' && subject !== 'psychologie') return [];
+  return [{id:'daten-duell-'+subject, subject:subject, folderId:null, order:-1870, virtual:true, werkzeug:true, linkUrl:'daten-duell/?v='+WERKZEUGE_GEO_VERSION, linkLabel:'Spiel',
+    title:'📊 Daten-Duell – welches Land hat mehr?', meta:'Echte Zahlen zu Einwohnern, Fläche, Lebenserwartung, CO₂, Internet … · 2 Teams am Beamer oder allein mit Serie'}];
+}
 function svaDatum(t){
   var wt = ['So','Mo','Di','Mi','Do','Fr','Sa'], a = new Date(t.d+'T12:00:00');
   var s = wt[a.getDay()]+' '+a.getDate()+'.'+(a.getMonth()+1)+'.';
@@ -16464,7 +16485,7 @@ function renderSubject(subjectId, folderId){
       '<span class="up-menue" id="upMenue" hidden>'+
         '<label class="btn btn-ghost btn-sm" for="fileInput">📄 Datei: HTML, PDF oder PowerPoint</label>'+
         '<button class="btn btn-ghost btn-sm" id="dzLinkBtn" type="button">🔗 Link</button>'+
-        '<button class="btn btn-ghost btn-sm" id="dzSimBtn" type="button">🔬 Simulation oder 📊 Daten-Grafik</button>'+
+        '<button class="btn btn-ghost btn-sm" id="dzSimBtn" type="button">🔬 Simulation, 📊 Grafik oder 🧰 Werkzeug</button>'+
         '<label class="btn btn-ghost btn-sm" for="fileInputDir" title="Unterordner werden als Ordner angelegt. Lösungen (Dateiname endet auf «_L.pdf» oder «Lösung.pdf», oder Ordner auf «(verdeckt)») stehen direkt neben der Aufgabe, werden aber ausgeblendet und geschützt.">📁 Ordner mit PDFs</label>'+
         '<label class="btn btn-ghost btn-sm" for="fileInputLp" title="Liegt neben den Übungen, nur Lehrpersonen sehen es – z. B. Unterrichtsplanung, Präp, Lösungen oder Folien.">🔒 Nur für Lehrpersonen: HTML, PDF, PowerPoint</label>'+
       '</span></span>';
@@ -19115,12 +19136,48 @@ var SIM_KATALOG = [
   {f:['geografie','psychologie'], t:'Klima & Umwelt', o:'plastic-waste-per-capita', q:'tab=map', n:'Plastikabfall pro Kopf', i:'Wer produziert wie viel Plastik?'},
   {f:['geografie'], t:'Klima & Umwelt', o:'number-of-deaths-from-natural-disasters', n:'Todesfälle durch Naturkatastrophen', i:'Erdbeben, Fluten, Dürren seit 1900'},
   {f:['geografie','wah'], t:'Ernährung', o:'meat-supply-per-person', q:'tab=map', n:'Fleischkonsum pro Person', i:'Kilo pro Jahr'},
-  {f:['geografie'], t:'Ernährung', o:'wheat-yields', q:'tab=map', n:'Weizenerträge', i:'Tonnen pro Hektar'}
+  {f:['geografie'], t:'Ernährung', o:'wheat-yields', q:'tab=map', n:'Weizenerträge', i:'Tonnen pro Hektar'},
+  // 🧰 Werkzeuge & Erklärseiten (einbettbar geprüft am 22.11.2026)
+  {f:['mathe','algebra'], t:'Rechner & Geometrie', u:'https://www.geogebra.org/geometry?lang=de', n:'GeoGebra Geometrie', i:'Konstruieren mit Zirkel und Lineal am Bildschirm'},
+  {f:['mathe','algebra'], t:'Rechner & Geometrie', u:'https://www.geogebra.org/graphing?lang=de', n:'GeoGebra Grafikrechner', i:'Funktionen zeichnen, Schieberegler'},
+  {f:['mathe'], t:'Rechner & Geometrie', u:'https://www.geogebra.org/3d?lang=de', n:'GeoGebra 3D-Rechner', i:'Körper und Raum in 3D'},
+  {f:['mathe','algebra'], t:'Rechner & Geometrie', u:'https://www.desmos.com/calculator?lang=de', n:'Desmos Grafik-Rechner', i:'Graphen sofort sehen, sehr einfach'},
+  {f:['mathe'], t:'Rechner & Geometrie', u:'https://www.desmos.com/geometry?lang=de', n:'Desmos Geometrie', i:'Geometrische Konstruktionen'},
+  {f:['musik'], t:'Musik', u:'https://musiclab.chromeexperiments.com/Song-Maker/', n:'Chrome Music Lab: Song Maker', i:'Eigene Melodien und Beats im Raster bauen'},
+  {f:['musik'], t:'Musik', u:'https://musiclab.chromeexperiments.com/Rhythm/', n:'Chrome Music Lab: Rhythmus', i:'Rhythmen mit Figuren spielen'},
+  {f:['musik'], t:'Musik', u:'https://musiclab.chromeexperiments.com/Chords/', n:'Chrome Music Lab: Akkorde', i:'Dur und Moll hören'},
+  {f:['musik','physik'], t:'Musik', u:'https://musiclab.chromeexperiments.com/Harmonics/', n:'Chrome Music Lab: Obertöne', i:'Woraus ein Ton besteht'},
+  {f:['musik','physik'], t:'Schall', u:'https://musiclab.chromeexperiments.com/Spectrogram/', n:'Chrome Music Lab: Spektrogramm', i:'Stimme und Töne als Bild sehen (Mikrofon)'},
+  {f:['physik','musik'], t:'Schall', u:'https://musiclab.chromeexperiments.com/Oscillators/', n:'Chrome Music Lab: Schwingungen', i:'Hohe und tiefe Töne, Frequenz'},
+  {f:['physik','musik'], t:'Schall', u:'https://ciechanow.ski/sound/', n:'Schall erklärt (Ciechanowski)', i:'Interaktiver Artikel, englisch – gut für die Vorbereitung'},
+  {f:['physik','werken','makerspace'], t:'Technik verstehen', u:'https://ciechanow.ski/gears/', n:'Zahnräder erklärt (Ciechanowski)', i:'Interaktiver Artikel, englisch'},
+  {f:['physik','werken'], t:'Technik verstehen', u:'https://animagraffs.com/how-a-car-engine-works/', n:'So funktioniert ein Automotor', i:'Animierte Infografik, englisch'},
+  {f:['physik','werken'], t:'Technik verstehen', u:'https://animagraffs.com/electric-car/', n:'So funktioniert ein Elektroauto', i:'Animierte Infografik, englisch'},
+  {f:['physik'], t:'Technik verstehen', u:'https://animagraffs.com/inside-a-jet-engine/', n:'So funktioniert ein Düsentriebwerk', i:'Animierte Infografik, englisch'},
+  {f:['physik','geografie'], t:'Technik verstehen', u:'https://animagraffs.com/solar-cell-module/', n:'So funktioniert eine Solarzelle', i:'Animierte Infografik, englisch'},
+  {f:['physik','musik'], t:'Technik verstehen', u:'https://animagraffs.com/loudspeaker/', n:'So funktioniert ein Lautsprecher', i:'Animierte Infografik, englisch'},
+  {f:['geografie','chemie'], t:'Technik verstehen', u:'https://animagraffs.com/how-city-water-purification-works-drinking-and-wastewater/', n:'Trinkwasser und Kläranlage', i:'Animierte Infografik, englisch'},
+  {f:['biologie','physik'], t:'Technik verstehen', u:'https://animagraffs.com/human-eye/', n:'So funktioniert das Auge', i:'Animierte Infografik, englisch'},
+  {f:['physik','geografie'], t:'Weltraum', u:'https://animagraffs.com/iss-international-space-station/', n:'Die Raumstation ISS', i:'Animierte Infografik, englisch'},
+  {f:['geografie','physik'], t:'Weltraum', u:'https://stellarium-web.org/', n:'Sternenhimmel (Stellarium)', i:'Planetarium: Sterne, Planeten, Sternbilder für jeden Ort und jede Zeit'},
+  {f:['physik','geografie'], t:'Weltraum', u:'https://ciechanow.ski/moon/', n:'Der Mond erklärt (Ciechanowski)', i:'Mondphasen und Bahn, englisch'},
+  {f:['geografie'], t:'Wetter & Klima live', u:'https://earth.nullschool.net/', n:'Wind auf der Erde – live', i:'Animierter Globus mit aktuellem Wind, englisch'},
+  {f:['geografie'], t:'Wetter & Klima live', u:'https://earth.nullschool.net/#current/ocean/primary/waves/overlay=sea_surface_temp_anomaly/orthographic', n:'Meeresströmungen und Wassertemperatur – live', i:'Animierter Globus, englisch'},
+  {f:['geografie'], t:'Karten-Quiz', u:'https://lizardpoint.com/geography/europe-quiz.php', n:'Quiz: Länder Europas', i:'Auf der Karte anklicken, englische Namen'},
+  {f:['geografie'], t:'Karten-Quiz', u:'https://lizardpoint.com/geography/africa-quiz.php', n:'Quiz: Länder Afrikas', i:'Auf der Karte anklicken, englische Namen'},
+  {f:['geografie'], t:'Karten-Quiz', u:'https://lizardpoint.com/geography/asia-quiz.php', n:'Quiz: Länder Asiens', i:'Auf der Karte anklicken, englische Namen'},
+  {f:['geografie'], t:'Karten-Quiz', u:'https://lizardpoint.com/geography/americas-quiz.php', n:'Quiz: Länder Amerikas', i:'Auf der Karte anklicken, englische Namen'},
+  {f:['geografie'], t:'Karten-Quiz', u:'https://lizardpoint.com/geography/switzerland-quiz.php', n:'Quiz: Schweizer Kantone', i:'Kantone auf der Karte finden'},
+  {f:['makerspace','informatik','physik'], t:'Elektronik & Programmieren', u:'https://wokwi.com/projects/new/arduino-uno', n:'Arduino-Simulator (Wokwi)', i:'Schaltung und Code ausprobieren ohne Bauteile, englisch'},
+  {f:['psychologie'], t:'Zusammenleben', u:'https://ncase.me/trust/', n:'Die Evolution des Vertrauens', i:'Spiel: Warum lohnt sich Kooperation? (englisch)'},
+  {f:['psychologie','geschichte'], t:'Zusammenleben', u:'https://ncase.me/ballot/', n:'Wie man besser abstimmt', i:'Spielerisch Wahlsysteme vergleichen (englisch)'}
 ];
 SIM_KATALOG.forEach(function(x){
-  x.id = x.s || ('owid-'+x.o);
-  x.url = x.s ? SIM_PHET(x.s) : SIM_OWID(x.o, x.q);
-  x.label = x.s ? '🔬 Simulation' : '📊 Daten-Grafik';
+  x.art = x.s ? 'sim' : x.o ? 'owid' : 'web';
+  x.id = x.s || (x.o ? 'owid-'+x.o : 'web-'+x.u.replace(/^https?:\/\/(www\.)?/,'').replace(/[^a-z0-9]+/gi,'-').slice(0,60));
+  x.url = x.s ? SIM_PHET(x.s) : x.o ? SIM_OWID(x.o, x.q) : x.u;
+  x.ic = x.s ? '🔬' : x.o ? '📊' : '🧰';
+  x.label = x.s ? '🔬 Simulation' : x.o ? '📊 Daten-Grafik' : '🧰 Werkzeug';
 });
 function simIstEinbettbar(r){ return !!(r && r.externalUrl && r.einbetten); }
 function askSimKatalog(subjectId, folderId){
@@ -19129,14 +19186,15 @@ function askSimKatalog(subjectId, folderId){
   var vorhanden = {};
   (state.resources || []).forEach(function(r){ if(r && r.externalUrl && r.subject === subjectId) vorhanden[r.externalUrl] = true; });
   openModal(
-    '<h3>🔬 Simulationen & 📊 Daten-Grafiken</h3>'+
-    '<p class="sim-hinweis">Kostenlos, ohne Login für die Klasse. Öffnet sich direkt in der Library (mit Vollbild). PhET-Simulationen sind deutsch, die Grafiken von Our World in Data haben eine englische Oberfläche.</p>'+
+    '<h3>🔬 Simulationen, 📊 Daten-Grafiken & 🧰 Werkzeuge</h3>'+
+    '<p class="sim-hinweis">Kostenlos, ohne Login für die Klasse. Öffnet sich direkt in der Library (mit Vollbild). PhET-Simulationen, GeoGebra und Desmos sind deutsch, bei den anderen steht «englisch» dabei.</p>'+
     '<div class="sim-filter">'+
       '<input type="search" id="simSuche" placeholder="Suchen, z. B. Strom, Brüche, CO₂ …" autocomplete="off">'+
       '<span class="sim-tabs">'+
         '<button type="button" class="btn btn-sm btn-ghost" data-art="alle">Alle</button>'+
         '<button type="button" class="btn btn-sm btn-ghost" data-art="sim">🔬 Simulationen</button>'+
         '<button type="button" class="btn btn-sm btn-ghost" data-art="owid">📊 Grafiken</button>'+
+        '<button type="button" class="btn btn-sm btn-ghost" data-art="web">🧰 Werkzeuge</button>'+
       '</span>'+
       (nurFach ? '<label class="sim-fachwahl"><input type="checkbox" id="simNurFach" checked> nur '+esc(subjectName(subjectId))+'</label>' : '')+
     '</div>'+
@@ -19150,8 +19208,7 @@ function askSimKatalog(subjectId, folderId){
     var q = st.q.trim().toLowerCase();
     var treffer = SIM_KATALOG.filter(function(x){
       if(st.fach && x.f.indexOf(subjectId) < 0) return false;
-      if(st.art === 'sim' && !x.s) return false;
-      if(st.art === 'owid' && x.s) return false;
+      if(st.art !== 'alle' && x.art !== st.art) return false;
       if(q && (x.n+' '+x.i+' '+x.t).toLowerCase().indexOf(q) < 0) return false;
       return true;
     });
@@ -19161,7 +19218,7 @@ function askSimKatalog(subjectId, folderId){
       if(x.t !== thema){ thema = x.t; html += '<h4 class="sim-thema">'+esc(thema)+'</h4>'; }
       var da = !!vorhanden[x.url];
       html += '<div class="sim-zeile">'+
-        '<span class="sim-ic" aria-hidden="true">'+(x.s ? '🔬' : '📊')+'</span>'+
+        '<span class="sim-ic" aria-hidden="true">'+x.ic+'</span>'+
         '<span class="sim-text"><b>'+esc(x.n)+'</b><small>'+esc(x.i)+'</small></span>'+
         '<a class="btn btn-ghost btn-sm" href="'+esc(x.url)+'" target="_blank" rel="noopener" title="Vorschau in neuem Tab">👁️</a>'+
         '<button type="button" class="btn btn-sm '+(da ? 'btn-ghost' : 'btn-primary')+'" data-sim="'+esc(x.id)+'"'+(da ? ' disabled' : '')+'>'+(da ? '✓ Drin' : '＋')+'</button>'+
@@ -19179,7 +19236,7 @@ function askSimKatalog(subjectId, folderId){
     setDoc(kdoc('resources', resId), {
       subject: subjectId,
       folderId: folderId || null,
-      title: (x.s ? '🔬 ' : '📊 ')+x.n,
+      title: x.ic+' '+x.n,
       fileName: '',
       externalUrl: x.url,
       einbetten: true,
@@ -27023,6 +27080,10 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-11-22-daten-duell', datum:'2026-11-22', fuer:'alle', text:'📊 Neu in Geografie und ERG: das «Daten-Duell». Welches Land hat mehr Einwohner, mehr Wald oder die höhere Lebenserwartung? Mit echten Zahlen – zu zweit als Teams oder allein auf Rekordjagd.'},
+  {id:'2026-11-22-stumme-karten', datum:'2026-11-22', fuer:'lehrer', text:'🗺️ Neu in Geografie: «Stumme Karten zum Drucken». Welt, Kontinente oder Schweiz & Nachbarn wählen, die Länder bekommen Nummern (zufällig gemischt), dazu Antwortzeilen und ein Lösungsblatt – A4 quer im Altnau-Stil. Länder antippen schaltet die Nummer an oder aus.'},
+  {id:'2026-11-22-papiervorlagen', datum:'2026-11-22', fuer:'lehrer', text:'📄 Neu in Mathe, Algebra, GTZ und Musik: «Papiervorlagen zum Drucken». Karo, Millimeter, Isometrie, Punktraster, Koordinatensysteme (1, 2 oder 4 pro Seite), Linien und Notenlinien – massstabsgetreu auf A4, ohne Kopfzeilen des Browsers.'},
+  {id:'2026-11-22-katalog-werkzeuge', datum:'2026-11-22', fuer:'lehrer', text:'🧰 Der Katalog unter «＋ Hinzufügen» hat jetzt auch 33 Werkzeuge: GeoGebra und Desmos, Chrome Music Lab, Sternenhimmel, Wind und Meeresströmungen live, animierte Technik-Erklärungen, Karten-Quiz, Arduino-Simulator und zwei Spiele für ERG.'},
   {id:'2026-11-22-wahre-groesse', datum:'2026-11-22', fuer:'alle', text:'🌍 Neu in Geografie: «Wahre Grösse». Zieh Länder über die Weltkarte und schau, wie gross sie wirklich sind – Grönland neben Afrika, die Schweiz in Skandinavien. So siehst du, wie stark normale Weltkarten verzerren.'},
   {id:'2026-11-22-simulationen', datum:'2026-11-22', fuer:'lehrer', text:'🔬 Neu unter «＋ Hinzufügen»: «Simulation oder Daten-Grafik». Ein Katalog mit 69 PhET-Simulationen auf Deutsch (Physik, Chemie, Biologie, Mathe) und 30 Grafiken von Our World in Data (Geografie, ERG, Geschichte). Ein Klick legt sie in den offenen Ordner, die Klasse öffnet sie direkt in der Library mit Vollbild. Auch beim normalen «🔗 Link» kannst du jetzt «In der Library öffnen» ankreuzen.'},
   {id:'2026-11-20-niveau-diktate', datum:'2026-11-20', fuer:'lehrer', text:'📊 Fehleranalyse Diktate kennt jetzt die neuen Niveau-Diktate 12–21 (Deutsch › Diktate): gezählt wird der neueste Versuch über alle drei Niveaus, in der Tabelle stehen Niveau und Note. Neu als Fehlerarten: das/dass, Dehnung mit ie und Satzzeichen.'},

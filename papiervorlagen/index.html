@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Papiervorlagen</title>
+<link rel="stylesheet" href="../assets/vendor/fonts/schriften.css">
+<!--
+  📄 Papiervorlagen (Mathe, GTZ, Musik) — Helfenberger's Library
+  Karo, Millimeter, Isometrie, Punktraster, Koordinatensystem, Linien, Notenlinien als SVG in echten Millimetern.
+  Drucken: A4 ohne Ränder und ohne Kopfzeilen des Browsers (@page margin 0), im Druckdialog «Tatsächliche Grösse / 100 %».
+  Kein Firestore; die letzte Einstellung merkt sich der Browser (localStorage papiervorlagen_v1).
+-->
+<style>
+  :root{
+    --bg:#F3F4F8; --surface:#FFFFFF; --border:#D9DCE6; --text:#1B2133; --muted:#626A82; --akzent:#2F6FB5; --akzent-soft:#E3EDF8;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){ --bg:#141720; --surface:#1D2130; --border:#30364A; --text:#ECEEF5; --muted:#A1A7BD; --akzent:#6EA6E6; --akzent-soft:#1E2E44; color-scheme: dark; }
+  }
+  :root[data-theme="dark"]{ --bg:#141720; --surface:#1D2130; --border:#30364A; --text:#ECEEF5; --muted:#A1A7BD; --akzent:#6EA6E6; --akzent-soft:#1E2E44; color-scheme: dark; }
+  *{box-sizing:border-box;}
+  html,body{margin:0;height:100%;}
+  body{background:var(--bg);color:var(--text);font-family:'Atkinson Hyperlegible',-apple-system,BlinkMacSystemFont,sans-serif;font-size:15px;display:flex;min-height:100%;}
+  button,input,select{font:inherit;color:inherit;}
+  aside{width:300px;flex:none;background:var(--surface);border-right:1px solid var(--border);padding:16px;overflow:auto;height:100vh;}
+  h1{font-size:1.15rem;margin:0 0 12px;}
+  .typen{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:14px;}
+  .typen button{border:1px solid var(--border);background:var(--bg);border-radius:10px;padding:8px 6px;cursor:pointer;text-align:left;font-size:.9rem;}
+  .typen button.an{border-color:var(--akzent);background:var(--akzent-soft);font-weight:700;}
+  label.feld{display:flex;justify-content:space-between;align-items:center;gap:10px;margin:8px 0;font-size:.92rem;}
+  label.feld select,label.feld input[type=number]{width:120px;padding:5px 8px;border:1px solid var(--border);border-radius:8px;background:var(--bg);}
+  label.check{display:flex;gap:8px;align-items:center;margin:8px 0;font-size:.92rem;}
+  .gruppe{border-top:1px solid var(--border);padding-top:8px;margin-top:10px;}
+  .druck{width:100%;margin-top:16px;padding:10px;border-radius:10px;border:0;background:var(--akzent);color:#fff;font-weight:700;cursor:pointer;font-size:1rem;}
+  .tipp{font-size:.82rem;color:var(--muted);margin-top:8px;line-height:1.4;}
+  main{flex:1;overflow:auto;padding:24px;display:flex;justify-content:center;align-items:flex-start;height:100vh;}
+  .vorschau{background:#fff;box-shadow:0 2px 6px rgba(0,0,0,.12),0 18px 40px -20px rgba(0,0,0,.35);transform-origin:top center;}
+  .blatt{display:block;}
+  @media (max-width:760px){ body{flex-direction:column;} aside{width:auto;height:auto;border-right:0;border-bottom:1px solid var(--border);} main{height:auto;} }
+  @page{ size:A4 portrait; margin:0; }
+  @media print{
+    body{display:block;background:#fff;}
+    aside{display:none;}
+    main{padding:0;height:auto;overflow:visible;display:block;}
+    .vorschau{box-shadow:none;transform:none !important;}
+  }
+</style>
+<style id="seiteStil">@page{ size:A4 portrait; margin:0; }</style>
+</head>
+<body>
+<aside>
+  <h1>📄 Papiervorlagen</h1>
+  <div class="typen" id="typen"></div>
+  <div id="optionen"></div>
+  <div class="gruppe">
+    <label class="feld">Ausrichtung <select id="ausrichtung"><option value="hoch">Hochformat</option><option value="quer">Querformat</option></select></label>
+    <label class="feld">Farbe <select id="farbe"><option value="#9AA3B5">Grau</option><option value="#7FA7D9">Blau</option><option value="#C9CED8">Hellgrau</option><option value="#E7A39A">Rot</option><option value="#222222">Schwarz</option></select></label>
+    <label class="feld">Rand (mm) <input type="number" id="rand" min="5" max="30" step="1" value="10"></label>
+    <label class="check"><input type="checkbox" id="kopf" checked> Kopfzeile mit Name, Klasse, Datum</label>
+  </div>
+  <button class="druck" id="druck" type="button">🖨️ Drucken</button>
+  <p class="tipp">Im Druckdialog <b>«Tatsächliche Grösse»</b> bzw. Skalierung <b>100 %</b> wählen, dann stimmen die Millimeter. Kopf- und Fusszeilen des Browsers sind ausgeschaltet.</p>
+</aside>
+<main><div class="vorschau" id="vorschau"></div></main>
+<script>
+(function(){
+  'use strict';
+  var NS = 'http://www.w3.org/2000/svg';
+  var TYPEN = [
+    {id:'karo', n:'▦ Karo', o:[['abstand','Kästchen (mm)',[4,5,7,10],5]]},
+    {id:'mm', n:'📏 Millimeter', o:[]},
+    {id:'iso', n:'⬡ Isometrie', o:[['abstand','Abstand (mm)',[5,7,10],5],['form','Darstellung',[['punkte','Punkte'],['linien','Linien']],'punkte']]},
+    {id:'punkte', n:'⁘ Punktraster', o:[['abstand','Abstand (mm)',[5,7,10],5]]},
+    {id:'koord', n:'📈 Koordinaten', o:[['anzahl','Pro Seite',[[1,'1 System'],[2,'2 Systeme'],[4,'4 Systeme']],1],['einheit','1 Einheit =',[[5,'5 mm'],[10,'1 cm'],[20,'2 cm']],10],['quadranten','Bereich',[['alle','alle 4 Quadranten'],['erster','nur 1. Quadrant']],'alle']]},
+    {id:'linien', n:'☰ Linien', o:[['abstand','Zeilenabstand (mm)',[7,8,10,12],8],['randlinie','Randlinie',[['ja','mit Randlinie'],['nein','ohne']],'ja']]},
+    {id:'noten', n:'🎼 Notenlinien', o:[['systeme','Systeme pro Seite',[8,10,12],10]]}
+  ];
+  var st = {typ:'karo', abstand:5, form:'punkte', anzahl:1, einheit:10, quadranten:'alle', randlinie:'ja', systeme:10, ausrichtung:'hoch', farbe:'#9AA3B5', rand:10, kopf:true};
+  try{ var gespeichert = JSON.parse(localStorage.getItem('papiervorlagen_v1') || 'null'); if(gespeichert) Object.assign(st, gespeichert); }catch(e){}
+  function speichern(){ try{ localStorage.setItem('papiervorlagen_v1', JSON.stringify(st)); }catch(e){} }
+
+  function el(tag, a, p){ var e = document.createElementNS(NS, tag); for(var k in a) e.setAttribute(k, a[k]); if(p) p.appendChild(e); return e; }
+  function linie(g, x1, y1, x2, y2, w, farbe){ el('line', {x1:x1, y1:y1, x2:x2, y2:y2, stroke:farbe, 'stroke-width':w}, g); }
+
+  function zeichnen(){
+    var quer = st.ausrichtung === 'quer', W = quer ? 297 : 210, H = quer ? 210 : 297;
+    document.getElementById('seiteStil').textContent = '@page{ size:A4 ' + (quer ? 'landscape' : 'portrait') + '; margin:0; }';
+    var svg = el('svg', {xmlns:NS, width:W + 'mm', height:(H - 0.4) + 'mm', viewBox:'0 0 ' + W + ' ' + (H - 0.4), class:'blatt'});
+    var r = +st.rand || 10, f = st.farbe, top = r;
+    if(st.kopf){
+      var g = el('g', {'font-family':'Calibri, Carlito, Arial, sans-serif', 'font-size':4.2, fill:'#222'}, svg);
+      var t = el('text', {x:r, y:r + 4}, g); t.textContent = 'Name: ';
+      linie(g, r + 13, r + 5, r + (W - 2*r) * 0.5, r + 5, 0.25, '#555');
+      t = el('text', {x:r + (W - 2*r) * 0.54, y:r + 4}, g); t.textContent = 'Klasse:';
+      linie(g, r + (W - 2*r) * 0.54 + 15, r + 5, r + (W - 2*r) * 0.72, r + 5, 0.25, '#555');
+      t = el('text', {x:r + (W - 2*r) * 0.75, y:r + 4}, g); t.textContent = 'Datum:';
+      linie(g, r + (W - 2*r) * 0.75 + 14, r + 5, W - r, r + 5, 0.25, '#555');
+      top = r + 11;
+    }
+    var x0 = r, y0 = top, bw = W - 2*r, bh = H - r - top;
+    var g2 = el('g', {}, svg);
+    var a = +st.abstand;
+    if(st.typ === 'karo' || st.typ === 'punkte'){
+      var nx = Math.floor(bw / a), ny = Math.floor(bh / a), ox = x0 + (bw - nx*a) / 2, oy = y0 + (bh - ny*a) / 2;
+      if(st.typ === 'karo'){
+        for(var i = 0; i <= nx; i++) linie(g2, ox + i*a, oy, ox + i*a, oy + ny*a, 0.18, f);
+        for(var j = 0; j <= ny; j++) linie(g2, ox, oy + j*a, ox + nx*a, oy + j*a, 0.18, f);
+      } else {
+        for(i = 0; i <= nx; i++) for(j = 0; j <= ny; j++) el('circle', {cx:ox + i*a, cy:oy + j*a, r:0.35, fill:f}, g2);
+      }
+    } else if(st.typ === 'mm'){
+      nx = Math.floor(bw / 10) * 10; ny = Math.floor(bh / 10) * 10; ox = x0 + (bw - nx) / 2; oy = y0 + (bh - ny) / 2;
+      for(i = 0; i <= nx; i++) linie(g2, ox + i, oy, ox + i, oy + ny, i % 10 === 0 ? 0.3 : i % 5 === 0 ? 0.18 : 0.07, f);
+      for(j = 0; j <= ny; j++) linie(g2, ox, oy + j, ox + nx, oy + j, j % 10 === 0 ? 0.3 : j % 5 === 0 ? 0.18 : 0.07, f);
+    } else if(st.typ === 'iso'){
+      var h = a * Math.sqrt(3) / 2, rows = Math.floor(bh / h), cols = Math.floor(bw / a);
+      oy = y0 + (bh - rows*h) / 2; ox = x0 + (bw - cols*a) / 2;
+      var clip = el('clipPath', {id:'isoClip'}, svg); el('rect', {x:ox - 0.5, y:oy - 0.5, width:cols*a + 1, height:rows*h + 1}, clip);
+      if(st.form === 'punkte'){
+        for(j = 0; j <= rows; j++) for(i = 0; i <= cols; i++){ var px = ox + i*a + (j % 2 ? a/2 : 0); if(px <= ox + cols*a + 0.01) el('circle', {cx:px, cy:oy + j*h, r:0.4, fill:f}, g2); }
+      } else {
+        var gl = el('g', {'clip-path':'url(#isoClip)'}, g2), L = bw + bh * 2;
+        for(j = 0; j <= rows; j++) linie(gl, ox, oy + j*h, ox + cols*a, oy + j*h, 0.18, f);
+        var dx = h / Math.tan(Math.PI/3) * 2;   // waagrechter Versatz pro Zeile bei 60°
+        for(var k = -Math.ceil(L / a); k <= Math.ceil(L / a); k++){
+          var sx = ox + k*a;
+          linie(gl, sx, oy, sx + (rows*h) / Math.tan(Math.PI/3), oy + rows*h, 0.18, f);
+          linie(gl, sx, oy, sx - (rows*h) / Math.tan(Math.PI/3), oy + rows*h, 0.18, f);
+        }
+      }
+    } else if(st.typ === 'linien'){
+      var n = Math.floor(bh / a);
+      for(j = 1; j <= n; j++) linie(g2, x0, y0 + j*a, x0 + bw, y0 + j*a, 0.22, f);
+      if(st.randlinie === 'ja') linie(g2, W - r - 25, y0, W - r - 25, y0 + n*a, 0.3, '#E7A39A');
+    } else if(st.typ === 'noten'){
+      var sys = +st.systeme, hoehe = 8, abst = bh / sys;
+      for(j = 0; j < sys; j++){
+        var sy = y0 + j*abst + (abst - hoehe) / 2;
+        for(i = 0; i < 5; i++) linie(g2, x0, sy + i*hoehe/4, x0 + bw, sy + i*hoehe/4, 0.25, f === '#C9CED8' ? '#9AA3B5' : f);
+      }
+    } else if(st.typ === 'koord'){
+      var anz = +st.anzahl, cols2 = anz === 1 ? 1 : (quer ? anz : (anz === 2 ? 1 : 2)), rows2 = anz / cols2, gap = 8;
+      var cw = (bw - (cols2 - 1)*gap) / cols2, ch = (bh - (rows2 - 1)*gap) / rows2, e = +st.einheit;
+      for(var rr = 0; rr < rows2; rr++) for(var cc = 0; cc < cols2; cc++) koordSystem(g2, x0 + cc*(cw + gap), y0 + rr*(ch + gap), cw, ch, e, f);
+    }
+    var vs = document.getElementById('vorschau'); vs.innerHTML = ''; vs.appendChild(svg);
+    skalieren();
+    speichern();
+  }
+  function koordSystem(g, x, y, w, h, e, f){
+    var k = 5, nx = Math.floor(w / k), ny = Math.floor(h / k), ox = x + (w - nx*k) / 2, oy = y + (h - ny*k) / 2;
+    for(var i = 0; i <= nx; i++) linie(g, ox + i*k, oy, ox + i*k, oy + ny*k, 0.15, f);
+    for(var j = 0; j <= ny; j++) linie(g, ox, oy + j*k, ox + nx*k, oy + j*k, 0.15, f);
+    var erster = st.quadranten === 'erster';
+    // Ursprung auf einem Gitterpunkt, der ein Vielfaches der Einheit vom Rand weg ist
+    var stepsX = Math.round(e / k), stepsY = stepsX;
+    var cx = erster ? ox + stepsX*k : ox + Math.round(nx / 2 / stepsX) * stepsX * k;
+    var cy = erster ? oy + ny*k - stepsY*k : oy + Math.round(ny / 2 / stepsY) * stepsY * k;
+    var achse = '#222';
+    linie(g, ox, cy, ox + nx*k, cy, 0.4, achse); linie(g, cx, oy, cx, oy + ny*k, 0.4, achse);
+    el('path', {d:'M' + (ox + nx*k) + ' ' + cy + 'l-3 -1.3v2.6z', fill:achse}, g);
+    el('path', {d:'M' + cx + ' ' + oy + 'l-1.3 3h2.6z', fill:achse}, g);
+    var tg = el('g', {'font-family':'Calibri, Carlito, Arial, sans-serif', 'font-size':2.8, fill:'#222'}, g), t;
+    for(var px = cx + e, n = 1; px < ox + nx*k - 4; px += e, n++){ linie(g, px, cy - 1, px, cy + 1, 0.3, achse); t = el('text', {x:px, y:cy + 4, 'text-anchor':'middle'}, tg); t.textContent = n; }
+    for(px = cx - e, n = -1; px > ox + 1; px -= e, n--){ linie(g, px, cy - 1, px, cy + 1, 0.3, achse); t = el('text', {x:px, y:cy + 4, 'text-anchor':'middle'}, tg); t.textContent = '−' + (-n); }
+    for(var py = cy - e, m = 1; py > oy + 4; py -= e, m++){ linie(g, cx - 1, py, cx + 1, py, 0.3, achse); t = el('text', {x:cx - 1.8, y:py + 1, 'text-anchor':'end'}, tg); t.textContent = m; }
+    for(py = cy + e, m = -1; py < oy + ny*k - 1; py += e, m--){ linie(g, cx - 1, py, cx + 1, py, 0.3, achse); t = el('text', {x:cx - 1.8, y:py + 1, 'text-anchor':'end'}, tg); t.textContent = '−' + (-m); }
+    t = el('text', {x:ox + nx*k - 1, y:cy - 2, 'text-anchor':'end', 'font-size':3.6, 'font-style':'italic'}, tg); t.textContent = 'x';
+    t = el('text', {x:cx + 2.2, y:oy + 3.5, 'font-size':3.6, 'font-style':'italic'}, tg); t.textContent = 'y';
+    t = el('text', {x:cx - 1.8, y:cy + 4, 'text-anchor':'end'}, tg); t.textContent = '0';
+  }
+  function skalieren(){
+    var vs = document.getElementById('vorschau'), main = vs.parentNode, svg = vs.firstChild; if(!svg) return;
+    var pxPerMm = 96 / 25.4, w = parseFloat(svg.getAttribute('width')) * pxPerMm, h = parseFloat(svg.getAttribute('height')) * pxPerMm;
+    var s = Math.min(1, (main.clientWidth - 48) / w, (window.innerHeight - 48) / h);
+    if(window.matchMedia('(max-width:760px)').matches) s = Math.min(1, (main.clientWidth - 48) / w);
+    vs.style.transform = 'scale(' + s + ')'; vs.style.width = w + 'px'; vs.style.height = h + 'px';
+    vs.style.marginBottom = (h * (s - 1)) + 'px';
+  }
+  function optionen(){
+    var typ = TYPEN.find(function(t){ return t.id === st.typ; }), box = document.getElementById('optionen');
+    box.innerHTML = '';
+    typ.o.forEach(function(o){
+      var lab = document.createElement('label'); lab.className = 'feld'; lab.textContent = o[1] + ' ';
+      var sel = document.createElement('select');
+      o[2].forEach(function(v){ var op = document.createElement('option'); var val = Array.isArray(v) ? v[0] : v; op.value = val; op.textContent = Array.isArray(v) ? v[1] : v; if(String(st[o[0]]) === String(val)) op.selected = true; sel.appendChild(op); });
+      if(!o[2].some(function(v){ return String(Array.isArray(v) ? v[0] : v) === String(st[o[0]]); })){ st[o[0]] = o[3]; sel.value = o[3]; }
+      sel.addEventListener('change', function(){ st[o[0]] = isNaN(+sel.value) ? sel.value : +sel.value; zeichnen(); });
+      lab.appendChild(sel); box.appendChild(lab);
+    });
+  }
+  var tb = document.getElementById('typen');
+  TYPEN.forEach(function(t){
+    var b = document.createElement('button'); b.type = 'button'; b.textContent = t.n; b.dataset.typ = t.id;
+    b.addEventListener('click', function(){ st.typ = t.id; [].forEach.call(tb.children, function(x){ x.classList.toggle('an', x.dataset.typ === st.typ); }); optionen(); zeichnen(); });
+    tb.appendChild(b);
+  });
+  [].forEach.call(tb.children, function(x){ x.classList.toggle('an', x.dataset.typ === st.typ); });
+  ['ausrichtung','farbe','rand'].forEach(function(id){
+    var e = document.getElementById(id); e.value = st[id];
+    e.addEventListener('change', function(){ st[id] = id === 'rand' ? Math.max(5, Math.min(30, +e.value || 10)) : e.value; zeichnen(); });
+  });
+  var kopf = document.getElementById('kopf'); kopf.checked = !!st.kopf;
+  kopf.addEventListener('change', function(){ st.kopf = kopf.checked; zeichnen(); });
+  document.getElementById('druck').addEventListener('click', function(){ window.print(); });
+  window.addEventListener('resize', skalieren);
+  optionen(); zeichnen();
+})();
+</script>
+</body>
+</html>
