@@ -507,6 +507,20 @@ function winterAn(){ var aus = false; try{ aus = localStorage.getItem('hl_winter
   .modal-overlay.show{display:flex;}
   .modal{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:0 24px 60px rgba(0,0,0,.28);width:100%;max-width:440px;max-height:calc(85vh/var(--lz,1));overflow:auto;padding:22px;}
   .modal-wide{max-width:640px;}
+  .sim-modal{max-width:760px;}
+  .sim-hinweis{font-size:.9rem;opacity:.85;margin:0 0 10px;}
+  .sim-filter{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:8px;}
+  .sim-filter input[type=search]{flex:1 1 220px;margin:0;}
+  .sim-tabs{display:flex;gap:4px;flex-wrap:wrap;}
+  .sim-fachwahl{font-size:.9rem;display:flex;align-items:center;gap:6px;white-space:nowrap;}
+  .sim-liste{max-height:max(180px, min(calc(100vh - 340px), 560px));overflow:auto;padding-right:4px;}
+  .sim-thema{margin:14px 0 4px;font-size:.95rem;opacity:.75;}
+  .sim-zeile{display:flex;align-items:center;gap:10px;padding:6px 4px;border-bottom:1px solid rgba(127,127,127,.18);}
+  .sim-ic{font-size:1.3rem;flex:none;}
+  .sim-text{flex:1;min-width:0;display:flex;flex-direction:column;}
+  .sim-text small{opacity:.75;}
+  .sim-einbetten{display:block;margin-top:10px;font-size:.92rem;}
+  .sim-einbetten small{display:block;opacity:.7;margin-left:22px;}
   /* 🎯 Lernziele (Pilot) */
   #lzKarte:not(:empty){margin-bottom:14px;display:flex;flex-direction:column;gap:10px;}
   .lz-karte{background:var(--surface);border:1px solid var(--border);border-left:5px solid #2e9e6b;border-radius:var(--radius-sm);padding:14px 16px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;}
@@ -10148,6 +10162,8 @@ function goSubject(id, folderId){
 function goResource(res){
   if(res.kzm){ kzmStarten(kzmItemById(res.kzm.typ, res.kzm.id)); return; }
   if(res.kzmPruef){ kzmPruefOeffnen(res); return; }
+  // 🔬 Einbettbare Links (Simulationen, Daten-Grafiken, «In der Library öffnen») laufen im Link-Viewer.
+  if(simIstEinbettbar(res)){ state.route = {name:'resource', resource:Object.assign({}, res, {linkUrl:res.externalUrl, linkLabel:res.linkLabel || '🔗 Link'})}; render(); return; }
   if(res.externalUrl){ window.open(res.externalUrl, '_blank', 'noopener'); return; }
   state.route = {name:'resource', resource:res}; render();
 }
@@ -12370,7 +12386,7 @@ function lmvzMerge(){
   var v = state.lmvzV;
   state.folders = state.folders.filter(function(f){ return !f.virtual; });
   state.resources = state.resources.filter(function(r){ return !r.virtual; }).concat(tippVirtuell(state.route.subject))
-    .concat(mtVirtuell(state.route.subject)).concat(kkVirtuell(state.route.subject)).concat(kzmVirtuell(state.route.subject)).concat(svaVirtuell(state.route.subject)).concat(schachVirtuell(state.route.subject)).concat(jassenVirtuell(state.route.subject)).concat(raetselVirtuell(state.route.subject)).concat(hallenplanerVirtuell(state.route.subject)).concat(praepVirtuell(state.route.subject)).concat(praepOrdnerVirtuell(state.route.subject));
+    .concat(mtVirtuell(state.route.subject)).concat(kkVirtuell(state.route.subject)).concat(kzmVirtuell(state.route.subject)).concat(svaVirtuell(state.route.subject)).concat(schachVirtuell(state.route.subject)).concat(jassenVirtuell(state.route.subject)).concat(raetselVirtuell(state.route.subject)).concat(hallenplanerVirtuell(state.route.subject)).concat(wahreGroesseVirtuell(state.route.subject)).concat(praepVirtuell(state.route.subject)).concat(praepOrdnerVirtuell(state.route.subject));
   indivOrdnerMerge();
   if(state.route.subject !== LMVZ_SUBJECT) return;
   var sv = sikoreVirtuell();
@@ -12653,6 +12669,7 @@ async function uebungZuMir(r, quelle, heim){
       originVersion: r.version || 0
     };
     if(r.externalUrl) copy.externalUrl = r.externalUrl;
+    if(r.einbetten){ copy.einbetten = true; copy.linkLabel = r.linkLabel || ''; }
     if(r.pdf) copy.pdf = true;
     if(r.folien) copy.folien = true;
     if(r.methode) copy.methode = r.methode;
@@ -12665,6 +12682,7 @@ async function uebungZuMir(r, quelle, heim){
     var alt = resourceContentId(heim);
     var patch = { contentId:resourceContentId(r), prevContentId:alt, fileName:r.fileName || heim.fileName || '', replacedAt:serverTimestamp() };
     if(r.externalUrl) patch.externalUrl = r.externalUrl;
+    if(r.einbetten){ patch.einbetten = true; patch.linkLabel = r.linkLabel || ''; }
     if(heim.originKlasse === quelle) patch.originVersion = r.version || 0;
     await updateDoc(ref, patch);
     if(heim.prevContentId && heim.prevContentId !== alt && heim.prevContentId !== patch.contentId) deleteContentIfUnused(heim.prevContentId, r.id);
@@ -15407,6 +15425,15 @@ function hallenplanerVirtuell(subject){
   return [{id:'hallenplaner', subject:'sport', folderId:null, order:-2000, virtual:true, werkzeug:true, linkUrl:'hallenplaner/?v='+HALLENPLANER_VERSION, linkLabel:'Werkzeug',
     title:'🏟️ Hallenplaner – Aufbauten in der Dreifachhalle', meta:'Geräte, Personen und Laufwege per Ziehen · Einfach-, Doppel- oder Dreifachhalle · Linien pro Sportart · Materialliste · Drucken · 3D-Ansicht · Vorlagen'}];
 }
+/* 🌍 WAHRE GRÖSSE – Werkzeug im Fach Geografie (alle): statische Seite wahre-groesse/ im Link-Viewer (iframe src).
+   Mercator-Weltkarte, Länder als farbige Kopie über die Karte ziehen (auf der Kugel verschoben, darum echte Grösse).
+   Daten wahre-groesse/laender.json (Natural Earth 1:50m, gemeinfrei, deutsche Namen). Kein Firestore, kein localStorage. */
+var WAHRE_GROESSE_VERSION = 1;   // nach jeder Änderung an wahre-groesse/ erhöhen (Browser-Cache)
+function wahreGroesseVirtuell(subject){
+  if(subject !== 'geografie') return [];
+  return [{id:'wahre-groesse', subject:'geografie', folderId:null, order:-1900, virtual:true, werkzeug:true, linkUrl:'wahre-groesse/?v='+WAHRE_GROESSE_VERSION, linkLabel:'Werkzeug',
+    title:'🌍 Wahre Grösse – wie gross Länder wirklich sind', meta:'Länder über die Weltkarte ziehen · Grönland neben Afrika, die Schweiz in Skandinavien · zeigt, wie stark die Mercator-Karte verzerrt'}];
+}
 function svaDatum(t){
   var wt = ['So','Mo','Di','Mi','Do','Fr','Sa'], a = new Date(t.d+'T12:00:00');
   var s = wt[a.getDay()]+' '+a.getDate()+'.'+(a.getMonth()+1)+'.';
@@ -16437,6 +16464,7 @@ function renderSubject(subjectId, folderId){
       '<span class="up-menue" id="upMenue" hidden>'+
         '<label class="btn btn-ghost btn-sm" for="fileInput">📄 Datei: HTML, PDF oder PowerPoint</label>'+
         '<button class="btn btn-ghost btn-sm" id="dzLinkBtn" type="button">🔗 Link</button>'+
+        '<button class="btn btn-ghost btn-sm" id="dzSimBtn" type="button">🔬 Simulation oder 📊 Daten-Grafik</button>'+
         '<label class="btn btn-ghost btn-sm" for="fileInputDir" title="Unterordner werden als Ordner angelegt. Lösungen (Dateiname endet auf «_L.pdf» oder «Lösung.pdf», oder Ordner auf «(verdeckt)») stehen direkt neben der Aufgabe, werden aber ausgeblendet und geschützt.">📁 Ordner mit PDFs</label>'+
         '<label class="btn btn-ghost btn-sm" for="fileInputLp" title="Liegt neben den Übungen, nur Lehrpersonen sehen es – z. B. Unterrichtsplanung, Präp, Lösungen oder Folien.">🔒 Nur für Lehrpersonen: HTML, PDF, PowerPoint</label>'+
       '</span></span>';
@@ -17761,9 +17789,9 @@ function resourceCardHtml(r, index, total, isTeacher){
     html += '<button class="move-btn" id="down-'+r.id+'" type="button" title="Nach unten"'+(index===total-1?' disabled':'')+'><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></button>';
     html += '</div>';
   }
-  if(!lp && !r.folien) html += '<div class="resource-ring" style="--p:0" title="Fortschritt"><span id="pbar-'+r.id+'">–</span></div>';
+  if(!lp && !r.folien && !r.externalUrl) html += '<div class="resource-ring" style="--p:0" title="Fortschritt"><span id="pbar-'+r.id+'">–</span></div>';
   html += '<div class="resource-info"><h4>'+esc(r.title || r.fileName)+(r.current?' <span class="chip-current">Aktuell</span>':'')+(lp?' <span class="chip-lehrer">🔒 Nur Lehrpersonen</span>':'')+(aus?' <span class="chip-lehrer">🙈 Ausgeblendet</span>':'')+niveauChipHtml(r, isTeacher)+'</h4>';
-  var metaStart = r.methode ? '🧰 Methodenmaterial · ' + (r.methode.lektion ? esc(r.methode.lektion) + ' · ' : '') + (r.methode.menge ? esc(r.methode.menge) + ' · ' : '') + 'nur Lehrpersonen, zum Drucken' : lp && r.folien ? '🎞️ Folien · nur Lehrpersonen · Notizen + 🎤 Referentenansicht' : lp && r.pdf ? '📄 Lehrer-PDF · für Schüler:innen unsichtbar' : lp ? 'Lehrer-HTML · für Schüler:innen unsichtbar' : r.pdf ? '📄 PDF' : r.folien ? '🎞️ Folien · ▶ Präsentieren, Notizen nur für Lehrpersonen' : r.externalUrl ? '🔗 Link · öffnet in neuem Tab' : 'Noch nicht geübt';
+  var metaStart = r.methode ? '🧰 Methodenmaterial · ' + (r.methode.lektion ? esc(r.methode.lektion) + ' · ' : '') + (r.methode.menge ? esc(r.methode.menge) + ' · ' : '') + 'nur Lehrpersonen, zum Drucken' : lp && r.folien ? '🎞️ Folien · nur Lehrpersonen · Notizen + 🎤 Referentenansicht' : lp && r.pdf ? '📄 Lehrer-PDF · für Schüler:innen unsichtbar' : lp ? 'Lehrer-HTML · für Schüler:innen unsichtbar' : r.pdf ? '📄 PDF' : r.folien ? '🎞️ Folien · ▶ Präsentieren, Notizen nur für Lehrpersonen' : r.externalUrl ? (r.einbetten ? esc(r.linkLabel || '🔗 Link')+' · öffnet in der Library' : '🔗 Link · öffnet in neuem Tab') : 'Noch nicht geübt';
   if(aus) metaStart = 'Für Schüler:innen ausgeblendet · ' + metaStart;
   html += '<div class="resource-meta" id="pmeta-'+r.id+'">'+metaStart+(uploaded?' · hinzugefügt am '+uploaded:'')+'</div>';
   html += '</div>';
@@ -18905,6 +18933,8 @@ function wireDropzone(subjectId){
     if(input.files && input.files.length){ handleUpload(subjectId, state.route.folderId || null, input.files[0]); input.value=''; }
   });
   document.getElementById('dzLinkBtn').addEventListener('click', function(){ askAddLink(subjectId, state.route.folderId || null); });
+  var simBtn = document.getElementById('dzSimBtn');
+  if(simBtn) simBtn.addEventListener('click', function(){ askSimKatalog(subjectId, state.route.folderId || null); });
   var inputDir = document.getElementById('fileInputDir');
   if(inputDir) inputDir.addEventListener('change', function(){
     if(inputDir.files && inputDir.files.length){ handleOrdnerUpload(subjectId, state.route.folderId || null, inputDir.files); inputDir.value=''; }
@@ -18941,6 +18971,7 @@ function askAddLink(subjectId, folderId){
     '<p>Z.B. ein PDF in iCloud, OneDrive oder Google Drive – dort beim Teilen «Jeder mit dem Link» und «Nur ansehen» einstellen. Der Link öffnet sich für die Klasse in einem neuen Tab.</p>'+
     '<input type="url" id="linkUrlInput" placeholder="https://…" style="margin-bottom:8px;">'+
     '<input type="text" id="linkTitleInput" placeholder="Titel" maxlength="120">'+
+    '<label class="sim-einbetten"><input type="checkbox" id="linkEinbetten"> In der Library öffnen statt in einem neuen Tab <small>(geht nur, wenn die Seite das erlaubt – z. B. PhET, GeoGebra, Learningapps; iCloud/OneDrive meist nicht)</small></label>'+
     '<div class="modal-actions">'+
       '<button class="btn btn-ghost btn-sm" id="modalCancel" type="button">Abbrechen</button>'+
       '<button class="btn btn-primary btn-sm" id="modalOk" type="button">Hinzufügen</button>'+
@@ -18950,6 +18981,7 @@ function askAddLink(subjectId, folderId){
   urlIn.focus();
   function submit(){
     var url = urlIn.value.trim(), title = titleIn.value.trim();
+    var einbetten = !!(document.getElementById('linkEinbetten') || {}).checked;
     if(!/^https?:\/\/\S+$/i.test(url)){ toast('Bitte einen Link mit https:// einfügen.'); urlIn.focus(); return; }
     if(!title){ titleIn.focus(); return; }
     closeModal();
@@ -18960,6 +18992,7 @@ function askAddLink(subjectId, folderId){
       title: title.slice(0,120),
       fileName: '',
       externalUrl: url,
+      einbetten: einbetten,
       uploadedAt: serverTimestamp(),
       uploadedBy: state.user.uid,
       version: 0
@@ -18969,6 +19002,204 @@ function askAddLink(subjectId, folderId){
   document.getElementById('modalOk').addEventListener('click', submit);
   document.getElementById('modalCancel').addEventListener('click', closeModal);
   [urlIn, titleIn].forEach(function(el){ el.addEventListener('keydown', function(e){ if(e.key === 'Enter') submit(); }); });
+}
+
+/* 🔬 SIMULATIONEN & 📊 DATEN-GRAFIKEN – Katalog im «＋ Hinzufügen»-Menü jedes Fachs (nur Lehrpersonen).
+   PhET (University of Colorado, CC BY 4.0, deutsche Fassungen) und Our World in Data (CC BY, englische Oberfläche).
+   Ein Klick legt einen normalen Link-Eintrag an (externalUrl + einbetten:true + linkLabel) – kein neues Feld in den Regeln,
+   kein Firestore-Inhalt, kein Fortschritt. goResource öffnet einbettbare Links im Link-Viewer (iframe src, Vollbild, ↗ Neuer Tab).
+   Geprüft am 22.11.2026: alle Adressen liefern 200 und erlauben das Einbetten. */
+var SIM_PHET = function(slug){ return 'https://phet.colorado.edu/sims/html/'+slug+'/latest/'+slug+'_de.html'; };
+var SIM_OWID = function(slug, q){ return 'https://ourworldindata.org/grapher/'+slug+(q ? '?'+q : ''); };
+var SIM_KATALOG = [
+  // ⚡ Physik
+  {f:['physik','makerspace'], t:'Elektrizität', s:'circuit-construction-kit-dc', n:'Stromkreise schalten: Gleichstrom', i:'Batterie, Lämpchen, Schalter verbinden, mit Messgeräten messen'},
+  {f:['physik'], t:'Elektrizität', s:'ohms-law', n:'Ohmsches Gesetz', i:'U = R · I mit Schiebereglern'},
+  {f:['physik'], t:'Elektrizität', s:'resistance-in-a-wire', n:'Widerstand in einem Kabel', i:'Länge, Querschnitt und Material verändern'},
+  {f:['physik'], t:'Elektrizität', s:'balloons-and-static-electricity', n:'Ballons und statische Elektrizität', i:'Ladungen sichtbar machen'},
+  {f:['physik'], t:'Elektrizität', s:'john-travoltage', n:'John Travoltage', i:'Aufladen und Funken – Einstieg Elektrostatik'},
+  {f:['physik'], t:'Elektrizität', s:'magnets-and-electromagnets', n:'Magnete und Elektromagnete', i:'Feldlinien, Kompass, Spule'},
+  {f:['physik'], t:'Elektrizität', s:'faradays-electromagnetic-lab', n:'Faradays elektromagnetisches Labor', i:'Induktion, Generator, Transformator'},
+  {f:['physik'], t:'Kräfte & Bewegung', s:'forces-and-motion-basics', n:'Kräfte und Bewegung: Grundlagen', i:'Seilziehen, Reibung, Beschleunigung'},
+  {f:['physik'], t:'Kräfte & Bewegung', s:'friction', n:'Reibung', i:'Was passiert zwischen zwei Oberflächen?'},
+  {f:['physik'], t:'Kräfte & Bewegung', s:'balancing-act', n:'Balanceakt', i:'Hebelgesetz an der Wippe'},
+  {f:['physik'], t:'Kräfte & Bewegung', s:'hookes-law', n:'Hookesches Gesetz', i:'Feder dehnen, Kraft messen'},
+  {f:['physik'], t:'Kräfte & Bewegung', s:'masses-and-springs-basics', n:'Massen und Federn', i:'Schwingungen mit Gewichten'},
+  {f:['physik'], t:'Kräfte & Bewegung', s:'projectile-motion', n:'Projektilbewegung', i:'Wurfparabel: Winkel und Tempo'},
+  {f:['physik'], t:'Kräfte & Bewegung', s:'pendulum-lab', n:'Pendel', i:'Länge, Masse und Schwingungsdauer'},
+  {f:['physik'], t:'Energie', s:'energy-skate-park-basics', n:'Energieskatepark', i:'Lage- und Bewegungsenergie auf der Halfpipe'},
+  {f:['physik','geografie'], t:'Energie', s:'energy-forms-and-changes', n:'Energieformen und Energieumwandlungen', i:'Von der Sonne zum Strom, Wärme fliesst'},
+  {f:['physik','chemie'], t:'Dichte & Druck', s:'density', n:'Dichte', i:'Schwimmt es oder sinkt es? Masse und Volumen'},
+  {f:['physik'], t:'Dichte & Druck', s:'buoyancy-basics', n:'Auftrieb: Grundlagen', i:'Warum Schiffe schwimmen'},
+  {f:['physik'], t:'Dichte & Druck', s:'under-pressure', n:'Unter Druck', i:'Wasserdruck und Luftdruck'},
+  {f:['physik'], t:'Wellen, Licht & Schall', s:'sound-waves', n:'Schallwellen', i:'Frequenz und Lautstärke sehen und hören'},
+  {f:['physik'], t:'Wellen, Licht & Schall', s:'waves-intro', n:'Wellen Einführung', i:'Wasser-, Schall- und Lichtwellen'},
+  {f:['physik'], t:'Wellen, Licht & Schall', s:'wave-on-a-string', n:'Seilwelle', i:'Amplitude, Frequenz, Reflexion'},
+  {f:['physik'], t:'Wellen, Licht & Schall', s:'bending-light', n:'Lichtbrechung', i:'Licht trifft auf Wasser und Glas'},
+  {f:['physik'], t:'Wellen, Licht & Schall', s:'geometric-optics-basics', n:'Geometrische Optik', i:'Linsen und Spiegel, Bildentstehung'},
+  {f:['physik','biologie'], t:'Wellen, Licht & Schall', s:'color-vision', n:'Farbwahrnehmung', i:'Wie das Auge Farben mischt'},
+  {f:['physik','geografie'], t:'Weltraum', s:'gravity-and-orbits', n:'Gravitation und Umlaufbahnen', i:'Sonne, Erde, Mond – warum sie kreisen'},
+  {f:['physik','geografie'], t:'Weltraum', s:'my-solar-system', n:'Mein Sonnensystem', i:'Eigene Planetenbahnen bauen'},
+  {f:['physik'], t:'Weltraum', s:'keplers-laws', n:'Keplersche Gesetze', i:'Ellipsenbahnen'},
+  // 🧪 Chemie
+  {f:['chemie'], t:'Atome & Moleküle', s:'build-an-atom', n:'Baue ein Atom', i:'Protonen, Neutronen, Elektronen – mit Spiel'},
+  {f:['chemie'], t:'Atome & Moleküle', s:'isotopes-and-atomic-mass', n:'Isotope und Atommasse', i:'Gleiches Element, andere Masse'},
+  {f:['chemie'], t:'Atome & Moleküle', s:'build-a-molecule', n:'Moleküle bauen', i:'Aus Atomen Wasser, CO₂ und mehr zusammensetzen'},
+  {f:['chemie'], t:'Atome & Moleküle', s:'molecule-shapes-basics', n:'Molekülgeometrie', i:'Molekülformen in 3D'},
+  {f:['chemie'], t:'Atome & Moleküle', s:'molecule-polarity', n:'Dipolmoleküle', i:'Polare und unpolare Moleküle'},
+  {f:['chemie','physik'], t:'Teilchenmodell', s:'states-of-matter-basics', n:'Aggregatszustände', i:'Fest, flüssig, gasförmig im Teilchenmodell'},
+  {f:['chemie','physik'], t:'Teilchenmodell', s:'gas-properties', n:'Eigenschaften von Gasen', i:'Druck, Temperatur, Volumen'},
+  {f:['chemie','biologie'], t:'Teilchenmodell', s:'diffusion', n:'Diffusion', i:'Teilchen verteilen sich'},
+  {f:['chemie'], t:'Lösungen, Säuren & Basen', s:'ph-scale-basics', n:'pH-Skala: Grundlagen', i:'Kaffee, Seife, Zitronensaft messen'},
+  {f:['chemie'], t:'Lösungen, Säuren & Basen', s:'acid-base-solutions', n:'Saure und basische Lösungen', i:'Starke und schwache Säuren'},
+  {f:['chemie'], t:'Lösungen, Säuren & Basen', s:'concentration', n:'Konzentration', i:'Lösen, verdünnen, sättigen'},
+  {f:['chemie'], t:'Lösungen, Säuren & Basen', s:'molarity', n:'Stoffmengenkonzentration', i:'Mol pro Liter'},
+  {f:['chemie'], t:'Reaktionen', s:'balancing-chemical-equations', n:'Reaktionsgleichungen ausgleichen', i:'Mit Waage und Spiel'},
+  {f:['chemie'], t:'Reaktionen', s:'reactants-products-and-leftovers', n:'Reaktanden, Produkte und Reste', i:'Sandwich-Rezept als Einstieg'},
+  // 🌱 Biologie
+  {f:['biologie'], t:'Biologie', s:'natural-selection', n:'Natürliche Selektion', i:'Hasen, Wölfe und Mutationen'},
+  {f:['biologie'], t:'Biologie', s:'gene-expression-essentials', n:'Genexpression', i:'Vom Gen zum Protein'},
+  {f:['biologie'], t:'Biologie', s:'neuron', n:'Stimulation eines Neurons', i:'Wie ein Nervensignal läuft'},
+  {f:['biologie'], t:'Biologie', s:'membrane-transport', n:'Transport an Membranen', i:'Was durch die Zellmembran kommt'},
+  {f:['geografie','physik','chemie'], t:'Klima', s:'greenhouse-effect', n:'Treibhauseffekt', i:'Sonnenlicht, Wärme und Treibhausgase'},
+  // 📐 Mathematik
+  {f:['mathe'], t:'Zahlen & Brüche', s:'fractions-intro', n:'Brüche: Einführung', i:'Brüche darstellen mit Kuchen und Balken'},
+  {f:['mathe'], t:'Zahlen & Brüche', s:'fractions-equality', n:'Brüche: Gleichsetzen', i:'Gleichwertige Brüche finden'},
+  {f:['mathe'], t:'Zahlen & Brüche', s:'number-line-integers', n:'Zahlenstrahl: Ganze Zahlen', i:'Negative Zahlen, Temperatur, Kontostand'},
+  {f:['mathe'], t:'Zahlen & Brüche', s:'number-line-distance', n:'Zahlengerade: Abstand', i:'Abstände zwischen Zahlen'},
+  {f:['mathe'], t:'Algebra', s:'equality-explorer-basics', n:'Gleichheit schaffen: Grundlagen', i:'Gleichungen mit der Waage'},
+  {f:['mathe','algebra'], t:'Algebra', s:'equality-explorer', n:'Gleichheit schaffen', i:'Gleichungen lösen mit Variablen'},
+  {f:['mathe','algebra'], t:'Algebra', s:'expression-exchange', n:'Terme komponieren', i:'Gleichartige Terme zusammenfassen'},
+  {f:['mathe','algebra'], t:'Algebra', s:'area-model-algebra', n:'Flächenmodell Algebra', i:'Binome als Flächen'},
+  {f:['mathe'], t:'Algebra', s:'area-model-multiplication', n:'Flächenmodell Multiplikation', i:'Schriftlich multiplizieren verstehen'},
+  {f:['mathe','algebra'], t:'Funktionen', s:'function-builder', n:'Funktionen-Düse', i:'Eingabe → Regel → Ausgabe'},
+  {f:['mathe','algebra'], t:'Funktionen', s:'graphing-lines', n:'Geraden ziehen', i:'Steigung und Punkte'},
+  {f:['mathe','algebra'], t:'Funktionen', s:'graphing-slope-intercept', n:'Steigung und Achsenabschnitt', i:'y = mx + b'},
+  {f:['mathe'], t:'Proportionalität', s:'unit-rates', n:'Pro Einheit', i:'Einkaufen: Preis pro Stück und Kilo'},
+  {f:['mathe'], t:'Proportionalität', s:'proportion-playground', n:'Proportionen-Spiel', i:'Verhältnisse mit Farben und Ketten'},
+  {f:['mathe'], t:'Proportionalität', s:'ratio-and-proportion', n:'Verhältnis und Proportion', i:'Verhältnisse mit den Händen'},
+  {f:['mathe'], t:'Geometrie', s:'area-builder', n:'Flächen belegen', i:'Fläche und Umfang mit Quadraten'},
+  {f:['mathe'], t:'Geometrie', s:'quadrilateral', n:'Viereck', i:'Eigenschaften von Vierecken entdecken'},
+  {f:['mathe'], t:'Geometrie', s:'trig-tour', n:'Trigonometrie-Tour', i:'Sinus, Kosinus, Tangens am Einheitskreis'},
+  {f:['mathe','physik'], t:'Geometrie', s:'vector-addition', n:'Vektoraddition', i:'Pfeile aneinanderhängen'},
+  {f:['mathe'], t:'Daten & Zufall', s:'mean-share-and-balance', n:'Mittelwert: Anteil und Durchschnitt', i:'Gerecht verteilen = Durchschnitt'},
+  {f:['mathe'], t:'Daten & Zufall', s:'center-and-variability', n:'Mittelwert und Abweichung', i:'Median, Mittelwert, Streuung'},
+  {f:['mathe'], t:'Daten & Zufall', s:'plinko-probability', n:'Plinko-Nagelbrett', i:'Zufall und Wahrscheinlichkeit'},
+  // 📊 Our World in Data (Grafiken, Oberfläche englisch)
+  {f:['geografie'], t:'Bevölkerung', o:'population', q:'tab=map', n:'Bevölkerung pro Land', i:'Weltkarte, mit Zeitleiste ab 1800'},
+  {f:['geografie','geschichte'], t:'Bevölkerung', o:'world-population-by-world-regions-post-1820', n:'Bevölkerung nach Weltregion seit 1820', i:'Wie die Weltbevölkerung gewachsen ist'},
+  {f:['geografie'], t:'Bevölkerung', o:'population-growth-rates', q:'tab=map', n:'Bevölkerungswachstum', i:'Wo wächst die Bevölkerung am schnellsten?'},
+  {f:['geografie'], t:'Bevölkerung', o:'children-per-woman-un', q:'tab=map', n:'Kinder pro Frau', i:'Geburtenrate weltweit'},
+  {f:['geografie'], t:'Bevölkerung', o:'median-age', q:'tab=map', n:'Durchschnittsalter (Median)', i:'Junge und alte Länder'},
+  {f:['geografie','psychologie'], t:'Bevölkerung', o:'migrant-stock-total', q:'tab=map', n:'Eingewanderte pro Land', i:'Migration weltweit'},
+  {f:['geografie','geschichte'], t:'Bevölkerung', o:'share-of-population-urban', q:'tab=map', n:'Anteil Stadtbevölkerung', i:'Verstädterung, passt zu Megacitys'},
+  {f:['geografie','geschichte'], t:'Bevölkerung', o:'urbanization-last-500-years', n:'Verstädterung seit 500 Jahren', i:'Lange Zeitreihe'},
+  {f:['geografie','psychologie'], t:'Lebensbedingungen', o:'life-expectancy', q:'tab=map', n:'Lebenserwartung', i:'Wie alt werden Menschen wo?'},
+  {f:['geografie','psychologie'], t:'Lebensbedingungen', o:'child-mortality', q:'tab=map', n:'Kindersterblichkeit', i:'Anteil Kinder, die vor 5 Jahren sterben'},
+  {f:['geografie','psychologie'], t:'Lebensbedingungen', o:'share-of-population-in-extreme-poverty', q:'tab=map', n:'Extreme Armut', i:'Weniger als ca. 3 $ pro Tag'},
+  {f:['geografie'], t:'Lebensbedingungen', o:'gdp-per-capita-worldbank', q:'tab=map', n:'BIP pro Kopf', i:'Reiche und arme Länder'},
+  {f:['geografie','psychologie'], t:'Lebensbedingungen', o:'human-development-index', q:'tab=map', n:'Index der menschlichen Entwicklung (HDI)', i:'Gesundheit, Bildung, Einkommen'},
+  {f:['geografie'], t:'Lebensbedingungen', o:'access-drinking-water-stacked', n:'Zugang zu Trinkwasser', i:'Wer hat sauberes Wasser?'},
+  {f:['geografie'], t:'Lebensbedingungen', o:'share-of-the-population-with-access-to-electricity', q:'tab=map', n:'Zugang zu Strom', i:'Anteil Bevölkerung mit Strom'},
+  {f:['geografie','geschichte','psychologie'], t:'Bildung & Internet', o:'cross-country-literacy-rates', q:'tab=map', n:'Alphabetisierung', i:'Wer kann lesen und schreiben?'},
+  {f:['geografie','psychologie'], t:'Bildung & Internet', o:'mean-years-of-schooling-long-run', q:'tab=map', n:'Durchschnittliche Schuljahre', i:'Wie lange gehen Menschen zur Schule?'},
+  {f:['geografie','informatik'], t:'Bildung & Internet', o:'share-of-individuals-using-the-internet', q:'tab=map', n:'Anteil Internetnutzung', i:'Wer ist online?'},
+  {f:['geografie','informatik'], t:'Bildung & Internet', o:'internet-users-by-world-region', n:'Internetnutzer nach Weltregion', i:'Entwicklung seit 1990'},
+  {f:['geografie','psychologie'], t:'Klima & Umwelt', o:'temperature-anomaly', n:'Temperaturanstieg seit der Industrialisierung', i:'Erderwärmung'},
+  {f:['geografie'], t:'Klima & Umwelt', o:'co-emissions-per-capita', q:'tab=map', n:'CO₂-Ausstoss pro Kopf', i:'Wer stösst wie viel aus?'},
+  {f:['geografie','geschichte'], t:'Klima & Umwelt', o:'annual-co2-emissions-per-country', n:'CO₂-Ausstoss pro Land', i:'Zeitreihe seit 1750'},
+  {f:['geografie','physik'], t:'Klima & Umwelt', o:'share-electricity-renewables', q:'tab=map', n:'Strom aus erneuerbaren Quellen', i:'Anteil Wasser, Wind, Sonne'},
+  {f:['geografie'], t:'Klima & Umwelt', o:'sea-level-rise', n:'Meeresspiegelanstieg', i:'Seit 1880'},
+  {f:['geografie','biologie'], t:'Klima & Umwelt', o:'forest-area-as-share-of-land-area', q:'tab=map', n:'Waldanteil', i:'Wie viel Land ist Wald?'},
+  {f:['geografie','biologie'], t:'Klima & Umwelt', o:'global-living-planet-index', n:'Living Planet Index', i:'Rückgang der Tierbestände'},
+  {f:['geografie','psychologie'], t:'Klima & Umwelt', o:'plastic-waste-per-capita', q:'tab=map', n:'Plastikabfall pro Kopf', i:'Wer produziert wie viel Plastik?'},
+  {f:['geografie'], t:'Klima & Umwelt', o:'number-of-deaths-from-natural-disasters', n:'Todesfälle durch Naturkatastrophen', i:'Erdbeben, Fluten, Dürren seit 1900'},
+  {f:['geografie','wah'], t:'Ernährung', o:'meat-supply-per-person', q:'tab=map', n:'Fleischkonsum pro Person', i:'Kilo pro Jahr'},
+  {f:['geografie'], t:'Ernährung', o:'wheat-yields', q:'tab=map', n:'Weizenerträge', i:'Tonnen pro Hektar'}
+];
+SIM_KATALOG.forEach(function(x){
+  x.id = x.s || ('owid-'+x.o);
+  x.url = x.s ? SIM_PHET(x.s) : SIM_OWID(x.o, x.q);
+  x.label = x.s ? '🔬 Simulation' : '📊 Daten-Grafik';
+});
+function simIstEinbettbar(r){ return !!(r && r.externalUrl && r.einbetten); }
+function askSimKatalog(subjectId, folderId){
+  var nurFach = SIM_KATALOG.some(function(x){ return x.f.indexOf(subjectId) >= 0; });
+  var st = {fach: nurFach, art: 'alle', q: ''};
+  var vorhanden = {};
+  (state.resources || []).forEach(function(r){ if(r && r.externalUrl && r.subject === subjectId) vorhanden[r.externalUrl] = true; });
+  openModal(
+    '<h3>🔬 Simulationen & 📊 Daten-Grafiken</h3>'+
+    '<p class="sim-hinweis">Kostenlos, ohne Login für die Klasse. Öffnet sich direkt in der Library (mit Vollbild). PhET-Simulationen sind deutsch, die Grafiken von Our World in Data haben eine englische Oberfläche.</p>'+
+    '<div class="sim-filter">'+
+      '<input type="search" id="simSuche" placeholder="Suchen, z. B. Strom, Brüche, CO₂ …" autocomplete="off">'+
+      '<span class="sim-tabs">'+
+        '<button type="button" class="btn btn-sm btn-ghost" data-art="alle">Alle</button>'+
+        '<button type="button" class="btn btn-sm btn-ghost" data-art="sim">🔬 Simulationen</button>'+
+        '<button type="button" class="btn btn-sm btn-ghost" data-art="owid">📊 Grafiken</button>'+
+      '</span>'+
+      (nurFach ? '<label class="sim-fachwahl"><input type="checkbox" id="simNurFach" checked> nur '+esc(subjectName(subjectId))+'</label>' : '')+
+    '</div>'+
+    '<div class="sim-liste" id="simListe"></div>'+
+    '<div class="modal-actions"><button class="btn btn-primary btn-sm" id="modalCancel" type="button">Fertig</button></div>',
+    'modal-wide sim-modal'
+  );
+  var liste = document.getElementById('simListe');
+  function zeichnen(){
+    document.querySelectorAll('.sim-tabs [data-art]').forEach(function(b){ var an = b.getAttribute('data-art') === st.art; b.classList.toggle('btn-primary', an); b.classList.toggle('btn-ghost', !an); });
+    var q = st.q.trim().toLowerCase();
+    var treffer = SIM_KATALOG.filter(function(x){
+      if(st.fach && x.f.indexOf(subjectId) < 0) return false;
+      if(st.art === 'sim' && !x.s) return false;
+      if(st.art === 'owid' && x.s) return false;
+      if(q && (x.n+' '+x.i+' '+x.t).toLowerCase().indexOf(q) < 0) return false;
+      return true;
+    });
+    if(!treffer.length){ liste.innerHTML = '<div class="empty-state">Nichts gefunden.</div>'; return; }
+    var html = '', thema = null;
+    treffer.forEach(function(x){
+      if(x.t !== thema){ thema = x.t; html += '<h4 class="sim-thema">'+esc(thema)+'</h4>'; }
+      var da = !!vorhanden[x.url];
+      html += '<div class="sim-zeile">'+
+        '<span class="sim-ic" aria-hidden="true">'+(x.s ? '🔬' : '📊')+'</span>'+
+        '<span class="sim-text"><b>'+esc(x.n)+'</b><small>'+esc(x.i)+'</small></span>'+
+        '<a class="btn btn-ghost btn-sm" href="'+esc(x.url)+'" target="_blank" rel="noopener" title="Vorschau in neuem Tab">👁️</a>'+
+        '<button type="button" class="btn btn-sm '+(da ? 'btn-ghost' : 'btn-primary')+'" data-sim="'+esc(x.id)+'"'+(da ? ' disabled' : '')+'>'+(da ? '✓ Drin' : '＋')+'</button>'+
+      '</div>';
+    });
+    liste.innerHTML = html;
+  }
+  liste.addEventListener('click', function(e){
+    var b = e.target.closest('[data-sim]');
+    if(!b || b.disabled) return;
+    var x = SIM_KATALOG.find(function(k){ return k.id === b.getAttribute('data-sim'); });
+    if(!x) return;
+    b.disabled = true; b.textContent = '…';
+    var resId = subjectId+'_'+Date.now();
+    setDoc(kdoc('resources', resId), {
+      subject: subjectId,
+      folderId: folderId || null,
+      title: (x.s ? '🔬 ' : '📊 ')+x.n,
+      fileName: '',
+      externalUrl: x.url,
+      einbetten: true,
+      linkLabel: x.label,
+      uploadedAt: serverTimestamp(),
+      uploadedBy: state.user.uid,
+      version: 0
+    }).then(function(){
+      indexDazu(resId, state.klasse);
+      vorhanden[x.url] = true;
+      b.textContent = '✓ Drin'; b.classList.remove('btn-primary'); b.classList.add('btn-ghost');
+      toast('«'+x.n+'» ist jetzt in '+subjectName(subjectId)+'.');
+    }).catch(function(err){ console.error(err); b.disabled = false; b.textContent = '＋'; toast('Hinzufügen fehlgeschlagen.'); });
+  });
+  document.getElementById('simSuche').addEventListener('input', function(e){ st.q = e.target.value; zeichnen(); });
+  document.querySelectorAll('.sim-tabs [data-art]').forEach(function(b){ b.addEventListener('click', function(){ st.art = b.getAttribute('data-art'); zeichnen(); }); });
+  var nf = document.getElementById('simNurFach');
+  if(nf) nf.addEventListener('change', function(){ st.fach = nf.checked; zeichnen(); });
+  document.getElementById('modalCancel').addEventListener('click', closeModal);
+  zeichnen();
 }
 
 function readFileAsText(file){
@@ -26792,6 +27023,8 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-11-22-wahre-groesse', datum:'2026-11-22', fuer:'alle', text:'🌍 Neu in Geografie: «Wahre Grösse». Zieh Länder über die Weltkarte und schau, wie gross sie wirklich sind – Grönland neben Afrika, die Schweiz in Skandinavien. So siehst du, wie stark normale Weltkarten verzerren.'},
+  {id:'2026-11-22-simulationen', datum:'2026-11-22', fuer:'lehrer', text:'🔬 Neu unter «＋ Hinzufügen»: «Simulation oder Daten-Grafik». Ein Katalog mit 69 PhET-Simulationen auf Deutsch (Physik, Chemie, Biologie, Mathe) und 30 Grafiken von Our World in Data (Geografie, ERG, Geschichte). Ein Klick legt sie in den offenen Ordner, die Klasse öffnet sie direkt in der Library mit Vollbild. Auch beim normalen «🔗 Link» kannst du jetzt «In der Library öffnen» ankreuzen.'},
   {id:'2026-11-20-niveau-diktate', datum:'2026-11-20', fuer:'lehrer', text:'📊 Fehleranalyse Diktate kennt jetzt die neuen Niveau-Diktate 12–21 (Deutsch › Diktate): gezählt wird der neueste Versuch über alle drei Niveaus, in der Tabelle stehen Niveau und Note. Neu als Fehlerarten: das/dass, Dehnung mit ie und Satzzeichen.'},
   {id:'2026-11-20-indiv-klassen', datum:'2026-11-20', fuer:'lehrer', text:'📌 Individuelle Übungen: Beim Zuweisen und bei der Sammelzuweisung kannst du jetzt auch eine andere Klasse wählen. Deine Zuweisungen in anderen Klassen erscheinen in der Übersicht mit der Klasse hinter dem Namen, z. B. «Lea (G3a)».'},
   {id:'2026-11-20-indiv-uebersicht', datum:'2026-11-20', fuer:'lehrer', text:'📌 Individuelle Übungen aufgeräumt: Die Übersicht zeigt pro Übung eine Karte mit «x/y gelöst» und den Namen als Chips (× entfernt eine Person, ⋯ entfernt für alle). Umschalter «Nach Person» zeigt alles pro Kind. Zuweisen und Sammelzuweisung sind hinter zwei Knöpfen oben, das Archiv ist unten nach Fächern eingeklappt.'},

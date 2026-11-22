@@ -1,0 +1,362 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wahre Grösse</title>
+<link rel="stylesheet" href="../assets/vendor/fonts/schriften.css">
+<!--
+  🌍 Wahre Grösse (Geografie) — Helfenberger's Library
+  Weltkarte in Mercator-Projektion. Länder lassen sich als farbige Kopie über die Karte ziehen: Die Form wird auf der
+  Kugel verschoben (erst entlang des Äquators, dann entlang des Meridians) und neu projiziert. So sieht man, wie Mercator
+  Länder zum Pol hin aufbläht (Grönland neben Afrika, Russland am Äquator, die Schweiz in Skandinavien …).
+  Daten: laender.json aus Natural Earth 1:50m (gemeinfrei, via world-atlas) mit deutschen Namen (i18n-iso-countries, MIT),
+  Fläche je Land auf der Kugel berechnet. Kein Firestore, kein localStorage nötig.
+-->
+<style>
+  :root{
+    --bg:#EEF3F7; --surface:#FFFFFF; --border:#D5DEE8; --text:#16263A; --muted:#5D6E84;
+    --meer:#CFE3F1; --land:#F7F4EA; --grenze:#B7B0A0; --akzent:#1F7A8C; --akzent-soft:#DCEFF2;
+    --shadow:0 1px 2px rgba(20,30,50,.08), 0 12px 28px -16px rgba(20,30,50,.35);
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#111823; --surface:#1A2333; --border:#2C3A50; --text:#E8EEF6; --muted:#9AAAC0;
+      --meer:#16283C; --land:#2A3446; --grenze:#46536A; --akzent:#4FB3C6; --akzent-soft:#173843; color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#111823; --surface:#1A2333; --border:#2C3A50; --text:#E8EEF6; --muted:#9AAAC0;
+    --meer:#16283C; --land:#2A3446; --grenze:#46536A; --akzent:#4FB3C6; --akzent-soft:#173843; color-scheme: dark;
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;margin:0;}
+  body{background:var(--bg);color:var(--text);font-family:'Atkinson Hyperlegible',-apple-system,BlinkMacSystemFont,sans-serif;font-size:15px;display:flex;flex-direction:column;overflow:hidden;}
+  button,input{font:inherit;color:inherit;}
+  header{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px 14px;background:var(--surface);border-bottom:1px solid var(--border);}
+  h1{font-size:1.15rem;margin:0 10px 0 0;white-space:nowrap;}
+  .suche{position:relative;flex:1 1 220px;max-width:340px;}
+  .suche input{width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:10px;background:var(--bg);}
+  .treffer{position:absolute;left:0;right:0;top:calc(100% + 4px);background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:var(--shadow);max-height:300px;overflow:auto;z-index:5;display:none;}
+  .treffer button{display:flex;justify-content:space-between;gap:8px;width:100%;text-align:left;border:0;background:none;padding:7px 12px;cursor:pointer;}
+  .treffer button small{color:var(--muted);}
+  .treffer button:hover,.treffer button.aktiv{background:var(--akzent-soft);}
+  .btn{border:1px solid var(--border);background:var(--surface);border-radius:10px;padding:7px 12px;cursor:pointer;white-space:nowrap;}
+  .btn:hover{border-color:var(--akzent);}
+  .btn.primaer{background:var(--akzent);border-color:var(--akzent);color:#fff;}
+  .ideen{display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding:8px 14px;border-bottom:1px solid var(--border);background:var(--surface);font-size:.92rem;}
+  .ideen span{color:var(--muted);margin-right:2px;}
+  .ideen .btn{padding:4px 10px;font-size:.9rem;}
+  main{flex:1;position:relative;min-height:0;}
+  svg{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;user-select:none;-webkit-user-select:none;}
+  .meer{fill:var(--meer);}
+  .land{fill:var(--land);stroke:var(--grenze);stroke-width:.6;vector-effect:non-scaling-stroke;}
+  .gitter{stroke:var(--grenze);stroke-opacity:.35;stroke-width:.6;vector-effect:non-scaling-stroke;fill:none;}
+  .gitter.aequator{stroke-opacity:.8;stroke-dasharray:4 4;}
+  .kopie path{fill-opacity:.62;stroke-width:1.4;vector-effect:non-scaling-stroke;cursor:grab;fill-rule:evenodd;}
+  .kopie.zieht path{cursor:grabbing;fill-opacity:.75;}
+  .kopie .original{fill:none;stroke-dasharray:3 3;stroke-width:1.2;cursor:default;pointer-events:none;fill-opacity:0;}
+  .etikett{pointer-events:none;font-weight:700;paint-order:stroke;stroke:var(--surface);stroke-width:3.5px;stroke-linejoin:round;fill:var(--text);}
+  .etikett tspan.klein{font-weight:400;}
+  .zoom{position:absolute;right:12px;bottom:12px;display:flex;flex-direction:column;gap:6px;}
+  .zoom .btn{width:40px;height:40px;padding:0;font-size:1.2rem;box-shadow:var(--shadow);}
+  .liste{position:absolute;left:12px;bottom:12px;display:flex;flex-direction:column;gap:6px;max-width:min(360px,calc(100% - 80px));}
+  .chip{display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:6px 8px 6px 10px;box-shadow:var(--shadow);font-size:.9rem;}
+  .chip i{width:14px;height:14px;border-radius:4px;flex:none;}
+  .chip b{font-weight:700;}
+  .chip small{color:var(--muted);}
+  .chip button{border:0;background:none;cursor:pointer;padding:2px 6px;border-radius:6px;color:var(--muted);}
+  .chip button:hover{background:var(--akzent-soft);color:var(--text);}
+  .hilfe{position:absolute;left:50%;top:14px;transform:translateX(-50%);background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:8px 14px;box-shadow:var(--shadow);font-size:.92rem;max-width:calc(100% - 28px);text-align:center;pointer-events:none;transition:opacity .4s;}
+  .quelle{position:absolute;right:62px;bottom:8px;font-size:.72rem;color:var(--muted);}
+  @media (max-width:640px){ h1{font-size:1rem;} .ideen{display:none;} .quelle{display:none;} }
+</style>
+</head>
+<body>
+<header>
+  <h1>🌍 Wahre Grösse</h1>
+  <div class="suche">
+    <input type="search" id="suche" placeholder="Land suchen, z. B. Grönland …" autocomplete="off" aria-label="Land suchen">
+    <div class="treffer" id="treffer" role="listbox"></div>
+  </div>
+  <button class="btn" id="alleWeg" type="button" title="Alle verschobenen Länder entfernen">🧹 Leeren</button>
+  <button class="btn" id="zurueck" type="button" title="Alle Länder an ihren echten Ort zurück">↺ Zurück an den Ort</button>
+</header>
+<div class="ideen" id="ideen"><span>Ausprobieren:</span></div>
+<main id="main">
+  <svg id="karte" aria-label="Weltkarte in Mercator-Projektion"></svg>
+  <div class="hilfe" id="hilfe">Land suchen oder auf ein Land tippen – dann die farbige Kopie über die Karte ziehen.</div>
+  <div class="liste" id="liste"></div>
+  <div class="zoom">
+    <button class="btn" id="zin" type="button" title="Hineinzoomen" aria-label="Hineinzoomen">＋</button>
+    <button class="btn" id="zout" type="button" title="Herauszoomen" aria-label="Herauszoomen">－</button>
+    <button class="btn" id="zfit" type="button" title="Ganze Welt" aria-label="Ganze Welt">⤢</button>
+  </div>
+  <div class="quelle">Karte: Natural Earth (gemeinfrei) · Mercator-Projektion</div>
+</main>
+<script>
+(function(){
+  'use strict';
+  var NS = 'http://www.w3.org/2000/svg', RAD = Math.PI/180;
+  var FARBEN = ['#E4572E','#2E86AB','#8E44AD','#F2A541','#3BB273','#D7263D','#1B998B','#C2185B'];
+  var LAT_MAX = 84, LAT_MIN = -60;               // Kartenausschnitt (Antarktis passt nicht in Mercator)
+  var W = 1000;                                   // Weltbreite in Kartenkoordinaten
+  var svg = document.getElementById('karte'), main = document.getElementById('main');
+  var gWelt, gKopien, laender = [], kopien = [], farbeNr = 0;
+  var view = {x:0, y:0, w:W, h:0};               // viewBox
+
+  function mercY(lat){ lat = Math.max(-85, Math.min(85, lat)); return Math.log(Math.tan(Math.PI/4 + lat*RAD/2)); }
+  var Y_TOP = mercY(LAT_MAX), Y_BOT = mercY(LAT_MIN), H = (Y_TOP - Y_BOT) / (2*Math.PI) * W;
+  function px(lon){ return (lon + 180) / 360 * W; }
+  function py(lat){ return (Y_TOP - mercY(lat)) / (2*Math.PI) * W; }
+  function lonAus(x){ return x / W * 360 - 180; }
+  function latAus(y){ var m = Y_TOP - y / W * 2*Math.PI; return (2*Math.atan(Math.exp(m)) - Math.PI/2) / RAD; }
+  function el(tag, attrs, parent){ var e = document.createElementNS(NS, tag); for(var k in attrs) e.setAttribute(k, attrs[k]); if(parent) parent.appendChild(e); return e; }
+  function fmt(n){ return Math.round(n).toLocaleString('de-CH'); }
+
+  // ---------- Kugel-Geometrie ----------
+  function vec(lon, lat){ var p = lat*RAD, l = lon*RAD; return [Math.cos(p)*Math.cos(l), Math.cos(p)*Math.sin(l), Math.sin(p)]; }
+  function lonlat(v){ return [Math.atan2(v[1], v[0]) / RAD, Math.atan2(v[2], Math.hypot(v[0], v[1])) / RAD]; }
+  function drehe(v, k, th){ // Rodrigues
+    var c = Math.cos(th), s = Math.sin(th), d = k[0]*v[0] + k[1]*v[1] + k[2]*v[2];
+    return [v[0]*c + (k[1]*v[2] - k[2]*v[1])*s + k[0]*d*(1-c),
+            v[1]*c + (k[2]*v[0] - k[0]*v[2])*s + k[1]*d*(1-c),
+            v[2]*c + (k[0]*v[1] - k[1]*v[0])*s + k[2]*d*(1-c)];
+  }
+  // Mittelpunkt: flächengewichteter Schwerpunkt des grössten Rings (auf der Kugel gemittelt)
+  function mitte(land){
+    var best = null, bestN = -1;
+    land.ringe.forEach(function(r){ if(r.length > bestN){ bestN = r.length; best = r; } });
+    var s = [0,0,0];
+    for(var i = 0; i < best.length; i += 2){ var v = vec(best[i], best[i+1]); s[0]+=v[0]; s[1]+=v[1]; s[2]+=v[2]; }
+    var ll = lonlat(s);
+    // Länge in den Bereich der Ring-Längen holen (Ringe sind stetig, können über 180° hinausgehen)
+    while(ll[0] < best[0] - 180) ll[0] += 360; while(ll[0] > best[0] + 180) ll[0] -= 360;
+    return ll;
+  }
+  // Ring verschieben: erst um die Erdachse (Längendifferenz), dann entlang des Ziel-Meridians (Breitendifferenz).
+  function verschiebe(ring, von, nach){
+    var dl = (nach[0] - von[0]) * RAD, dp = (nach[1] - von[1]) * RAD;
+    var lt = nach[0] * RAD, ost = [-Math.sin(lt), Math.cos(lt), 0];
+    var out = new Array(ring.length), prev = null;
+    for(var i = 0; i < ring.length; i += 2){
+      var v = vec(ring[i], ring[i+1]);
+      v = drehe(v, [0,0,1], dl);
+      v = drehe(v, ost, -dp);
+      var ll = lonlat(v);
+      // stetig halten, nahe am Ziel
+      if(prev === null){ while(ll[0] < nach[0] - 180) ll[0] += 360; while(ll[0] > nach[0] + 180) ll[0] -= 360; }
+      else { while(ll[0] - prev > 180) ll[0] -= 360; while(ll[0] - prev < -180) ll[0] += 360; }
+      prev = ll[0];
+      out[i] = ll[0]; out[i+1] = ll[1];
+    }
+    return out;
+  }
+  function pfad(ringe){
+    var d = '';
+    ringe.forEach(function(r){
+      for(var i = 0; i < r.length; i += 2) d += (i ? 'L' : 'M') + px(r[i]).toFixed(1) + ' ' + py(r[i+1]).toFixed(1);
+      d += 'Z';
+    });
+    return d;
+  }
+  function sec2(lat){ var c = Math.cos(lat*RAD); return 1 / (c*c); }
+
+  // ---------- Karte zeichnen ----------
+  function grundkarte(){
+    svg.innerHTML = '';
+    el('rect', {class:'meer', x:-W, y:-50, width:3*W, height:H+100}, svg);
+    gWelt = el('g', {}, svg);
+    var gGit = el('g', {}, gWelt);
+    for(var lon = -180; lon <= 180; lon += 30) el('line', {class:'gitter', x1:px(lon), x2:px(lon), y1:0, y2:H}, gGit);
+    [-60,-30,30,60].forEach(function(lat){ el('line', {class:'gitter', x1:0, x2:W, y1:py(lat), y2:py(lat)}, gGit); });
+    el('line', {class:'gitter aequator', x1:0, x2:W, y1:py(0), y2:py(0)}, gGit);
+    laender.forEach(function(l){
+      var p = el('path', {class:'land', d:l.d}, gWelt);
+      p.addEventListener('click', function(){ if(!gezogen) neueKopie(l); });
+      var t = el('title', {}, p); t.textContent = l.n;
+    });
+    gKopien = el('g', {}, svg);
+    kopien.forEach(function(k){ k.g = null; zeichneKopie(k); });
+  }
+  function setView(){
+    var r = main.getBoundingClientRect();
+    view.h = view.w * r.height / Math.max(1, r.width);
+    svg.setAttribute('viewBox', view.x + ' ' + view.y + ' ' + view.w + ' ' + view.h);
+  }
+  function einpassen(){
+    var r = main.getBoundingClientRect(), asp = r.height / Math.max(1, r.width);
+    if(H / W > asp){ view.h = H; view.w = H / asp; } else { view.w = W; view.h = W * asp; }
+    view.x = (W - view.w) / 2; view.y = (H - view.h) / 2;
+    setView();
+  }
+  function zoom(f, cx, cy){
+    var nw = Math.max(40, Math.min(W * 1.6, view.w * f));
+    if(cx === undefined){ cx = view.x + view.w/2; cy = view.y + view.h/2; }
+    var r = nw / view.w;
+    view.x = cx - (cx - view.x) * r; view.y = cy - (cy - view.y) * r; view.w = nw;
+    setView();
+  }
+
+  // ---------- Kopien ----------
+  function neueKopie(l, ziel){
+    var k = {land:l, farbe:FARBEN[farbeNr++ % FARBEN.length], von:mitte(l)};
+    k.nach = ziel ? ziel.slice() : k.von.slice();
+    kopien.push(k);
+    zeichneKopie(k); liste();
+    document.getElementById('hilfe').style.opacity = 0;
+    return k;
+  }
+  function zeichneKopie(k){
+    if(!k.g){
+      k.g = el('g', {class:'kopie'}, gKopien);
+      k.orig = el('path', {class:'original', d:k.land.d, stroke:k.farbe}, k.g);
+      k.pfad = el('path', {fill:k.farbe, stroke:k.farbe}, k.g);
+      k.text = el('text', {class:'etikett', 'text-anchor':'middle'}, k.g);
+      k.t1 = el('tspan', {}, k.text); k.t2 = el('tspan', {class:'klein'}, k.text);
+      k.pfad.addEventListener('pointerdown', function(e){ ziehStart(e, k); });
+    }
+    var ringe = k.land.ringe.map(function(r){ return verschiebe(r, k.von, k.nach); });
+    k.pfad.setAttribute('d', pfad(ringe));
+    var fs = Math.max(6, view.w / 70), x = px(k.nach[0]), y = py(k.nach[1]);
+    try{ var bb = k.pfad.getBBox(); x = bb.x + bb.width / 2; y = bb.y + bb.height + fs * 1.1; }catch(e){}
+    k.text.setAttribute('x', x); k.text.setAttribute('y', y); k.text.setAttribute('font-size', fs);
+    k.t1.textContent = k.land.n;
+    var f = sec2(k.nach[1]);
+    k.t2.setAttribute('x', x); k.t2.setAttribute('dy', fs * 1.15); k.t2.setAttribute('font-size', fs * .8);
+    k.t2.textContent = fmt(k.land.km) + ' km² · hier ' + (f < 1.05 ? 'fast unverzerrt' : f.toFixed(1).replace('.', ',') + '× zu gross');
+  }
+  function entfernen(k){ if(k.g) k.g.remove(); kopien = kopien.filter(function(x){ return x !== k; }); liste(); }
+  function liste(){
+    var box = document.getElementById('liste'); box.innerHTML = '';
+    kopien.forEach(function(k){
+      var c = document.createElement('div'); c.className = 'chip';
+      var fo = sec2(k.von[1]);
+      c.innerHTML = '<i style="background:' + k.farbe + '"></i><span><b></b> <small></small></span><button type="button" title="Entfernen" aria-label="Entfernen">✕</button>';
+      c.querySelector('b').textContent = k.land.n;
+      c.querySelector('small').textContent = fmt(k.land.km) + ' km² · am echten Ort ' + (fo < 1.05 ? 'kaum verzerrt' : fo.toFixed(1).replace('.', ',') + '× zu gross');
+      c.querySelector('button').addEventListener('click', function(){ entfernen(k); });
+      box.appendChild(c);
+    });
+  }
+
+  // ---------- Ziehen (Kopie) und Verschieben (Karte) ----------
+  var zug = null, gezogen = false, zeiger = {};
+  function svgPunkt(e){ var r = svg.getBoundingClientRect(); return [view.x + (e.clientX - r.left) / r.width * view.w, view.y + (e.clientY - r.top) / r.height * view.h]; }
+  function ziehStart(e, k){
+    e.stopPropagation(); e.preventDefault();
+    var p = svgPunkt(e);
+    zug = {art:'kopie', k:k, dx:px(k.nach[0]) - p[0], dy:py(k.nach[1]) - p[1], id:e.pointerId};
+    k.g.classList.add('zieht'); gKopien.appendChild(k.g);
+    svg.setPointerCapture(e.pointerId);
+  }
+  svg.addEventListener('pointerdown', function(e){
+    zeiger[e.pointerId] = [e.clientX, e.clientY];
+    if(zug && zug.art === 'kopie') return;
+    var ids = Object.keys(zeiger);
+    if(ids.length === 2){ var a = zeiger[ids[0]], b = zeiger[ids[1]]; zug = {art:'pinch', d:Math.hypot(a[0]-b[0], a[1]-b[1])}; return; }
+    gezogen = false;
+    zug = {art:'karte', sx:e.clientX, sy:e.clientY, vx:view.x, vy:view.y, id:e.pointerId};
+    svg.setPointerCapture(e.pointerId);
+  });
+  svg.addEventListener('pointermove', function(e){
+    if(zeiger[e.pointerId]) zeiger[e.pointerId] = [e.clientX, e.clientY];
+    if(!zug) return;
+    if(zug.art === 'kopie'){
+      var p = svgPunkt(e), x = p[0] + zug.dx, y = Math.max(py(80), Math.min(py(-75), p[1] + zug.dy));
+      zug.k.nach = [lonAus(x), latAus(y)];
+      zeichneKopie(zug.k);
+    } else if(zug.art === 'karte'){
+      var r = svg.getBoundingClientRect();
+      if(Math.abs(e.clientX - zug.sx) + Math.abs(e.clientY - zug.sy) > 4) gezogen = true;
+      view.x = zug.vx - (e.clientX - zug.sx) / r.width * view.w;
+      view.y = zug.vy - (e.clientY - zug.sy) / r.height * view.h;
+      setView();
+    } else if(zug.art === 'pinch'){
+      var ids = Object.keys(zeiger); if(ids.length < 2) return;
+      var a = zeiger[ids[0]], b = zeiger[ids[1]], d = Math.hypot(a[0]-b[0], a[1]-b[1]);
+      var rr = svg.getBoundingClientRect(), cx = view.x + ((a[0]+b[0])/2 - rr.left) / rr.width * view.w, cy = view.y + ((a[1]+b[1])/2 - rr.top) / rr.height * view.h;
+      zoom(zug.d / d, cx, cy); zug.d = d; gezogen = true;
+    }
+  });
+  function ziehEnde(e){
+    delete zeiger[e.pointerId];
+    if(zug && zug.art === 'kopie'){ zug.k.g.classList.remove('zieht'); kopien.forEach(zeichneKopie); }
+    zug = null;
+    setTimeout(function(){ gezogen = false; }, 0);
+  }
+  svg.addEventListener('pointerup', ziehEnde);
+  svg.addEventListener('pointercancel', ziehEnde);
+  svg.addEventListener('wheel', function(e){ e.preventDefault(); var p = svgPunkt(e); zoom(Math.exp(e.deltaY * 0.0015), p[0], p[1]); kopien.forEach(zeichneKopie); }, {passive:false});
+  document.getElementById('zin').onclick = function(){ zoom(1/1.4); kopien.forEach(zeichneKopie); };
+  document.getElementById('zout').onclick = function(){ zoom(1.4); kopien.forEach(zeichneKopie); };
+  document.getElementById('zfit').onclick = function(){ einpassen(); kopien.forEach(zeichneKopie); };
+  document.getElementById('alleWeg').onclick = function(){ kopien.slice().forEach(entfernen); };
+  document.getElementById('zurueck').onclick = function(){ kopien.forEach(function(k){ k.nach = k.von.slice(); zeichneKopie(k); }); };
+
+  // ---------- Suche ----------
+  var suche = document.getElementById('suche'), treffer = document.getElementById('treffer'), aktiv = 0, liste_ = [];
+  function norm(s){ return s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, ''); }
+  function zeigeTreffer(){
+    var q = norm(suche.value.trim());
+    liste_ = q ? laender.filter(function(l){ return norm(l.n).indexOf(q) >= 0; }).sort(function(a, b){ return (norm(a.n).indexOf(q) === 0 ? 0 : 1) - (norm(b.n).indexOf(q) === 0 ? 0 : 1); }).slice(0, 12) : [];
+    aktiv = 0;
+    treffer.innerHTML = '';
+    liste_.forEach(function(l, i){
+      var b = document.createElement('button'); b.type = 'button'; if(i === aktiv) b.className = 'aktiv';
+      b.innerHTML = '<span></span><small></small>';
+      b.firstChild.textContent = l.n; b.lastChild.textContent = fmt(l.km) + ' km²';
+      b.addEventListener('mousedown', function(e){ e.preventDefault(); waehle(l); });
+      treffer.appendChild(b);
+    });
+    treffer.style.display = liste_.length ? 'block' : 'none';
+  }
+  function waehle(l){ neueKopie(l); suche.value = ''; treffer.style.display = 'none'; suche.blur(); }
+  suche.addEventListener('input', zeigeTreffer);
+  suche.addEventListener('blur', function(){ treffer.style.display = 'none'; });
+  suche.addEventListener('keydown', function(e){
+    if(e.key === 'ArrowDown' || e.key === 'ArrowUp'){ e.preventDefault(); aktiv = (aktiv + (e.key === 'ArrowDown' ? 1 : -1) + liste_.length) % Math.max(1, liste_.length); [].forEach.call(treffer.children, function(b, i){ b.className = i === aktiv ? 'aktiv' : ''; }); }
+    if(e.key === 'Enter' && liste_[aktiv]){ e.preventDefault(); waehle(liste_[aktiv]); }
+    if(e.key === 'Escape'){ suche.value = ''; zeigeTreffer(); }
+  });
+
+  // ---------- Ideen ----------
+  var IDEEN = [
+    {t:'Grönland ↔ Afrika', a:[['Grönland',[20,2]]]},
+    {t:'Russland am Äquator', a:[['Russland',[95,2]]]},
+    {t:'Schweiz in Skandinavien', a:[['Schweiz',[20,66]]]},
+    {t:'USA über Europa', a:[['USA',[12,50]]]},
+    {t:'Kanada ↔ Brasilien', a:[['Kanada',[-55,-10]]]},
+    {t:'Antarktis? Australien!', a:[['Australien',[20,-5]]]}
+  ];
+  function ideenBauen(){
+    var box = document.getElementById('ideen');
+    IDEEN.forEach(function(idee){
+      var b = document.createElement('button'); b.type = 'button'; b.className = 'btn'; b.textContent = idee.t;
+      b.addEventListener('click', function(){
+        kopien.slice().forEach(entfernen);
+        idee.a.forEach(function(z){ var l = laender.find(function(x){ return x.n === z[0]; }); if(l) neueKopie(l, z[1]); });
+        einpassen(); kopien.forEach(zeichneKopie);
+      });
+      box.appendChild(b);
+    });
+  }
+
+  // ---------- Start ----------
+  fetch('laender.json').then(function(r){ return r.json(); }).then(function(daten){
+    laender = daten.map(function(x){
+      var ringe = x.r.map(function(r){ return r.map(function(v){ return v / 100; }); });
+      var l = {n:x.n, a:x.a, km:x.km, ringe:ringe};
+      l.d = pfad(ringe);
+      return l;
+    });
+    einpassen(); grundkarte(); ideenBauen();
+    var q = new URLSearchParams(location.search).get('land');
+    if(q){ var l = laender.find(function(x){ return x.a === q || x.n === q; }); if(l) neueKopie(l); }
+  }).catch(function(){ document.getElementById('hilfe').textContent = 'Die Karte konnte nicht geladen werden.'; });
+  var rt; window.addEventListener('resize', function(){ clearTimeout(rt); rt = setTimeout(function(){ setView(); kopien.forEach(zeichneKopie); }, 100); });
+})();
+</script>
+</body>
+</html>
