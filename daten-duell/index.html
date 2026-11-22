@@ -50,6 +50,18 @@
   .weiter.da{visibility:visible;}
   .meldung{font-size:1.2rem;font-weight:700;min-height:1.5em;text-align:center;}
   footer{font-size:.75rem;color:var(--muted);text-align:center;padding:6px 10px 10px;}
+  body.buehne{background:transparent;color-scheme:light;}
+  body.buehne header{background:transparent;border-bottom:0;}
+  body.buehne header label{color:#fff;font-weight:700;text-shadow:0 1px 3px rgba(0,0,0,.45);}
+  body.buehne header select{background:#fff;color:#16233A;border-color:#fff;}
+  body.buehne .team{background:#fff;}
+  body.buehne .frage{color:#fff;text-shadow:0 2px 8px rgba(0,0,0,.45);}
+  body.buehne .frage small{color:#fff;opacity:.95;font-weight:700;}
+  body.buehne .vs{color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.5);}
+  body.buehne .karte{--surface:#fff;--text:#16233A;--muted:#5E6C84;--bg:#EEF2F7;color:#16233A;}
+  body.buehne .meldung{background:#fff;border-radius:12px;padding:6px 16px;}
+  body.buehne .meldung:empty{background:transparent;}
+  body.buehne footer{color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.5);}
   @media (max-width:640px){ .karten{flex-direction:column;align-items:center;} .vs{display:none;} .karte{width:100%;} .punkte{margin-left:0;} }
 </style>
 </head>
@@ -184,6 +196,8 @@
     var NAMEN = {flaeche:'Fläche', einwohner:'Einwohner', lebenserwartung:'Lebenserwartung', co2:'CO₂ pro Kopf', kinder:'Kinder pro Frau', internet:'Internetnutzung', wald:'Waldanteil', fleisch:'Fleischkonsum', bip:'Einkommen (BIP pro Kopf)', median:'Medianalter', stadt:'Stadtbevölkerung'};
     D.kennzahlen.forEach(function(k){ var o = document.createElement('option'); o.value = k.id; o.textContent = NAMEN[k.id] || k.id; sel.appendChild(o); });
     var q = new URLSearchParams(location.search);
+    // Im Klassenzimmer (Beamer-Bühne): immer zwei Teams, kein Allein-Modus, schlichter Kopf
+    if(q.get('buehne')){ st.modus = 'teams'; var mo = document.getElementById('modus'); mo.value = 'teams'; mo.parentNode.style.display = 'none'; document.querySelector('h1').style.display = 'none'; document.body.classList.add('buehne'); }
     if(q.get('thema') && kennzahl(q.get('thema'))){ st.kennzahl = q.get('thema'); sel.value = st.kennzahl; }
     punkteZeigen(); neueRunde();
   }).catch(function(){ document.getElementById('frage').textContent = 'Die Daten konnten nicht geladen werden.'; });
