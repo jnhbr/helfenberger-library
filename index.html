@@ -1967,6 +1967,11 @@ function winterAn(){ var aus = false; try{ aus = localStorage.getItem('hl_winter
   .uf-frage{font-family:'Baloo 2',system-ui,sans-serif;font-weight:700;font-size:clamp(30px,calc(5.6vw/var(--lz,1)),68px);text-align:center;line-height:1.25;}
   .uf-meta{color:var(--text-muted);font-size:15px;font-weight:600;}
   .uf-bars{display:flex;flex-direction:column;gap:10px;width:100%;}
+  .uf-foto{max-width:760px;width:calc(100% - 32px);margin:0 auto 24px;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px 18px;}
+  .uf-foto, .uf-foto h4, .uf-foto .lp-check, .uf-foto .lp-check span, .uf-foto .lp-check b{color:#1f2430;}   /* Beamer-Bühne (duck) färbt Text weiss */
+  .uf-foto{text-align:left;}
+  .uf-foto h4{margin:0 0 6px;font-size:18px;}
+  .uf-foto img{display:block;width:100%;border-radius:8px;border:1px solid var(--border);margin:8px 0 4px;}
   .uf-bar{background:var(--surface-2);border-radius:12px;padding:16px 20px;position:relative;overflow:hidden;}
   .uf-bar-fill{position:absolute;inset:0 auto 0 0;background:var(--brand);opacity:.22;transition:width .35s ease;}
   .uf-bar-fill-2{position:absolute;left:0;bottom:0;height:46%;background:var(--brand);opacity:.5;transition:width .35s ease;}
@@ -9946,7 +9951,7 @@ function direktStart(x){
   else if(x.typ === 'million') spielWahl(t, mioAusQuiz(r));
   else if(x.typ === 'schaetz') schaetzStart(t, schaetzNorm(r.questions), schaetzOpt().sec);
   else if(x.typ === 'wolke') wolkeStart(r.frage, Math.max(1, Math.min(5, +r.max || 3)), r.zeigen !== false);
-  else if(x.typ === 'umfrage') umfrageStartSerie(umfrageFragen(r), r.titel || '');
+  else if(x.typ === 'umfrage') umfrageStartSerie(umfrageFragen(r), r.titel || '', {fach:r.fach, ordner:r.ordner});
 }
 
 onAuthStateChanged(auth, authGeaendert);
@@ -17196,10 +17201,12 @@ var ZUSATZ_ARTEN = {
   million: {icon:'💰', name:'Spiel-Sets'},
   schaetz: {icon:'🎯', name:'Schätz-Sets'},
   umfrage: {icon:'📊', name:'Blitzumfragen'},
+  foto:    {icon:'📸', name:'Umfrage-Resultate'},
   wolke:   {icon:'☁️', name:'Wortwolken'}
 };
 var zusatzOffen = {};   // «Fach|Ordner|Art» → aufgeklappt (nur für diese Sitzung)
 function zusatzArt(r){
+  if(r.umfrageFoto) return 'foto';   // 📸 gespeicherte Blitzumfrage-Resultate (umfrageFotoSpeichern)
   if(r.methode || /^🧰/.test(String(r.title || ''))) return 'methode';
   if(r.folien) return 'folien';
   if(r.kk && r.ausOrdner) return 'kk';
@@ -17232,7 +17239,7 @@ function zusatzHtml(liste, subjectId, here){
       return titel(a).localeCompare(titel(b), 'de', {numeric:true});
     });
     var karten = teil.map(function(r){ return resourceCardHtml(r, -1, 0, false); }).join('');
-    if(teil.length < 2){ html += karten; return; }
+    if(teil.length < 2 && art !== 'foto'){ html += karten; return; }   // Umfrage-Resultate immer im eigenen Ordner
     var key = subjectId + '|' + (here || '') + '|' + art, offen = !!zusatzOffen[key], A = ZUSATZ_ARTEN[art];
     html += '<div class="folder-card zusatz-ordner'+(offen ? ' offen' : '')+'">'+
       '<button class="folder-open" type="button" data-zusatz="'+esc(key)+'" aria-expanded="'+offen+'">'+
@@ -27092,6 +27099,7 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-11-23-umfrage-foto', datum:'2026-11-23', fuer:'lehrer', text:'📸 Blitzumfrage: Resultat nicht mehr abfotografieren. Ist das Ergebnis aufgedeckt, legt «📸 Resultat speichern» es als Bild in einen Fach-Ordner, dort im Zusatzmaterial unter «📸 Umfrage-Resultate». Bei Umfragen mit mehreren Fragen speichert «📸 Resultate speichern» in der Übersicht alle auf einmal. Gestartet aus einem Ordner, ist dieser schon vorgewählt.'},
   {id:'2026-11-22-daten-duell', datum:'2026-11-22', fuer:'lehrer', text:'📊 Neues Beamer-Spiel im 🏫 Klassenzimmer › «🎮 Spiele»: das «Daten-Duell». Welches Land hat mehr Einwohner, mehr Wald oder die höhere Lebenserwartung? Echte Zahlen von Our World in Data, zwei Teams, drei Stufen – passt als Einstieg oder Energizer in Geografie und ERG.'},
   {id:'2026-11-22-stumme-karten', datum:'2026-11-22', fuer:'lehrer', text:'🗺️ Neu in Geografie: «Stumme Karten zum Drucken». Welt, Kontinente oder Schweiz & Nachbarn wählen, die Länder bekommen Nummern (zufällig gemischt), dazu Antwortzeilen und ein Lösungsblatt – A4 quer im Altnau-Stil. Länder antippen schaltet die Nummer an oder aus.'},
   {id:'2026-11-22-papiervorlagen', datum:'2026-11-22', fuer:'lehrer', text:'📄 Neu in Mathe, Algebra, GTZ und Musik: «Papiervorlagen zum Drucken». Karo, Millimeter, Isometrie, Punktraster, Koordinatensysteme (1, 2 oder 4 pro Seite), Linien und Notenlinien – massstabsgetreu auf A4, ohne Kopfzeilen des Browsers.'},
@@ -28533,8 +28541,9 @@ function openUmfrageSetup(vorlage, ablage){
     });
     document.getElementById('ufStart').addEventListener('click', function(){
       var d = pruefen(); if(!d) return;
+      var abJetzt = kzmAblageLesen() || ab;
       closeModal();
-      umfrageStartSerie(d.fragen, d.titel);
+      umfrageStartSerie(d.fragen, d.titel, abJetzt);
     });
   }
 
@@ -28546,8 +28555,10 @@ function umfrageStart(frage, optionen, peer){ umfrageStartSerie([{frage:frage, o
 // laufenden Frage (idx); frage/optionen/peer sind immer die der laufenden Frage,
 // so bleibt das Schülergerät unverändert. Ergebnisse vorheriger Fragen liegen in
 // ergebnisse[] (nur fürs 📊 am Beamer).
-function umfrageStartSerie(fragen, titel){
+function umfrageStartSerie(fragen, titel, ablage){
   var f = fragen[0];
+  // Fach/Ordner der gespeicherten Umfrage: dort landet ein 📸 Resultat-Bild (umfrageFotoSpeichern)
+  umfrage.ablage = ablage && ablage.fach ? {fach:ablage.fach, ordner:ablage.ordner || null} : null;
   liveZielLaden().then(function(ziel){
     umfrage.ziel = ziel;
     return liveAntwortenLoeschen('umfrage', ziel.klassen).then(function(){
@@ -28603,7 +28614,7 @@ function openUmfrageHost(){
   var html = '';
   html += '<div class="kz-bar"><div class="kz-bar-title">📊 Blitzumfrage</div><div class="kz-bar-spacer"></div>';
   html += '<button class="kz-close" id="ufClose" type="button" title="Schliessen (Esc)">✕</button></div>';
-  html += '<div class="kz-stage" id="ufStage"></div>';
+  html += '<div class="kz-stage" id="ufStage"></div><div id="ufFoto" class="uf-foto" hidden></div>';
   umfrage.overlay = openOverlay(html, function(){
     if(umfrage.unsubAnswers){ umfrage.unsubAnswers(); umfrage.unsubAnswers = null; }
     clearInterval(umfrage.herz); umfrage.herz = null;
@@ -28677,6 +28688,7 @@ function paintUmfrageHost(){
   if(s.peer && runde === 1) h += '<button class="btn btn-ghost btn-sm" id="ufRunde2" type="button">🔁 Runde 2 starten</button>';
   if(serie && idx < serie.length - 1) h += '<button class="btn btn-primary btn-sm" id="ufWeiter" type="button">▶︎ Nächste Frage</button>';
   if(serie && idx === serie.length - 1) h += '<button class="btn btn-primary btn-sm" id="ufUebersicht" type="button">📊 Übersicht aller Fragen</button>';
+  if(s.zeigen) h += '<button class="btn btn-ghost btn-sm" id="ufFotoBtn" type="button" title="Ergebnis als Bild ins Zusatzmaterial eines Ordners legen">📸 Resultat speichern</button>';
   h += '<button class="btn btn-ghost btn-sm" id="ufNeu" type="button">📊 Neue Frage</button>';
   h += '<button class="btn btn-danger btn-sm" id="ufEnde" type="button">Beenden</button>';
   h += '</div></div>';
@@ -28700,6 +28712,8 @@ function paintUmfrageHost(){
   if(weiter) weiter.addEventListener('click', function(){ weiter.disabled = true; umfrageNaechste(s); });
   var ueb = stage.querySelector('#ufUebersicht');
   if(ueb) ueb.addEventListener('click', function(){ umfrage.uebersicht = true; umfrage.sig = null; paintUmfrageHost(); });
+  var fotoBtn = stage.querySelector('#ufFotoBtn');
+  if(fotoBtn) fotoBtn.addEventListener('click', function(){ umfrageFotoPanel([umfrageErgebnisJetzt(s)], s); });
   stage.querySelector('#ufNeu').addEventListener('click', function(){
     umfrage.overlay.close();
     setTimeout(function(){ openUmfrageSetup(); }, 60);
@@ -28728,11 +28742,167 @@ function paintUmfrageUebersicht(stage, s){
   });
   h += '<div class="back-row" style="margin:10px 0 0;flex-wrap:wrap;justify-content:center;">'+
     '<button class="btn btn-ghost btn-sm" id="ufZurueck" type="button">◀︎ Zurück zur letzten Frage</button>'+
+    '<button class="btn btn-ghost btn-sm" id="ufFotoAlle" type="button" title="Alle Fragen als ein Bild ins Zusatzmaterial legen">📸 Resultate speichern</button>'+
     '<button class="btn btn-danger btn-sm" id="ufEnde2" type="button">Beenden</button></div></div>';
   stage.innerHTML = h;
   stage.querySelector('#ufZurueck').addEventListener('click', function(){ umfrage.uebersicht = false; umfrage.sig = null; paintUmfrageHost(); });
   stage.querySelector('#ufEnde2').addEventListener('click', function(){ umfrage.overlay.close(); });
+  stage.querySelector('#ufFotoAlle').addEventListener('click', function(){ umfrageFotoPanel(erg.filter(Boolean), s); });
 }
+
+/* ---------- 📸 Resultat als Bild ins Zusatzmaterial ----------
+   Statt den Beamer abzufotografieren: das Ergebnis wird auf ein Canvas gezeichnet
+   (gleiche Balken wie am Beamer, Datum + Klasse im Kopf) und als kleine HTML-Seite
+   mit eingebettetem PNG als normale Übung abgelegt (resources + resourceContent,
+   umfrageFoto:true). zusatzArt() stellt sie im Ordner unter «📸 Umfrage-Resultate».
+   Das Feld steht unter der Bühne (#ufFoto) und nicht in einem Dialog: das Overlay
+   läuft im Vollbild, ein openModal() daneben würde nicht gezeichnet. */
+var UF_FOTO_KEY = 'lib_umfrageFotoAblage';   // zuletzt gewählte Ablage (pro Gerät)
+function umfrageFotoZeilen(ctx, text, breite){
+  var woerter = String(text || '').split(/\s+/), zeilen = [], z = '';
+  woerter.forEach(function(w){
+    var t = z ? z + ' ' + w : w;
+    if(ctx.measureText(t).width > breite && z){ zeilen.push(z); z = w; } else z = t;
+  });
+  if(z) zeilen.push(z);
+  return zeilen.length ? zeilen : [''];
+}
+function umfrageFotoCanvas(erg, kopf){
+  var W = 1600, P = 70, BH = 64, GAP = 14, FONT = '-apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
+  var mess = document.createElement('canvas').getContext('2d');
+  // Höhe vorab ausrechnen
+  var H = P + 40 + 30;
+  erg.forEach(function(e){
+    mess.font = '700 42px ' + FONT;
+    H += umfrageFotoZeilen(mess, e.frage, W - 2*P).length * 52 + 20 + 34;
+    H += (e.optionen || []).length * (BH + GAP) + (e.c1 ? 40 : 0) + 40;
+  });
+  H += P - 20;
+  var c = document.createElement('canvas'); c.width = W; c.height = H;
+  var ctx = c.getContext('2d');
+  ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, W, H);
+  var y = P;
+  ctx.fillStyle = '#6b7280'; ctx.font = '600 26px ' + FONT; ctx.textBaseline = 'top';
+  ctx.fillText(kopf, P, y); y += 40 + 30;
+  erg.forEach(function(e, nr){
+    var c2 = e.c || [], c1 = e.c1 || null, tot = c2.reduce(function(a, b){ return a + b; }, 0);
+    var max = Math.max(1, Math.max.apply(null, c2.concat(c1 || [0])));
+    ctx.fillStyle = '#111827'; ctx.font = '700 42px ' + FONT;
+    umfrageFotoZeilen(ctx, (erg.length > 1 ? (nr + 1) + '. ' : '') + e.frage, W - 2*P).forEach(function(z){ ctx.fillText(z, P, y); y += 52; });
+    y += 20;
+    ctx.fillStyle = '#6b7280'; ctx.font = '500 24px ' + FONT;
+    ctx.fillText(tot + (tot === 1 ? ' Stimme' : ' Stimmen') + (c1 ? ' (Runde 2)' : ''), P, y); y += 34;
+    (e.optionen || []).forEach(function(o, i){
+      var x = P, w = W - 2*P;
+      ctx.fillStyle = '#f1f2f6'; umfrageFotoRund(ctx, x, y, w, BH, 12); ctx.fill();
+      ctx.save(); umfrageFotoRund(ctx, x, y, w, BH, 12); ctx.clip();
+      if(c1){ ctx.fillStyle = 'rgba(232,62,140,.22)'; ctx.fillRect(x, y, w * (c1[i] || 0) / max, BH); }
+      ctx.fillStyle = c1 ? 'rgba(232,62,140,.55)' : 'rgba(232,62,140,.30)';
+      if(c1) ctx.fillRect(x, y + BH * .54, w * (c2[i] || 0) / max, BH * .46);
+      else ctx.fillRect(x, y, w * (c2[i] || 0) / max, BH);
+      ctx.restore();
+      ctx.fillStyle = '#111827'; ctx.font = '600 30px ' + FONT; ctx.textBaseline = 'middle';
+      var n = (c1 ? (c1[i] || 0) + ' → ' : '') + (c2[i] || 0) + (tot ? '  (' + Math.round((c2[i] || 0) / tot * 100) + ' %)' : '');
+      var nb = ctx.measureText(n).width;
+      var label = String(o || '–');
+      while(label.length > 1 && ctx.measureText(label).width > w - nb - 70) label = label.slice(0, -2) + '…';
+      ctx.fillText(label, x + 22, y + BH / 2);
+      ctx.fillText(n, x + w - 22 - nb, y + BH / 2);
+      ctx.textBaseline = 'top';
+      y += BH + GAP;
+    });
+    if(c1){
+      ctx.font = '500 22px ' + FONT;
+      ctx.fillStyle = 'rgba(232,62,140,.35)'; ctx.fillRect(P, y + 6, 22, 14); ctx.fillStyle = '#6b7280'; ctx.fillText('Runde 1', P + 30, y);
+      ctx.fillStyle = 'rgba(232,62,140,.7)'; ctx.fillRect(P + 150, y + 6, 22, 14); ctx.fillStyle = '#6b7280'; ctx.fillText('Runde 2', P + 180, y);
+      y += 40;
+    }
+    y += 40;
+  });
+  // Leerraum unten abschneiden (die Höhe oben ist grosszügig geschätzt)
+  var hoehe = Math.min(H, Math.ceil(y - 40 + P));
+  var aus = document.createElement('canvas'); aus.width = W; aus.height = hoehe;
+  aus.getContext('2d').drawImage(c, 0, 0);
+  return aus;
+}
+function umfrageFotoRund(ctx, x, y, w, h, r){
+  ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+}
+function umfrageFotoPanel(erg, s){
+  if(!umfrage.overlay || !erg.length) return;
+  var box = umfrage.overlay.el.querySelector('#ufFoto');
+  if(!box) return;
+  var jetzt = new Date(), pad = function(n){ return (n < 10 ? '0' : '') + n; };
+  var tag = ['So','Mo','Di','Mi','Do','Fr','Sa'][jetzt.getDay()] + ' ' + pad(jetzt.getDate()) + '.' + pad(jetzt.getMonth() + 1) + '.';
+  var datumLang = tag + jetzt.getFullYear() + ', ' + pad(jetzt.getHours()) + ':' + pad(jetzt.getMinutes());
+  var wer = '';
+  try{ wer = s && s.klassen && s.klassen.length ? s.klassen.map(klasseLabel).join(', ') : klasseLabel(state.klasse); }catch(e){ wer = ''; }
+  var kopf = '📊 Blitzumfrage' + (s.titel ? ' · ' + s.titel : '') + ' · ' + datumLang + (wer ? ' · ' + wer : '');
+  var bild = umfrageFotoCanvas(erg, kopf).toDataURL('image/png');
+  var vorschlag = tag + ' · ' + (s.titel || erg[0].frage || 'Blitzumfrage');
+  var ab = umfrage.ablage;
+  if(!ab){ try{ ab = JSON.parse(localStorage.getItem(UF_FOTO_KEY) || 'null'); }catch(e){ ab = null; } }
+  ab = ab || {fach:'', ordner:null};
+  box.hidden = false;
+  box.innerHTML = '<h4>📸 Resultat speichern</h4>'+
+    '<img src="'+bild+'" alt="Vorschau des Resultats">'+
+    '<label class="modal-label">Titel</label><input type="text" class="modal-input" id="ufFotoTitel" maxlength="110" value="'+esc(vorschlag.slice(0, 110))+'">'+
+    kzmAblageHtml(ab.fach, ab.ordner, true)+
+    '<label class="lp-check"><input type="checkbox" id="ufFotoLp" checked> <span><b>🔒 Nur für Lehrpersonen</b> – sonst sieht auch die Klasse das Bild im Ordner.</span></label>'+
+    '<p class="kk-ed-info">Liegt danach im gewählten Ordner unter Zusatzmaterial › «📸 Umfrage-Resultate».</p>'+
+    '<div class="modal-actions"><button class="btn btn-ghost btn-sm" id="ufFotoAbbr" type="button">Abbrechen</button>'+
+    '<a class="btn btn-ghost btn-sm" id="ufFotoDl" download="Umfrage '+esc(dlName(vorschlag))+'.png" href="'+bild+'">⬇︎ Als PNG</a>'+
+    '<button class="btn btn-primary btn-sm" id="ufFotoOk" type="button">💾 Ins Zusatzmaterial</button></div>';
+  kzmAblageVerdrahten();
+  box.scrollIntoView({behavior:'smooth', block:'start'});
+  box.querySelector('#ufFotoAbbr').addEventListener('click', function(){ box.hidden = true; box.innerHTML = ''; });
+  box.querySelector('#ufFotoOk').addEventListener('click', function(){
+    var titel = box.querySelector('#ufFotoTitel').value.trim() || vorschlag;
+    var wo = kzmAblageLesen();
+    if(!wo || !wo.fach){ toast('Bitte ein Fach wählen.'); return; }
+    var nurLp = box.querySelector('#ufFotoLp').checked;
+    var knopf = box.querySelector('#ufFotoOk'); knopf.disabled = true; knopf.textContent = 'Speichere …';
+    try{ localStorage.setItem(UF_FOTO_KEY, JSON.stringify(wo)); }catch(e){}
+    umfrageFotoSpeichern(bild, '📸 ' + titel, kopf, wo, nurLp).then(function(){
+      box.hidden = true; box.innerHTML = '';
+      var f = wo.ordner && folderById(wo.ordner);
+      toast('📸 Gespeichert in ' + subjectName(wo.fach) + (f ? ' › ' + f.name : '') + ' (Zusatzmaterial).');
+    }).catch(function(err){
+      console.error(err); knopf.disabled = false; knopf.textContent = '💾 Ins Zusatzmaterial';
+      toast('Speichern fehlgeschlagen: ' + (err && err.message ? err.message : 'unbekannter Fehler'));
+    });
+  });
+}
+async function umfrageFotoSpeichern(bild, titel, kopf, wo, nurLehrer){
+  var html = '<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'+
+    '<title>'+esc(titel)+'</title><style>body{margin:0;background:#f4f5f8;font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:#111827;}'+
+    'main{max-width:1200px;margin:0 auto;padding:24px 16px;}h1{font-size:20px;margin:0 0 4px;}p{margin:0 0 14px;color:#6b7280;font-size:14px;}'+
+    'img{display:block;width:100%;height:auto;background:#fff;border-radius:10px;box-shadow:0 2px 10px rgba(0,0,0,.08);}a{color:inherit;font-size:14px;}</style></head>'+
+    '<body><main><h1>'+esc(titel)+'</h1><p>'+esc(kopf)+' · <a href="'+bild+'" download="Umfrage-Resultat.png">⬇︎ Bild herunterladen</a></p>'+
+    '<img src="'+bild+'" alt="'+esc(titel)+'"></main></body></html>';
+  var chunks = contentChunkDocs(html);
+  var bytes = contentBytes(html);
+  await assertQuota(bytes);
+  var resId = wo.fach + '_' + Date.now();
+  var meta = {
+    subject: wo.fach, folderId: wo.ordner || null, title: titel.slice(0, 120), fileName: 'umfrage-resultat.html',
+    uploadedAt: serverTimestamp(), uploadedBy: state.user.uid, contentId: resId, version: 0, umfrageFoto: true
+  };
+  if(nurLehrer) meta.nurLehrer = true;
+  var batch = writeBatch(db);
+  batch.set(kdoc('resources', resId), meta);
+  var kopfDoc = { chunkCount: chunks.length, bytes: bytes, ownerUid: state.user.uid };
+  if(nurLehrer) kopfDoc.nurLehrer = true;
+  batch.set(doc(db, 'resourceContent', resId), kopfDoc);
+  chunks.forEach(function(chunk, i){
+    if(nurLehrer) chunk.nurLehrer = true;
+    batch.set(doc(db, 'resourceContent', resId, 'chunks', String(i)), chunk);
+  });
+  await batch.commit();
+  try{ indexDazu(resId, state.klasse); }catch(e){ console.error(e); }
+}
+
 
 /* ===================== 💰 WER WIRD MILLIONÄR (die Klasse spielt gemeinsam) =====================
    Am Beamer steht die Frage mit bis zu vier Antworten, alle stimmen still auf
@@ -35700,7 +35870,7 @@ function kzmStartenHier(it){
   else if(it.typ === 'schaetz') liveFuerWenDialog(it.raw.title, function(){ schaetzStart(it.raw.title, schaetzNorm(it.raw.questions), schaetzOpt().sec); });
   else if(it.typ === 'kk') goResource(Object.assign(kkRes(it.raw), {folderId:it.ordner, ausOrdner:true}));
   else if(it.typ === 'wolke') liveFuerWenDialog(it.raw.frage, function(){ wolkeStart(it.raw.frage, Math.max(1, Math.min(5, +it.raw.max || 3)), it.raw.zeigen !== false); });
-  else if(it.typ === 'umfrage') liveFuerWenDialog(it.raw.titel || umfrageFragen(it.raw)[0].frage, function(){ umfrageStartSerie(umfrageFragen(it.raw), it.raw.titel || ''); });
+  else if(it.typ === 'umfrage') liveFuerWenDialog(it.raw.titel || umfrageFragen(it.raw)[0].frage, function(){ umfrageStartSerie(umfrageFragen(it.raw), it.raw.titel || '', {fach:it.fach, ordner:it.ordner}); });
   else if(it.typ === 'pruefung'){ startPruefungWatcher(); state.route = {name:'pruefung', id:it.id}; render(); }
 }
 // Nach jedem Speichern: Zwischenspeicher neu laden und die offene Ansicht nachführen.
