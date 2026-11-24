@@ -17057,6 +17057,14 @@ function renderFolderContents(){
   // Pfeile/Nummern gelten nur unter den echten Einträgen.
   var realFolders = folders.filter(function(f){ return !f.virtual; });
   var realResources = resources.filter(function(r){ return !r.virtual; });
+  // 📋 Jahresplanung des Fachs auch in jedem anderen Ordner (gleiche Übung, nicht kopiert).
+  var praepSpiegel = [];
+  if(isTeacher && here && !(fq && fq.ohneEigene)){
+    (state.resources || []).forEach(function(r){
+      if(r.subject === subjectId && (r.folderId || null) !== here && resources.indexOf(r) < 0 && jahresplanungIst(r) && fuerRolleSichtbar(r)) praepSpiegel.push(r);
+    });
+    resources = resources.concat(praepSpiegel);
+  }
 
   if(!folders.length && !resources.length){
     if(fq && fq.fremd.length && !here){ listEl.innerHTML = ''; return; }   // Gruppen-Übungen folgen darunter
@@ -17083,14 +17091,20 @@ function renderFolderContents(){
   var werkzeugRes = resources.filter(function(r){ return r.wzBereich; });
   var indivImOrdner = !!here && indivAlle.length > 0;   // im Themen-Ordner stehen sie als normale Karten
   if(isTeacher && !isFremdeKlasse()) indivThemaNachtragen(resources);
-  var zusatz = resources.filter(function(r){ return !r.wzBereich && !indivIst(r) && zusatzArt(r); });
-  var material = resources.filter(function(r){ return !r.wzBereich && (indivImOrdner || !indivIst(r)) && !zusatzArt(r); });
+  var praeps = resources.filter(praepIst).sort(function(a, b){
+    var ja = jahresplanungIst(a) ? 0 : 1, jb = jahresplanungIst(b) ? 0 : 1;
+    return ja !== jb ? ja - jb : String(a.title || '').localeCompare(String(b.title || ''), 'de', {numeric:true});
+  });
+  var zusatz = resources.filter(function(r){ return !r.wzBereich && !indivIst(r) && !praepIst(r) && zusatzArt(r); });
+  var material = resources.filter(function(r){ return !r.wzBereich && (indivImOrdner || !indivIst(r)) && !praepIst(r) && !zusatzArt(r); });
   if(material.length){
     if(ordnerNorm.length) html += '<div class="section-label">Übungen</div>';
     html += material.map(function(r){ return resourceCardHtml(r, realResources.indexOf(r), realResources.length, isTeacher && !r.virtual); }).join('');
   }
-  if(zusatz.length){
+  if(zusatz.length || praeps.length){
     if(folders.length || material.length) html += '<div class="section-label">Zusatzmaterial</div>';
+    // Präp zuoberst; Pfeile aus (sie steht immer oben), sonst alle Knöpfe – auch beim Spiegel in anderen Ordnern.
+    html += praeps.map(function(r){ return resourceCardHtml(r, 0, 1, isTeacher); }).join('');
     html += zusatzHtml(zusatz, subjectId, here);
   }
   if(werkzeugOrdner.length || werkzeugRes.length){
@@ -17205,6 +17219,13 @@ var ZUSATZ_ARTEN = {
   wolke:   {icon:'☁️', name:'Wortwolken'}
 };
 var zusatzOffen = {};   // «Fach|Ordner|Art» → aufgeklappt (nur für diese Sitzung)
+// 📋 Präp (🔒 Lehrer-HTML «Präp»/«…planung»): steht im Ordner zuoberst im Zusatzmaterial. Eine Jahresplanung
+// steht zusätzlich in jedem Ordner ihres Fachs – immer dieselbe Übung, also einmal bearbeitet = überall neu.
+function praepIst(r){
+  return !!(r && istLehrerHtml(r) && !r.virtual && !r.pdf && !r.folien && !r.methode && !r.externalUrl && !r.kzm && !r.kzmPruef &&
+    /pr[äa]e?p|planung/i.test(String(r.title || '') + ' ' + String(r.fileName || '')));
+}
+function jahresplanungIst(r){ return praepIst(r) && /jahresplanung/i.test(String(r.title || '') + ' ' + String(r.fileName || '')); }
 function zusatzArt(r){
   if(r.umfrageFoto) return 'foto';   // 📸 gespeicherte Blitzumfrage-Resultate (umfrageFotoSpeichern)
   if(r.methode || /^🧰/.test(String(r.title || ''))) return 'methode';
@@ -20803,6 +20824,22 @@ function libFensterHtml(html, r){
     'S.setItem=function(k,v){si.call(this,k,v);if(this===window.localStorage)m(k);};' +
     'S.removeItem=function(k){ri.call(this,k);if(this===window.localStorage)m(k);};' +
     '}catch(e){}})();<\/script>';
+  // ⧉ Lehrpersonen: oben links ein Knopf für ein neues Library-Fenster (wie in der Library-Leiste).
+  // In Folien sitzt er vorne in der Folienleiste, sonst klein in der Ecke.
+  if(state.profile && state.profile.role === 'teacher'){
+    shim += '<script>(function(){var L='+JSON.stringify(location.origin + location.pathname)+';' +
+      'function nf(){if(!document.body||document.getElementById("libNeuFenster"))return;' +
+      'var b=document.createElement("button");b.id="libNeuFenster";b.type="button";b.textContent="\u29C9";' +
+      'b.title="Library in neuem Fenster öffnen";b.setAttribute("aria-label",b.title);' +
+      'b.addEventListener("click",function(e){e.stopPropagation();window.open(L,"_blank");});' +
+      'var bar=document.getElementById("fl-bar");' +
+      'if(bar){b.className="fl-b";b.style.marginRight="6px";bar.insertBefore(b,bar.firstChild);}' +
+      'else{b.style.cssText="position:fixed;left:8px;top:8px;z-index:2147483646;font:15px/1 system-ui,sans-serif;padding:6px 9px;border-radius:8px;border:1px solid rgba(0,0,0,.18);background:rgba(255,255,255,.92);color:#222;cursor:pointer;opacity:.6;box-shadow:0 1px 4px rgba(0,0,0,.18)";' +
+      'b.onmouseenter=function(){b.style.opacity="1";};b.onmouseleave=function(){b.style.opacity=".6";};' +
+      'document.addEventListener("fullscreenchange",function(){b.style.display=document.fullscreenElement?"none":"";});' +
+      'document.body.appendChild(b);}}' +
+      'if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",nf);else nf();})();<\/script>';
+  }
   var titel = '<title>'+esc(r.title || r.fileName || 'Übung')+'</title>';
   var headRe = /<head(\s[^>]*)?>/i;
   if(headRe.test(html)) return html.replace(headRe, function(m){ return m + shim + (/<title[\s>]/i.test(html) ? '' : titel); });
@@ -27099,6 +27136,8 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-11-24-praep-zuoberst', datum:'2026-11-24', fuer:'lehrer', text:'📋 Präps stehen im Thema jetzt zuoberst im Zusatzmaterial. Eine Jahresplanung (z. B. Geschichte, Geografie) steht in jedem Ordner des Fachs zuoberst – es ist immer dieselbe Präp: einmal bearbeitet, überall aktuell.'},
+  {id:'2026-11-24-neues-fenster-ueberall', datum:'2026-11-24', fuer:'lehrer', text:'⧉ Auch in eigenen Fenstern (Folien, Präp, Übungen) gibt es oben links den Knopf für ein neues Library-Fenster.'},
   {id:'2026-11-23-praep-lektion-verschieben', datum:'2026-11-23', fuer:'lehrer', text:'📅 Präp-Planungen (z. B. NT Biologie Körper): Ganze Lektionen lassen sich jetzt verschieben – am Griff ⠿ in der Titelzeile ziehen oder «📅 Tag» antippen und den Tag wählen. Was dort schon steht, und alles danach rutscht nach hinten, statt dass der Tag überfüllt wird. Wer etwas erst nachträglich abhakt, füllt damit nicht mehr den nächsten Unterrichtstag.'},
   {id:'2026-11-23-umfrage-foto', datum:'2026-11-23', fuer:'lehrer', text:'📸 Blitzumfrage: Resultat nicht mehr abfotografieren. Ist das Ergebnis aufgedeckt, legt «📸 Resultat speichern» es als Bild in einen Fach-Ordner, dort im Zusatzmaterial unter «📸 Umfrage-Resultate». Bei Umfragen mit mehreren Fragen speichert «📸 Resultate speichern» in der Übersicht alle auf einmal. Gestartet aus einem Ordner, ist dieser schon vorgewählt.'},
   {id:'2026-11-22-daten-duell', datum:'2026-11-22', fuer:'lehrer', text:'📊 Neues Beamer-Spiel im 🏫 Klassenzimmer › «🎮 Spiele»: das «Daten-Duell». Welches Land hat mehr Einwohner, mehr Wald oder die höhere Lebenserwartung? Echte Zahlen von Our World in Data, zwei Teams, drei Stufen – passt als Einstieg oder Energizer in Geografie und ERG.'},
