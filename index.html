@@ -4887,7 +4887,10 @@ function weekdayLabel(dateStr){
 async function loadCalendarEntries(ab){
   var snap = await getDocs(ab ? query(kcol('calendarEntries'), where('dueDate','>=',ab)) : kcol('calendarEntries'));
   var out = [];
-  snap.forEach(function(d){ out.push(Object.assign({id:d.id}, d.data())); });
+  // lpAusblenden:true = Eintrag nur für Schüler:innen (z. B. Zahnarzt-Termin der Betroffenen, wenn die Lehrperson einen eigenen Lehrer-Eintrag hat).
+  // Lehrpersonen sehen ihn nirgends (Kalender, 7 Tage, Vergessen …); Schüler:innen und «Ansicht als Schüler:in» schon.
+  var lpOhne = state.profile && state.profile.role === 'teacher';
+  snap.forEach(function(d){ var x = d.data(); if(lpOhne && x.lpAusblenden) return; out.push(Object.assign({id:d.id}, x)); });
   out.sort(function(a,b){
     if(a.dueDate !== b.dueDate) return (a.dueDate||'').localeCompare(b.dueDate||'');
     return (a.createdAt && a.createdAt.toMillis ? a.createdAt.toMillis() : 0) - (b.createdAt && b.createdAt.toMillis ? b.createdAt.toMillis() : 0);
@@ -27147,6 +27150,7 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-11-24-kalender-lp-ausblenden', datum:'2026-11-24', fuer:'lehrer', text:'📅 Kalender: Einträge, die nur für Schüler:innen gedacht sind (z. B. Zahnarzt-Termin der Betroffenen neben deinem eigenen Lehrer-Eintrag), erscheinen bei dir nicht doppelt. In der Schüleransicht siehst du sie weiterhin.'},
   {id:'2026-11-24-praep-zuoberst', datum:'2026-11-24', fuer:'lehrer', text:'📋 Präps stehen im Thema jetzt zuoberst im Zusatzmaterial. Eine Jahresplanung (z. B. Geschichte, Geografie) steht in jedem Unterkapitel des Fachs zuoberst (z. B. «Imperialismus und 1. Weltkrieg», «2. Weltkrieg») – es ist immer dieselbe Präp: einmal bearbeitet, überall aktuell.'},
   {id:'2026-11-24-neues-fenster-ueberall', datum:'2026-11-24', fuer:'lehrer', text:'⧉ Auch in eigenen Fenstern (Folien, Präp, Übungen) gibt es oben links den Knopf für ein neues Library-Fenster.'},
   {id:'2026-11-23-praep-lektion-verschieben', datum:'2026-11-23', fuer:'lehrer', text:'📅 Präp-Planungen (z. B. NT Biologie Körper): Ganze Lektionen lassen sich jetzt verschieben – am Griff ⠿ in der Titelzeile ziehen oder «📅 Tag» antippen und den Tag wählen. Was dort schon steht, und alles danach rutscht nach hinten, statt dass der Tag überfüllt wird. Wer etwas erst nachträglich abhakt, füllt damit nicht mehr den nächsten Unterrichtstag.'},
