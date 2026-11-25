@@ -44,7 +44,7 @@ function winterAn(){ var aus = false; try{ aus = localStorage.getItem('hl_winter
 <link rel="modulepreload" href="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js" crossorigin>
 <!-- Schriften und Bibliotheken liegen seit 08.10.2026 im eigenen Ordner assets/vendor/ (keine Abrufe mehr bei Google Fonts und jsdelivr). -->
 <link rel="stylesheet" href="assets/vendor/fonts/schriften.css">
-<link rel="stylesheet" href="app/stil.css?v=acf270b3da">
+<link rel="stylesheet" href="app/stil.css?v=f2d40c4d23">
 <script>if(/-test\//.test(location.pathname))document.documentElement.classList.add('test-site');</script>
 </head>
 <body>
@@ -56,8 +56,8 @@ function winterAn(){ var aus = false; try{ aus = localStorage.getItem('hl_winter
 
 <!-- Seit 25.11.2026 ausgelagert (Etappe 5a). Der ?v=-Stempel kommt von node admin/versionen.js.
      defer = läuft in dieser Reihenfolge vor dem Modul-Skript, die Namen (NEUIGKEITEN, ENERGIZER …) sind dort direkt sichtbar. -->
-<script src="app/daten.js?v=fd018a95cb" defer></script>
-<script src="app/neuigkeiten.js?v=2722e048f3" defer></script>
+<script src="app/daten.js?v=92f79ea94b" defer></script>
+<script src="app/neuigkeiten.js?v=b0031ca398" defer></script>
 <script type="module">
 import {
   initializeApp
@@ -4839,6 +4839,11 @@ function lsSpezialOeffnen(sp){
   else if(sp.art === 'tippen') tippUebersicht();
   else if(sp.art === 'mt'){ var def = MT_TRAINER.filter(function(t){ return t.id === sp.id; })[0]; if(def) mtUebersicht(def); }
   else if(sp.art === 'kk'){ var set = kkSetById(sp.id); if(set) kkUebersicht(set); }
+  else if(sp.art === 'lz'){
+    var teil = String(sp.id).split('|'), fo = ls.daten && ls.daten.folders[teil[0]];
+    var lzs = fo && (fo.lernziele || []).filter(function(s){ return s && s.id === teil[1]; })[0];
+    if(lzs) lzKlasseDialog(lzs, sp.fach);
+  }
 }
 
 // Baum eines Fachs: {ordner:[knoten], res:[…], spezial:[…], trainer:[…], sets:[…], n}
@@ -4857,6 +4862,11 @@ function lsBaum(d, subjId){
       .filter(function(x){ return x.subject === subjId && (x.parentId || null) === f.id; })
       .sort(function(a, b){ return (a.order || 0) - (b.order || 0) || String(a.name).localeCompare(String(b.name), 'de'); })
       .forEach(function(x){ var kind = knoten(x, tiefe + 1); if(kind.n || kind.sets.length || kind.nSets) k.ordner.push(kind); });
+    // 🎯 Lernziel-Sets des Ordners: Raster Schüler:in × Lernziel (lzKlasseDialog)
+    (Array.isArray(f.lernziele) ? f.lernziele : []).forEach(function(s){
+      if(s && s.id && Array.isArray(s.ziele) && s.ziele.length) k.spezial.push({art:'lz', id:f.id + '|' + s.id, fach:subjId, icon:'🎯', kurz:'Lernziele',
+        titel:'Lernziele: ' + (s.titel || ''), text:s.ziele.length + ' Lernziele – Übungsstand und Selbsteinschätzung pro Schüler:in'});
+    });
     lsSpezialSammeln(k);
     k.n = k.res.length + k.ordner.reduce(function(s, x){ return s + x.n; }, 0);
     k.nSets = k.sets.length + k.ordner.reduce(function(s, x){ return s + x.nSets; }, 0);
@@ -12327,6 +12337,8 @@ function renderSubject(subjectId, folderId){
       '<button class="btn btn-ghost btn-sm" id="kzmHolenBtn" type="button" title="Quiz, Karteikarten, Wortwolke oder Blitzumfrage hier ablegen">🏫 Aus dem Klassenzimmer</button>'+
       '<button class="btn btn-ghost btn-sm" id="dlHierBtn" type="button" title="Alle Dateien hier (mit allen Ordnern) als ZIP auf deinen Computer laden">⬇️ Alles herunterladen</button>'+
       (isLeitung() ? '' : '<button class="btn btn-ghost btn-sm" id="bkNeuBtn" type="button" title="Die Klasse gibt hier Dateien ab, du holst sie auf deinen Computer">📮 Briefkasten aufstellen</button>')+
+      // 🎯 nur in einem Ordner sichtbar; die Leiste bleibt beim Ordnerwechsel stehen → renderFolderContents blendet ein/aus
+      (isLeitung() ? '' : '<button class="btn btn-ghost btn-sm" id="lzNeuBtn" type="button"'+(folderId ? '' : ' hidden')+' title="Lernziele für diesen Ordner festlegen und den Fragen der Übung zuordnen">🎯 Lernziele</button>')+
       '<div class="zieh-flaeche" id="ziehFlaeche">'+
         '<div class="dropzone" id="dropzone"><div class="dz-title">Für die Klasse</div><div>Datei hier loslassen (HTML, PDF, PowerPoint)</div></div>'+
         '<div class="dropzone dropzone-lp" id="dropzoneLp"><div class="dz-title">🔒 Nur Lehrpersonen</div><div>HTML, PDF oder PowerPoint hier loslassen</div></div>'+
@@ -12360,6 +12372,8 @@ function renderSubject(subjectId, folderId){
     });
     var bkNeuBtn = document.getElementById('bkNeuBtn');
     if(bkNeuBtn) bkNeuBtn.addEventListener('click', function(){ bkEditor(null); });
+    var lzNeuBtn = document.getElementById('lzNeuBtn');
+    if(lzNeuBtn) lzNeuBtn.addEventListener('click', function(){ if(state.route.folderId) lzOrdnerWahl(state.route.folderId); });
     document.getElementById('newFolderBtn').addEventListener('click', function(){
       var here = state.route.folderId || null;
       if(folderDepth(here) >= MAX_FOLDER_DEPTH){
@@ -12545,9 +12559,11 @@ function lzKarteZeichnen(){
     return '<div class="lz-karte" data-rid="'+esc(Object.keys(set.fragen || {})[0] || '')+'"><div class="lz-k-icon" aria-hidden="true">🎯</div>'+
       '<div class="lz-k-text"><b>Lernziele: '+esc(set.titel || '')+'</b><small id="lzKarteInfo'+i+'">'+set.ziele.length+' Lernziele – wo stehst du?</small></div>'+
       '<div class="lz-k-knoepfe">'+(isTeacher ? '<button class="btn btn-primary btn-sm" data-lzk="'+i+'" type="button">👥 Klasse ansehen</button>' : '')+
-      '<button class="btn '+(isTeacher ? 'btn-ghost' : 'btn-primary')+' btn-sm" data-lz="'+i+'" type="button">'+(isTeacher ? 'Schüleransicht' : 'Ansehen')+'</button></div></div>';
+      '<button class="btn '+(isTeacher ? 'btn-ghost' : 'btn-primary')+' btn-sm" data-lz="'+i+'" type="button">'+(isTeacher ? 'Schüleransicht' : 'Ansehen')+'</button>'+
+      (isTeacher && !isLeitung() ? '<button class="btn btn-ghost btn-sm" data-lze="'+i+'" type="button" title="Lernziele und Zuordnung der Fragen ändern">✏️ Bearbeiten</button>' : '')+'</div></div>';
   }).join('');
   Array.prototype.forEach.call(el.querySelectorAll('[data-lz]'), function(b){ b.addEventListener('click', function(){ lzDialog(sets[+b.getAttribute('data-lz')]); }); });
+  Array.prototype.forEach.call(el.querySelectorAll('[data-lze]'), function(b){ b.addEventListener('click', function(){ lzEditor(here, sets[+b.getAttribute('data-lze')]); }); });
   Array.prototype.forEach.call(el.querySelectorAll('[data-lzk]'), function(b){ b.addEventListener('click', function(){ lzKlasseDialog(sets[+b.getAttribute('data-lzk')]); }); });
   // Die Karte gehört direkt unter ihre Übung (Jans Wunsch, 11.11.2026); steht die Übung
   // nicht in der Liste, bleibt die Karte zuoberst im Ordner.
@@ -12636,8 +12652,8 @@ function lzNr(set, text){
 }
 
 // Lehrperson: Raster Schüler:in × Lernziel (Feld = Übungsstand, Punkt = Selbsteinschätzung).
-function lzKlasseDialog(set){
-  var subj = state.route.subject;
+function lzKlasseDialog(set, fach){
+  var subj = fach || state.route.subject;   // aus dem 📈 Lernstand kommt das Fach mit
   openModal('<h2>🎯 '+esc(set.titel || 'Lernziele')+' – Klasse</h2><p class="lz-lead">Wird geladen …</p>', 'lz-modal lz-modal-breit');
   loadStudentRoster().then(function(list){
     list = rosterFuerFach(list, subj);
@@ -12666,6 +12682,199 @@ function lzKlasseDialog(set){
     openModal(h, 'lz-modal lz-modal-breit');
     document.getElementById('lzZu').addEventListener('click', closeModal);
   }).catch(function(err){ console.error('Lernziele Klasse', err); toast('Die Lernziele der Klasse konnten nicht geladen werden.'); });
+}
+
+/* ---------- ✏️ Lernziele bearbeiten (Lehrperson, seit 25.11.2026) ----------
+   Vorher nur per admin/lernziele-import.js. Knopf «🎯 Lernziele» im Ordner bzw.
+   «✏️ Bearbeiten» auf der Lernziel-Karte.
+   Schritt 1: Titel + Lernziele, eine Zeile pro Lernziel. Ein Lernziel, dessen Text
+   gleich bleibt, behält seine Nummer – daran hängen die Selbsteinschätzungen der
+   Klasse (progress/{uid}/erledigt/lernziele) und die Zuordnung der Fragen. Neue
+   Zeilen bekommen die nächste freie Nummer.
+   Schritt 2: Fragen der Übungen im Ordner den Lernzielen zuordnen (antippen). Die
+   Fragen kommen aus pruefProbe (wie beim Ziehen einer Prüfung); zuordnen lassen sich
+   nur Fragen mit ID (q.id in der Übungsseite).
+   Gespeichert wird das ganze Array folders/{id}.lernziele (updateDoc ersetzt es,
+   andere Sets im Ordner bleiben). */
+function lzAlleSets(folderId){
+  var f = folderById(folderId);
+  return f && Array.isArray(f.lernziele) ? f.lernziele.filter(function(s){ return s && s.id; }) : [];
+}
+function lzOrdnerWahl(folderId){
+  var f = folderById(folderId), sets = lzAlleSets(folderId);
+  if(!f) return;
+  if(!sets.length){ lzEditor(folderId, null); return; }
+  openModal('<h2>🎯 Lernziele in «'+esc(f.name || 'Ordner')+'»</h2>'+
+    '<p class="lz-lead">Ein Ordner kann mehrere Lernziel-Sets haben (z. B. eines pro Prüfung).</p><div class="lz-e-wahl">'+
+    sets.map(function(s, i){ return '<button class="btn btn-ghost" type="button" data-lzw="'+i+'">✏️ '+esc(s.titel || 'Lernziele')+' <small>· '+(s.ziele || []).length+' Lernziele</small></button>'; }).join('')+
+    '<button class="btn btn-ghost" type="button" data-lzw="neu">➕ Neues Lernziel-Set</button></div>'+
+    '<div class="modal-actions"><button class="btn btn-ghost" id="lzWZu" type="button">Abbrechen</button></div>', 'lz-modal');
+  document.getElementById('lzWZu').addEventListener('click', closeModal);
+  Array.prototype.forEach.call(modalEl.querySelectorAll('[data-lzw]'), function(b){
+    b.addEventListener('click', function(){ var w = b.getAttribute('data-lzw'); lzEditor(folderId, w === 'neu' ? null : sets[+w]); });
+  });
+}
+function lzZeilenText(t){ return String(t || '').replace(/^\s*(?:\d+\s*[.):]|[-•–*])\s*/, '').replace(/\s+/g, ' ').trim(); }
+function lzEditor(folderId, set){
+  var f = folderById(folderId);
+  if(!f) return;
+  var a = {
+    id: set ? set.id : 'lz-' + Date.now().toString(36),
+    titel: set ? (set.titel || '') : (f.name || ''),
+    ziele: set ? (set.ziele || []).map(function(z){ return {nr:z.nr, text:z.text}; }) : [],
+    fragen: JSON.parse(JSON.stringify((set && set.fragen) || {}))
+  };
+  var probe = {};   // rid -> Promise der Fragenliste
+  var istUebung = function(r){ return r && !r.pdf && !r.folien && !r.externalUrl && !r.linkUrl && !r.methode && !istLehrerHtml(r); };
+  var uebungen = state.resources.filter(function(r){ return r.folderId === folderId && istUebung(r); });
+  Object.keys(a.fragen).forEach(function(rid){
+    var r = state.resources.find(function(x){ return x.id === rid; });
+    if(r && uebungen.indexOf(r) < 0) uebungen.push(r);
+  });
+  var gewaehlt = (uebungen.find(function(r){ return a.fragen[r.id]; }) || uebungen[0] || {}).id || null;
+
+  function schritt1(){
+    openModal('<h2>🎯 '+(set ? 'Lernziele bearbeiten' : 'Neue Lernziele')+'</h2>'+
+      '<label class="lz-e-feld"><span>Titel</span><input type="text" id="lzETitel" maxlength="120" value="'+esc(a.titel).replace(/"/g, '&quot;')+'" placeholder="z. B. Verdauung – Prüfung 1"></label>'+
+      '<label class="lz-e-feld"><span>Lernziele – eine Zeile pro Lernziel</span><textarea id="lzEZiele" rows="10" placeholder="Ich kann die Organe der Verdauung benennen.\nIch kann erklären, was im Magen passiert.">'+esc(a.ziele.map(function(z){ return z.text; }).join('\n'))+'</textarea></label>'+
+      '<p class="lz-lead">Die Reihenfolge hier ist die Reihenfolge für die Klasse. Hat die Übungsseite selbst eine Lernziel-Liste zum Einschätzen, dieselbe Reihenfolge nehmen. '+
+      (set ? 'Lernziele mit unverändertem Text behalten ihre Nummer, damit die Einschätzungen der Klasse und die Zuordnung der Fragen erhalten bleiben.' : '')+'</p>'+
+      '<div class="modal-actions">'+(set ? '<button class="btn btn-danger" id="lzELoeschen" type="button">🗑️ Set löschen</button>' : '')+
+      '<button class="btn btn-ghost" id="lzEAbbr" type="button">Abbrechen</button>'+
+      '<button class="btn btn-ghost" id="lzENurSpeichern" type="button">Speichern</button>'+
+      '<button class="btn btn-primary" id="lzEWeiter" type="button">Weiter: Fragen zuordnen ›</button></div>', 'lz-modal');
+    document.getElementById('lzEAbbr').addEventListener('click', closeModal);
+    var loe = document.getElementById('lzELoeschen');
+    if(loe) loe.addEventListener('click', function(){
+      uiConfirm('Lernziel-Set löschen?', '«' + (a.titel || 'Lernziele') + '» verschwindet aus dem Ordner. Die Übungen und die Einschätzungen der Klasse bleiben, werden aber nicht mehr angezeigt.', 'Löschen', function(){
+        schreiben(lzAlleSets(folderId).filter(function(s){ return s.id !== a.id; }), 'Lernziel-Set gelöscht.');
+      }, true);
+    });
+    function uebernehmen(){
+      a.titel = document.getElementById('lzETitel').value.trim().slice(0, 120);
+      var zeilen = document.getElementById('lzEZiele').value.split('\n').map(lzZeilenText).filter(Boolean);
+      if(!zeilen.length){ toast('Bitte mindestens ein Lernziel eintragen.'); return false; }
+      if(!a.titel){ toast('Bitte einen Titel eintragen.'); return false; }
+      var alt = {}, max = 0;
+      a.ziele.forEach(function(z){ alt[z.text] = z.nr; var n = parseInt(z.nr, 10); if(n > max) max = n; });
+      var vergeben = {};
+      a.ziele = zeilen.map(function(t){
+        var nr = alt.hasOwnProperty(t) && !vergeben[alt[t]] ? alt[t] : ++max;
+        vergeben[nr] = true;
+        return {nr:nr, text:t.slice(0, 300)};
+      });
+      return true;
+    }
+    document.getElementById('lzENurSpeichern').addEventListener('click', function(){ if(uebernehmen()) speichern(); });
+    document.getElementById('lzEWeiter').addEventListener('click', function(){ if(uebernehmen()) schritt2(); });
+  }
+
+  function fragenVon(rid){
+    if(!probe[rid]){
+      var r = state.resources.find(function(x){ return x.id === rid; });
+      probe[rid] = (r ? pruefProbe(resourceContentId(r)) : Promise.resolve({art:'keine'})).then(function(info){
+        var gesehen = {}, out = {liste:[], ohneId:0};
+        ((info && info.art === 'bank' && info.fragen) || []).forEach(function(q){
+          if(!q.qid){ out.ohneId++; return; }
+          if(gesehen[q.qid]) return;
+          gesehen[q.qid] = true;
+          out.liste.push({qid:q.qid, text:((q.kontext ? q.kontext + ' – ' : '') + (q.frage || q.text || '')).slice(0, 220), kat:q.kat || ''});
+        });
+        return out;
+      }, function(err){ console.error('Lernziele: Fragen laden', err); return {liste:[], ohneId:0, fehler:true}; });
+    }
+    return probe[rid];
+  }
+  function anzahl(nr){
+    var n = 0;
+    Object.keys(a.fragen).forEach(function(rid){ Object.keys(a.fragen[rid] || {}).forEach(function(q){ if((a.fragen[rid][q] || []).indexOf(nr) >= 0) n++; }); });
+    return n;
+  }
+  function legende(){
+    return a.ziele.map(function(z){ var n = anzahl(z.nr); return '<li value="'+(parseInt(z.nr, 10) || 0)+'">'+esc(z.text)+' <small class="lz-e-zahl'+(n ? '' : ' lz-e-null')+'">'+(n ? n + (n === 1 ? ' Frage' : ' Fragen') : 'noch keine Frage')+'</small></li>'; }).join('');
+  }
+  function schritt2(){
+    if(!uebungen.length){ uiInfo('Keine Übung im Ordner', 'Lege zuerst die Übungsseite in diesen Ordner. Die Lernziele sind gespeichert, sobald du «Speichern» wählst.'); return; }
+    openModal('<h2>🎯 Fragen zuordnen</h2>'+
+      '<p class="lz-lead">Tippe bei jeder Frage die Nummern der Lernziele an, zu denen sie passt (auch mehrere). Diese Fragen zählen für den Balken «x von y Fragen richtig», für «▶ Dazu üben» und für die Auswertung der Prüfung pro Lernziel.</p>'+
+      '<ol class="lz-legende" id="lzELeg">'+legende()+'</ol>'+
+      '<div class="lz-e-kopf"><label>Übung <select id="lzEUeb">'+uebungen.map(function(r){ return '<option value="'+esc(r.id)+'"'+(r.id === gewaehlt ? ' selected' : '')+'>'+esc(r.title || r.fileName || r.id)+'</option>'; }).join('')+'</select></label>'+
+      '<input type="search" id="lzESuche" placeholder="Fragen durchsuchen …"></div>'+
+      '<div id="lzEFragen" class="lz-e-fragen"><div class="empty-state">Fragen werden geladen …</div></div>'+
+      '<div class="modal-actions"><button class="btn btn-ghost" id="lzEZurueck" type="button">‹ Zurück</button>'+
+      '<button class="btn btn-ghost" id="lzEAbbr" type="button">Abbrechen</button>'+
+      '<button class="btn btn-primary" id="lzESpeichern" type="button">Speichern</button></div>', 'lz-modal lz-modal-breit');
+    document.getElementById('lzEAbbr').addEventListener('click', closeModal);
+    document.getElementById('lzEZurueck').addEventListener('click', schritt1);
+    document.getElementById('lzESpeichern').addEventListener('click', speichern);
+    document.getElementById('lzEUeb').addEventListener('change', function(){ gewaehlt = this.value; fragenZeigen(); });
+    document.getElementById('lzESuche').addEventListener('input', filtern);
+    fragenZeigen();
+  }
+  function filtern(){
+    var s = (document.getElementById('lzESuche') || {}).value || '';
+    s = s.trim().toLowerCase();
+    Array.prototype.forEach.call(document.querySelectorAll('#lzEFragen .lz-e-frage'), function(z){
+      z.hidden = !!s && z.textContent.toLowerCase().indexOf(s) < 0;
+    });
+  }
+  function fragenZeigen(){
+    var rid = gewaehlt, box = document.getElementById('lzEFragen');
+    if(!box || !rid) return;
+    box.innerHTML = '<div class="empty-state">Fragen werden geladen …</div>';
+    fragenVon(rid).then(function(info){
+      box = document.getElementById('lzEFragen');
+      if(!box || gewaehlt !== rid) return;
+      if(!info.liste.length){
+        box.innerHTML = '<div class="empty-state">'+(info.fehler ? 'Die Übung konnte nicht geladen werden.' :
+          info.ohneId ? 'Die Fragen dieser Übung haben keine IDs – zuordnen geht nur bei Übungsseiten, deren Fragen eine ID tragen (z. B. aus den Übungsseiten-Skills). Die Lernziele selbst funktionieren trotzdem (Selbsteinschätzung).' :
+          'In dieser Übung wurden keine Fragen gefunden. Die Lernziele funktionieren trotzdem (Selbsteinschätzung).')+'</div>';
+        return;
+      }
+      var m = a.fragen[rid] || {};
+      box.innerHTML = info.liste.map(function(q){
+        var an = m[q.qid] || [];
+        return '<div class="lz-e-frage"><div class="lz-e-text">'+esc(q.text || q.qid)+(q.kat && q.kat !== 'alle' ? ' <small class="lz-klein">· '+esc(q.kat)+'</small>' : '')+'</div><div class="lz-e-chips">'+
+          a.ziele.map(function(z){ return '<button type="button" class="lz-e-chip'+(an.indexOf(z.nr) >= 0 ? ' an' : '')+'" data-q="'+esc(q.qid)+'" data-nr="'+esc(z.nr)+'" title="'+esc(z.text).replace(/"/g, '&quot;')+'">'+esc(z.nr)+'</button>'; }).join('')+
+          '</div></div>';
+      }).join('') + (info.ohneId ? '<p class="lz-klein">'+info.ohneId+' weitere Fragen ohne ID lassen sich nicht zuordnen.</p>' : '');
+      Array.prototype.forEach.call(box.querySelectorAll('.lz-e-chip'), function(b){
+        b.addEventListener('click', function(){
+          var q = b.getAttribute('data-q'), nr = lzNr(a, b.getAttribute('data-nr'));
+          var mm = a.fragen[rid] = a.fragen[rid] || {}, l = mm[q] = mm[q] || [], i = l.indexOf(nr);
+          if(i >= 0) l.splice(i, 1); else l.push(nr);
+          if(!l.length) delete mm[q];
+          b.classList.toggle('an', i < 0);
+          var leg = document.getElementById('lzELeg'); if(leg) leg.innerHTML = legende();
+        });
+      });
+      filtern();
+    });
+  }
+  function speichern(){
+    var nrn = a.ziele.map(function(z){ return z.nr; }), fr = {};
+    Object.keys(a.fragen).forEach(function(rid){
+      var m = {};
+      Object.keys(a.fragen[rid] || {}).forEach(function(q){
+        var l = (a.fragen[rid][q] || []).filter(function(n){ return nrn.indexOf(n) >= 0; });
+        if(l.length) m[q] = l;
+      });
+      if(Object.keys(m).length) fr[rid] = m;
+    });
+    var neu = {id:a.id, titel:a.titel, ziele:a.ziele, fragen:fr};
+    var alle = lzAlleSets(folderId).slice(), i = alle.findIndex(function(s){ return s.id === a.id; });
+    if(i >= 0) alle[i] = Object.assign({}, alle[i], neu); else alle.push(neu);
+    schreiben(alle, 'Lernziele gespeichert.');
+  }
+  function schreiben(alle, meldung){
+    Promise.resolve(updateDoc(kdoc('folders', folderId), {lernziele: alle})).then(function(){
+      var fo = folderById(folderId); if(fo) fo.lernziele = alle;   // sofort zeigen, der Snapshot kommt gleich nach
+      lzOrdner.promise = null;
+      closeModal(); toast(meldung);
+      lzKarteZeichnen();
+    }, function(err){ console.error('Lernziele speichern', err); toast('Die Lernziele konnten nicht gespeichert werden.'); });
+  }
+  schritt1();
 }
 
 /* ---------- 📝 Prüfung pro Lernziel (Stufe B, 11.11.2026) ----------
@@ -12871,6 +13080,8 @@ function renderFolderContents(){
   var grFachEl = document.getElementById('gruppenFach');
   if(grFachEl) grFachEl.hidden = !!here;   // Gruppen-Übungen nur auf der Fach-Hauptebene
   bkListeZeichnen();
+  var lzNeuBtn = document.getElementById('lzNeuBtn');
+  if(lzNeuBtn) lzNeuBtn.hidden = !state.route.folderId;
   lzKarteZeichnen();
 
   var folders = foldersIn(here);

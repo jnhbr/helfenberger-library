@@ -47,11 +47,18 @@ const LZ_UEBUNG = '<!doctype html><html><head><meta charset="utf-8"><title>Lernz
   '<\/script></body></html>';
 const LZ_SET = { id: 'lz_test', titel: 'Test-Lernziele', ziele: [{ nr: 1, text: 'Erstes Lernziel' }, { nr: 2, text: 'Zweites Lernziel' }, { nr: 3, text: 'Drittes Lernziel' }],
   fragen: { r_lz: { q1: [1], q2: [1], q3: [2] } } };
+// Übung mit Fragenbank (Q mit IDs) für den Lernziel-Editor: die Library liest die Fragen wie beim Ziehen einer Prüfung.
+const LZ_BANK = '<!doctype html><html><head><meta charset="utf-8"><title>Fragenbank</title></head><body><script>' +
+  'var Q = [{id:"a1",type:"tf",statement:"Das Herz pumpt Blut.",correct:true},{id:"a2",type:"mc",q:"Wo wird Nahrung verdaut?",options:["Magen","Lunge"],correct:0},' +
+  '{id:"a3",type:"fill",q:"Wie heisst das grösste Organ?",accept:["Haut"]}];<\/script></body></html>';
+const lzOrdner = id => db.doc('klassen/' + K + '/folders/' + id).get().then(s => (s.data() || {}).lernziele || []);
 const lzDoc = uid => db.doc('progress/' + uid + '/erledigt/lernziele').get().then(s => (s.data() || {}).lz_test || {});
 
 async function seed(){
   await db.doc('klassen/' + K + '/folders/f_lz').set({ subject: 'mathe', parentId: null, name: 'Lernziel-Ordner', order: 1, lernziele: [LZ_SET] });
   await B.uebung(K, 'r_lz', { subject: 'mathe', title: 'Lernziel-Übung', folderId: 'f_lz' }, LZ_UEBUNG);
+  await db.doc('klassen/' + K + '/folders/f_lz2').set({ subject: 'mathe', parentId: null, name: 'Editor-Ordner', order: 2 });
+  await B.uebung(K, 'r_lz2', { subject: 'mathe', title: 'Fragenbank-Übung', folderId: 'f_lz2' }, LZ_BANK);
   await B.konto('testlehrer', 'Test Lehrperson', 'teacher', K);
   await B.konto('anna', 'Anna', 'student', K);
   await B.konto('ben', 'Ben', 'student', K);
@@ -363,6 +370,58 @@ const feldWert = p => feld(p).inputValue().catch(() => null);
     // Ben hat die Übung nur aus dem Prüfungsresultat geöffnet (dort meldete sie 🔴 für Lernziel 3), selbst nichts eingeschätzt.
     ok(/0\/2/.test(zb) && !/🟢|🟡/.test(zb), 'Ben: nichts geübt, keine eigene Einschätzung in der Library');
     if(process.env.DEBUG_DIR) await lp.screenshot({ path: process.env.DEBUG_DIR + '/lz-raster.png' });
+    await lp.click('#lzZu');
+
+    // ✏️ Lernziele selbst anlegen (seit 25.11.2026): Ordner ohne Set → «🎯 Lernziele» → Editor.
+    await lp.click('#backBtn');   // aus einem Ordner geht «Zurück» zur Startseite
+    await B.fach(lp, 'mathe'); await lp.waitForSelector('#fopen-f_lz2');
+    ok(!(await lp.isVisible('#lzNeuBtn')), 'Auf der Fach-Hauptebene ist «🎯 Lernziele» ausgeblendet');
+    await lp.click('#fopen-f_lz2');
+    await lp.waitForSelector('#lzNeuBtn', { state: 'visible' });
+    ok(!(await lp.$('.lz-karte')), 'Editor-Ordner hat noch keine Lernziel-Karte');
+    await lp.click('#lzNeuBtn');
+    await lp.waitForSelector('#lzEZiele');
+    await lp.fill('#lzETitel', 'Körper');
+    await lp.fill('#lzEZiele', '1. Ich kenne das Herz.\n2) Ich kenne die Verdauung.\n\n- Ich kenne die Haut.');
+    if(process.env.DEBUG_DIR) await lp.screenshot({ path: process.env.DEBUG_DIR + '/lz-editor-1.png' });
+    await lp.click('#lzEWeiter');
+    await lp.waitForSelector('.lz-e-chip[data-q="a1"]', { timeout: 30000 });
+    ok((await lp.$$('.lz-e-frage')).length === 3, 'Schritt 2 zeigt die drei Fragen der Übung (mit ID)');
+    await lp.click('.lz-e-chip[data-q="a1"][data-nr="1"]');
+    await lp.click('.lz-e-chip[data-q="a2"][data-nr="2"]');
+    await lp.click('.lz-e-chip[data-q="a3"][data-nr="2"]');
+    await lp.click('.lz-e-chip[data-q="a3"][data-nr="3"]');
+    await lp.click('.lz-e-chip[data-q="a3"][data-nr="2"]');   // wieder weg
+    ok(/1 Frage/.test(await lp.$eval('#lzELeg', e => e.innerText)), 'Die Legende zählt die zugeordneten Fragen pro Lernziel');
+    if(process.env.DEBUG_DIR) await lp.screenshot({ path: process.env.DEBUG_DIR + '/lz-editor-2.png' });
+    await lp.click('#lzESpeichern');
+    await bis(async () => (await lzOrdner('f_lz2')).length === 1, 'Set gespeichert');
+    let sets = await lzOrdner('f_lz2');
+    ok(sets[0].titel === 'Körper' && sets[0].ziele.map(z => z.nr + ':' + z.text).join('|') === '1:Ich kenne das Herz.|2:Ich kenne die Verdauung.|3:Ich kenne die Haut.',
+      'Titel und drei Lernziele gespeichert (Aufzählungszeichen und leere Zeilen entfernt)');
+    ok(JSON.stringify(sets[0].fragen) === JSON.stringify({ r_lz2: { a1: [1], a2: [2], a3: [3] } }), 'Zuordnung gespeichert: a1→1, a2→2, a3→3');
+    await lp.waitForSelector('.lz-karte [data-lze]');
+    ok(/Körper/.test(await lp.$eval('.lz-karte', e => e.innerText)), 'Die Karte «Lernziele: Körper» erscheint sofort');
+
+    // Bearbeiten: neue Zeile zuoberst, «Verdauung» gestrichen → gleiche Texte behalten ihre Nummer.
+    await lp.click('.lz-karte [data-lze]');
+    await lp.waitForSelector('#lzEZiele');
+    await lp.fill('#lzEZiele', 'Ich kenne die Lunge.\nIch kenne das Herz.\nIch kenne die Haut.');
+    await lp.click('#lzENurSpeichern');
+    await bis(async () => { const l = await lzOrdner('f_lz2'); return l[0].ziele.length === 3 && /Lunge/.test(l[0].ziele[0].text); }, 'Änderung gespeichert');
+    sets = await lzOrdner('f_lz2');
+    ok(sets[0].ziele.map(z => z.nr + ':' + z.text).join('|') === '4:Ich kenne die Lunge.|1:Ich kenne das Herz.|3:Ich kenne die Haut.', 'Bestehende Lernziele behalten ihre Nummer, das neue bekommt die nächste (4)');
+    ok(JSON.stringify(sets[0].fragen) === JSON.stringify({ r_lz2: { a1: [1], a3: [3] } }), 'Die Zuordnung des gestrichenen Lernziels fällt weg, der Rest bleibt');
+    ok((await lzOrdner('f_lz')).length === 1, 'Das Set im anderen Ordner ist unberührt');
+
+    // 📈 Lernstand: Raster auch dort (beim Ordner)
+    await lp.click('[data-neu="lernstand"]');
+    await lp.waitForSelector('[data-ls-sp="lz"][data-ls-id="f_lz|lz_test"]', { state: 'attached', timeout: 30000 });
+    ok(true, 'Im 📈 Lernstand steht beim Ordner der Knopf «🎯 Lernziele: Test-Lernziele»');
+    await lp.$eval('[data-ls-sp="lz"][data-ls-id="f_lz|lz_test"]', b => b.click());
+    await lp.waitForSelector('.lz-raster tbody tr');
+    const raster2 = await lp.$$eval('.lz-raster tbody tr', l => l.map(e => e.innerText.replace(/\s+/g, ' ')));
+    ok(/1\/2 ?🟢/.test(raster2.find(z => /^Anna/.test(z)) || ''), 'Lernstand › 🎯 Lernziele öffnet dasselbe Raster (Anna 1/2 🟢)');
     for(const p of [anna, lp]) await p.context().close();
   });
 

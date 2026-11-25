@@ -3,6 +3,10 @@
 // Nur reine Daten (keine Funktionen, keine Verweise auf die App). Nach jeder Änderung: node admin/versionen.js
 
 var KIB_WISSEN = [
+  {id:'lp-lernziele', fuer:'lp', f:'Wie lege ich Lernziele für einen Ordner fest?', w:'lernziele lernziel lernzielblatt selbsteinschätzung einschätzen zuordnen fragen raster klasse übungsstand prüfung pro lernziel dazu üben bearbeiten',
+   a:'Im Ordner (Lehrperson) auf «🎯 Lernziele»: Titel und die Lernziele eintragen, eine Zeile pro Lernziel. Mit «Weiter: Fragen zuordnen» tippst du bei jeder Frage der Übung die Nummern der passenden Lernziele an (geht bei Übungsseiten, deren Fragen eine ID haben).\nDie Klasse sieht dann unter der Übung die Karte «🎯 Lernziele»: pro Lernziel einen Balken (richtig gelöste Fragen), drei Knöpfe zum Selbsteinschätzen und «▶ Dazu üben».\nDu siehst auf der Karte «👥 Klasse ansehen» (Raster Schüler:in × Lernziel) und «✏️ Bearbeiten». Das Raster gibt es auch im 📈 Lernstand beim Ordner. Prüfungen, die aus der Übung gezogen werden, zeigen das Resultat zusätzlich pro Lernziel.'},
+  {id:'lernziele', fuer:'sus', f:'Was bedeutet die Karte «🎯 Lernziele»?', w:'lernziele lernziel einschätzen selbsteinschätzung balken erreicht teilweise keine ahnung dazu üben',
+   a:'Unter manchen Übungen steht die Karte «🎯 Lernziele». Tippe auf «Ansehen»: Der Balken zeigt, wie viele Fragen zu jedem Lernziel du schon richtig gelöst hast. Mit «keine Ahnung», «teilweise» und «erreicht» schätzt du dich selbst ein – wie auf dem Lernzielblatt. «▶ Dazu üben» startet die Übung nur mit den Fragen zu diesem Lernziel.'},
   // ---------- für alle ----------
   {id:'erklaervideo', fuer:'alle', f:'Was ist das Erklärvideo über der Übung?', w:'video youtube simple duck film erklärung ente',
    a:'Bei manchen Übungen steht oben ein kurzes Erklärvideo von «Simple Duck». Tippe auf «▶ Ansehen», um es zu starten, und auf «✕ Schliessen», um es wieder zuzuklappen. Das Video lädt erst, wenn du darauf tippst.'},
