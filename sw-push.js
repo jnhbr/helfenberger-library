@@ -17,7 +17,11 @@
 // Hintergrund aufgefrischt – dabei blieb auf manchen Geräten (Safari) eine alte Fassung hängen.
 // Die Nachfrage ist günstig: Ist die Datei unverändert, antwortet GitHub nur mit «304».
 
-var CACHE = 'hl-app-v6';
+// Ausgelagerte Dateien (seit 25.11.2026, v7): index.html bindet app/stil.css, app/daten.js …
+// mit einem Stempel ?v=<hash> ein (admin/versionen.js). Neuer Stempel = neue Adresse = frisch
+// aus dem Netz. Beim Ablegen fliegt die alte Fassung derselben Datei aus dem Cache, und mit
+// jeder neuen App-Hülle werden ihre app/-Dateien gleich mitgeholt (damit es auch offline passt).
+var CACHE = 'hl-app-v7';
 var SHELL = 'index.html';
 
 var PRECACHE = [
@@ -46,6 +50,8 @@ self.addEventListener('install', function(event){
       return Promise.all(PRECACHE.map(function(url){
         return cache.add(new Request(url, {cache:'reload'})).catch(function(){});
       }));
+    }).then(function(){
+      return caches.open(CACHE).then(function(c){ return c.match(SHELL); }).then(function(r){ return r ? appDateienVorladen(r) : null; });
     }).then(function(){ return self.skipWaiting(); })
   );
 });
@@ -72,6 +78,37 @@ function networkFirst(request){
   });
 }
 
+// Ablegen im Cache; bei «…?v=<stempel>» die älteren Fassungen derselben Datei entfernen.
+function ablegen(request, res){
+  return caches.open(CACHE).then(function(c){
+    return c.put(request, res).then(function(){
+      var u = new URL(typeof request === 'string' ? request : request.url, self.location.href);
+      if(!/[?&]v=/.test(u.search)) return;
+      return c.keys().then(function(keys){
+        return Promise.all(keys.map(function(k){
+          var ku = new URL(k.url);
+          return (ku.origin === u.origin && ku.pathname === u.pathname && ku.search !== u.search) ? c.delete(k) : null;
+        }));
+      });
+    });
+  }).catch(function(){});
+}
+// Die app/-Dateien einer App-Hülle holen, die noch nicht im Cache liegen.
+function appDateienVorladen(shellRes){
+  return shellRes.text().then(function(t){
+    var re = /["'](app\/[\w.\-\/]+\?v=\w+)["']/g, m, urls = [];
+    while((m = re.exec(t))) urls.push(new URL(m[1], self.location.href).href);
+    return caches.open(CACHE).then(function(c){
+      return Promise.all(urls.map(function(u){
+        return c.match(u).then(function(hit){
+          if(hit) return null;
+          return fetch(u).then(function(res){ return res && res.ok ? ablegen(u, res) : null; }).catch(function(){});
+        });
+      }));
+    });
+  }).catch(function(){});
+}
+
 // Woran eine neue Fassung erkannt wird (GitHub Pages liefert einen ETag).
 function stempel(res){
   return res.headers.get('etag') || res.headers.get('last-modified') || res.headers.get('content-length') || '';
@@ -94,8 +131,11 @@ function shellAusCache(event){
   var fertig; event.waitUntil(new Promise(function(ok){ fertig = ok; }));
   var netz = fetch(SHELL, { cache: 'no-cache' }).then(function(res){
     if(res && res.ok && !res.redirected){
-      var kopie = res.clone();
-      return caches.open(CACHE).then(function(c){ return c.put(SHELL, kopie); }).then(function(){ return res; }, function(){ return res; });
+      var kopie = res.clone(), fuerApp = res.clone();
+      return caches.open(CACHE).then(function(c){ return c.put(SHELL, kopie); }).then(function(){
+        event.waitUntil(appDateienVorladen(fuerApp));
+        return res;
+      }, function(){ return res; });
     }
     return res;
   });
@@ -113,15 +153,14 @@ function cacheFirst(request){
       // Im Hintergrund auffrischen, damit neue Bilder/Skripte nachrücken.
       fetch(request).then(function(res){
         if(res && (res.ok || res.type === 'opaque')){
-          caches.open(CACHE).then(function(c){ c.put(request, res.clone()); });
+          ablegen(request, res.clone());
         }
       }).catch(function(){});
       return hit;
     }
     return fetch(request).then(function(res){
       if(res && (res.ok || res.type === 'opaque')){
-        var copy = res.clone();
-        caches.open(CACHE).then(function(c){ c.put(request, copy); });
+        ablegen(request, res.clone());
       }
       return res;
     });

@@ -12,6 +12,8 @@
  *  5. firestore.rules: keine allow-Regel, die delete mit request.resource kombiniert
  *     (bei delete ist request.resource null -> Löschen scheitert immer)
  *  6. index.html / hilfe.html beginnen mit <!doctype html> und haben <meta charset="utf-8">
+ *  7. app/*.js (ausgelagert seit 25.11.2026): Syntax ok, keine Funktionen in den Datendateien,
+ *     und jeder Verweis «app/…?v=…» in index.html hat den aktuellen Stempel (admin/versionen.js)
  * Warnung (kein Abbruch): query() mit mehreren where() — braucht evtl. einen Index.
  *
  * Eine bewusste Ausnahme in einer Zeile markieren mit dem Kommentar  leitplanken-ok
@@ -95,6 +97,28 @@ module_.forEach((m, k) => {
     const anzahl = (inhalt.match(/(?<![\w$])where\s*\(/g) || []).length;
     if(anzahl > 1 && !ausnahme(js, q.index)) warnungen.push(`index.html:${offset + zeileVon(js, q.index)}: query() mit ${anzahl} where() — braucht evtl. einen Composite Index`);
   }
+});
+
+// ---------- ausgelagerte Dateien app/ (seit 25.11.2026) ----------
+// app/*.js sind klassische Skripte vor dem Modul: Syntax prüfen, und in den Datendateien
+// keine Funktionen (die sähen die Funktionen des Modul-Skripts nicht).
+const appOrdner = path.join(root, 'app');
+if(fs.existsSync(appOrdner)){
+  fs.readdirSync(appOrdner).filter(f => f.endsWith('.js')).forEach(f => {
+    const p = path.join(appOrdner, f), js = fs.readFileSync(p, 'utf8');
+    try{ execFileSync(process.execPath, ['--check', p], { stdio:'pipe' }); }
+    catch(e){ fehler.push(`Syntaxfehler in app/${f}:\n` + String(e.stderr || e.message)); }
+    const code = nurCode(js);
+    for(const t of code.matchAll(/(?<![\w$])function\b|=>/g)){
+      if(!ausnahme(js, t.index)) fehler.push(`app/${f}:${zeileVon(js, t.index)}: Funktion in einer Datendatei — Code gehört ins Modul-Skript in index.html`);
+    }
+  });
+}
+// Jeder Verweis «app/…?v=…» in index.html braucht den aktuellen Stempel, sonst liefert der
+// Service Worker auf installierten Geräten die alte Fassung aus dem Cache.
+require('./versionen.js').pruefen(root).forEach(r => {
+  if(!r.soll) fehler.push(`index.html verweist auf ${r.datei}, die Datei fehlt`);
+  else if(r.ist !== r.soll) fehler.push(`${r.datei}: Stempel ?v=${r.ist} ist veraltet — node admin/versionen.js laufen lassen`);
 });
 
 // ---------- HTML-Grundgerüst ----------

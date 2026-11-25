@@ -10,7 +10,8 @@
  *   - die Login-Maske erscheint (sie wird vom Modul-Skript gezeichnet — also
  *     ist das ganze Skript ohne Laufzeitfehler durchgelaufen),
  *   - kein unbehandelter JavaScript-Fehler (pageerror),
- *   - hilfe.html, manifest.json, sw-push.js und die Fächer-Bilder sind da.
+ *   - hilfe.html, manifest.json, sw-push.js und die Fächer-Bilder sind da,
+ *   - die ausgelagerten Dateien app/… (stil.css, daten.js, neuigkeiten.js) laden.
  * Exit-Code 1 bei einem Problem (so bricht die nächtliche Freigabe ab).
  */
 const http = require('http');
@@ -57,13 +58,18 @@ const server = http.createServer((req, res) => {
       if(!r.ok()) probleme.push(`${f} fehlt (HTTP ${r.status()})`);
     }
     // Alle im Code referenzierten assets/… müssen existieren.
-    const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+    // (seit 25.11.2026 auch in den ausgelagerten Dateien app/*.js und app/stil.css)
+    const appOrdner = path.join(root, 'app');
+    const html = [fs.readFileSync(path.join(root, 'index.html'), 'utf8')].concat(fs.existsSync(appOrdner)
+      ? fs.readdirSync(appOrdner).filter(f => /\.(js|css)$/.test(f)).map(f => fs.readFileSync(path.join(appOrdner, f), 'utf8').replace(/\.\.\/assets\//g, 'assets/'))
+      : []).join('\n');
     const assets = [...new Set([...html.matchAll(/['"(](assets\/[\w.\-\/]+\.(?:webp|png|jpg|json|svg))/g)].map(m => m[1]))];
     assets.filter(a => !fs.existsSync(path.join(root, a))).forEach(a => probleme.push('Datei fehlt: ' + a));
   } finally {
     await browser.close();
     server.close();
   }
+  fehlend.filter(f => /^app\//.test(f)).forEach(f => probleme.push('Ausgelagerte Datei fehlt: ' + f));
   const selbst404 = fehlend.filter(f => !/favicon/.test(f));
   if(selbst404.length) console.log('ℹ️  Beim Laden nicht gefunden (404): ' + [...new Set(selbst404)].join(', '));
   if(probleme.length){
