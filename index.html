@@ -1101,6 +1101,46 @@ function winterAn(){ var aus = false; try{ aus = localStorage.getItem('hl_winter
   .ss-stage[data-scene="riff"][data-murky="true"] .ss-veil{opacity:.28;}
   .ss-stage[data-scene="wald"][data-murky="true"] .ss-veil{opacity:.42;}
   .ss-stage[data-modus="weg"][data-murky="true"]{filter:saturate(.85) brightness(.96);}
+  /* Neue Szenen (Nov. 2026): Grundfarbe, bis die Szene geladen ist — der Rest kommt aus assets/safari/<id>.json (css). */
+  .ss-stage[data-scene="weltraum"]{background:#04060d;}
+  .ss-stage[data-scene="urzeit"]{background:#b9a46a;}
+  .ss-stage[data-scene="dschungel"]{background:#3f7a3a;}
+  .ss-stage[data-scene="arktis"]{background:#dfe9f2;}
+  .ss-stage[data-scene="fabel"]{background:#8dbb5a;}
+  /* Weltraum: Teile, die sich drehen oder leuchten (auch das Irrlicht der Fabelwesen) */
+  @keyframes ssPartSpin{to{transform:rotate(360deg);}}
+  @keyframes ssPartPulse{0%,100%{opacity:1;}50%{opacity:.7;}}
+  .ss-creature .part-spin{transform-origin:center;animation:ssPartSpin 60s linear infinite;}
+  .ss-creature .part-pulse{animation:ssPartPulse 5s ease-in-out infinite;}
+  /* Weltraum: bei Pause bleibt alles einfach stehen (nichts hat ein Gesicht zum Umdrehen) */
+  .ss-swimmer[data-holding="true"],.ss-swimmer[data-holding="true"] *{animation-play-state:paused;}
+  /* Weltraum: «weglaufen» heisst hier, im Rauschen verschwinden */
+  @keyframes ssSignalJitter{0%,100%{transform:translateX(0) skewX(0);}14%{transform:translateX(calc(.35 * var(--wu))) skewX(-5deg);}18%{transform:translateX(0) skewX(0);}47%{transform:translateX(calc(-.25 * var(--wu))) skewX(3deg);}50%{transform:translateX(0) skewX(0);}76%{transform:translateX(calc(.5 * var(--wu))) skewX(0);}79%{transform:translateX(0) skewX(0);}}
+  @keyframes ssScanline{to{-webkit-mask-position:0 var(--scanline);mask-position:0 var(--scanline);}}
+  .ss-swimmer.ss-fading .ss-creature{--scanline:max(4px,calc(.4 * var(--wu)));-webkit-mask-image:repeating-linear-gradient(to bottom,#000 0 calc(var(--scanline) * .55),rgb(0 0 0 / .2) calc(var(--scanline) * .55) var(--scanline));mask-image:repeating-linear-gradient(to bottom,#000 0 calc(var(--scanline) * .55),rgb(0 0 0 / .2) calc(var(--scanline) * .55) var(--scanline));filter:drop-shadow(calc(.3 * var(--wu)) 0 0 rgb(111 180 255 / .55)) drop-shadow(calc(-.3 * var(--wu)) 0 0 rgb(255 90 170 / .45));animation:ssSignalJitter 900ms steps(1,end) infinite,ssScanline 350ms linear infinite;}
+  /* Davonrennen: Tempo-Striche hinter dem Tier */
+  @keyframes ssSpeedLine{0%{opacity:0;transform:scaleX(.3);}40%{opacity:.9;}100%{opacity:0;transform:scaleX(1);}}
+  .ss-speed{position:absolute;top:25%;display:none;width:max(45%,calc(3.5 * var(--wu)));height:50%;flex-direction:column;justify-content:space-around;}
+  .ss-swimmer[data-bolting="right"] .ss-speed{right:100%;display:flex;}
+  .ss-swimmer[data-bolting="left"] .ss-speed{left:100%;display:flex;}
+  .ss-speed > i{height:max(3px,calc(.3 * var(--wu)));border-radius:9999px;background:rgb(255 255 255 / .85);animation:ssSpeedLine 400ms ease-out infinite;}
+  .ss-swimmer[data-bolting="right"] .ss-speed > i{transform-origin:right;}
+  .ss-swimmer[data-bolting="left"] .ss-speed > i{transform-origin:left;}
+  .ss-speed > i:nth-child(2){width:70%;margin-inline:auto 0;animation-delay:130ms;}
+  .ss-swimmer[data-bolting="left"] .ss-speed > i:nth-child(2){margin-inline:0 auto;}
+  .ss-speed > i:nth-child(3){animation-delay:260ms;}
+  /* Zähler und Pegel oben in der Szene (beides unter ⚙️ einschaltbar) */
+  .ss-info{position:absolute;left:50%;top:12px;transform:translateX(-50%);z-index:2100;display:flex;gap:8px;align-items:center;pointer-events:none;}
+  .ss-info > *{background:rgba(255,255,255,.88);color:#1e2433;border-radius:999px;padding:6px 14px;font-family:'Baloo 2',system-ui,sans-serif;font-weight:800;font-size:clamp(15px,calc(2.2vh/var(--lz,1)),22px);box-shadow:0 6px 18px rgba(0,0,0,.16);white-space:nowrap;}
+  .ss-info [hidden]{display:none;}
+  .ss-info-meter{display:flex;align-items:center;gap:8px;}
+  .ss-info-meter .ss-meter{width:clamp(110px,16vw,220px);height:12px;}
+  .ss-ziele{display:flex;flex-wrap:wrap;gap:6px;}
+  .ss-ziele button{flex:1 1 auto;}
+  .ss-kalib{display:flex;flex-direction:column;gap:6px;padding:8px 10px;border-radius:12px;background:var(--surface-2);}
+  .ss-kalib-gross{font-weight:800;font-size:15px;}
+  .ss-panel .ss-zeile{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+  .ss-panel input[type=number]{width:64px;font:inherit;font-size:13px;padding:4px 6px;border-radius:8px;border:1px solid var(--border);background:var(--surface-2);color:var(--text);}
   .ss-stage[data-modus="weg"][data-murky="true"] .ss-veil{opacity:.12;}
   .ss-stage[data-frozen="true"] :not(.ss-fleeing,.ss-fleeing *),
   .ss-stage[data-frozen="true"] :not(.ss-fleeing,.ss-fleeing *)::before,
@@ -1132,7 +1172,7 @@ function winterAn(){ var aus = false; try{ aus = localStorage.getItem('hl_winter
   .ss-status{font-size:12px;color:var(--text-muted);}
   .ss-quelle{font-size:11px;color:var(--text-muted);}
   /* 📖 Entdeckt (Sammlung) */
-  .ss-neu{position:absolute;left:50%;top:5%;transform:translate(-50%,-8px);z-index:2100;background:rgba(255,255,255,.9);color:#1e2433;border-radius:999px;padding:8px 18px;font-family:'Baloo 2',system-ui,sans-serif;font-weight:800;font-size:clamp(16px,calc(2.6vh/var(--lz,1)),26px);box-shadow:0 8px 24px rgba(0,0,0,.18);opacity:0;transition:opacity .6s, transform .6s;pointer-events:none;white-space:nowrap;}
+  .ss-neu{position:absolute;left:50%;top:9%;transform:translate(-50%,-8px);z-index:2100;background:rgba(255,255,255,.9);color:#1e2433;border-radius:999px;padding:8px 18px;font-family:'Baloo 2',system-ui,sans-serif;font-weight:800;font-size:clamp(16px,calc(2.6vh/var(--lz,1)),26px);box-shadow:0 8px 24px rgba(0,0,0,.18);opacity:0;transition:opacity .6s, transform .6s;pointer-events:none;white-space:nowrap;}
   .ss-neu.on{opacity:1;transform:translate(-50%,0);}
   .ss-dex{position:absolute;inset:3% 4%;z-index:5;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:20px;box-shadow:0 20px 50px rgba(0,0,0,.3);display:flex;flex-direction:column;overflow:hidden;}
   .ss-dex[hidden]{display:none;}
@@ -1164,7 +1204,7 @@ function winterAn(){ var aus = false; try{ aus = localStorage.getItem('hl_winter
   @media (prefers-reduced-motion: reduce){
     .ss-bobber,.ss-sway,.ss-fern,.ss-drift,.ss-sun,.ss-shaft,.ss-plankton,.ss-motes,.ss-leaf,.ss-poser.ss-turning,.ss-poser.ss-shaking,
     .ss-creature .part-tail,.ss-creature .part-fin,.ss-creature .part-body,.ss-creature .part-tentacles,.ss-creature .part-arms,
-    .ss-creature .part-ears,.ss-creature .part-wings,.ss-creature .part-head{animation:none;}
+    .ss-creature .part-ears,.ss-creature .part-wings,.ss-creature .part-head,.ss-creature .part-spin,.ss-creature .part-pulse,.ss-swimmer.ss-fading .ss-creature,.ss-speed > i{animation:none;}
     .ss-leaf-fall{display:none;}
   }
 
@@ -11221,8 +11261,8 @@ var KIB_WISSEN = [
    a:'Im 🗓️ Stundenplan auf «📌 Termin», dann die Lektion antippen: eine Lektion, ein Halbtag oder ein ganzer Tag, auch «fällt aus». In «Mein Stundenplan» wählst du, ob nur du ihn siehst oder auch eine Klasse. In der Ansicht «Klasse» sieht ihn die ganze Klasse.\nMüssen nur einige weg, hakst du «↔️ Parallel zur Lektion» an.'},
   {id:'lp-material', fuer:'lp', f:'Wie lege ich ein Quiz oder eine Umfrage in einen Fach-Ordner?', w:'unterrichtsmaterial zusatzmaterial material ordner ablegen quiz umfrage wortwolke karteikarten paket importieren aus dem klassenzimmer lehrer-html planung', ziel:'klassenzimmer',
    a:'Im Fach auf «🏫 Aus dem Klassenzimmer»: Klassen-Quiz, Karteikarten, Wortwolke, Blitzumfrage, Millionär-Set oder Prüfung neu anlegen oder Vorhandenes in den offenen Ordner holen. Es steht dann unter den Übungen, mit «▶︎ Starten».\nGesammelt findest du alles unter 🏫 Klassenzimmer › «🗃️ Unterrichtsmaterial».'},
-  {id:'lp-stille-safari', fuer:'lp', f:'Was ist die «Stille Safari» in der Ruhephase?', w:'stille safari shy safari tiere ruhe lärm leise ruhephase lärmampel savanne riff wald mikrofon belohnen', ziel:'klassenzimmer',
-   a:'Im 🏫 Klassenzimmer › ⏱ Ruhephase in der Mitte von «🚦 Lärmampel» auf «🦒 Stille Safari» umschalten. Am Beamer ist dann eine ruhige Szene (Savanne, Korallenriff oder Wald). Solange der Timer läuft (oder du «🌿 Ohne Timer» antippst) und es leise bleibt, kommen nach und nach Tiere hervor – das erste nach 10–20 Sekunden, insgesamt etwa 9 in einer ruhigen Ruhephase, manche sind selten. Wird es zu laut, wird die Szene neblig und die Tiere verstecken sich, bis es wieder ruhig ist (oder sie laufen davon / es wird nur neblig – unter ⚙️). Keine Punkte, kein Rot.\nPausierst du den Timer, drehen sich die Tiere zur Klasse und hören zu. ↺ oder eine neue Dauer starten eine neue, leere Szene.\n📖 Entdeckt: alle Tiere der Szene – entdeckte mit Namen und Steckbrief, die anderen als graue Silhouette (pro Klasse auf diesem Gerät gespeichert).\n⚙️ unten: Ruhe-Grenze (mit Pegelanzeige), Tempo, Verhalten bei Lärm. Das Mikrofon misst nur den Pegel auf deinem Gerät, nichts wird aufgezeichnet oder gesendet.\nIdee und Grafiken: verändert nach teacher.dev/shy-safari (Open Source, Apache-2.0).'},
+  {id:'lp-stille-safari', fuer:'lp', f:'Was ist die «Stille Safari» in der Ruhephase?', w:'stille safari shy safari tiere ruhe lärm leise ruhephase lärmampel savanne riff wald weltraum urzeit dinosaurier dschungel arktis fabelwesen kalibrieren zähler flüstern partnerarbeit mikrofon belohnen', ziel:'klassenzimmer',
+   a:'Im 🏫 Klassenzimmer › ⏱ Ruhephase in der Mitte von «🚦 Lärmampel» auf «🦒 Stille Safari» umschalten. Am Beamer ist dann eine ruhige Szene: Savanne, Korallenriff, Weltraum, Urzeit (Dinosaurier), Wald, Dschungel, Arktis oder Fabelwesen. Solange der Timer läuft (oder du «🌿 Ohne Timer» antippst) und es leise bleibt, kommen nach und nach Tiere hervor – das erste nach 10–20 Sekunden, insgesamt etwa 9 in einer ruhigen Ruhephase, manche sind selten. Wird es zu laut, wird die Szene neblig und die Tiere verstecken sich, bis es wieder ruhig ist (oder sie laufen davon / es wird nur neblig – unter ⚙️). Keine Punkte, kein Rot.\nPausierst du den Timer, drehen sich die Tiere zur Klasse und hören zu. ↺ oder eine neue Dauer starten eine neue, leere Szene.\n📖 Entdeckt: alle Tiere der Szene – entdeckte mit Namen und Steckbrief, die anderen als graue Silhouette (pro Klasse auf diesem Gerät gespeichert).\n⚙️ unten: «Wie leise?» (🤫 Still, 🗣️ Flüstern, 👥 Partnerarbeit oder Regler mit Pegelanzeige), 🎚️ Kalibrieren (10 Sekunden: still, dann normal sprechen – danach passen die Stufen zum Raum), Verhalten bei Lärm, Tempo (passend zum Timer oder fest alle 2/5/8 bzw. eigene Minuten), Zähler oben (alle gekommenen oder die jetzt da sind) und Pegel oben in der Szene. Im Weltraum lösen sich Sichtungen im Rauschen auf, statt davonzulaufen, und bleiben bei Pause einfach stehen. Das Mikrofon misst nur den Pegel auf deinem Gerät, nichts wird aufgezeichnet oder gesendet.\nIdee und Grafiken: verändert nach teacher.dev/shy-safari (Open Source, Apache-2.0).'},
   {id:'lp-wer-macht-mit', fuer:'lp', f:'Wie mische ich Klassen im Glücksrad oder bei den Gruppen?', w:'glücksrad wer ist dran gruppen partner ruhephase flüstern andere klasse mischen gäste einzelne schüler dazunehmen auswahl wer macht mit abwesend', ziel:'klassenzimmer',
    a:'Im 🏫 Klassenzimmer oben rechts in 🎲 Zufall, ⏱ Ruhephase und 👥 Gruppen & Partner auf «👥 …» tippen. Dort wählst du ganze Klassen aus der ganzen Schule, deine 👥 Gruppen und einzelne Schüler:innen (Suchfeld) – z. B. die G2b und drei aus der E3a. Wer heute fehlt: Namen antippen.\nDie Auswahl gilt für Glücksrad, Wer ist dran?, Gruppen & Partner und die Flüsterliste und bleibt auf deinem Gerät gespeichert.'},
   {id:'lp-energizer', fuer:'lp', f:'Wo finde ich Energizer und Aktivierungsspiele?', w:'energizer aktivierung aktivierungsspiel bewegung pause spiel spiele auflockern konzentration ruhe atmung', ziel:'klassenzimmer',
@@ -21823,21 +21863,42 @@ function mountAmpel(host){
    Svelte, deutsche Oberfläche, gekoppelt an den ⏱ Ruhephase-Timer (Tiere
    kommen nur, solange er läuft; bei Pause/Ende drehen sie sich zur Klasse),
    Takt aus der Timer-Dauer, Modus «verstecken sich», ohne Branding/Analytics.
-   Die Szenen-Dateien baut admin/safari-szenen-bauen.js aus dem Original. */
+   Die Szenen-Dateien baut admin/safari-szenen-bauen.js aus dem Original.
+   Nachgeführt am 25.11.2026 (Stand Original 21.11.2026): Szenen Weltraum,
+   Urzeit, Dschungel, Arktis und Fabelwesen samt ihren Bewegungsarten,
+   Weltraum-Abgang ins Rauschen, Tempo-Striche beim Davonrennen, Lautstärke-
+   Stufen (still/flüstern/Partnerarbeit), Kalibrierung, Tempo in Minuten,
+   Zähler (insgesamt/jetzt da) und Pegel am Bildschirm. Nicht übernommen:
+   Halloween-Szene (nur im Oktober), Notizen auf der Szene, schwebendes
+   Fenster — dafür hat die Ruhephase Timer und Flüsterliste. */
 
+// abgang 'fade': lösen sich im Rauschen auf statt davonzurennen; pause 'hold':
+// bleiben bei Pause einfach stehen (Weltraum: nichts hat ein Gesicht zum Umdrehen).
 var SAFARI_SZENEN = [
-  {id:'savanne', name:'Savanne', icon:'🦒'},
-  {id:'riff',    name:'Korallenriff', icon:'🐠', tiefenNebel:true},
-  {id:'wald',    name:'Wald', icon:'🦊'}
+  {id:'savanne',   name:'Savanne', icon:'🦒'},
+  {id:'riff',      name:'Korallenriff', icon:'🐠', tiefenNebel:true},
+  {id:'weltraum',  name:'Weltraum', icon:'🪐', abgang:'fade', pause:'hold', wort:['Sichtung','Sichtungen'], weg:'lösen sich Sichtungen im Rauschen auf'},
+  {id:'urzeit',    name:'Urzeit', icon:'🦕'},
+  {id:'wald',      name:'Wald', icon:'🦊'},
+  {id:'dschungel', name:'Dschungel', icon:'🐒'},
+  {id:'arktis',    name:'Arktis', icon:'🐻‍❄️'},
+  {id:'fabel',     name:'Fabelwesen', icon:'🦄', wort:['Wesen','Wesen']}
 ];
-var SAFARI_DATEN_VERSION = 1;
+var SAFARI_DATEN_VERSION = 2;
+// Szenen-eigene Stile (aus dem Original, auf die Szene begrenzt) einmal in den <head>.
+function safariCssEinbauen(d){
+  if(!d || !d.css || document.getElementById('ss-css-' + d.id)) return;
+  var st = document.createElement('style');
+  st.id = 'ss-css-' + d.id; st.textContent = d.css;
+  document.head.appendChild(st);
+}
 var safariDatenCache = {};
 function safariDatenLaden(id){
   if(!safariDatenCache[id]){
     safariDatenCache[id] = fetch('assets/safari/' + id + '.json?v=' + SAFARI_DATEN_VERSION).then(function(r){
       if(!r.ok) throw new Error('Szene ' + r.status);
       return r.json();
-    });
+    }).then(function(d){ safariCssEinbauen(d); return d; });
     safariDatenCache[id].catch(function(){ delete safariDatenCache[id]; });
   }
   return safariDatenCache[id];
@@ -21848,6 +21909,10 @@ var SS_SAND = {top:0.84, bottom:0.98};
 var SS_PLAIN = {top:0.62, bottom:0.97};
 var SS_WATER = {xMin:0.06, xMax:0.94, yMin:0.1, yMax:0.78};
 var SS_GROUND_REGION = {xMin:0.04, xMax:0.96, yMin:0, yMax:1};
+var SS_BOUGH = {top:0.5, bottom:0.525}, SS_BOUGH_UNDER = {top:0.546, bottom:0.556};
+var SS_OPEN_WATER = {top:0.54, bottom:0.598}, SS_LAKE = {top:0.565, bottom:0.612}, SS_PATCH_BACK = {top:0.6, bottom:0.64};
+var SS_CLEAR_SKY = {xMin:0.21, xMax:0.855}, SS_CLEARING = {xMin:0.1, xMax:0.955};
+var SS_SKY = {xMin:0.05, xMax:0.95, yMin:0.06, yMax:0.86};
 function ssP(o){ return Object.assign({restChance:0, rest:[0,0], pulse:0, flips:true, tilts:false, ground:false}, o); }
 var SS_MOTION = {
   cruise:  ssP({region:SS_WATER, speed:0.035, agility:1.2, reachX:0.9, reachY:0.25, restChance:0.1, rest:[1,3], tilts:true}),
@@ -21861,17 +21926,36 @@ var SS_MOTION = {
   prowl:   ssP({region:{xMin:0.08,xMax:0.92,yMin:0.6,yMax:0.82}, speed:0.015, agility:0.7, reachX:0.6, reachY:0.3, restChance:0.3, rest:[3,7], tilts:true}),
   graze:   ssP({region:SS_GROUND_REGION, speed:0.012, agility:2, reachX:0.4, reachY:0, restChance:0.75, rest:[4,12], ground:true, band:SS_PLAIN}),
   trot:    ssP({region:SS_GROUND_REGION, speed:0.025, agility:3, reachX:0.6, reachY:0, restChance:0.5, rest:[1.5,5], ground:true, band:SS_PLAIN}),
-  soar:    ssP({region:{xMin:0.08,xMax:0.92,yMin:0.08,yMax:0.45}, speed:0.028, agility:0.5, reachX:1, reachY:0.5, tilts:true, band:SS_PLAIN})
+  soar:    ssP({region:{xMin:0.08,xMax:0.92,yMin:0.08,yMax:0.45}, speed:0.028, agility:0.5, reachX:1, reachY:0.5, tilts:true, band:SS_PLAIN}),
+  // Neu (Nov. 2026): Weltraum
+  orbit:   ssP({region:SS_SKY, speed:0.02, agility:0.4, reachX:1, reachY:0.15, restChance:0.05, rest:[2,5], flips:false}),
+  streak:  ssP({region:SS_SKY, speed:0.05, agility:0.6, reachX:1, reachY:0.35, flips:false, tilts:true}),
+  coast:   ssP({region:SS_SKY, speed:0.007, agility:0.4, reachX:0.35, reachY:0.35, restChance:0.4, rest:[4,10], flips:false}),
+  tumble:  ssP({region:SS_SKY, speed:0.008, agility:0.5, reachX:0.3, reachY:0.3, restChance:0.3, rest:[3,8], flips:false}),
+  loom:    ssP({region:SS_SKY, speed:0.003, agility:0.3, reachX:0.2, reachY:0.2, restChance:0.5, rest:[10,30], flips:false, oneSided:true}),
+  // Dschungel: auf dem Ast, unter dem Ast, hüpfen
+  clamber: ssP({region:SS_GROUND_REGION, speed:0.018, agility:3, reachX:0.4, reachY:0, restChance:0.65, rest:[2,7], ground:true, band:SS_BOUGH}),
+  hang:    ssP({region:SS_GROUND_REGION, speed:0.003, agility:1, reachX:0.08, reachY:0, restChance:0.8, rest:[8,20], ground:true, band:SS_BOUGH_UNDER, hangs:true}),
+  hop:     ssP({region:SS_GROUND_REGION, speed:0.05, agility:8, reachX:0.12, reachY:0, restChance:0.9, rest:[1.5,6], ground:true, band:SS_PLAIN}),
+  // Arktis / Fabelwesen: im Wasser zwischen den Schollen, im See
+  paddle:  ssP({region:SS_GROUND_REGION, speed:0.014, agility:1.2, reachX:0.5, reachY:0, restChance:0.55, rest:[3,9], ground:true, band:SS_OPEN_WATER}),
+  swim:    ssP({region:SS_GROUND_REGION, speed:0.016, agility:1.2, reachX:0.5, reachY:0, restChance:0.5, rest:[3,8], ground:true, band:SS_LAKE}),
+  // Fabelwesen: Flieger bleiben ganz zwischen den beiden Rahmen-Bäumen
+  doze:    ssP({region:Object.assign({}, SS_CLEAR_SKY, {yMin:0.02, yMax:0.34}), whole:true, speed:0.006, agility:0.5, reachX:0.2, reachY:0.1, restChance:0.75, rest:[5,12]}),
+  flutter: ssP({region:Object.assign({}, SS_CLEARING, {yMin:0.25, yMax:0.82}), whole:true, speed:0.01, agility:0.8, reachX:0.15, reachY:0.15, restChance:0.6, rest:[2,6]}),
+  wheel:   ssP({region:Object.assign({}, SS_CLEAR_SKY, {yMin:0.03, yMax:0.5}), whole:true, speed:0.028, agility:0.5, reachX:1, reachY:0.5, tilts:true, band:SS_PLAIN}),
+  stride:  ssP({region:SS_GROUND_REGION, speed:0.007, agility:1, reachX:0.35, reachY:0, restChance:0.7, rest:[6,14], ground:true, band:SS_PATCH_BACK, depths:[0.85,1]})
 };
 function ssClamp(v, a, b){ return Math.min(b, Math.max(a, v)); }
 function ssGroundLine(depth, band){ band = band || SS_SAND; return band.top + depth * (band.bottom - band.top); }
 function ssLayer(p, depth){ return Math.round(ssGroundLine(depth, p.band) * 1000); }
 function ssBounds(p, fp, depth){
   var hw = fp.width / 2, hh = fp.height / 2;
-  var xMin = Math.max(p.region.xMin, hw), xMax = Math.min(p.region.xMax, 1 - hw);
+  var iw = p.whole ? hw : 0, ih = p.whole ? hh : 0;   // whole: ganz in der Region, nicht nur die Mitte
+  var xMin = Math.max(p.region.xMin + iw, hw), xMax = Math.min(p.region.xMax - iw, 1 - hw);
   if(xMin > xMax){ xMin = xMax = 0.5; }
-  if(p.ground){ var y = ssGroundLine(depth, p.band) - hh; return {xMin:xMin, xMax:xMax, yMin:y, yMax:y}; }
-  var yMin = Math.max(p.region.yMin, hh), yMax = Math.min(p.region.yMax, 1 - hh);
+  if(p.ground){ var line = ssGroundLine(depth, p.band), y = p.hangs ? line + hh : line - hh; return {xMin:xMin, xMax:xMax, yMin:y, yMax:y}; }
+  var yMin = Math.max(p.region.yMin + ih, hh), yMax = Math.min(p.region.yMax - ih, 1 - hh);
   if(yMin > yMax){ yMin = yMax = 0.5; }
   return {xMin:xMin, xMax:xMax, yMin:yMin, yMax:yMax};
 }
@@ -21889,6 +21973,7 @@ function ssCreateMotion(p, sx, sy, depth, fp, flips){
            y: ssClamp(box.yMin + sy * (box.yMax - box.yMin), box.yMin, box.yMax),
            vx:0, vy:0, tx:0, ty:0, resting:1.2, age:Math.random() * 10,
            facing: Math.random() < 0.5 ? -1 : 1, flips: flips};
+  if(p.oneSided) m.facing = 1;   // Planeten & Co. nie gespiegelt
   ssPickTarget(m, p, box);
   return m;
 }
@@ -21929,6 +22014,13 @@ function ssStepFlee(m, p, depth, fp, dir, dt){
   m.y = ssClamp(m.y + m.vy * dt / fp.aspect, box.yMin, box.yMax);
   if(m.flips) m.facing = dir;
   return m.x < -fp.width / 2 || m.x > 1 + fp.width / 2;
+}
+/* Weltraum: Ausblenden mit Flackern statt Davonrennen (aus scenes/motion.ts). */
+var SS_FADE_S = 2.6;
+function ssFadeVis(t){
+  var pr = ssClamp(t / SS_FADE_S, 0, 1), env = 1 - pr * pr * (3 - 2 * pr);
+  var fl = Math.sin(t * 23) + Math.sin(t * 37 + 1);
+  return env * (fl > 1.1 ? 0.35 + 0.4 * (1 - pr) : 1);
 }
 function ssBank(m, p){
   if(!p.tilts) return 0;
@@ -21994,10 +22086,38 @@ function ssRoll(roster, present){
 }
 
 /* Takt aus der Timer-Dauer: in einer ruhigen Ruhephase kommen etwa 9 Tiere
-   (mind. alle 20 s, höchstens alle 3 Min.), «Tempo» verschiebt das. */
+   (mind. alle 20 s, höchstens alle 3 Min.), «Tempo» verschiebt das.
+   Oder fest wie im Original: lebhaft alle ~2, normal ~5, entspannt ~8 Min.
+   bzw. eigene Minuten (1–60). */
 var SS_TEMPO = {oft:0.6, normal:1, selten:1.6};
-function ssIntervallMs(totalSek, tempo){
+var SS_TEMPO_MIN = {m2:2, m5:5, m8:8};
+function ssIntervallMs(totalSek, tempo, eigeneMin){
+  if(SS_TEMPO_MIN[tempo]) return SS_TEMPO_MIN[tempo] * 60000;
+  if(tempo === 'eigen') return ssClamp(eigeneMin || 5, 1, 60) * 60000;
   return ssClamp(totalSek * 1000 / 9, 20000, 180000) * (SS_TEMPO[tempo] || 1);
+}
+/* Lautstärke-Ziel wie im Original: drei Stufen. Mit Kalibrierung gilt die
+   Skala des Originals (still 15, flüstern 30, Partnerarbeit 50; normales
+   Sprechen = 50), ohne die grobe Skala der Lärmampel. */
+var SS_ZIELE = [['still','🤫 Still',15,25],['fluestern','🗣️ Flüstern',30,42],['partner','👥 Partnerarbeit',50,60]];
+function ssZielWert(name, kalib){
+  var z = SS_ZIELE.filter(function(x){ return x[0] === name; })[0];
+  return z ? (kalib ? z[2] : z[3]) : null;
+}
+/* Kalibrierung (aus audio/calibration.ts): 5 s still, 5 s normal sprechen;
+   still → 5, sprechen → 50, dazwischen linear. */
+function ssKalibLaden(){
+  try{ var k = JSON.parse(lsGet(LIB_PREFIX + 'safari_kalib') || 'null'); return k && k.talking - k.quiet >= 1.5 ? k : null; }catch(e){ return null; }
+}
+function ssKalibAnwenden(raw, k){
+  if(!k) return ssClamp(raw, 0, 100);
+  return ssClamp((raw - k.quiet) / (k.talking - k.quiet) * 45 + 5, 0, 100);
+}
+function ssGetrimmt(werte){
+  if(!werte.length) return 0;
+  var a = werte.slice().sort(function(x, y){ return x - y; }), t = Math.floor(a.length * 0.15);
+  if(t > 0) a = a.slice(t, a.length - t);
+  return a.reduce(function(x, y){ return x + y; }, 0) / a.length;
 }
 var SS_SPARKLES = [{x:6,y:10,s:1,d:0},{x:86,y:2,s:.75,d:.9},{x:100,y:60,s:.9,d:1.7},{x:60,y:98,s:.65,d:.45},{x:18,y:86,s:.85,d:1.3},{x:44,y:-6,s:.6,d:2.1},{x:72,y:40,s:.5,d:2.6}];
 var SS_MAX_TIERE = 30;
@@ -22006,7 +22126,7 @@ var SS_MAX_TIERE = 30;
    Seltenheit, entdeckte in Farbe mit Name und kurzem Steckbrief, noch nicht
    entdeckte als graue Silhouette. Gezählt wird pro Klasse (state.klasse),
    lokal auf dem Beamer-Gerät (hl_safari_dex). Namen und Steckbriefe sind
-   neu auf Deutsch geschrieben (das Original hat keine Fakten zu diesen Tieren). */
+   auf Deutsch geschrieben (für Urzeit und Arktis nach den Fakten des Originals). */
 var SAFARI_TIERE = {
   // Savanne
   'meerkat':['Erdmännchen','Während die Gruppe frisst, hält eines Wache und pfeift bei Gefahr.'],
@@ -22062,7 +22182,97 @@ var SAFARI_TIERE = {
   'white-tailed-deer':['Weisswedelhirsch','Bei Gefahr hebt er seinen weissen Schwanz als Warnsignal.'],
   'gray-wolf':['Wolf','Wölfe leben im Rudel. Seit einigen Jahren gibt es auch in der Schweiz wieder Wölfe.'],
   'black-bear':['Schwarzbär','Ein guter Kletterer, der vor allem Beeren, Nüsse und Insekten frisst.'],
-  'moose':['Elch','Sein Geweih wird fast 2 Meter breit – und fällt jeden Winter ab.']
+  'moose':['Elch','Sein Geweih wird fast 2 Meter breit – und fällt jeden Winter ab.'],
+  // Weltraum (Sichtungen durchs Teleskop)
+  'satellite':['Satellit','Über 10 000 Satelliten kreisen um die Erde – fürs Wetter, fürs Handy und fürs Navi.'],
+  'asteroid':['Asteroid','Ein Gesteinsbrocken, der um die Sonne kreist. Die meisten liegen zwischen Mars und Jupiter.'],
+  'meteor':['Meteor','Eine Sternschnuppe ist ein Staubkorn aus dem All, das in der Luft verglüht.'],
+  'space-probe':['Raumsonde','Die Sonde Voyager 1 fliegt seit 1977 und ist heute weiter weg als alles, was Menschen je gebaut haben.'],
+  'space-capsule':['Raumkapsel','Mit einer Kapsel kommen Astronautinnen und Astronauten zurück – am Fallschirm, oft ins Meer.'],
+  'astronaut':['Astronaut','Im All wachsen Menschen ein paar Zentimeter, weil die Wirbelsäule nicht zusammengedrückt wird.'],
+  'space-shuttle':['Spaceshuttle','Die Raumfähre startete wie eine Rakete und landete wie ein Flugzeug. Sie flog 30 Jahre lang.'],
+  'iss':['Raumstation ISS','Die ISS umrundet die Erde alle 90 Minuten – man kann sie am Abendhimmel als hellen Punkt sehen.'],
+  'comet':['Komet','Ein schmutziger Schneeball aus Eis und Staub. Nahe der Sonne bekommt er einen leuchtenden Schweif.'],
+  'ringed-planet':['Ringplanet','Die Ringe des Saturn bestehen aus unzähligen Eis- und Gesteinsbrocken.'],
+  'moon':['Mond','Der Mond zeigt der Erde immer die gleiche Seite. Seine Rückseite sah erst 1959 jemand.'],
+  'space-telescope':['Weltraumteleskop','Über der Luft sieht ein Teleskop viel schärfer – darum schickt man es ins All.'],
+  'gas-giant':['Gasriese','Jupiter ist so gross, dass alle anderen Planeten zusammen hineinpassen würden.'],
+  'spiral-galaxy':['Spiralgalaxie','Auch unsere Milchstrasse ist eine Spiralgalaxie – mit über 100 Milliarden Sternen.'],
+  'black-hole':['Schwarzes Loch','Seine Schwerkraft ist so stark, dass nicht einmal Licht entkommen kann.'],
+  'pulsar':['Pulsar','Ein winziger, schwerer Sternrest, der sich bis zu hunderte Male pro Sekunde dreht und blinkt wie ein Leuchtturm.'],
+  'ring-nebula':['Ringnebel','Die leuchtende Gashülle, die ein Stern am Ende seines Lebens abgestossen hat.'],
+  // Urzeit (Ende der Dinosaurier-Zeit, vor 66 Millionen Jahren)
+  'didelphodon':['Didelphodon','Ein Verwandter der Beuteltiere – mit dem stärksten Biss aller bekannten Säugetiere, gemessen an seiner Grösse.'],
+  'palaeosaniwa':['Palaeosaniwa','Eine grosse Jagd-Echse, verwandt mit den heutigen Waranen.'],
+  'basilemys':['Basilemys','Eine Landschildkröte mit flachem, breitem Panzer und rauer, narbiger Oberfläche.'],
+  'avisaurus':['Avisaurus','Ein Vogel aus einer Gruppe, die zur Zeit der Dinosaurier am häufigsten war – und mit ihnen ausstarb.'],
+  'pectinodon':['Pectinodon','Der Name heisst «Kammzahn» – von ihm hat man fast nur die gezackten Zähne gefunden.'],
+  'acheroraptor':['Acheroraptor','Ein gefiederter Raubsaurier, benannt nach einem Fluss der Unterwelt aus den griechischen Sagen.'],
+  'thescelosaurus':['Thescelosaurus','Der Name heisst «wundersame Echse». Ein gedrungener Pflanzenfresser mit Schnabel.'],
+  'struthiomimus':['Struthiomimus','Der Name heisst «Straussen-Nachahmer»: zahnloser Schnabel, lange Beine, gefiederte Arme.'],
+  'anzu':['Anzu','Benannt nach einem gefiederten Dämon aus Mesopotamien. Auf dem Kopf trug er einen hohen Kamm.'],
+  'pachycephalosaurus':['Pachycephalosaurus','Die Knochenkuppel auf seinem Kopf war bis zu 25 cm dick.'],
+  'dakotaraptor':['Dakotaraptor','Höcker an seinen Armknochen zeigen, wo grosse Flügelfedern festsassen.'],
+  'ankylosaurus':['Ankylosaurus','Am Schwanzende trug er eine Keule aus verwachsenen Knochen.'],
+  'triceratops':['Triceratops','Der häufigste grosse Dinosaurier in den Gesteinen von Hell Creek (USA).'],
+  'edmontosaurus':['Edmontosaurus','Versteinerte Haut zeigt einen Hautkamm auf dem Rücken und Hufe an den Zehen.'],
+  'tyrannosaurus':['Tyrannosaurus','Einer der stärksten Bisse aller Landtiere. Wahrscheinlich bedeckten Lippen seine Zähne.'],
+  'quetzalcoatlus':['Quetzalcoatlus','Ein Flugsaurier mit etwa 10 m Spannweite – am Boden so gross wie eine Giraffe.'],
+  'alamosaurus':['Alamosaurus','Einer der letzten Langhals-Saurier und mit 26 m oder mehr eines der grössten Tiere seiner Zeit.'],
+  // Dschungel
+  'poison-dart-frog':['Pfeilgiftfrosch','Seine knalligen Farben warnen: Ich bin giftig! In der Natur nimmt er das Gift mit dem Futter auf.'],
+  'tree-frog':['Rotaugenlaubfrosch','Am Tag schläft er mit geschlossenen Augen auf einem Blatt – geweckt blitzen seine roten Augen auf.'],
+  'butterfly':['Blauer Morphofalter','Sein Blau ist keine Farbe: Winzige Schuppen werfen das Licht so zurück, dass es blau leuchtet.'],
+  'hummingbird':['Kolibri','Er kann in der Luft stehen bleiben und sogar rückwärts fliegen.'],
+  'toucan':['Tukan','Sein riesiger Schnabel ist innen hohl und sehr leicht.'],
+  'capuchin':['Kapuzineraffe','Er knackt Nüsse mit Steinen – er benutzt also Werkzeug.'],
+  'iguana':['Grüner Leguan','Er ist ein guter Schwimmer und lässt sich bei Gefahr von einem Ast ins Wasser fallen.'],
+  'capybara':['Wasserschwein','Das grösste Nagetier der Welt. Es ist ein guter Schwimmer und kann unter Wasser schlafen.'],
+  'chameleon':['Chamäleon','Seine Augen bewegen sich unabhängig – es kann nach vorne und hinten zugleich schauen.'],
+  'sloth':['Faultier','Es bewegt sich so langsam, dass in seinem Fell Algen wachsen.'],
+  'macaw':['Hellroter Ara','Aras leben oft ein Leben lang mit dem gleichen Partner zusammen.'],
+  'orangutan':['Orang-Utan','Sein Name heisst «Waldmensch». Jede Nacht baut er sich ein neues Schlafnest in den Bäumen.'],
+  'okapi':['Okapi','Es sieht aus wie ein Zebra, ist aber der nächste Verwandte der Giraffe.'],
+  'tapir':['Schabrackentapir','Mit seiner kurzen Rüsselnase pflückt er Blätter und Früchte.'],
+  'jaguar':['Jaguar','Die grösste Katze Amerikas – und anders als die meisten Katzen ein guter Schwimmer.'],
+  'gorilla':['Gorilla','Der grösste Menschenaffe. Gorillas leben in Familiengruppen und fressen fast nur Pflanzen.'],
+  'tiger':['Tiger','Die grösste Katze der Welt. Auch seine Haut unter dem Fell ist gestreift.'],
+  // Arktis
+  'lemming':['Lemming','Er hält keinen Winterschlaf: Den ganzen Winter lebt er in Gängen unter dem Schnee.'],
+  'arctic-hare':['Schneehase','Er rennt bis zu 60 km/h und hüpft manchmal nur auf den Hinterbeinen – wie ein Känguru.'],
+  'ptarmigan':['Schneehuhn','Federn an den Füssen wirken wie Schneeschuhe. Im Winter wird es fast ganz weiss.'],
+  'puffin':['Papageitaucher','Er trägt mehr als zehn kleine Fische auf einmal im Schnabel.'],
+  'arctic-tern':['Küstenseeschwalbe','Sie fliegt jedes Jahr von der Arktis in die Antarktis und zurück – die längste Reise aller Tiere.'],
+  'arctic-fox':['Polarfuchs','Sein dichtes Fell hält bis −50 °C warm. Zum Schlafen wickelt er den buschigen Schwanz um sich.'],
+  'harp-seal':['Sattelrobbe','Die Jungen kommen mit flauschigem weissem Fell zur Welt und wechseln es nach ein paar Wochen.'],
+  'eider':['Prachteiderente','Eiderenten polstern ihr Nest mit Daunen von der eigenen Brust – einige der wärmsten Federn überhaupt.'],
+  'snowy-owl':['Schnee-Eule','Sie jagt auch am Tag: Im arktischen Sommer geht die Sonne gar nicht unter.'],
+  'caribou':['Karibu','Bei ihnen tragen auch die Weibchen ein Geweih. In Europa heissen sie Rentiere.'],
+  'musk-ox':['Moschusochse','Bei Gefahr stellt sich die Herde im Kreis auf, Hörner nach aussen, die Jungen in der Mitte.'],
+  'arctic-wolf':['Polarwolf','Er lebt so weit im Norden, dass manche Rudel kaum je Menschen begegnet sind.'],
+  'walrus':['Walross','Mit seinen langen Stosszähnen zieht es sich aus dem Wasser aufs Eis.'],
+  'beluga':['Beluga','Wegen seiner Pfiffe heisst er «Kanarienvogel des Meeres». Anders als die meisten Wale kann er den Kopf drehen.'],
+  'polar-bear':['Eisbär','Unter dem weissen Fell ist seine Haut schwarz – so nimmt sie die Wärme der Sonne auf.'],
+  'narwhal':['Narwal','Sein «Horn» ist ein Zahn, der durch die Oberlippe wächst – bis zu 3 m lang.'],
+  'bowhead-whale':['Grönlandwal','Mit seinem riesigen Kopf bricht er durchs Eis. Er kann über 200 Jahre alt werden.'],
+  // Fabelwesen (aus Sagen und Märchen der Welt)
+  'will-o-the-wisp':['Irrlicht','In alten Sagen ein Licht über dem Moor, das Wanderer vom Weg lockt. Wahrscheinlich steckten brennende Sumpfgase dahinter.'],
+  'fairy':['Fee','Feen kommen in Märchen aus ganz Europa vor – mal hilfsbereit, mal frech.'],
+  'moon-rabbit':['Mondhase','In China, Japan und Korea sieht man auf dem Mond einen Hasen statt eines Gesichts.'],
+  'duende':['Duende','Ein kleiner Hausgeist aus Spanien und von den Philippinen, der Unordnung stiftet.'],
+  'carbunclo':['Carbunclo','Ein Wesen aus Chile mit einem leuchtenden Edelstein auf dem Kopf. Wer es fängt, soll reich werden.'],
+  'alebrije':['Alebrije','Bunte Fantasietiere aus Mexiko – erfunden 1936 vom Künstler Pedro Linares.'],
+  'mermaid':['Meerjungfrau','Halb Mensch, halb Fisch: Geschichten über Meerjungfrauen gibt es an fast allen Küsten der Welt.'],
+  'yeti':['Yeti','Der «Schneemensch» des Himalaya. Gesehen hat ihn noch niemand sicher.'],
+  'griffin':['Greif','Vorne Adler, hinten Löwe: In Sagen bewacht er Gold und Schätze.'],
+  'pegasus':['Pegasus','Das geflügelte Pferd aus den griechischen Sagen. Nach ihm ist ein Sternbild benannt.'],
+  'kitsune':['Kitsune','Ein Fuchsgeist aus Japan. Je älter und klüger, desto mehr Schwänze hat er – bis zu neun.'],
+  'unicorn':['Einhorn','Das Einhorn ist das Wappentier von Schottland.'],
+  'qilin':['Qilin','Ein Glücksbringer aus China, der nur in friedlichen Zeiten erscheinen soll.'],
+  'ogopogo':['Ogopogo','Ein Seeungeheuer, das im Okanagan-See in Kanada leben soll – ähnlich wie Nessie in Schottland.'],
+  'phoenix':['Phönix','Der Feuervogel verbrennt am Ende seines Lebens und steigt aus der Asche neu auf.'],
+  'dragon':['Drache','In Europa oft ein gefährliches Ungeheuer, in China ein Glücksbringer, der Regen bringt.'],
+  'bakunawa':['Bakunawa','Eine riesige Seeschlange von den Philippinen. In der Sage verschluckt sie den Mond – so erklärte man Mondfinsternisse.']
 };
 var SAFARI_STUFEN = [['common','Häufig'],['uncommon','Selten'],['rare','Sehr selten']];
 function safariDexKlasse(){ return (typeof state !== 'undefined' && state && state.klasse) || '_'; }
@@ -22099,25 +22309,43 @@ function mountSafariRuhephase(stage){
     szene: lsGet(LIB_PREFIX + 'safari_szene') || 'savanne',
     grenze: parseInt(lsGet(LIB_PREFIX + 'safari_grenze') || '45', 10),
     laut: lsGet(LIB_PREFIX + 'safari_laut') || 'verstecken',
-    tempo: lsGet(LIB_PREFIX + 'safari_tempo') || 'normal'
+    tempo: lsGet(LIB_PREFIX + 'safari_tempo') || 'normal',
+    minuten: parseInt(lsGet(LIB_PREFIX + 'safari_minuten') || '5', 10),
+    ziel: lsGet(LIB_PREFIX + 'safari_ziel') || '',          // still | fluestern | partner | '' (eigener Wert)
+    zaehler: lsGet(LIB_PREFIX + 'safari_zaehler') || 'aus',  // aus | insgesamt | jetzt
+    pegel: lsGet(LIB_PREFIX + 'safari_pegel') === '1',
+    kalib: ssKalibLaden()
   };
   if(!SAFARI_SZENEN.some(function(s){ return s.id === cfg.szene; })) cfg.szene = 'savanne';
   if(!(cfg.grenze >= 5 && cfg.grenze <= 95)) cfg.grenze = 45;
+  if(!(cfg.minuten >= 1 && cfg.minuten <= 60)) cfg.minuten = 5;
+  if(cfg.ziel && ssZielWert(cfg.ziel, cfg.kalib) !== null) cfg.grenze = ssZielWert(cfg.ziel, cfg.kalib);
 
   var h = '<div class="ss-wrap">';
   h += '<div class="ss-stage" id="ssStage" data-scene="' + esc(cfg.szene) + '" data-modus="' + esc(cfg.laut) + '">';
-  h += '<div class="ss-world" id="ssWorld"></div><div class="ss-veil"></div><div class="ss-hint" id="ssHint"></div><div class="ss-neu" id="ssNeu"></div></div>';
+  h += '<div class="ss-world" id="ssWorld"></div><div class="ss-veil"></div><div class="ss-hint" id="ssHint"></div><div class="ss-neu" id="ssNeu"></div>';
+  h += '<div class="ss-info"><div id="ssZaehler" hidden></div><div class="ss-info-meter" id="ssPegelBild" hidden title="Pegel jetzt — der Strich ist die Grenze"><div class="ss-meter"><div class="ss-meter-lvl" id="ssLvl2"></div><div class="ss-meter-mark" id="ssMark2"></div></div></div></div></div>';
   h += '<div class="ss-ui">';
   h += '<div class="ss-card rp-col rp-col-timer" id="rpTimer"></div>';
   h += '<div class="ss-mid">';
   h += '<div class="ss-panel" id="ssPanel" hidden>';
+  h += '<div><b>Wie leise?</b></div><div class="ss-ziele" id="ssZiele">';
+  SS_ZIELE.forEach(function(z){ h += '<button type="button" class="ss-szene' + (cfg.ziel === z[0] ? ' on' : '') + '" data-ziel="' + z[0] + '">' + z[1] + '</button>'; });
+  h += '</div>';
   h += '<label>Ruhe-Grenze <input type="range" id="ssGrenze" min="5" max="95" value="' + cfg.grenze + '" style="flex:1"></label>';
   h += '<div class="ss-meter" title="Pegel jetzt — der Strich ist die Grenze"><div class="ss-meter-lvl" id="ssLvl"></div><div class="ss-meter-mark" id="ssMark"></div></div>';
+  h += '<div class="ss-kalib" id="ssKalib"></div>';
   h += '<label>Wenn es zu laut ist <select id="ssLaut">'
      + '<option value="verstecken">verstecken sich die Tiere</option>'
-     + '<option value="weg">laufen Tiere davon</option>'
-     + '<option value="nebel">wird es nur neblig</option></select></label>';
-  h += '<label>Tiere kommen <select id="ssTempo"><option value="oft">oft</option><option value="normal">normal</option><option value="selten">selten</option></select></label>';
+     + '<option value="weg" id="ssLautWeg">laufen Tiere davon</option>'
+     + '<option value="nebel">pausiert die Szene (nur Nebel)</option></select></label>';
+  h += '<label>Tiere kommen <select id="ssTempo">'
+     + '<optgroup label="passend zur Timer-Dauer"><option value="oft">oft</option><option value="normal">normal (≈ 9 pro Ruhephase)</option><option value="selten">selten</option></optgroup>'
+     + '<optgroup label="feste Abstände"><option value="m2">lebhaft – etwa alle 2 Min.</option><option value="m5">normal – etwa alle 5 Min.</option><option value="m8">entspannt – etwa alle 8 Min.</option><option value="eigen">eigene Minuten …</option></optgroup>'
+     + '</select></label>';
+  h += '<label id="ssMinWrap" style="display:none">Etwa ein Tier alle <span class="ss-zeile"><input type="number" id="ssMinuten" min="1" max="60" value="' + cfg.minuten + '"> Min.</span></label>';
+  h += '<label>Zähler oben <select id="ssZaehlerWahl"><option value="aus">aus</option><option value="insgesamt">alle Tiere, die gekommen sind</option><option value="jetzt">Tiere, die jetzt da sind</option></select></label>';
+  h += '<label><span>Pegel oben in der Szene zeigen</span><input type="checkbox" id="ssPegelWahl"' + (cfg.pegel ? ' checked' : '') + '></label>';
   h += '<div class="ss-status" id="ssStatus">Mikrofon wird gefragt …</div>';
   h += '<button class="btn btn-sm" id="ssRetry" type="button" style="display:none;align-self:flex-start">🎤 Mikrofon erneut versuchen</button>';
   h += '<div class="ss-quelle">Es wird nichts aufgezeichnet. Idee &amp; Grafiken: verändert nach teacher.dev/shy-safari (Apache-2.0).</div>';
@@ -22140,15 +22368,21 @@ function mountSafariRuhephase(stage){
   var retryBtn = stage.querySelector('#ssRetry'), panel = stage.querySelector('#ssPanel');
   stage.querySelector('#ssLaut').value = cfg.laut;
   stage.querySelector('#ssTempo').value = cfg.tempo;
+  stage.querySelector('#ssZaehlerWahl').value = cfg.zaehler;
+  stage.querySelector('#ssMinWrap').style.display = cfg.tempo === 'eigen' ? '' : 'none';
   ruheModusVerdrahten(stage);
+  var zaehlerEl = stage.querySelector('#ssZaehler'), pegelBildEl = stage.querySelector('#ssPegelBild');
+  var lvl2El = stage.querySelector('#ssLvl2'), mark2El = stage.querySelector('#ssMark2');
+  function wort(mehr){ var w = (szeneDef() || {}).wort; return w ? w[mehr ? 1 : 0] : (mehr ? 'Tiere' : 'Tier'); }
 
   var S = {
     daten:null, ladeFehler:false, tiere:[], nextId:1, phase:'bereit', hush:false, total:300,
     clock:null, noise:'quiet', since:-Infinity, samples:[], aktivVorher:false,
-    scare:{left:3000, first:true}, fertigSeit:0, neuJetzt:{},
+    scare:{left:3000, first:true}, fertigSeit:0, neuJetzt:{}, angekommen:0,
     frei:null   // 🌿 Ohne Timer: null | 'laeuft' | 'pause' (Wunsch von Jan, 21.10.2026)
   };
-  S.clock = ssNewClock(ssIntervallMs(S.total, cfg.tempo), true);
+  S.clock = ssNewClock(ssIntervallMs(S.total, cfg.tempo, cfg.minuten), true);
+  var kal = null;   // läuft gerade eine Kalibrierung: {phase:'still'|'sprechen', bis, werte, still}
   var stopped = false, raf = null, stream = null, ctx = null, analyser = null, buf = null, smooth = 0, lastSample = 0;
   var sceneW = 1, sceneH = 1;
   var ro = window.ResizeObserver ? new ResizeObserver(function(entries){
@@ -22166,7 +22400,7 @@ function mountSafariRuhephase(stage){
     var t = '';
     if(S.ladeFehler) t = 'Die Szene konnte nicht geladen werden — Internet prüfen und Szene nochmals antippen.';
     else if(!S.daten) t = '';
-    else if(S.phase === 'bereit' && !S.tiere.length) t = 'Timer starten oder 🌿 Ohne Timer — bleibt es ruhig, kommen die Tiere hervor.';
+    else if(S.phase === 'bereit' && !S.tiere.length) t = 'Timer starten oder 🌿 Ohne Timer — bleibt es ruhig, kommen ' + (cfg.szene === 'weltraum' ? 'Sichtungen ins Teleskop.' : 'die ' + wort(true) + ' hervor.');
     else if(S.phase === 'fertig') t = 'Geschafft — danke für die Ruhe! 🌿 Unter 📖 seht ihr, wen ihr entdeckt habt.';
     if(hintEl.textContent !== t) hintEl.textContent = t;
   }
@@ -22177,6 +22411,7 @@ function mountSafariRuhephase(stage){
     alleTiereWeg();
     S.daten = null; S.ladeFehler = false;
     sceneEl.setAttribute('data-scene', id);
+    lautText();
     worldEl.innerHTML = '';
     hinweis();
     safariDatenLaden(id).then(function(d){
@@ -22196,8 +22431,9 @@ function mountSafariRuhephase(stage){
   }
 
   function neuesTier(def){
-    var c = {id:S.nextId++, def:def, depth:Math.random(), p:SS_MOTION[def.motion] || SS_MOTION.trot, w:0, h:0,
-             attending:false, listenIn:null, fleeing:false, fleeTo:null, startled:0, facing:0};
+    var prof = SS_MOTION[def.motion] || SS_MOTION.trot, dr = prof.depths || [0, 1];
+    var c = {id:S.nextId++, def:def, depth:dr[0] + Math.random() * (dr[1] - dr[0]), p:prof, w:0, h:0,
+             attending:false, listenIn:null, fleeing:false, fleeTo:null, startled:0, facing:0, fading:false, fadedFor:0};
     var widthWu = def.width / 1920 * 100 * (0.7 + c.depth * 0.7);
     var sw = document.createElement('div');
     sw.className = 'ss-swimmer';
@@ -22207,7 +22443,7 @@ function mountSafariRuhephase(stage){
     sw.style.setProperty('--ss-delay', (Math.random() * 0.8).toFixed(2) + 's');
     var inner = '<div class="ss-hide"><div class="' + (c.p.ground ? '' : 'ss-bobber') + '" style="animation-duration:' + (5 + c.depth * 4).toFixed(1) + 's">'
       + '<div class="ss-banker" style="position:relative"><div class="ss-poser"><div class="ss-flipper">'
-      + '<div class="ss-creature ss-arriving" data-tier="' + def.tier + '"><span class="ss-ring"></span>' + (S.daten.art[def.slug] || '') + '</div>'
+      + '<div class="ss-creature ss-arriving" data-tier="' + def.tier + '" data-motion="' + esc(def.motion || '') + '"><span class="ss-ring"></span>' + (S.daten.art[def.slug] || '') + '</div>'
       + '</div></div>';
     if(def.tier === 'rare'){
       inner += '<span class="ss-sparkles" style="position:absolute;inset:0" aria-hidden="true">';
@@ -22216,7 +22452,7 @@ function mountSafariRuhephase(stage){
       });
       inner += '</span>';
     }
-    inner += '</div></div></div>';
+    inner += '</div></div></div><span class="ss-speed" aria-hidden="true"><i></i><i></i><i></i></span>';
     sw.innerHTML = inner;
     sw._ssTier = c;
     c.el = sw; c.banker = sw.querySelector('.ss-banker'); c.poser = sw.querySelector('.ss-poser');
@@ -22232,6 +22468,7 @@ function mountSafariRuhephase(stage){
     if(ro) ro.observe(sw);
     c.m = ssCreateMotion(c.p, Math.random(), Math.random(), c.depth, fp(c), def.flips !== undefined ? def.flips : c.p.flips);
     S.tiere.push(c);
+    S.angekommen++;
     if(safariDexMerken(cfg.szene, def.slug)){
       S.neuJetzt[cfg.szene + ':' + def.slug] = 1;
       neuMelden(def);
@@ -22288,7 +22525,8 @@ function mountSafariRuhephase(stage){
       body += '<div class="ss-dex-fuss"><span>Gespeichert auf diesem Gerät, pro Klasse.</span>'
         + '<button type="button" class="btn btn-ghost btn-sm" id="ssDexLeeren">' + (dexLeerenArm ? 'Wirklich alles löschen? Nochmals tippen' : 'Sammlung dieser Klasse zurücksetzen') + '</button></div>';
       dexEl.querySelector('#ssDexBody').innerHTML = body;
-      dexEl.querySelector('#ssDexSub').textContent = safariDexKlasseName() + ' hat ' + anzahl + ' von ' + d.roster.length + ' Tieren entdeckt.';
+      var dw = (sz.wort || ['Tier','Tieren'])[1]; if(dw === 'Tiere') dw = 'Tieren';
+      dexEl.querySelector('#ssDexSub').textContent = safariDexKlasseName() + ' hat ' + anzahl + ' von ' + d.roster.length + ' ' + dw + ' entdeckt.';
       dexEl.querySelector('#ssDexLeeren').addEventListener('click', function(){
         if(!dexLeerenArm){ dexLeerenArm = true; dexZeigen(id); return; }
         dexLeerenArm = false; safariDexLeeren(); S.neuJetzt = {}; dexZeigen(id);
@@ -22315,6 +22553,7 @@ function mountSafariRuhephase(stage){
       var k = Math.floor(Math.random() * bleiben.length), c = bleiben.splice(k, 1)[0];
       c.fleeing = true; c.startled = 0.8 + Math.random() * 0.5;
       c.el.classList.add('ss-fleeing');
+      if((szeneDef() || {}).abgang === 'fade'){ c.fading = true; c.el.classList.add('ss-fading'); continue; }
       var a = document.createElement('span'); a.className = 'ss-alert'; a.textContent = '!'; a.setAttribute('aria-hidden', 'true');
       c.el.appendChild(a);
     }
@@ -22329,7 +22568,9 @@ function mountSafariRuhephase(stage){
       analyser.getFloatTimeDomainData(buf);
       var sum = 0; for(var i = 0; i < buf.length; i++) sum += buf[i] * buf[i];
       var db = 20 * Math.log10(Math.sqrt(sum / buf.length) || 1e-7);
-      smooth = smooth * 0.82 + Math.max(0, Math.min(100, (db + 60) / 50 * 100)) * 0.18;
+      var roh = Math.max(0, Math.min(100, (db + 60) / 50 * 100));
+      if(kal) kal.werte.push(roh);
+      smooth = smooth * 0.82 + ssKalibAnwenden(roh, cfg.kalib) * 0.18;
       if(now - lastSample >= 100){
         lastSample = now;
         S.samples.push({time:now, level:smooth});
@@ -22338,6 +22579,11 @@ function mountSafariRuhephase(stage){
           lvlEl.style.width = Math.round(smooth) + '%';
           lvlEl.classList.toggle('over', smooth > cfg.grenze);
         }
+        if(cfg.pegel){
+          lvl2El.style.width = Math.round(smooth) + '%';
+          lvl2El.classList.toggle('over', smooth > cfg.grenze);
+        }
+        if(kal) kalibTakt(now);
       }
     }
 
@@ -22352,7 +22598,7 @@ function mountSafariRuhephase(stage){
     var laut = S.noise === 'too-loud';
 
     if(S.daten && S.phase === 'laeuft' && S.tiere.length < SS_MAX_TIERE){
-      if(ssAdvanceClock(S.clock, dtMs, !laut, ssIntervallMs(S.total, cfg.tempo))){
+      if(ssAdvanceClock(S.clock, dtMs, !laut, ssIntervallMs(S.total, cfg.tempo, cfg.minuten))){
         var def = ssRoll(S.daten.roster, S.tiere.filter(function(c){ return !c.fleeing; }).map(function(c){ return c.def.slug; }));
         if(def) neuesTier(def);
       }
@@ -22367,18 +22613,26 @@ function mountSafariRuhephase(stage){
     sceneEl.setAttribute('data-versteckt', laut && cfg.laut === 'verstecken' ? 'true' : 'false');
 
     var zuhoeren = S.phase === 'pause' || S.phase === 'fertig';
+    var halten = (szeneDef() || {}).pause === 'hold';
     var sec = dtMs / 1000, weg = [];
     S.tiere.forEach(function(c){
       var dt = sec, f = fp(c), m = c.m, p = c.p;
       if(reduced.matches) dt *= 0.2;
       if(laut && !c.fleeing) dt = 0;
-      if(c.fleeing && c.startled > 0){ c.startled -= dt; }
+      if(c.fading){
+        // Weltraum: in echter Zeit im Rauschen ausblenden (auch bei reduzierter Bewegung)
+        c.fadedFor += sec;
+        c.banker.style.opacity = String(ssFadeVis(c.fadedFor));
+        if(c.fadedFor >= SS_FADE_S){ weg.push(c); return; }
+      } else if(c.fleeing && c.startled > 0){ c.startled -= dt; }
       else if(c.fleeing){
-        if(c.fleeTo === null) c.fleeTo = m.x < 0.5 ? -1 : 1;
+        if(c.fleeTo === null){ c.fleeTo = m.x < 0.5 ? -1 : 1; c.el.setAttribute('data-bolting', c.fleeTo > 0 ? 'right' : 'left'); }
         if(ssStepFlee(m, p, c.depth, f, c.fleeTo, dt)){ weg.push(c); return; }
       } else if(zuhoeren){
         ssStepSettle(m, p, c.depth, f, dt);
-        if(!c.attending){
+        if(halten){
+          if(!c.attending){ c.attending = true; c.el.setAttribute('data-holding', 'true'); }
+        } else if(!c.attending){
           if(c.listenIn === null) c.listenIn = 0.35 + Math.abs(m.x - 0.5) * 1.4;
           c.listenIn -= sec;
           if(c.listenIn <= 0){
@@ -22390,7 +22644,9 @@ function mountSafariRuhephase(stage){
         }
       } else {
         c.listenIn = null;
-        if(c.attending){
+        if(c.attending && c.el.getAttribute('data-holding') === 'true'){
+          c.attending = false; c.el.removeAttribute('data-holding');
+        } else if(c.attending){
           c.attending = false; c.el.setAttribute('data-listening', 'false');
           c.poser.classList.add('ss-shaking');
           m.resting = 0.4 + Math.random() * 1.4;
@@ -22412,6 +22668,7 @@ function mountSafariRuhephase(stage){
       c.el.remove();
       S.tiere = S.tiere.filter(function(x){ return x !== c; });
     });
+    zaehlerZeigen();
     raf = requestAnimationFrame(frame);
   }
 
@@ -22423,8 +22680,8 @@ function mountSafariRuhephase(stage){
     if(S.frei){ S.frei = null; freiKnopf(); }
     if(art === 'reset'){
       alleTiereWeg();
-      S.clock = ssNewClock(ssIntervallMs(S.total, cfg.tempo), true);
-      S.samples = [];
+      S.clock = ssNewClock(ssIntervallMs(S.total, cfg.tempo, cfg.minuten), true);
+      S.samples = []; S.angekommen = 0;
     }
     S.phase = t.running ? 'laeuft' : (t.done ? 'fertig' : (t.left < t.total ? 'pause' : 'bereit'));
     if(art === 'reset' && !t.running) S.phase = 'bereit';
@@ -22441,7 +22698,7 @@ function mountSafariRuhephase(stage){
   }
   freiBtn.addEventListener('click', function(){
     if(!S.frei && (S.phase === 'laeuft' || S.phase === 'pause')){ toast('Der Timer läuft schon – dort pausieren oder mit ↺ zurücksetzen.'); return; }
-    if(!S.frei && S.phase === 'fertig'){ alleTiereWeg(); S.clock = ssNewClock(ssIntervallMs(S.total, cfg.tempo), true); S.samples = []; }
+    if(!S.frei && S.phase === 'fertig'){ alleTiereWeg(); S.clock = ssNewClock(ssIntervallMs(S.total, cfg.tempo, cfg.minuten), true); S.samples = []; S.angekommen = 0; }
     S.frei = S.frei === 'laeuft' ? 'pause' : 'laeuft';
     S.phase = S.frei; S.hush = false;
     freiKnopf(); hinweis();
@@ -22459,11 +22716,103 @@ function mountSafariRuhephase(stage){
     dexEl.hidden = false; dexLeerenArm = false; dexZeigen(cfg.szene);
   });
   var grenzeEl = stage.querySelector('#ssGrenze');
-  function marke(){ markEl.style.left = 'calc(' + cfg.grenze + '% - 1px)'; }
-  grenzeEl.addEventListener('input', function(){ cfg.grenze = parseInt(grenzeEl.value, 10); lsSet(LIB_PREFIX + 'safari_grenze', String(cfg.grenze)); marke(); });
+  function marke(){
+    markEl.style.left = 'calc(' + cfg.grenze + '% - 1px)';
+    mark2El.style.left = 'calc(' + cfg.grenze + '% - 1px)';
+  }
+  function zielKnoepfe(){
+    Array.prototype.forEach.call(stage.querySelectorAll('[data-ziel]'), function(b){ b.classList.toggle('on', b.getAttribute('data-ziel') === cfg.ziel); });
+  }
+  function grenzeSetzen(wert, ziel){
+    cfg.grenze = ssClamp(Math.round(wert), 5, 95); cfg.ziel = ziel || '';
+    grenzeEl.value = cfg.grenze;
+    lsSet(LIB_PREFIX + 'safari_grenze', String(cfg.grenze)); lsSet(LIB_PREFIX + 'safari_ziel', cfg.ziel);
+    marke(); zielKnoepfe();
+  }
+  grenzeEl.addEventListener('input', function(){
+    // Von Hand verschoben: passt der Wert genau zu einer Stufe, bleibt sie markiert.
+    var v = parseInt(grenzeEl.value, 10), z = SS_ZIELE.filter(function(x){ return ssZielWert(x[0], cfg.kalib) === v; })[0];
+    grenzeSetzen(v, z ? z[0] : '');
+  });
+  Array.prototype.forEach.call(stage.querySelectorAll('[data-ziel]'), function(b){
+    b.addEventListener('click', function(){ var z = b.getAttribute('data-ziel'); grenzeSetzen(ssZielWert(z, cfg.kalib), z); });
+  });
   marke();
+  function lautText(){
+    var o = stage.querySelector('#ssLautWeg'), d = szeneDef() || {};
+    if(o) o.textContent = d.weg || 'laufen ' + wort(true) + ' davon';
+  }
+  lautText();
   stage.querySelector('#ssLaut').addEventListener('change', function(e){ cfg.laut = e.target.value; lsSet(LIB_PREFIX + 'safari_laut', cfg.laut); sceneEl.setAttribute('data-modus', cfg.laut); });
-  stage.querySelector('#ssTempo').addEventListener('change', function(e){ cfg.tempo = e.target.value; lsSet(LIB_PREFIX + 'safari_tempo', cfg.tempo); });
+  stage.querySelector('#ssTempo').addEventListener('change', function(e){
+    cfg.tempo = e.target.value; lsSet(LIB_PREFIX + 'safari_tempo', cfg.tempo);
+    stage.querySelector('#ssMinWrap').style.display = cfg.tempo === 'eigen' ? '' : 'none';
+  });
+  stage.querySelector('#ssMinuten').addEventListener('change', function(e){
+    var v = parseInt(e.target.value, 10);
+    cfg.minuten = ssClamp(isNaN(v) ? 5 : v, 1, 60); e.target.value = cfg.minuten;
+    lsSet(LIB_PREFIX + 'safari_minuten', String(cfg.minuten));
+  });
+  // Zähler und Pegel oben in der Szene
+  function zaehlerZeigen(){
+    var an = cfg.zaehler !== 'aus';
+    if(zaehlerEl.hidden === an) zaehlerEl.hidden = !an;
+    if(!an) return;
+    var t = cfg.zaehler === 'jetzt'
+      ? '🐾 ' + wort(true) + ' jetzt da: ' + S.tiere.filter(function(c){ return !c.fleeing; }).length
+      : '🐾 ' + wort(true) + ' gekommen: ' + S.angekommen;
+    if(zaehlerEl.textContent !== t) zaehlerEl.textContent = t;
+  }
+  stage.querySelector('#ssZaehlerWahl').addEventListener('change', function(e){ cfg.zaehler = e.target.value; lsSet(LIB_PREFIX + 'safari_zaehler', cfg.zaehler); zaehlerZeigen(); });
+  pegelBildEl.hidden = !cfg.pegel;
+  stage.querySelector('#ssPegelWahl').addEventListener('change', function(e){ cfg.pegel = e.target.checked; lsSet(LIB_PREFIX + 'safari_pegel', cfg.pegel ? '1' : '0'); pegelBildEl.hidden = !cfg.pegel; });
+
+  // 🎚️ Kalibrieren (wie im Original): 5 s still, dann 5 s normal sprechen.
+  var kalibEl = stage.querySelector('#ssKalib');
+  function kalibZeigen(meldung){
+    var h = '';
+    if(kal){
+      var rest = Math.max(0, Math.ceil((kal.bis - performance.now()) / 1000));
+      h = '<div class="ss-kalib-gross">' + (kal.phase === 'still' ? '🤫 Alle ganz still … ' : '🗣️ Jetzt alle normal sprechen … ') + rest + '</div>'
+        + '<button type="button" class="btn btn-ghost btn-sm" id="ssKalibAbbruch" style="align-self:flex-start">Abbrechen</button>';
+    } else {
+      h = '<div><b>🎚️ Kalibrieren</b> – ' + (cfg.kalib ? 'ist eingestellt: die Stufen passen zu diesem Raum und Mikrofon.' : 'stellt die Stufen auf diesen Raum und dieses Mikrofon ein (10 Sekunden).') + '</div>'
+        + (meldung ? '<div class="ss-status">' + esc(meldung) + '</div>' : '')
+        + '<div class="ss-zeile"><button type="button" class="btn btn-sm" id="ssKalibStart">' + (cfg.kalib ? 'Neu kalibrieren' : 'Kalibrieren') + '</button>'
+        + (cfg.kalib ? '<button type="button" class="btn btn-ghost btn-sm" id="ssKalibWeg">Kalibrierung löschen</button>' : '') + '</div>';
+    }
+    kalibEl.innerHTML = h;
+    var b;
+    if((b = kalibEl.querySelector('#ssKalibStart'))) b.addEventListener('click', function(){
+      if(!analyser){ kalibZeigen('Zuerst muss das Mikrofon laufen.'); return; }
+      kal = {phase:'still', bis:performance.now() + 5000, werte:[], still:null, sek:5};
+      kalibZeigen();
+    });
+    if((b = kalibEl.querySelector('#ssKalibWeg'))) b.addEventListener('click', function(){
+      cfg.kalib = null; lsSet(LIB_PREFIX + 'safari_kalib', '');
+      if(cfg.ziel) grenzeSetzen(ssZielWert(cfg.ziel, null), cfg.ziel);
+      kalibZeigen('Kalibrierung gelöscht.');
+    });
+    if((b = kalibEl.querySelector('#ssKalibAbbruch'))) b.addEventListener('click', function(){ kal = null; kalibZeigen(); });
+  }
+  function kalibTakt(now){
+    var rest = Math.max(0, Math.ceil((kal.bis - now) / 1000));
+    if(rest !== kal.sek){ kal.sek = rest; kalibZeigen(); }
+    if(now < kal.bis) return;
+    if(kal.phase === 'still'){
+      kal.still = ssGetrimmt(kal.werte);
+      kal = {phase:'sprechen', bis:now + 5000, werte:[], still:kal.still, sek:5};
+      kalibZeigen(); return;
+    }
+    var sprechen = ssGetrimmt(kal.werte), still = kal.still;
+    kal = null;
+    if(sprechen - still < 1.5){ kalibZeigen('Still und Sprechen waren kaum zu unterscheiden — nochmals versuchen, etwas lauter sprechen.'); return; }
+    cfg.kalib = {quiet:still, talking:sprechen};
+    lsSet(LIB_PREFIX + 'safari_kalib', JSON.stringify(cfg.kalib));
+    grenzeSetzen(ssZielWert(cfg.ziel || 'fluestern', cfg.kalib), cfg.ziel || 'fluestern');
+    kalibZeigen('Fertig kalibriert. Die Stufe «' + (SS_ZIELE.filter(function(x){ return x[0] === cfg.ziel; })[0] || ['', ''])[1] + '» ist gewählt.');
+  }
+  kalibZeigen();
 
   function mikroStop(){
     if(stream){ stream.getTracks().forEach(function(tr){ try{ tr.stop(); }catch(e){} }); stream = null; }
@@ -27150,6 +27499,7 @@ function aemtliMeineTermine_(cfg, uid){
    lesen kann. Was eine Person selbst schon gesehen hat, merkt sich der
    Browser (NEU_GESEHEN_KEY) — davon hängt nur das rote Leuchten ab. */
 const NEUIGKEITEN = [
+  {id:'2026-11-25-safari-neue-szenen', datum:'2026-11-25', fuer:'lehrer', text:'🦒 Stille Safari nachgeführt: fünf neue Szenen – 🪐 Weltraum, 🦕 Urzeit, 🐒 Dschungel, 🐻‍❄️ Arktis und 🦄 Fabelwesen (je 17 Tiere mit Steckbrief unter 📖). Unter ⚙️ neu: «Wie leise?» mit 🤫 Still / 🗣️ Flüstern / 👥 Partnerarbeit, 🎚️ Kalibrieren für den eigenen Raum, Tempo auch fest alle 2, 5, 8 oder eigene Minuten, ein Zähler oben (alle gekommenen oder die jetzt da sind) und auf Wunsch der Pegel oben in der Szene. Wer davonrennt, zieht Tempo-Striche; im Weltraum lösen sich Sichtungen im Rauschen auf.'},
   {id:'2026-11-24-kalender-lp-ausblenden', datum:'2026-11-24', fuer:'lehrer', text:'📅 Kalender: Einträge, die nur für Schüler:innen gedacht sind (z. B. Zahnarzt-Termin der Betroffenen neben deinem eigenen Lehrer-Eintrag), erscheinen bei dir nicht doppelt. In der Schüleransicht siehst du sie weiterhin.'},
   {id:'2026-11-24-praep-zuoberst', datum:'2026-11-24', fuer:'lehrer', text:'📋 Präps stehen im Thema jetzt zuoberst im Zusatzmaterial. Eine Jahresplanung (z. B. Geschichte, Geografie) steht in jedem Unterkapitel des Fachs zuoberst (z. B. «Imperialismus und 1. Weltkrieg», «2. Weltkrieg») – es ist immer dieselbe Präp: einmal bearbeitet, überall aktuell.'},
   {id:'2026-11-24-neues-fenster-ueberall', datum:'2026-11-24', fuer:'lehrer', text:'⧉ Auch in eigenen Fenstern (Folien, Präp, Übungen) gibt es oben links den Knopf für ein neues Library-Fenster.'},

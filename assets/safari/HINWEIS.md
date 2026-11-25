@@ -11,8 +11,11 @@ Apache License 2.0.
 ## Was übernommen und was verändert wurde
 
 - **Übernommen:** Idee (Tiere kommen bei Ruhe hervor, statt Lärm zu bestrafen),
-  die Grafiken der Szenen Savanne (`savanna`), Korallenriff (`reef`) und Wald
-  (`forest`), die Anordnung der Kulisse, das Bewegungsmodell
+  die Grafiken der Szenen Savanne (`savanna`), Korallenriff (`reef`), Wald
+  (`forest`), Weltraum (`space`), Urzeit (`prehistoric`), Dschungel (`jungle`),
+  Arktis (`arctic`) und Fabelwesen (`mythical`), deren Szenen-CSS (automatisch
+  auf die Szene begrenzt), die Kalibrierung (`src/lib/audio/calibration.ts`),
+  die Lautstärke- und Tempo-Stufen (`src/lib/settings/settings.svelte.ts`), die Anordnung der Kulisse, das Bewegungsmodell
   (`src/lib/scenes/motion.ts`), der «Zu laut»-Eimer (`src/lib/noise/loudState.ts`),
   die Ankunftsuhr (`src/lib/session/arrivalClock.ts`), der Seltenheits-Wurf
   (`src/lib/session/roll.ts`) und der Wegrenn-Takt (`src/lib/session/scareClock.ts`).
@@ -21,7 +24,10 @@ Apache License 2.0.
   (Tiere kommen nur, solange er läuft; bei Pause/Ende drehen sie sich zur Klasse);
   Ankunftstakt aus der Timer-Dauer; zusätzlicher Modus «Tiere verstecken sich»;
   SVGs verkleinert (Kommentare/Leerraum entfernt) und je Szene in eine JSON-Datei
-  gepackt; teacher.dev-Branding, Analytics und weitere Szenen weggelassen.
+  gepackt; teacher.dev-Branding, Analytics, die Halloween-Szene (nur im Oktober),
+  Notizen auf der Szene und das schwebende Fenster weggelassen. Nachgeführt am
+  25.11.2026 (Stand des Originals: 21.11.2026).
 
-Die Dateien `savanne.json`, `riff.json` und `wald.json` erzeugt
+Die Dateien `savanne.json`, `riff.json`, `wald.json`, `weltraum.json`, `urzeit.json`,
+`dschungel.json`, `arktis.json` und `fabel.json` erzeugt
 `admin/safari-szenen-bauen.js` aus einem Klon des Original-Repos.
