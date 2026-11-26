@@ -1,26 +1,26 @@
-name: Wöchentliches Backup
+name: Tägliches Backup
 
-# Sichert jeden Sonntag die ganze Firestore-Datenbank (admin/backup.js: eine
+# Sichert jede Nacht (seit 26.11.2026, vorher nur sonntags) die ganze Firestore-Datenbank (admin/backup.js: eine
 # .jsonl-Datei pro Collection, inkl. Übungsinhalte und noch nicht aufgeräumter
-# Briefkasten-Dateien) und legt sie VERSCHLÜSSELT als Artefakt ab (90 Tage).
+# Briefkasten-Dateien) und legt sie VERSCHLÜSSELT als Artefakt ab (30 Tage).
 # Dieses Repo ist öffentlich – darum die Verschlüsselung: AES-256 mit einem
 # Zufallsschlüssel, der mit dem öffentlichen RSA-Schlüssel unten (Schritt «Verschlüsseln»)
 # verschlüsselt wird. Der öffentliche Schlüssel darf hier stehen: Mit ihm kann man nur
 # verschlüsseln. Öffnen kann das nur, wer den privaten Schlüssel hat
 # (Jans Mac: ~/Desktop/Claude/Library-Unterlagen/Backups/Schluessel/backup-privat.pem).
 #
-# Zurückholen: Actions -> «Wöchentliches Backup» -> Lauf -> Artefakt herunterladen,
+# Zurückholen: Actions -> «Tägliches Backup» -> Lauf -> Artefakt herunterladen,
 #   bash admin/backup-entschluesseln.sh <library-backup-DATUM.zip>
 #   node admin/restore.js <ordner> <pfad-präfix>        (zeigt nur an; mit --ja schreiben)
 #
-# Danach räumt der Lauf die Briefkasten-Reserve auf (admin/briefkasten-aufraeumen.js):
+# Sonntags (und bei «Run workflow») räumt der Lauf danach die Briefkasten-Reserve auf (admin/briefkasten-aufraeumen.js):
 # Dateien, die vor über 30 Tagen abgeholt wurden, verschwinden aus der Datenbank –
-# sie stecken dann noch 90 Tage in den Backups.
-# Von Hand: Actions -> «Wöchentliches Backup» -> «Run workflow».
+# sie stecken dann noch 30 Tage in den Backups.
+# Von Hand: Actions -> «Tägliches Backup» -> «Run workflow».
 
 on:
   schedule:
-    - cron: '0 2 * * 0'   # Sonntag 04:00 / 03:00 Schweizer Zeit, nach Live-Schaltung und Spiegeln
+    - cron: '13 2 * * *'  # jede Nacht 04:13 / 03:13 Schweizer Zeit, nach Live-Schaltung und Spiegeln (krumme Minute: weniger Verzögerung bei GitHub)
   workflow_dispatch:
     inputs:
       aufraeumen:
@@ -85,7 +85,7 @@ jobs:
         with:
           name: ${{ steps.paket.outputs.name }}
           path: ${{ runner.temp }}/artefakt/
-          retention-days: 90
+          retention-days: 30
           compression-level: 0
           if-no-files-found: error
       - name: Briefkasten-Reserve aufräumen
@@ -94,4 +94,6 @@ jobs:
           FIREBASE_SERVICE_ACCOUNT_KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_KEY }}
         run: |
           if [ ! -f briefkasten-aufraeumen.js ]; then echo "briefkasten-aufraeumen.js fehlt noch – übersprungen"; exit 0; fi
+          # Aufgeräumt wird wie bisher nur einmal pro Woche (Sonntag) oder bei «Run workflow».
+          if [ "${{ github.event_name }}" = "schedule" ] && [ "$(date -u +%u)" != "7" ]; then echo "Kein Sonntag – Briefkasten-Reserve bleibt"; exit 0; fi
           if [ "${{ github.event.inputs.aufraeumen }}" = "false" ]; then node briefkasten-aufraeumen.js --probe; else node briefkasten-aufraeumen.js; fi
