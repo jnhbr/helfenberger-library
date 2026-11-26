@@ -31,6 +31,8 @@
  */
 const { starten } = require('./_firebase');
 const { LP, TAG_KURZ, lesePlaene } = require('./_untis');
+const fs = require('fs');
+const path = require('path');
 
 const args = process.argv.slice(2);
 function arg(n) { const i = args.indexOf(n); return i >= 0 ? args[i + 1] : null; }
@@ -98,6 +100,56 @@ function fachBasis(fach) {   // «Sp+2» -> «sp+», «TK1» -> «tk», «Hw 1»
     gruppen.push({ id: d.id, jg: t[0], code: code, name: t[1].split(' ').filter(function (x, i) { return i === 0 || slot.indexOf(x) < 0; }).join(' '),
       lk: t[2], tag: slot[0] ? TAG_KURZ.indexOf(slot[0]) : -1, teil: slot[1] || '', mitglieder: g.mitglieder || [] });
   });
+
+  // Kurse von Lehrpersonen ohne Library-Konto (z. B. Band bei Fröhlich): gruppen-stundenplan.js legt dafür
+  // keine 👥 Gruppe an. Mitglieder direkt aus _Gruppen.xlsm (Name + Klasse -> Konto), nur für diese Zuordnung.
+  ohneKontoGruppen().forEach(function (g) { gruppen.push(g); });
+  function ohneKontoGruppen() {
+    let XLSX;
+    try { XLSX = require('xlsx'); } catch (e) { console.log('⚠️ xlsx fehlt – Kurse ohne LP-Konto übersprungen'); return []; }
+    const f = fs.readdirSync(ORDNER).find(function (x) { return x.normalize('NFC') === '_Gruppen.xlsm'; });
+    if (!f) return [];
+    const wb = XLSX.readFile(path.join(ORDNER, f));
+    const clean = function (v) { return String(v == null ? '' : v).replace(/[\s ]+/g, ' ').trim(); };
+    const slug = function (x) { return clean(x).normalize('NFC').toLowerCase().replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/[éèê]/g, 'e').replace(/[^a-z0-9]+/g, ''); };
+    const out = [];
+    ['1.Klassen', '2.Klassen', '3.Klassen'].forEach(function (blatt) {
+      if (!wb.Sheets[blatt]) return;
+      const jg = blatt.charAt(0);
+      const rows = XLSX.utils.sheet_to_json(wb.Sheets[blatt], { header: 1, defval: null, raw: true });
+      const z = function (r, c) { return (rows[r - 1] || [])[c - 1]; };
+      const sus = [];
+      let klasse = null;
+      for (let r = 7; r <= 160; r++) {
+        const a = clean(z(r, 1));
+        if (/^[GE][123][a-c]$/.test(a)) klasse = a;
+        const nn = clean(z(r, 3)), vn = clean(z(r, 4));
+        if (nn && vn && klasse) sus.push({ r: r, k: klasse, nn: slug(nn), vn: slug(vn.split(' ')[0]) });
+      }
+      const breite = Math.max.apply(null, rows.slice(0, 5).map(function (x) { return x ? x.length : 0; }));
+      for (let c = 12; c <= breite; c++) {
+        let code = clean(z(3, c)), z4 = clean(z(4, c));
+        const lk = clean(z(5, c));
+        if (/^(Mo|Di|Mi|Do|Fr)$/.test(code)) { const t = code; code = z4; z4 = t; }
+        if (!code || !lk || lk === 'K' || lk === 'x' || /disp/.test(z4)) continue;
+        lk.split(/\s+/).filter(function (kz) { return !lehrer[LP[kz]]; }).forEach(function (kz) {
+          const mitglieder = [];
+          sus.forEach(function (x) {
+            const v = z(x.r, c);
+            if (v !== 1 && v !== '1') return;
+            const t = schueler.filter(function (s) { return s.k === x.k && slug(s.nn) === x.nn && slug(String(s.vn || '').split(' ')[0]).indexOf(x.vn.slice(0, 3)) === 0; });
+            if (t.length === 1) mitglieder.push(t[0].uid); else console.log('⚠️ ' + code + ' ' + kz + ': kein Konto für ' + x.k + ' ' + x.vn + ' ' + x.nn);
+          });
+          if (!mitglieder.length) return;
+          const slot = z4.split(' ').filter(function (x) { return /^(Mo|Di|Mi|Do|Fr|Vm|Na)$/.test(x); });
+          out.push({ id: 'excel|' + jg + '|' + code + '|' + kz, jg: jg, code: codeNorm(code), name: code, lk: kz,
+            tag: slot[0] && slot[0] !== 'Vm' && slot[0] !== 'Na' ? TAG_KURZ.indexOf(slot[0]) : -1, teil: slot.filter(function (x) { return x === 'Vm' || x === 'Na'; })[0] || '', mitglieder: mitglieder });
+        });
+      }
+    });
+    if (out.length) console.log('Kurse ohne LP-Konto aus der Excel: ' + out.map(function (g) { return g.name + ' ' + g.lk + ' (' + g.mitglieder.length + ')'; }).join(', '));
+    return out;
+  }
 
   // Lektion -> passende Gruppen
   const plaene = {};   // uid -> {zellen}
