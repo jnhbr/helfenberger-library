@@ -44,7 +44,7 @@ function winterAn(){ var aus = false; try{ aus = localStorage.getItem('hl_winter
 <link rel="modulepreload" href="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js" crossorigin>
 <!-- Schriften und Bibliotheken liegen seit 08.10.2026 im eigenen Ordner assets/vendor/ (keine Abrufe mehr bei Google Fonts und jsdelivr). -->
 <link rel="stylesheet" href="assets/vendor/fonts/schriften.css">
-<link rel="stylesheet" href="app/stil.css?v=f2d40c4d23">
+<link rel="stylesheet" href="app/stil.css?v=9ddcd423e4">
 <script>if(/-test\//.test(location.pathname))document.documentElement.classList.add('test-site');</script>
 </head>
 <body>
@@ -57,7 +57,7 @@ function winterAn(){ var aus = false; try{ aus = localStorage.getItem('hl_winter
 <!-- Seit 25.11.2026 ausgelagert (Etappe 5a). Der ?v=-Stempel kommt von node admin/versionen.js.
      defer = läuft in dieser Reihenfolge vor dem Modul-Skript, die Namen (NEUIGKEITEN, ENERGIZER …) sind dort direkt sichtbar. -->
 <script src="app/daten.js?v=92f79ea94b" defer></script>
-<script src="app/neuigkeiten.js?v=cc9fbd2673" defer></script>
+<script src="app/neuigkeiten.js?v=f30951281e" defer></script>
 <script type="module">
 import {
   initializeApp
@@ -67,7 +67,7 @@ import {
   updatePassword, EmailAuthProvider, reauthenticateWithCredential, connectAuthEmulator
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 import {
-  initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
+  initializeFirestore, persistentLocalCache, persistentMultipleTabManager, memoryLocalCache,
   getFirestore, doc, getDoc, getDocFromServer, getDocFromCache, getDocs, getDocsFromServer, collection, query, where, limit as fsLimit, onSnapshot, serverTimestamp, increment,
   setDoc as fsSetDoc, updateDoc as fsUpdateDoc, deleteDoc as fsDeleteDoc, writeBatch as fsWriteBatch, Bytes, deleteField, arrayUnion, arrayRemove,
   connectFirestoreEmulator, waitForPendingWrites, disableNetwork, enableNetwork, runTransaction
@@ -268,10 +268,17 @@ if(EMULATOR) connectAuthEmulator(auth, 'http://127.0.0.1:9099', {disableWarnings
 // automatisch im IndexedDB-Cache und bleiben so ohne Netz lesbar. Fällt das
 // Anlegen aus irgendeinem Grund aus (z.B. privates Surfen ohne IndexedDB),
 // fangen wir das ab und laufen einfach ohne Offline-Cache weiter.
+// 26.11.2026 (Ella E1c): Mit dem Mehr-Tab-Cache spricht nur EIN Tab des Browsers mit
+// Firestore (auch Live- und Testseite teilen ihn, gleiche Herkunft). Hat dieser Tab
+// keine gültige Anmeldung, lehnt Firestore in ALLEN Tabs alles ab – frisches Token
+// und Neu-Anmelden im eigenen Tab helfen dann nicht. Erkennt tokenNachlauf() das,
+// läuft dieser Tab bis zum Schliessen mit eigener Verbindung (ohne Offline-Cache).
+var FS_EIGEN_KEY = 'lib_fsEigeneVerbindung', fsEigen = false;
+try{ fsEigen = sessionStorage.getItem(FS_EIGEN_KEY) === '1'; }catch(e){}
 var db;
 try{
   if(EMULATOR) throw new Error('Emulator: ohne Offline-Cache');
-  db = initializeFirestore(fbApp, {
+  db = initializeFirestore(fbApp, fsEigen ? { localCache: memoryLocalCache() } : {
     localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
   });
 }catch(e){
@@ -315,7 +322,7 @@ function fehlerMelden(quelle, err, zusatz){
     // info: womit die Anfrage lief (Rechte im Anmelde-Token, angezeigte Klasse,
     // Schüleransicht, Sekunden seit Seitenaufruf) — bei «permission-denied»
     // sieht man so, ob das Konto die Rechte (noch) nicht hatte.
-    var info = 'Ansicht ' + (ansicht || '-') + (als ? ' (Schüleransicht)' : '') +
+    var info = 'Ansicht ' + (ansicht || '-') + (als ? ' (Schüleransicht)' : '') + (fsEigen ? ' · eigene Verbindung' : '') +
       ' · ' + Math.round(performance.now() / 1000) + ' s nach Laden' + (document.hidden ? ' · Tab im Hintergrund' : '');
     function senden(){
       fsSetDoc(doc(collection(db, 'fehlerLog')), {
@@ -378,9 +385,22 @@ function tokenNachlauf(){
   if(tokenNachlaufGetan || performance.now() > 120000 || !auth.currentUser) return;
   tokenNachlaufGetan = true;
   setTimeout(function(){
-    auth.currentUser && auth.currentUser.getIdToken(true).then(function(){
+    var u = auth.currentUser;
+    if(!u) return;
+    u.getIdToken(true).then(function(){
+      // Probe: das eigene Einstellungs-Dokument darf jede angemeldete Person lesen.
+      // Wird auch das abgelehnt, nimmt Firestore die Anmeldung dieses Tabs gar nicht
+      // (anderer Tab führt die gemeinsame Verbindung) → mit eigener Verbindung neu laden.
+      return getDocFromServer(doc(db, 'progress', u.uid, 'einstellungen', 'layout')).then(function(){ return true; }, function(err){
+        if(!(err && err.code === 'permission-denied') || fsEigen || EMULATOR) return true;
+        try{ sessionStorage.setItem(FS_EIGEN_KEY, '1'); }catch(e){ return true; }
+        return false;
+      });
+    }).then(function(ok){
       try{
-        if(state.route && (state.route.name === 'home' || state.route.name === 'subject') && !modalEl.classList.contains('show')) render();
+        var ruhig = state.route && (state.route.name === 'home' || state.route.name === 'subject') && !modalEl.classList.contains('show');
+        if(ok === false){ if(ruhig) location.reload(); return; }
+        if(ruhig) render();
       }catch(e){}
     }, function(){});
   }, 1500);
@@ -47229,7 +47249,7 @@ var STP_EXTRA = [
   // Spätabend (Elterngespräche, Sitzungen): nur sichtbar, wenn in der Woche etwas darin steht; nie Teil von Kochen
   {s:'e1', von:'18:35', bis:'19:20'}, {s:'e2', von:'19:25', bis:'20:10'}, {s:'e3', von:'20:15', bis:'21:00'}
 ];
-function stpBelegt(plan, sl){ return [0,1,2,3,4].some(function(t){ return !stpLeer(plan.zelle(stpKey(t, sl))); }); }
+function stpBelegt(plan, sl){ return [0,1,2,3,4].some(function(t){ return !stpLeer(plan.zelle(stpKey(t, sl))) || !!(plan.parallel && !stp.bearbeiten && plan.parallel(stpKey(t, sl))); }); }
 // Alle anzuzeigenden Zeilen, nach Zeit sortiert: {s (Index oder Zusatz-ID), von, bis, nr, extra}
 // Eine Zusatzzeile erscheint auch, wenn an einem der Tage (daten, sonst die angezeigte Woche) nur ein
 // ausserordentlicher Termin darin steht (z. B. Konvent am Abend aus dem Kalender-Abgleich).
@@ -47253,7 +47273,7 @@ function stpKochSlots(zeiten, k){
 var STP_KLASSEN = ['E1a','E1b','E1c','G1a','G1b','E2a','E2b','E2c','G2a','G2b','E3a','E3b','G3a','G3b'];
 var STP_FREI_FARBEN = ['#0EA5E9','#F43F5E','#14B8A6','#F59E0B','#6366F1','#84CC16','#EC4899','#64748B'];
 var stp = { klasse:null, eigen:null, schule:null, klPlaene:{}, geladen:false, klasseName:null, ansicht:null, bearbeiten:false, tag:null,
-            lpListe:null, lpUid:null, lp:null, woche:null, modus:'immer', termine:{eigen:{}, klasse:{}} };
+            lpListe:null, lpUid:null, lp:null, woche:null, modus:'immer', termine:{eigen:{}, klasse:{}}, parallel:{} };
 function stpHat(o, k){ return !!o && Object.prototype.hasOwnProperty.call(o, k); }
 function stpSchuleDa(){ return !!(stp.schule && Object.keys(stp.schule.zellen).length); }
 // Untis-Lektionen, hinter denen verschiedene Fächer stecken können. Welches es ist, legt die
@@ -47318,10 +47338,13 @@ function stpLaden(){
   var leer = function(){ return null; };
   var te = getDoc(stpTermineRef()).then(function(s){ return s.exists() ? s.data() : null; }).catch(leer);
   var tk = getDoc(stpTermineRef(state.klasse)).then(function(s){ return s.exists() ? s.data() : null; }).catch(leer);
+  // 🔀 Parallele Fächer der Klasse (Wahlfächer/Halbklassen aus Untis, admin/stundenplan-untis.js)
+  var pa = getDoc(kdocFor(state.klasse, 'klasseninfo', 'stundenplanParallel')).then(function(s){ return s.exists() ? s.data() : null; }).catch(leer);
   // 📝 Prüfungen aus dem Kalender: erscheinen als kleine Pille in der Lektion des Fachs.
   var pr = loadMyCalendarEntries(addDaysStr(-7)).then(function(l){ return l.filter(function(x){ return x.type === 'pruefung' && x.subject; }); }).catch(function(err){ console.error('Stundenplan Prüfungen', err); return []; });
-  return Promise.all([k, e, sch, te, tk, pr]).then(function(r){
+  return Promise.all([k, e, sch, te, tk, pr, pa]).then(function(r){
     stp.pruefungen = r[5] || [];
+    stp.parallel = (r[6] && r[6].zellen) || {};
     stp.termine = { eigen:(r[3] && r[3].termine) || {}, klasse:(r[4] && r[4].termine) || {} };
     stp.klasse = { zeiten:stpZeitenAktuell(r[0] && r[0].zeiten), zellen:(r[0] && r[0].zellen) || {} };
     stp.eigen = { zeiten:stpZeitenAktuell(r[1] && r[1].zeiten), zellen:(r[1] && r[1].zellen) || {} };
@@ -47371,7 +47394,8 @@ function stpGleich(a, b){
 function stpPlan(ansicht){ var p = stpPlanRoh(ansicht); p.ansicht = ansicht; return p; }
 function stpPlanRoh(ansicht){
   var lehrer = state.profile.role === 'teacher';
-  if(ansicht === 'klasse') return { zeiten: stp.klasse.zeiten || STP_ZEITEN_STANDARD, zelle:function(k){ return stp.klasse.zellen[k]; } };
+  if(ansicht === 'klasse') return { zeiten: stp.klasse.zeiten || STP_ZEITEN_STANDARD, zelle:function(k){ return stp.klasse.zellen[k]; },
+    parallel:function(k){ return stpLeer(stp.klasse.zellen[k]) ? stpParallel(k) : null; } };
   if(ansicht === 'lp'){
     var lp = stp.lp || { zeiten:null, zellen:{}, schule:{} };
     return { zeiten: lp.zeiten || STP_ZEITEN_STANDARD, zelle:function(k){ return stpHat(lp.zellen, k) ? lp.zellen[k] : (lp.schule || {})[k]; } };
@@ -47385,8 +47409,36 @@ function stpPlanRoh(ansicht){
   return {
     zeiten: schuleZeiten || stp.klasse.zeiten || STP_ZEITEN_STANDARD,
     zelle:function(k){ return stpHat(stp.eigen.zellen, k) ? stpMitBasis(stp.eigen.zellen[k], stpBasisZelle(k)) : stpBasisZelle(k); },
-    eigen:function(k){ return stpHat(stp.eigen.zellen, k); }
+    eigen:function(k){ return stpHat(stp.eigen.zellen, k); },
+    // Ohne Untis-Plan: in leeren Feldern die parallelen Fächer der Klasse zum Antippen.
+    // Mit Untis-Plan steht das eigene Wahlfach schon drin; leer heisst dort frei.
+    parallel:function(k){ return !stpSchuleDa() && !stpHat(stp.eigen.zellen, k) && stpLeer(stpBasisZelle(k)) ? stpParallel(k) : null; }
   };
+}
+// Parallele Fächer in diesem Feld (mind. eines), sonst null. {f|t, zi, lp, u:[uids] oder fehlt}
+function stpParallel(k){ var l = stp.parallel && stp.parallel[k]; return Array.isArray(l) && l.length ? l : null; }
+// Ein paralleles Fach als eigene Lektion übernehmen (Schüler:in, für alle Wochen).
+function stpParallelWaehlen(keys, o){
+  var info = stpInfo(o) || {name:'Fach'};
+  uiConfirm('Hast du hier '+info.name+'?', 'Das Fach kommt jede Woche in deinen Stundenplan. Ändern kannst du es mit «✏️ Bearbeiten».', '✓ Ja, mein Fach', function(){
+    keys.forEach(function(k){
+      var z = o.f ? {f:o.f} : {t:o.t};
+      if(o.zi) z.zi = o.zi;
+      if(o.lp) z.lp = o.lp;
+      stp.eigen.zellen[k] = z;
+    });
+    stpSpeichern('mein').then(function(){ toast('✓ '+info.name+' ist jetzt in deinem Stundenplan.'); });
+  });
+}
+// Lehrperson: wer aus der Klasse hat dieses Fach?
+function stpParallelWer(o){
+  var info = stpInfo(o) || {name:'Fach'}, kopf = info.name + (o.lp ? ' · '+o.lp : '') + (o.zi ? ' · 📍 '+o.zi : '');
+  if(!o.u){ uiInfo(info.name, kopf+' · Wer genau dabei ist, steht nicht in den Gruppen (Excel).'); return; }
+  klasseRosterLoad().then(function(list){
+    var n = {}; list.forEach(function(s){ n[s.uid] = ((s.displayName || '') + ' ' + (s.nachname || '').charAt(0) + (s.nachname ? '.' : '')).trim(); });
+    var namen = o.u.map(function(u){ return n[u] || '?'; }).sort(function(a, b){ return a.localeCompare(b, 'de'); });
+    uiInfo(info.name+' ('+o.u.length+')', kopf+' · '+namen.join(', '));
+  }).catch(function(){ uiInfo(info.name, kopf+' · '+o.u.length+' Schüler:innen'); });
 }
 // 🖼️ Bilder für freie Termine und Ferien (assets/termine/<schlüssel>.webp, gleicher Stil wie die Fachbilder).
 // Gewählt wird nach Stichwort im Titel (ohne Umlaute, Kleinschreibung); fehlt die Datei, bleibt der Punkt bzw. das Emoji.
@@ -47691,6 +47743,19 @@ function stpZeichnen(){
 
   function zelle(tag, z, z2){
     var key = stpKey(tag, z.s), a = am(tag, z), c = a.c, info = stpInfo(c);
+    var po = !vorlage && !stp.bearbeiten && !info && !(c && c.frei) && !a.termin && !a.ferien && plan.parallel ? plan.parallel(key) : null;
+    if(po){
+      // 🔀 Parallele Fächer: eine Spalte pro Fach (Symbol + Name); LP sieht die Anzahl, SuS tippen ihr Fach an.
+      var i1 = zeilen.indexOf(z), i2 = z2 ? zeilen.indexOf(z2) : i1, keys = [];
+      for(var r = i1; r <= i2; r++) keys.push(stpKey(tag, zeilen[r].s));
+      return '<div class="stp-parallel'+(po.length > 2 ? ' viele' : '')+'" data-keys="'+esc(keys.join(','))+'">'+po.map(function(o, oi){
+        var pi = stpInfo(o) || {name:o.t || '?', color:'#64748B'};
+        var t = pi.name + (o.lp ? ' · '+o.lp : '') + (o.zi ? ' · '+o.zi : '') + (lehrer ? (o.u ? ' · '+o.u.length+' aus der Klasse' : '') : ' · antippen, wenn du dieses Fach hast');
+        return '<button type="button" class="stp-pwahl" style="--c:'+pi.color+'" data-k="'+key+'" data-pw="'+oi+'" title="'+esc(t)+'">'+
+          (pi.img ? '<img class="stp-img'+(pi.full?'':' ct')+'" src="'+pi.img+'" alt="" loading="lazy" onerror="stpBildFehlt(this)">' : '<span class="stp-dot"></span>')+
+          '<span class="stp-pname">'+esc(pi.name)+'</span>'+(lehrer && o.u ? '<span class="stp-pzahl">👥 '+o.u.length+'</span>' : '')+'</button>';
+      }).join('')+'</div>';
+    }
     var tmZ = a.termin && !a.par && c && c.v && c.b ? c : null;   // Termin mit genauer Zeit: JETZT danach
     var zVon = tmZ ? tmZ.v : z.von, zBis = tmZ ? tmZ.b : (z2 || z).bis;
     var istJetzt = tag === heute && jetzt >= stpMin(zVon) && jetzt < stpMin(zBis) && !stpLeer(c) && !c.frei;
@@ -47741,7 +47806,10 @@ function stpZeichnen(){
   function zellenSig(tag, z){
     var a = am(tag, z), c = a.c || {};
     if(a.ferien) return '';
-    if(stpLeer(c) && !c.frei && !a.termin) return '';
+    if(stpLeer(c) && !c.frei && !a.termin){
+      var po = !stp.bearbeiten && plan.parallel ? plan.parallel(stpKey(tag, z.s)) : null;
+      return po ? 'P' + JSON.stringify(po.map(function(o){ return [o.f || o.t, o.lp || '', o.zi || '', (o.u || []).length]; })) : '';
+    }
     return JSON.stringify([c.f || '', c.t || '', c.zi || '', c.lp || '', c.kl || '', !!c.frei, !!a.termin, !!a.par, a.par && a.termin ? (a.termin.c.t || '') : '']);
   }
   // Letzte Lektion der Reihe gleicher Lektionen ab j (Pausen und Mittag trennen eine Reihe).
@@ -47852,6 +47920,14 @@ function stpZeichnen(){
       });
       if(!stp.klasse.zeiten && stp.eigen.zeiten) stp.klasse.zeiten = stp.eigen.zeiten.slice();
       stpSpeichern('klasse');
+    });
+  });
+  Array.prototype.forEach.call(body.querySelectorAll('.stp-pwahl'), function(b){
+    b.addEventListener('click', function(){
+      var po = plan.parallel && plan.parallel(b.getAttribute('data-k')), o = po && po[+b.getAttribute('data-pw')];
+      if(!o) return;
+      if(lehrer) stpParallelWer(o);
+      else stpParallelWaehlen(b.parentNode.getAttribute('data-keys').split(','), o);
     });
   });
   Array.prototype.forEach.call(body.querySelectorAll('.stp-cell'), function(b){
@@ -48129,14 +48205,17 @@ function renderStpJetzt(){
       (l.info.img ? '<img class="'+(l.info.full?'':'ct')+'" src="'+l.info.img+'" alt="" onerror="stpBildFehlt(this)">' : '<span class="stp-dot"></span>')+
       '<div><small>'+label+'</small><b>'+esc(l.info.name)+'</b>'+(sub ? '<span>'+esc(sub)+'</span>' : '')+'</div></div>';
   }
+  // Termin mit genauer Uhrzeit (v/b, z. B. aus dem Kalender): die statt der Lektionszeit
+  function von(l){ return l.c && l.c.v && l.c.b ? l.c.v : l.z.von; }
+  function bisZ(l){ return l.c && l.c.v && l.c.b ? l.c.b : l.z.bis; }
   var h = '<button type="button" class="stp-jetzt" id="stpJetztBtn">';
   if(n.aktuell){
-    var rest = stpMin(n.aktuell.z.bis) - stpJetztMin();
+    var rest = stpMin(bisZ(n.aktuell)) - stpJetztMin();
     h += chip(n.aktuell, 'Jetzt', 'noch '+rest+' Min.');
   }
   if(n.danach){
-    var lbl = n.danach.spaeter ? n.danach.spaeter+' · '+n.danach.z.von : (n.aktuell ? 'Danach · ' : 'Als Nächstes · ')+n.danach.z.von;
-    var bis = n.danach.spaeter ? '' : (function(){ var m = stpMin(n.danach.z.von) - stpJetztMin(); return !n.aktuell && m <= 90 ? 'in '+m+' Min.' : ''; })();
+    var lbl = n.danach.spaeter ? n.danach.spaeter+' · '+von(n.danach) : (n.aktuell ? 'Danach · ' : 'Als Nächstes · ')+von(n.danach);
+    var bis = n.danach.spaeter ? '' : (function(){ var m = stpMin(von(n.danach)) - stpJetztMin(); return !n.aktuell && m <= 90 ? 'in '+m+' Min.' : ''; })();
     h += chip(n.danach, lbl, bis);
   }
   h += '<span class="stp-jetzt-go">🗓️ ›</span></button>';

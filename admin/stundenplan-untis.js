@@ -21,6 +21,13 @@
  *  - sonst, wenn sie genau eine Klasse hat -> die ganze Klasse;
  *  - ISF («InS») ist Teamteaching in einer Klassenlektion und wird ausgelassen;
  *  - sonst wird sie gemeldet (keine Gruppe gefunden).
+ *
+ * Parallele Fächer (seit 26.11.2026): Lektionen, in denen eine Klasse auf mehrere Gruppen
+ * verteilt ist (Wahlfächer, Halbklassen), landen zusätzlich pro Klasse in
+ *   klassen/{k}/klasseninfo/stundenplanParallel = {zellen:{'tag-lektion':[{f|t, zi, lp, u:[uids]}]}, semester}
+ * Die App zeigt sie in leeren Feldern des Klassenplans als Spalten (LP mit Anzahl, SuS ohne
+ * Untis-Plan zum Antippen). Der Klassenplan selbst (klasseninfo/stundenplan) bleibt unberührt.
+ *   --nur-parallel   schreibt nur diese Dokumente, nicht die persönlichen Pläne
  */
 const { starten } = require('./_firebase');
 const { LP, TAG_KURZ, lesePlaene } = require('./_untis');
@@ -31,6 +38,7 @@ const ORDNER = arg('--ordner');
 const SEMESTER = Number(arg('--semester'));
 const JA = args.includes('--ja');
 const ZEIGE = arg('--zeige');
+const NUR_PARALLEL = args.includes('--nur-parallel');
 if (!ORDNER || !(SEMESTER === 1 || SEMESTER === 2)) {
   console.log('Aufruf: --ordner "<Stundenpläne/2026:27>" --semester 1|2 [--zeige <benutzername>] [--ja]');
   process.exit(1);
@@ -116,6 +124,32 @@ function fachBasis(fach) {   // «Sp+2» -> «sp+», «TK1» -> «tk», «Hw 1»
     p.zellen[key] = zelle; p.quelle[key] = quelle;
   }
   const lpPlaene = {};   // Kürzel -> {zellen}
+  const parallel = {};   // Klasse -> {'tag-zeile': [{f|t, zi, lp, u}]}
+  function parallelDazu(l, passend) {
+    if (l.ganz) return;
+    // Untis kürzt lange Klassenlisten («G3a,E3..»): Klassen auch aus den Gruppenmitgliedern nehmen.
+    const kls = l.klassen.filter(function (k) { return /^[GE][123][a-c]$/.test(k); });
+    passend.forEach(function (g) { g.mitglieder.forEach(function (uid) { const k = klasseVon[uid]; if (k && kls.indexOf(k) < 0) kls.push(k); }); });
+    kls.forEach(function (k) {
+      let u = null;
+      if (passend.length) {
+        u = [];
+        passend.forEach(function (g) { g.mitglieder.forEach(function (uid) { if (klasseVon[uid] === k && u.indexOf(uid) < 0) u.push(uid); }); });
+        if (!u.length) return;   // niemand aus dieser Klasse in der Gruppe
+      }
+      const z = zelleVon(l), lp = lpName[l.lk] || l.lk;
+      const liste = ((parallel[k] = parallel[k] || {})[l.tag + '-' + l.zeile] = parallel[k][l.tag + '-' + l.zeile] || []);
+      const da = liste.find(function (o) { return (o.f || o.t) === (z.f || z.t) && (o.zi || '') === (z.zi || ''); });
+      if (da) {
+        if (da.lp.split(', ').indexOf(lp) < 0) da.lp += ', ' + lp;
+        if (u) da.u = (da.u || []).concat(u.filter(function (x) { return (da.u || []).indexOf(x) < 0; }));
+        return;
+      }
+      const o = Object.assign({}, z, { lp: lp });
+      if (u) o.u = u;
+      liste.push(o);
+    });
+  }
   lektionen.forEach(function (l) {
     const code = codeNorm(l.fach + l.grp);
     const jgs = l.klassen.map(function (k) { return k.charAt(1); });
@@ -139,6 +173,7 @@ function fachBasis(fach) {   // «Sp+2» -> «sp+», «TK1» -> «tk», «Hw 1»
     lz.kl = passend.length ? passend[0].name + (l.ganz ? ' ' + l.klassen[0] : ' (' + passend[0].jg + '.)') : l.klassen.join(', ').replace(/,$/, '');
     lpz[l.tag + '-' + l.zeile] = lz;
     if (AUSLASSEN.indexOf(fachBasis(l.fach)) >= 0) return;   // nur im Plan der Lehrperson
+    parallelDazu(l, passend);
     if (passend.length) {
       passend.forEach(function (g) {
         g.mitglieder.forEach(function (uid) { if (!l.ganz || klasseVon[uid] === l.klassen[0]) setze(uid, l, 'gruppe'); });
@@ -181,7 +216,25 @@ function fachBasis(fach) {   // «Sp+2» -> «sp+», «TK1» -> «tk», «Hw 1»
       }).forEach(function (k) { const t = k.split('-'), c = z[k]; console.log('  ' + TAG_KURZ[+t[0]] + ' ' + t[1].padEnd(3) + ' ' + (c.f || c.t).padEnd(16) + ' ' + (c.lp || c.kl || '').padEnd(16) + ' ' + (c.zi || '')); });
     }
   }
+  const parN = Object.keys(parallel).map(function (k) { return k + ' ' + Object.keys(parallel[k]).length; });
+  console.log('Parallele Fächer (Klasse, Lektionen): ' + parN.join(', '));
+  if (ZEIGE && /^[GE][123][a-c]$/.test(ZEIGE)) {
+    Object.keys(parallel[ZEIGE] || {}).sort().forEach(function (key) {
+      console.log('  ' + TAG_KURZ[+key.split('-')[0]] + ' ' + key.split('-')[1].padEnd(3) + ' ' + parallel[ZEIGE][key].map(function (o) { return (o.f || o.t) + ' ' + o.lp + ' ' + (o.zi || '') + ' (' + (o.u ? o.u.length : '?') + ')'; }).join(' | '));
+    });
+  }
   if (!JA) { console.log('\nNichts geschrieben. Mit --ja ausführen.'); process.exit(0); }
+
+  const klassenAlle = {};
+  schueler.forEach(function (s) { if (/^[GE][123][a-c]$/.test(s.k || '')) klassenAlle[s.k] = true; });
+  const pb = db.batch();
+  Object.keys(klassenAlle).forEach(function (k) {
+    pb.set(db.collection('klassen').doc(k).collection('klasseninfo').doc('stundenplanParallel'),
+      { zellen: parallel[k] || {}, semester: SEMESTER, quelle: 'untis', updatedAt: ts });
+  });
+  await pb.commit();
+  console.log('Parallele Fächer für ' + Object.keys(klassenAlle).length + ' Klassen geschrieben.');
+  if (NUR_PARALLEL) process.exit(0);
 
   const ids = Object.keys(plaene);
   for (let i = 0; i < ids.length; i += 100) {
