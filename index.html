@@ -57,7 +57,7 @@ function winterAn(){ var aus = false; try{ aus = localStorage.getItem('hl_winter
 <!-- Seit 25.11.2026 ausgelagert (Etappe 5a). Der ?v=-Stempel kommt von node admin/versionen.js.
      defer = läuft in dieser Reihenfolge vor dem Modul-Skript, die Namen (NEUIGKEITEN, ENERGIZER …) sind dort direkt sichtbar. -->
 <script src="app/daten.js?v=92f79ea94b" defer></script>
-<script src="app/neuigkeiten.js?v=b0031ca398" defer></script>
+<script src="app/neuigkeiten.js?v=cc9fbd2673" defer></script>
 <script type="module">
 import {
   initializeApp
@@ -47491,6 +47491,8 @@ function stpTermineSchreiben(kl, datum, slots, wert){
   feld[datum] = tag;
   return setDoc(stpTermineRef(kl), {termine:feld, updatedAt:serverTimestamp()}, {merge:true});
 }
+// Genaue Uhrzeit eines Termins (v/b, z. B. aus dem Kalender-Abgleich), sonst ''.
+function stpTerminZeit(c){ return c && c.v && c.b ? c.v + '–' + c.b : ''; }
 function stpTerminTitel(c){ return c.frei ? '🌴 Fällt aus' + (c.t ? ': ' + c.t : '') : '📌 ' + (c.t || 'Termin'); }
 function stpTerminBearbeiten(key){
   var lehrer = state.profile.role === 'teacher', ansicht = stp.ansicht, fuerKlasse = ansicht === 'klasse';
@@ -47521,6 +47523,8 @@ function stpTerminBearbeiten(key){
   h += '<div class="stp-felder2" style="margin-top:0;"><div><label class="modal-label">Ort / Zimmer</label><input type="text" id="stpTmZi" maxlength="30" placeholder="z. B. Turnhalle" value="'+q(c.zi)+'"></div>'+
        '<div><label class="modal-label">Dauer</label><select id="stpTmDauer"><option value="nur">Nur diese Lektion</option>'+
        (halb.length > 1 ? '<option value="halb">Ganzer '+(hi === 0 ? 'Vormittag' : 'Nachmittag')+'</option>' : '')+'<option value="tag">Ganzer Tag</option></select></div></div>';
+  h += '<div class="stp-felder2" style="margin-top:0;"><div><label class="modal-label">Genau ab (optional)</label><input type="time" id="stpTmV" value="'+q(c.v)+'"></div>'+
+       '<div><label class="modal-label">bis</label><input type="time" id="stpTmB" value="'+q(c.b)+'"></div></div>';
   if(lehrer && !fuerKlasse){
     h += '<label class="modal-label" style="margin-top:12px;">Wer sieht den Termin?</label><select id="stpTmKl"><option value="">👤 Nur ich (in meinem Stundenplan)</option>'+
       STP_KLASSEN.map(function(k){ return '<option value="'+q(k)+'"'+(c.kl === k ? ' selected' : '')+'>🏫 Auch die Klasse '+esc(k)+' in ihrem Stundenplan</option>'; }).join('')+'</select>';
@@ -47575,6 +47579,8 @@ function stpTerminBearbeiten(key){
     if(parEl && parEl.checked && !freiEl.checked) wert.par = true;
     if(t) wert.t = t;
     if(ort) wert.zi = ort;
+    var tv = document.getElementById('stpTmV').value, tb = document.getElementById('stpTmB').value;
+    if(tv && tb && tv < tb){ wert.v = tv; wert.b = tb; }
     speichern(wert);
   });
 }
@@ -47685,7 +47691,9 @@ function stpZeichnen(){
 
   function zelle(tag, z, z2){
     var key = stpKey(tag, z.s), a = am(tag, z), c = a.c, info = stpInfo(c);
-    var istJetzt = tag === heute && jetzt >= stpMin(z.von) && jetzt < stpMin((z2 || z).bis) && !stpLeer(c) && !c.frei;
+    var tmZ = a.termin && !a.par && c && c.v && c.b ? c : null;   // Termin mit genauer Zeit: JETZT danach
+    var zVon = tmZ ? tmZ.v : z.von, zBis = tmZ ? tmZ.b : (z2 || z).bis;
+    var istJetzt = tag === heute && jetzt >= stpMin(zVon) && jetzt < stpMin(zBis) && !stpLeer(c) && !c.frei;
     var eigen = !a.termin && !a.ferien && plan.eigen && plan.eigen(key);
     // Parallel-Termin: das Fach behält sein eigenes (halbes) Feld, der Termin steht im zweiten daneben.
     var tmHier = a.termin && !a.par;
@@ -47696,13 +47704,13 @@ function stpZeichnen(){
       inner += (info.img ? '<img class="stp-img'+(info.full?'':' ct')+'" src="'+info.img+'" alt="" loading="lazy" onerror="stpBildFehlt(this)">' : '<span class="stp-dot"></span>');
       inner += '<span class="stp-txt"><span class="stp-name">'+esc(info.name)+'</span>';
       var kl = c.kl; if(kl && kl === state.klasse && !lehrer) kl = '';   // Schüler:innen: die eigene Klasse muss nicht in jeder Zelle stehen
-      var sub = [kl || '', c.zi || '', c.lp || ''].filter(Boolean).join(' · ');
+      var sub = [tmHier && stpTerminZeit(c) ? '🕒 '+stpTerminZeit(c) : '', kl || '', c.zi || '', c.lp || ''].filter(Boolean).join(' · ');
       if(sub) inner += '<span class="stp-sub">'+esc(sub)+'</span>';
       var prf = !vorlage && !a.ferien && !(a.termin && !a.par) ? stpPruefung(stpDatum(tag), c) : null;
       if(prf) inner += stpPruefPille(prf, c);
       inner += '</span>';
     } else if(c && c.frei){
-      inner += '<span class="stp-txt"><span class="stp-name">🌴 '+(a.termin ? 'Fällt aus' : 'Frei')+'</span>'+(a.termin && c.t ? '<span class="stp-sub">'+esc(c.t)+'</span>' : '')+(!vorlage && !a.termin && !a.ferien ? stpPruefungFrei(stpDatum(tag)).map(function(e){ return stpPruefPille(e, null); }).join('') : '')+'</span>';
+      inner += '<span class="stp-txt"><span class="stp-name">🌴 '+(a.termin ? 'Fällt aus' : 'Frei')+'</span>'+(a.termin && (c.t || stpTerminZeit(c)) ? '<span class="stp-sub">'+esc([stpTerminZeit(c) ? '🕒 '+stpTerminZeit(c) : '', c.t || ''].filter(Boolean).join(' · '))+'</span>' : '')+(!vorlage && !a.termin && !a.ferien ? stpPruefungFrei(stpDatum(tag)).map(function(e){ return stpPruefPille(e, null); }).join('') : '')+'</span>';
     } else if(stp.bearbeiten){
       inner += '<span class="stp-plus">＋</span>';
     } else if(a.ferien){
@@ -47710,7 +47718,7 @@ function stpZeichnen(){
     }
     if(tmHier) inner += '<span class="stp-eigen-tag stp-pin" title="Nur diese Woche">📌</span>';
     if(istJetzt){
-      var vonM = stpMin(z.von), bisM = stpMin((z2 || z).bis), pp = Math.max(0, Math.min(100, Math.round((jetzt - vonM) / (bisM - vonM) * 100)));
+      var vonM = stpMin(zVon), bisM = stpMin(zBis), pp = Math.max(0, Math.min(100, Math.round((jetzt - vonM) / (bisM - vonM) * 100)));
       inner += '<span class="stp-jetzt-tag">JETZT</span><span class="stp-fortschritt" title="noch '+(bisM - jetzt)+' Min."><i style="width:'+pp+'%"></i></span>';
     }
     if(eigen) inner += '<span class="stp-eigen-tag" title="Von dir geändert">✎</span>';
@@ -47719,7 +47727,7 @@ function stpZeichnen(){
     var tc = a.termin.c, ti = stpInfo(tc);
     return '<div class="stp-doppel">'+feld+
       '<button type="button" class="stp-cell termin'+(stp.bearbeiten ? ' edit' : ' link')+'"'+(ti ? ' style="--c:'+ti.color+'"' : '')+' data-k="'+key+'" data-tm="1" title="Parallel zur Lektion – nur diese Woche">'+
-      '<span class="stp-txt"><span class="stp-name">📌 '+esc(tc.t || 'Termin')+'</span>'+(tc.zi ? '<span class="stp-sub">📍 '+esc(tc.zi)+'</span>' : '')+'</span></button></div>';
+      '<span class="stp-txt"><span class="stp-name">📌 '+esc(tc.t || 'Termin')+'</span>'+(tc.zi || stpTerminZeit(tc) ? '<span class="stp-sub">'+esc([stpTerminZeit(tc) ? '🕒 '+stpTerminZeit(tc) : '', tc.zi ? '📍 '+tc.zi : ''].filter(Boolean).join(' · '))+'</span>' : '')+'</span></button></div>';
   }
   function pause(j){
     if(j === 0) return '';
@@ -47856,7 +47864,7 @@ function stpZeichnen(){
       if(a.termin && (!a.par || b.hasAttribute('data-tm'))){
         var tc = a.termin.c;
         var pi = a.par ? stpInfo(a.c) : null;
-        uiInfo(stpTerminTitel(tc), [STP_TAGE_LANG[tg]+', '+stpDatumKurz(stpDatum(tg)), zl.von+' – '+zl.bis, tc.zi ? '📍 '+tc.zi : '', pi ? '↔️ parallel zu '+pi.name+' – für alle anderen findet die Lektion normal statt' : '', tc.kl ? 'auch für die Klasse '+tc.kl : '', !a.termin.eigen && tc.lp ? 'eingetragen von '+tc.lp : ''].filter(Boolean).join(' · '));
+        uiInfo(stpTerminTitel(tc), [STP_TAGE_LANG[tg]+', '+stpDatumKurz(stpDatum(tg)), tc.v && tc.b ? '🕒 '+tc.v+' – '+tc.b : zl.von+' – '+zl.bis, tc.zi ? '📍 '+tc.zi : '', pi ? '↔️ parallel zu '+pi.name+' – für alle anderen findet die Lektion normal statt' : '', tc.kl ? 'auch für die Klasse '+tc.kl : '', !a.termin.eigen && tc.lp ? 'eingetragen von '+tc.lp : ''].filter(Boolean).join(' · '));
         return;
       }
       var info = stpInfo(a.c);

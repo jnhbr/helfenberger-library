@@ -3,7 +3,8 @@
  * Läuft stündlich auf Jans Mac (kalender-dienst.sh). Liest den Kalender nur (osascript),
  * schreibt nur in den eigenen Plan der Lehrperson:
  *   progress/{uid}/einstellungen/stundenplan        zeiten + einzelne zellen (Wochenraster)
- *   progress/{uid}/einstellungen/stundenplanTermine 📌 Termine an einzelnen Daten (q:'kal')
+ *   progress/{uid}/einstellungen/stundenplanTermine 📌 Termine an einzelnen Daten (q:'kal';
+ *     v/b = genaue Uhrzeit, wenn der Kalendertermin nicht genau auf die Lektionen fällt)
  * Nichts geht an die Klasse (kein kl im Termin, nichts in klassen/…).
  *
  * Regeln:
@@ -37,7 +38,9 @@ const ZEITEN = [
 ];
 const EXTRA = [
   { s: 'm1', von: '11:55', bis: '12:40' }, { s: 'm2', von: '12:45', bis: '13:30' },
-  { s: 'a1', von: '16:55', bis: '17:40' }, { s: 'a2', von: '17:45', bis: '18:30' }
+  { s: 'a1', von: '16:55', bis: '17:40' }, { s: 'a2', von: '17:45', bis: '18:30' },
+  // Spätabend (Elterngespräche, Anlässe): wie STP_EXTRA in index.html
+  { s: 'e1', von: '18:35', bis: '19:20' }, { s: 'e2', von: '19:25', bis: '20:10' }, { s: 'e3', von: '20:15', bis: '21:00' }
 ];
 // Wie FERIEN_TG in index.html (bei neuen Schuljahren dort und hier nachführen).
 const FERIEN = [
@@ -182,10 +185,17 @@ function zeilenVon(von, bis) {
   // Schultage ab heute und was der Kalender pro Tag/Zeile hat
   const tage = [];
   for (let d = heute; d <= bis; d = plusTage(d, 1)) if (wochentag(d) < 5 && !ferien(d)) tage.push(d);
-  const proTag = {};
+  const proTag = {}, zeitVon = {};   // zeitVon[datum][zeile][titel] = {v, b}, wenn nicht genau auf den Lektionen
   for (const l of lekt) {
     if (wochentag(l.datum) > 4 || ferien(l.datum)) continue;
-    for (const s of zeilenVon(l.von, l.bis)) ((proTag[l.datum] = proTag[l.datum] || {})[s] = proTag[l.datum][s] || []).push(l.t);
+    const sl = zeilenVon(l.von, l.bis);
+    if (!sl.length) continue;
+    const erste = ZEILEN.find((z) => z.s === sl[0]), letzte = ZEILEN.find((z) => z.s === sl[sl.length - 1]);
+    const genau = min(l.von) === erste.von && min(l.bis) === letzte.bis;
+    for (const s of sl) {
+      ((proTag[l.datum] = proTag[l.datum] || {})[s] = proTag[l.datum][s] || []).push(l.t);
+      if (!genau) ((zeitVon[l.datum] = zeitVon[l.datum] || {})[s] = zeitVon[l.datum][s] || {})[l.t] = { v: l.von, b: l.bis < l.von ? '23:59' : l.bis };
+    }
   }
 
   // 1) Wochenraster: Mehrheit der restlichen Schulwochen pro Wochentag/Zeile
@@ -229,7 +239,11 @@ function zeilenVon(von, bis) {
       } else if (ts.length) {
         tm = fachVon(ts[0]) ? zelleFuer(ts[0]) : { t: ts[0] };
       }
-      if (tm) { tm.q = 'kal'; (soll[d] = soll[d] || {})[z.s] = tm; }
+      if (tm) {
+        const zt = tm.frei ? null : ((zeitVon[d] || {})[z.s] || {})[tm.t || ts.find((t) => !passt(t, c)) || ts[0]];
+        if (zt) { tm.v = zt.v; tm.b = zt.b; }
+        tm.q = 'kal'; (soll[d] = soll[d] || {})[z.s] = tm;
+      }
     }
   }
 
