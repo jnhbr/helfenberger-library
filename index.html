@@ -57,7 +57,7 @@ function winterAn(){ var aus = false; try{ aus = localStorage.getItem('hl_winter
 <!-- Seit 25.11.2026 ausgelagert (Etappe 5a). Der ?v=-Stempel kommt von node admin/versionen.js.
      defer = läuft in dieser Reihenfolge vor dem Modul-Skript, die Namen (NEUIGKEITEN, ENERGIZER …) sind dort direkt sichtbar. -->
 <script src="app/daten.js?v=92f79ea94b" defer></script>
-<script src="app/neuigkeiten.js?v=d5db2b8d7b" defer></script>
+<script src="app/neuigkeiten.js?v=ebb5ed480f" defer></script>
 <script type="module">
 import {
   initializeApp
@@ -38942,39 +38942,58 @@ async function pruefMassstabDialog(p){
   });
 }
 /* ---------- 📋 Noten für LehrerOffice kopieren (27.11.2026, Wunsch Stephan) ----------
-   Kopiert nur die Notenspalte (eine Note pro Zeile) in der Reihenfolge von
-   LehrerOffice: Nachname, dann Vorname. Wer keine Note hat (nicht geschrieben,
-   🚪 nicht dabei), bekommt eine leere Zeile, damit nichts verrutscht. In
-   LehrerOffice die erste Notenzelle anklicken und Ctrl+V. Danach zeigt ein
-   Fenster die Reihenfolge zum Vergleichen. */
+   Kopiert nur die Notenspalte (eine Note pro Zeile, nur \n – mit \r\n zählt
+   LehrerOffice auf dem Mac doppelt so viele Zeilen). Reihenfolge wie in
+   LehrerOffice: nach Vorname (Standard dort) oder Nachname. Alle der Klasse
+   sind dabei; wer keine Note hat (krank, nicht geschrieben, 🚪 nicht dabei),
+   bekommt eine leere Zeile. Personen, die nur noch in LehrerOffice stehen
+   (z. B. ausgetreten), trägt man einmal ein (pro Klasse gemerkt) – sie
+   bekommen ebenfalls eine leere Zeile. In LehrerOffice genau so viele
+   Notenfelder markieren, wie Zeilen kopiert werden, dann Ctrl+V. */
 function pruefNotenKopieren(p){
   var teil = pruef.teil[p.id] || {}, roster = pruefRosterFuer(p);
   if(!roster){ toast('Klassenliste wird noch geladen …'); return; }
   if(pruefArt(p) === 'bank' && !pruef.loes[p.id]){ toast('Lösungen werden noch geladen – gleich nochmals versuchen.'); return; }
-  var da = {}, rows = [];
-  roster.forEach(function(s){ if(da[s.uid]) return; da[s.uid] = 1; rows.push({uid:s.uid, vn:String(s.vorname || s.displayName || s.username || ''), nn:String(s.nachname || ''), t:teil[s.uid] || null}); });
-  Object.keys(teil).forEach(function(u){ if(!da[u]){ da[u] = 1; rows.push({uid:u, vn:String(teil[u].name || u), nn:'', t:teil[u], extra:true}); } });
-  var ausg = Array.isArray(p.ausgeschlossen) ? p.ausgeschlossen : [];
-  rows.forEach(function(r){
-    r.erg = ausg.indexOf(r.uid) < 0 ? pruefErgebnis(p, r.t) : null;
-    r.note = r.erg ? pruefNoteVon(p, r.t, r.erg.punkte, r.erg.max) : null;
-  });
-  rows.sort(function(a, b){ return (a.nn || a.vn).localeCompare(b.nn || b.vn, 'de') || a.vn.localeCompare(b.vn, 'de'); });
-  var mitNote = rows.filter(function(r){ return r.note != null; }).length;
-  if(!mitNote){ toast('Noch keine Noten zum Kopieren.'); return; }
-  var text = rows.map(function(r){ return r.note == null ? '' : String(Math.round(r.note * 100) / 100); }).join('\r\n');
-  textKopieren(text, function(){
-    var h = '<h3>📋 Noten kopiert</h3>';
-    h += '<p class="pr-hinweis">'+mitNote+' Noten in der Zwischenablage, eine pro Zeile, sortiert nach Nachname. In LehrerOffice die Notenzelle der ersten Person anklicken und <b>Ctrl+V</b> drücken.</p>';
-    h += '<p class="pr-hinweis pr-warn">Kurz vergleichen: Die Reihenfolge muss genau wie in LehrerOffice sein. Leere Zeilen (keine Note) bleiben leer.</p>';
-    h += '<table class="pr-mst"><thead><tr><th>Nr.</th><th>Name</th><th>Note</th></tr></thead><tbody>' + rows.map(function(r, i){
-      return '<tr><td>'+(i+1)+'</td><td>'+esc((r.nn ? r.nn + ' ' : '') + r.vn)+(r.extra ? ' <small>(nicht in der Klassenliste)</small>' : '')+'</td><td><b>'+(r.note == null ? '–' : esc(pruefNoteText(r.note)))+'</b></td></tr>';
+  var ausg = Array.isArray(p.ausgeschlossen) ? p.ausgeschlossen : [], da = {}, basis = [];
+  function eintrag(uid, vn, nn, t){
+    var erg = t && ausg.indexOf(uid) < 0 ? pruefErgebnis(p, t) : null;
+    basis.push({vn:String(vn || '').trim(), nn:String(nn || '').trim(), note:erg ? pruefNoteVon(p, t, erg.punkte, erg.max) : null});
+  }
+  roster.forEach(function(s){ if(da[s.uid]) return; da[s.uid] = 1; eintrag(s.uid, s.vorname || s.displayName || s.username, s.nachname, teil[s.uid]); });
+  Object.keys(teil).forEach(function(u){ if(!da[u]){ da[u] = 1; eintrag(u, teil[u].name || u, '', teil[u]); } });
+  var kZusatz = 'lo_zusatz_' + state.klasse, kSort = 'lo_sort';
+  var lsGet = function(k){ try{ return localStorage.getItem(k) || ''; }catch(e){ return ''; } };
+  var lsSet = function(k, v){ try{ if(v) localStorage.setItem(k, v); else localStorage.removeItem(k); }catch(e){} };
+  var sortArt = lsGet(kSort) === 'nachname' ? 'nachname' : 'vorname';
+  var h = '<h3>📋 Noten für LehrerOffice</h3>';
+  h += '<div class="pr-grid2"><div><label class="modal-label">Reihenfolge wie in LehrerOffice</label><select id="prNkSort" class="modal-input">'+
+    '<option value="vorname"'+(sortArt === 'vorname' ? ' selected' : '')+'>nach Vorname</option><option value="nachname"'+(sortArt === 'nachname' ? ' selected' : '')+'>nach Nachname</option></select></div>'+
+    '<div><label class="modal-label">Nur in LehrerOffice (z. B. ausgetreten)</label><textarea id="prNkZusatz" class="modal-input" rows="2" placeholder="Vorname Nachname, eine Person pro Zeile">'+esc(lsGet(kZusatz))+'</textarea></div></div>';
+  h += '<p class="pr-hinweis" id="prNkInfo"></p><div id="prNkListe"></div>';
+  h += '<div class="modal-actions"><button class="btn btn-ghost btn-sm" id="modalCancel" type="button">Schliessen</button><button class="btn btn-primary btn-sm" id="prNkKopieren" type="button">📋 Kopieren</button></div>';
+  openModal(h, 'pr-modal');
+  document.getElementById('modalCancel').addEventListener('click', closeModal);
+  var zeilen = [];
+  function zeichnen(){
+    sortArt = document.getElementById('prNkSort').value;
+    var zusatz = document.getElementById('prNkZusatz').value.split('\n').map(function(x){ return x.trim(); }).filter(Boolean);
+    zeilen = basis.concat(zusatz.map(function(n){ var w = n.split(/\s+/); return {vn:w.length > 1 ? w.slice(0, -1).join(' ') : n, nn:w.length > 1 ? w[w.length - 1] : '', note:null, zusatz:true}; }));
+    var key = function(r){ return sortArt === 'nachname' ? (r.nn || r.vn) + ' ' + r.vn : r.vn + ' ' + r.nn; };
+    zeilen.sort(function(a, b){ return key(a).localeCompare(key(b), 'de'); });
+    var mit = zeilen.filter(function(r){ return r.note != null; }).length;
+    document.getElementById('prNkInfo').innerHTML = '<b>'+zeilen.length+' Zeilen</b>, davon '+mit+' mit Note. In LehrerOffice die Notenfelder aller <b>'+zeilen.length+'</b> Personen markieren (erstes anklicken, mit Shift das letzte), dann <b>Ctrl+V</b>. Stimmt die Zahl nicht mit LehrerOffice überein, fehlt hier jemand: oben unter «Nur in LehrerOffice» eintragen.';
+    document.getElementById('prNkListe').innerHTML = '<table class="pr-mst"><thead><tr><th>Nr.</th><th>Name</th><th>Note</th></tr></thead><tbody>' + zeilen.map(function(r, i){
+      return '<tr><td>'+(i+1)+'</td><td>'+esc((r.vn + ' ' + r.nn).trim())+(r.zusatz ? ' <small>(nur LehrerOffice)</small>' : '')+'</td><td><b>'+(r.note == null ? '–' : esc(pruefNoteText(r.note)))+'</b></td></tr>';
     }).join('') + '</tbody></table>';
-    h += '<div class="modal-actions"><button class="btn btn-ghost btn-sm" id="prNkNochmal" type="button">📋 Nochmals kopieren</button><button class="btn btn-primary btn-sm" id="modalCancel" type="button">Fertig</button></div>';
-    openModal(h, 'pr-modal');
-    document.getElementById('modalCancel').addEventListener('click', closeModal);
-    document.getElementById('prNkNochmal').addEventListener('click', function(){ textKopieren(text, function(){ toast('📋 Nochmals kopiert.'); }); });
+  }
+  document.getElementById('prNkSort').addEventListener('change', function(){ lsSet(kSort, this.value === 'nachname' ? 'nachname' : ''); zeichnen(); });
+  document.getElementById('prNkZusatz').addEventListener('input', function(){ lsSet(kZusatz, this.value.trim()); zeichnen(); });
+  document.getElementById('prNkKopieren').addEventListener('click', function(){
+    if(!zeilen.some(function(r){ return r.note != null; })){ toast('Noch keine Noten zum Kopieren.'); return; }
+    var text = zeilen.map(function(r){ return r.note == null ? '' : String(Math.round(r.note * 100) / 100); }).join('\n');
+    textKopieren(text, function(){ toast('📋 ' + zeilen.length + ' Zeilen kopiert – in LehrerOffice ' + zeilen.length + ' Notenfelder markieren, dann Ctrl+V.'); });
   });
+  zeichnen();
 }
 function pruefMonitorKnoepfe(p, skPapier){
   var h = '';
@@ -38995,7 +39014,7 @@ function pruefMonitorKnoepfe(p, skPapier){
   if(pruefArt(p) === 'sikore') h += '<button class="btn btn-ghost btn-sm" data-a="sikoreDruck" type="button">🖨️ Blätter drucken</button>';
   h += '<button class="btn btn-ghost btn-sm" data-a="bearbeiten" type="button">✏️ Bearbeiten</button>';
   if(p.status !== 'entwurf' && ['sikore','tippen'].indexOf(pruefArt(p)) < 0) h += '<button class="btn btn-ghost btn-sm" data-a="massstab" type="button" title="Notenmassstab nach der Korrektur anpassen, z. B. 6 schon ab 57 von 60 Punkten — mit Vorschau">📏 Notenmassstab</button>';
-  if(p.status !== 'entwurf') h += '<button class="btn btn-ghost btn-sm" data-a="notenkopieren" type="button" title="Noten nach Nachname sortiert kopieren — in LehrerOffice mit Ctrl+V einfügen">📋 Noten kopieren</button>';
+  if(p.status !== 'entwurf') h += '<button class="btn btn-ghost btn-sm" data-a="notenkopieren" type="button" title="Noten in der Reihenfolge von LehrerOffice kopieren — dort die Notenfelder markieren und Ctrl+V">📋 Noten kopieren</button>';
   if(!skPapier && ['sikore','tippen','mt'].indexOf(pruefArt(p)) < 0 && !p.rsw && !p.diktat) h += '<button class="btn btn-ghost btn-sm" data-a="variante" type="button" title="Eigene Bereiche, Umfang, Antwortart, Anzahl und Note für einzelne Personen (Lernzielanpassung)">➕ Angepasste Variante</button>';
   h += '<button class="btn btn-ghost btn-sm" data-a="ablegen" type="button" title="In einem Ordner des Fachs ablegen – die Klasse sieht sie dort erst nach dem Freigeben">📁 Ablegen</button>';
   if(pruefArt(p) === 'bank' && !p.diktat) h += '<button class="btn btn-ghost btn-sm" data-a="punkte" type="button">🧮 Aufgaben & Punkte</button>';
