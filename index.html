@@ -57,7 +57,7 @@ function winterAn(){ var aus = false; try{ aus = localStorage.getItem('hl_winter
 <!-- Seit 25.11.2026 ausgelagert (Etappe 5a). Der ?v=-Stempel kommt von node admin/versionen.js.
      defer = läuft in dieser Reihenfolge vor dem Modul-Skript, die Namen (NEUIGKEITEN, ENERGIZER …) sind dort direkt sichtbar. -->
 <script src="app/daten.js?v=92f79ea94b" defer></script>
-<script src="app/neuigkeiten.js?v=04476ba077" defer></script>
+<script src="app/neuigkeiten.js?v=d2b3393736" defer></script>
 <script type="module">
 import {
   initializeApp
@@ -37591,7 +37591,7 @@ async function pruefImportEditor(){
     h += '<option value="'+esc(r.id)+'">'+esc(r.title || r.fileName || r.id)+'</option>';
   });
   h += (fach !== null ? '</optgroup>' : '') + '</select>';
-  h += '<p class="pr-hinweis">Damit kannst du nachher im 🧩 Baukasten Fragen aus dieser Übung dazunehmen oder austauschen.</p>';
+  h += '<p class="pr-hinweis">Damit kannst du nachher im 🧩 Baukasten Fragen aus dieser Übung dazunehmen oder austauschen.</p><div id="prImpFehlt"></div>';
   h += pruefFuerHtml(null, false);
   var faecherListe = notenFaecher();
   h += '<div class="pr-grid2"><div><label class="modal-label">Fach im Notenrechner</label><select id="prFach" class="modal-input">' + faecherListe.map(function(f){
@@ -37599,14 +37599,15 @@ async function pruefImportEditor(){
   h += '<div><label class="modal-label">Gewichtung</label><input type="number" id="prGewicht" class="modal-input" min="0.5" max="10" step="0.5" value="1"></div></div>';
   h += '<div class="pr-grid2"><div><label class="modal-label">Zeitlimit in Minuten (leer = keins)</label><input type="number" id="prZeit" class="modal-input" min="1" max="300" step="1"></div><div></div></div>';
   h += '<p class="pr-hinweis">Die Prüfung wird als Entwurf angelegt (Notenmassstab DBK linear). Massstab, Punkte und Aufgaben passt du danach wie gewohnt an (✏️, 🧮, 🧩).</p>';
-  h += '<div class="modal-actions"><button class="btn btn-ghost btn-sm" id="modalCancel" type="button">Abbrechen</button><button class="btn btn-primary btn-sm" id="modalOk" type="button" disabled>Prüfung anlegen</button></div>';
+  h += '<div class="modal-actions"><button class="btn btn-ghost btn-sm" id="modalCancel" type="button">Abbrechen</button><button class="btn btn-primary btn-sm" id="modalOk" type="button">Prüfung anlegen</button></div>';
   openModal(h, 'pr-modal');
   pruefKopfVerdrahten('import');
   pruefFuerLaden();
   document.getElementById('modalCancel').addEventListener('click', closeModal);
   var okBtn = document.getElementById('modalOk'), cfg = null, dateiName = '', seed = Math.floor(Math.random() * 2147483646) + 1;
   uebungOrdnerMenu(document.getElementById('prUebung'), uebungen, ordner);
-  function bereit(){ okBtn.disabled = !(cfg && document.getElementById('prUebung').value); }
+  // Knopf bleibt klickbar: ein gesperrter Knopf sah aktiv aus und reagierte stumm (27.11.2026, Bommeli) — beim Klick sagen, was fehlt.
+  function bereit(){ if(cfg && document.getElementById('prUebung').value) document.getElementById('prImpFehlt').innerHTML = ''; }
   document.getElementById('prUebung').addEventListener('change', function(){
     var r = uebungen.find(function(u){ return u.id === this.value; }, this), fEl = document.getElementById('prFach');
     if(r && faecherListe.some(function(f){ return f.id === r.subject; })) fEl.value = r.subject;
@@ -37632,7 +37633,14 @@ async function pruefImportEditor(){
     var titel = document.getElementById('prTitel').value.trim();
     if(!titel){ document.getElementById('prTitel').focus(); return; }
     var resource = uebungen.find(function(u){ return u.id === document.getElementById('prUebung').value; });
-    if(!cfg || !resource) return;
+    if(!cfg || !resource){
+      var fehlt = !cfg ? 'Zuerst die Prüfungsdatei (.json) laden.' : 'Bitte noch die Übung wählen, mit der die Klasse lernt – erst dann lässt sich die Prüfung anlegen.';
+      var fEl = document.getElementById(!cfg ? 'prImpInfo' : 'prImpFehlt');
+      fEl.innerHTML = '<p class="pr-hinweis pr-warn">⚠️ '+esc(fehlt)+'</p>';
+      fEl.scrollIntoView({block:'center', behavior:'smooth'});
+      toast(fehlt);
+      return;
+    }
     var gewicht = parseFloat(String(document.getElementById('prGewicht').value).replace(',', '.'));
     if(!(gewicht > 0 && gewicht <= 10)){ toast('Gewichtung muss zwischen 0.5 und 10 liegen.'); return; }
     var liste = pruefAusConfig(cfg), rnd = pruefRng(seed), bild = pruefBildSammler(), fragen = [], loesungen = {};

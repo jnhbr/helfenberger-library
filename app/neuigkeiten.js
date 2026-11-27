@@ -3,6 +3,7 @@
 // Klassisches Skript vor dem Modul-Skript. Nach jeder Änderung: node admin/versionen.js
 
 const NEUIGKEITEN = [
+  {id:'2026-11-27-import-knopf-hinweis', datum:'2026-11-27', fuer:'lehrer', text:'📥 Prüfung importieren: Fehlt noch die Übung (oder die Datei), sagt «Prüfung anlegen» jetzt, was fehlt, statt stumm zu bleiben.'},
   {id:'2026-11-27-parallel-bearbeiten', datum:'2026-11-27', fuer:'lehrer', text:'🗓️ Stundenplan › Klasse: Freifächer und Halbklassen (die Spalten in leeren Feldern) kannst du jetzt selbst anpassen – Fach antippen › ✏️ Bearbeiten: Schüler:innen an- oder abhaken, Lehrperson/Zimmer ändern, Fach entfernen, oder ➕ ein weiteres Fach daneben. Gilt jede Woche, auch im Stundenplan der Schüler:innen.'},
   {id:'2026-11-27-lernphase-pip-kompakt', datum:'2026-11-27', fuer:'lehrer', text:'📌 Lernphase im Bild-in-Bild: Schrift und Abstände sind jetzt gleich kompakt wie im Panel rechts, lange Hinweise brechen nicht mehr um.'},
   {id:'2026-11-27-lernphase-bild-in-bild', datum:'2026-11-27', fuer:'lehrer', text:'📌 Lernphase im Bild-in-Bild: Der 📌 oben im Lernphase-Panel öffnet jetzt ein echtes schwebendes Fenster (Chrome/Edge). Es bleibt über allen Programmen und im Vollbild sichtbar, aktualisiert sich live, und du kannst darin sortieren, ausblenden und beenden. Mit ↩️ oder durch Schliessen kommt das Panel zurück.'},
