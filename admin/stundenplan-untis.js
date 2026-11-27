@@ -28,6 +28,8 @@
  * Die App zeigt sie in leeren Feldern des Klassenplans als Spalten (LP mit Anzahl, SuS ohne
  * Untis-Plan zum Antippen). Der Klassenplan selbst (klasseninfo/stundenplan) bleibt unberührt.
  *   --nur-parallel   schreibt nur diese Dokumente, nicht die persönlichen Pläne
+ * Von Lehrpersonen in der App angepasste Felder (Feld manuell, seit 27.11.2026) bleiben im selben
+ * Semester erhalten und gehen in der App vor; beim Semesterwechsel fallen sie weg.
  */
 const { starten } = require('./_firebase');
 const { LP, TAG_KURZ, lesePlaene } = require('./_untis');
@@ -279,10 +281,19 @@ function fachBasis(fach) {   // «Sp+2» -> «sp+», «TK1» -> «tk», «Hw 1»
 
   const klassenAlle = {};
   schueler.forEach(function (s) { if (/^[GE][123][a-c]$/.test(s.k || '')) klassenAlle[s.k] = true; });
+  // ✏️ Von Lehrpersonen in der App angepasste Felder (manuell) bleiben im selben Semester stehen.
   const pb = db.batch();
-  Object.keys(klassenAlle).forEach(function (k) {
-    pb.set(db.collection('klassen').doc(k).collection('klasseninfo').doc('stundenplanParallel'),
-      { zellen: parallel[k] || {}, semester: SEMESTER, quelle: 'untis', updatedAt: ts });
+  const pRefs = Object.keys(klassenAlle).map(function (k) { return db.collection('klassen').doc(k).collection('klasseninfo').doc('stundenplanParallel'); });
+  const pAlt = await Promise.all(pRefs.map(function (r) { return r.get(); }));
+  Object.keys(klassenAlle).forEach(function (k, i) {
+    const d = { zellen: parallel[k] || {}, semester: SEMESTER, quelle: 'untis', updatedAt: ts };
+    const a = pAlt[i].exists ? pAlt[i].data() : null;
+    if (a && a.manuell && Object.keys(a.manuell).length && (a.manuellSem == null || a.manuellSem === SEMESTER)) {
+      Object.assign(d, { manuell: a.manuell, manuellSem: SEMESTER });
+      ['manuellVon', 'manuellAt'].forEach(function (f) { if (a[f] !== undefined) d[f] = a[f]; });
+      console.log('  ' + k + ': ' + Object.keys(a.manuell).length + ' von Hand angepasste Felder bleiben');
+    }
+    pb.set(pRefs[i], d);
   });
   await pb.commit();
   console.log('Parallele Fächer für ' + Object.keys(klassenAlle).length + ' Klassen geschrieben.');

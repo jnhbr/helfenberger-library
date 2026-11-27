@@ -44,7 +44,7 @@ function winterAn(){ var aus = false; try{ aus = localStorage.getItem('hl_winter
 <link rel="modulepreload" href="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js" crossorigin>
 <!-- Schriften und Bibliotheken liegen seit 08.10.2026 im eigenen Ordner assets/vendor/ (keine Abrufe mehr bei Google Fonts und jsdelivr). -->
 <link rel="stylesheet" href="assets/vendor/fonts/schriften.css">
-<link rel="stylesheet" href="app/stil.css?v=ff23ecca15">
+<link rel="stylesheet" href="app/stil.css?v=dfc18d90b7">
 <script>if(/-test\//.test(location.pathname))document.documentElement.classList.add('test-site');</script>
 </head>
 <body>
@@ -57,7 +57,7 @@ function winterAn(){ var aus = false; try{ aus = localStorage.getItem('hl_winter
 <!-- Seit 25.11.2026 ausgelagert (Etappe 5a). Der ?v=-Stempel kommt von node admin/versionen.js.
      defer = läuft in dieser Reihenfolge vor dem Modul-Skript, die Namen (NEUIGKEITEN, ENERGIZER …) sind dort direkt sichtbar. -->
 <script src="app/daten.js?v=92f79ea94b" defer></script>
-<script src="app/neuigkeiten.js?v=2f6c05a2dd" defer></script>
+<script src="app/neuigkeiten.js?v=04476ba077" defer></script>
 <script type="module">
 import {
   initializeApp
@@ -47512,6 +47512,7 @@ function stpPlatzhalter(c){ return !!c && !c.f && !!c.t && Object.prototype.hasO
 function stpKlasseVon(c){ return c && /^[GE][123][a-c]$/.test(c.kl || '') ? c.kl : (state.profile.role === 'teacher' ? '' : state.klasse); }
 // Grundlage unter den eigenen Änderungen: Schulplan (Untis), bei SuS ohne Schulplan der Klassenplan.
 function stpBasisZelle(k){
+  if(state.profile.role !== 'teacher'){ var pm = stpParallelMeins(k); if(pm !== false) return pm; }
   if(!stpSchuleDa()) return state.profile.role === 'teacher' ? undefined : stp.klasse.zellen[k];
   var s = stp.schule.zellen[k];
   if(!stpPlatzhalter(s)) return s;
@@ -47573,7 +47574,12 @@ function stpLaden(){
   var pr = loadMyCalendarEntries(addDaysStr(-7)).then(function(l){ return l.filter(function(x){ return x.type === 'pruefung' && x.subject; }); }).catch(function(err){ console.error('Stundenplan Prüfungen', err); return []; });
   return Promise.all([k, e, sch, te, tk, pr, pa]).then(function(r){
     stp.pruefungen = r[5] || [];
-    stp.parallel = (r[6] && r[6].zellen) || {};
+    // ✏️ Von Lehrpersonen angepasste Felder (manuell) gehen vor; gelten nur im selben Semester wie der Untis-Stand.
+    var pd = r[6] || {};
+    stp.parallelUntis = pd.zellen || {};
+    stp.parallelSem = pd.semester || null;
+    stp.parallelManuell = pd.manuell && (pd.manuellSem == null || pd.manuellSem === pd.semester) ? pd.manuell : {};
+    stp.parallel = Object.assign({}, stp.parallelUntis, stp.parallelManuell);
     stp.termine = { eigen:(r[3] && r[3].termine) || {}, klasse:(r[4] && r[4].termine) || {} };
     stp.klasse = { zeiten:stpZeitenAktuell(r[0] && r[0].zeiten), zellen:(r[0] && r[0].zellen) || {} };
     stp.eigen = { zeiten:stpZeitenAktuell(r[1] && r[1].zeiten), zellen:(r[1] && r[1].zellen) || {} };
@@ -47646,6 +47652,15 @@ function stpPlanRoh(ansicht){
 }
 // Parallele Fächer in diesem Feld (mind. eines), sonst null. {f|t, zi, lp, u:[uids] oder fehlt}
 function stpParallel(k){ var l = stp.parallel && stp.parallel[k]; return Array.isArray(l) && l.length ? l : null; }
+// Schüler:in: von einer Lehrperson angepasstes Parallel-Feld (✏️). Eingetragen -> dieses Fach;
+// herausgenommen (war im Untis-Stand drin) -> leer; sonst false (nichts angepasst).
+function stpParallelMeins(k){
+  if(!stp.parallelManuell || !stpHat(stp.parallelManuell, k)) return false;
+  var me = state.user.uid, drin = function(o){ return o && Array.isArray(o.u) && o.u.indexOf(me) >= 0; };
+  var m = (stp.parallelManuell[k] || []).find(drin);
+  if(m){ var z = m.f ? {f:m.f} : {t:m.t}; if(m.zi) z.zi = m.zi; if(m.lp) z.lp = m.lp; return z; }
+  return (stp.parallelUntis[k] || []).some(drin) ? undefined : false;
+}
 // Ein paralleles Fach als eigene Lektion übernehmen (Schüler:in, für alle Wochen).
 function stpParallelWaehlen(keys, o){
   var info = stpInfo(o) || {name:'Fach'};
@@ -47659,15 +47674,123 @@ function stpParallelWaehlen(keys, o){
     stpSpeichern('mein').then(function(){ toast('✓ '+info.name+' ist jetzt in deinem Stundenplan.'); });
   });
 }
-// Lehrperson: wer aus der Klasse hat dieses Fach?
-function stpParallelWer(o){
+// Lehrperson: wer aus der Klasse hat dieses Fach? Mit ✏️ Bearbeiten / ➕ weiteres Fach.
+function stpParallelWer(o, keys, oi){
   var info = stpInfo(o) || {name:'Fach'}, kopf = info.name + (o.lp ? ' · '+o.lp : '') + (o.zi ? ' · 📍 '+o.zi : '');
-  if(!o.u){ uiInfo(info.name, kopf+' · Wer genau dabei ist, steht nicht in den Gruppen (Excel).'); return; }
+  function zeigen(text, titel){
+    openModal('<h3>'+esc(titel)+'</h3><p>'+esc(text)+'</p>'+
+      (keys ? '<p class="stp-pinfo-hinweis">'+esc(stpParallelWann(keys))+' · jede Woche</p>' : '')+
+      '<div class="modal-actions">'+(keys ? '<button class="btn btn-ghost btn-sm" id="stpPNeu" type="button">➕ Weiteres Fach</button>'+
+      '<button class="btn btn-ghost btn-sm" id="stpPEdit" type="button">✏️ Bearbeiten</button>' : '')+
+      '<button class="btn btn-primary btn-sm" id="modalOk" type="button">Verstanden</button></div>');
+    document.getElementById('modalOk').addEventListener('click', closeModal);
+    if(!keys) return;
+    document.getElementById('stpPEdit').addEventListener('click', function(){ stpParallelBearbeiten(keys, oi); });
+    document.getElementById('stpPNeu').addEventListener('click', function(){ stpParallelBearbeiten(keys, -1); });
+  }
+  if(!o.u){ zeigen(kopf+' · Wer genau dabei ist, steht nicht in den Gruppen (Excel). Mit «✏️ Bearbeiten» kannst du es eintragen.', info.name); return; }
   klasseRosterLoad().then(function(list){
     var n = {}; list.forEach(function(s){ n[s.uid] = ((s.displayName || '') + ' ' + (s.nachname || '').charAt(0) + (s.nachname ? '.' : '')).trim(); });
     var namen = o.u.map(function(u){ return n[u] || '?'; }).sort(function(a, b){ return a.localeCompare(b, 'de'); });
-    uiInfo(info.name+' ('+o.u.length+')', kopf+' · '+namen.join(', '));
-  }).catch(function(){ uiInfo(info.name, kopf+' · '+o.u.length+' Schüler:innen'); });
+    zeigen(kopf+' · '+(namen.length ? namen.join(', ') : 'niemand aus der Klasse'), info.name+' ('+o.u.length+')');
+  }).catch(function(){ zeigen(kopf+' · '+o.u.length+' Schüler:innen', info.name); });
+}
+function stpParallelWann(keys){
+  var tag = +keys[0].split('-')[0], zt = (stp.klasse && stp.klasse.zeiten) || STP_ZEITEN_STANDARD;
+  var nr = keys.map(function(k){ var i = k.split('-')[1]; return /^\d+$/.test(i) ? (+i + 1) + '.' : '+'; });
+  return STP_TAGE_LANG[tag] + ', ' + nr.join(' + ') + ' Lektion';
+}
+// ✏️ Lehrperson: paralleles Fach anpassen (Fach, LP, Zimmer, wer aus der Klasse dabei ist) oder neu (oi = -1).
+// Gilt für alle Felder der Doppellektion (keys) in jeder Woche; gespeichert in stundenplanParallel.manuell,
+// das admin/stundenplan-untis.js beim Neuschreiben im selben Semester stehen lässt.
+function stpParallelBearbeiten(keys, oi){
+  var alt = oi >= 0 ? ((stp.parallel[keys[0]] || [])[oi] || null) : null;
+  if(alt) keys = stpParallelLauf(keys[0], alt);
+  var o = alt || {};
+  var q = function(v){ return esc(v || '').replace(/"/g, '&quot;'); };
+  var fSel = o.f ? o.f : (o.t ? '__andere' : '');
+  klasseRosterLoad().then(function(list){
+    list = list.slice().sort(function(a, b){ return ((a.displayName||'')+(a.nachname||'')).localeCompare((b.displayName||'')+(b.nachname||''), 'de'); });
+    var u = Array.isArray(o.u) ? o.u : [];
+    var h = '<h3>'+(alt ? '✏️ '+esc((stpInfo(alt)||{name:'Fach'}).name) : '➕ Weiteres Fach')+'</h3>'+
+      '<p class="stp-pinfo-hinweis">'+esc(stpParallelWann(keys))+' · gilt jede Woche</p>'+
+      '<label class="modal-label">Fach</label><select id="stpPFach">'+stpFachOptionen(fSel)+'</select>'+
+      '<input type="text" id="stpPText" maxlength="30" placeholder="Name, z. B. Chor" value="'+q(o.t)+'"'+(fSel==='__andere'?'':' hidden')+' style="margin-top:8px;">'+
+      '<div class="stp-felder2"><div><label class="modal-label">Lehrperson</label><input type="text" id="stpPLp" maxlength="40" value="'+q(o.lp)+'"></div>'+
+      '<div><label class="modal-label">Zimmer</label><input type="text" id="stpPZi" maxlength="20" value="'+q(o.zi)+'"></div></div>'+
+      '<label class="modal-label" style="margin-top:12px;">Wer aus der Klasse '+esc(state.klasse)+' hat dieses Fach? <span id="stpPAnz"></span></label>'+
+      '<div class="stp-pliste">'+list.map(function(s){
+        return '<label><input type="checkbox" data-uid="'+q(s.uid)+'"'+(u.indexOf(s.uid) >= 0 ? ' checked' : '')+'> '+esc(((s.displayName||'')+' '+(s.nachname||'')).trim())+'</label>';
+      }).join('')+'</div>'+
+      '<div class="modal-actions">'+(alt ? '<button class="btn btn-danger btn-sm" id="stpPWeg" type="button" style="margin-right:auto;">🗑 Entfernen</button>' : '')+
+      '<button class="btn btn-ghost btn-sm" id="modalCancel" type="button">Abbrechen</button>'+
+      '<button class="btn btn-primary btn-sm" id="modalOk" type="button">Speichern</button></div>';
+    openModal(h, 'stp-pmodal');
+    var fach = document.getElementById('stpPFach'), text = document.getElementById('stpPText');
+    var boxen = Array.prototype.slice.call(document.querySelectorAll('.stp-pliste input'));
+    function zaehlen(){ document.getElementById('stpPAnz').textContent = '(' + boxen.filter(function(b){ return b.checked; }).length + ')'; }
+    boxen.forEach(function(b){ b.addEventListener('change', zaehlen); }); zaehlen();
+    fach.addEventListener('change', function(){ text.hidden = fach.value !== '__andere'; if(!text.hidden) text.focus(); });
+    document.getElementById('modalCancel').addEventListener('click', closeModal);
+    if(alt) document.getElementById('stpPWeg').addEventListener('click', function(){
+      uiConfirm('Fach entfernen?', (stpInfo(alt)||{name:'Das Fach'}).name+' verschwindet am '+stpParallelWann(keys)+' aus dem Stundenplan der Klasse '+state.klasse+'.', '🗑 Entfernen', function(){
+        stpParallelSchreiben(keys, alt, null);
+      }, true);
+    });
+    document.getElementById('modalOk').addEventListener('click', function(){
+      var f = fach.value, t = text.value.trim();
+      if(!f || (f === '__andere' && !t)){ toast('Bitte ein Fach wählen.'); return; }
+      var neu = f === '__andere' ? {t:t} : {f:f};
+      var lp = document.getElementById('stpPLp').value.trim(), zi = document.getElementById('stpPZi').value.trim();
+      if(lp) neu.lp = lp;
+      if(zi) neu.zi = zi;
+      // Mitglieder aus anderen Klassen bleiben stehen (die Liste zeigt nur diese Klasse).
+      var hier = {}; list.forEach(function(s){ hier[s.uid] = true; });
+      neu.u = u.filter(function(x){ return !hier[x]; }).concat(boxen.filter(function(b){ return b.checked; }).map(function(b){ return b.getAttribute('data-uid'); }));
+      closeModal();
+      stpParallelSchreiben(keys, alt, neu);
+    });
+  }).catch(function(err){ console.error(err); toast('Klassenliste konnte nicht geladen werden.'); });
+}
+// Alle direkt aufeinanderfolgenden Lektionen dieses Tages mit derselben Gruppe (Fach, LP, Zimmer, Mitglieder).
+function stpParallelGleich(a, b, mitU){
+  if(!a || !b || (a.f||'') !== (b.f||'') || (a.t||'') !== (b.t||'') || (a.lp||'') !== (b.lp||'') || (a.zi||'') !== (b.zi||'')) return false;
+  if(!mitU) return true;
+  var ua = (a.u || []).slice().sort().join(','), ub = (b.u || []).slice().sort().join(',');
+  return ua === ub && !!a.u === !!b.u;
+}
+function stpParallelLauf(k0, o){
+  var ORD = ['0','1','2','3','4','m1','m2','5','6','7','8','a1','a2'];
+  var tag = k0.split('-')[0], i0 = ORD.indexOf(k0.split('-')[1]);
+  if(i0 < 0) return [k0];
+  var hat = function(i){ var l = stp.parallel[tag+'-'+ORD[i]]; return Array.isArray(l) && l.some(function(x){ return stpParallelGleich(x, o, true); }); };
+  var a = i0, b = i0;
+  while(a > 0 && hat(a-1)) a--;
+  while(b < ORD.length-1 && hat(b+1)) b++;
+  var r = []; for(var i = a; i <= b; i++) r.push(tag+'-'+ORD[i]);
+  return r;
+}
+function stpParallelSchreiben(keys, alt, neu){
+  if(neu && Array.isArray(neu.u) && !neu.u.length) neu = null;   // niemand mehr dabei -> Fach weg
+  var gleich = function(a, b){ return stpParallelGleich(a, b, true); };
+  var man = JSON.parse(JSON.stringify(stp.parallelManuell || {}));
+  keys.forEach(function(k){
+    var liste = JSON.parse(JSON.stringify(stp.parallel[k] || []));
+    var i = alt ? liste.findIndex(function(x){ return gleich(x, alt); }) : -1;
+    if(neu && i >= 0) liste[i] = neu;
+    else if(neu) liste.push(neu);
+    else if(i >= 0) liste.splice(i, 1);
+    man[k] = liste;
+  });
+  stp.parallelManuell = man;
+  stp.parallel = Object.assign({}, stp.parallelUntis || {}, man);
+  stpZeichnen();
+  setDoc(kdocFor(state.klasse, 'klasseninfo', 'stundenplanParallel'),
+    { manuell: man, manuellSem: stp.parallelSem, manuellVon: (state.profile && state.profile.displayName) || '', manuellAt: serverTimestamp() },
+    { mergeFields: ['manuell', 'manuellSem', 'manuellVon', 'manuellAt'] }
+  ).then(function(){ toast('✓ Gespeichert – gilt jede Woche, auch im Stundenplan der Schüler:innen.'); }).catch(function(err){
+    console.error(err); toast('Konnte nicht gespeichert werden.'); stpLaden().then(stpZeichnen);
+  });
 }
 // 🖼️ Bilder für freie Termine und Ferien (assets/termine/<schlüssel>.webp, gleicher Stil wie die Fachbilder).
 // Gewählt wird nach Stichwort im Titel (ohne Umlaute, Kleinschreibung); fehlt die Datei, bleibt der Punkt bzw. das Emoji.
@@ -48155,7 +48278,7 @@ function stpZeichnen(){
     b.addEventListener('click', function(){
       var po = plan.parallel && plan.parallel(b.getAttribute('data-k')), o = po && po[+b.getAttribute('data-pw')];
       if(!o) return;
-      if(lehrer) stpParallelWer(o);
+      if(lehrer) stpParallelWer(o, b.parentNode.getAttribute('data-keys').split(','), +b.getAttribute('data-pw'));
       else stpParallelWaehlen(b.parentNode.getAttribute('data-keys').split(','), o);
     });
   });
