@@ -57,7 +57,7 @@ function winterAn(){ var aus = false; try{ aus = localStorage.getItem('hl_winter
 <!-- Seit 25.11.2026 ausgelagert (Etappe 5a). Der ?v=-Stempel kommt von node admin/versionen.js.
      defer = läuft in dieser Reihenfolge vor dem Modul-Skript, die Namen (NEUIGKEITEN, ENERGIZER …) sind dort direkt sichtbar. -->
 <script src="app/daten.js?v=92f79ea94b" defer></script>
-<script src="app/neuigkeiten.js?v=2ed17c1339" defer></script>
+<script src="app/neuigkeiten.js?v=3e615c79ee" defer></script>
 <script type="module">
 import {
   initializeApp
@@ -313,6 +313,10 @@ function fehlerMelden(quelle, err, zusatz){
     var msg = ((zusatz ? zusatz + ' ' : '') + fehlerText(err)).trim().slice(0, 1000);
     var stack = String((err && err.stack) || '').slice(0, 4000);
     if(!msg || FEHLER_IGNORIEREN.test(msg) || /extension:\/\//.test(stack)) return;
+    // Direkt nach einer Anmeldung: abgelehnte Zugriffe erst zurückhalten, bis tokenNachlauf()
+    // fertig ist (27.11.2026: Bommeli G1b und Helfenberger G3b, je 5 Lesezugriffe 1–2 s nach
+    // dem Anmelden abgelehnt, auch das eigene Einstellungs-Dokument).
+    if(err && err.code === 'permission-denied' && nachlaufHalten(quelle, err, zusatz)) return;
     var sig = msg.slice(0, 200);
     if(fehlerGesehen[sig]) return;
     fehlerGesehen[sig] = 1;
@@ -380,13 +384,47 @@ console.error = function(){
    einmal frisches Token holen und die Startseite neu aufbauen – sonst bleiben Links,
    Ämtliplan, Stundenplan usw. leer, bis jemand neu lädt. Nur auf der Startseite und
    nur, wenn gerade kein Dialog offen ist. */
-var tokenNachlaufGetan = false;
+/* Seit 27.11.2026 gilt das Fenster ab der letzten Anmeldung (loginAb, gesetzt in
+   authGeaendert), nicht nur ab dem Laden der Seite: Wer sich im offenen Tab ab- und wieder
+   anmeldet (Helfenberger, 5059 s nach dem Laden), bekam sonst keinen Nachlauf.
+   Abgelehnte Zugriffe in diesem Fenster werden zurückgehalten (nachlaufHalten). Lehnt
+   Firestore gleich mehrere verschiedene ab und klappt es danach mit frischem Token, war
+   die Anmeldung nur kurz nicht bereit: dann nichts melden, sondern neu laden. Eine einzelne
+   Ablehnung (eher eine Regel-Lücke) wird nach dem Nachlauf normal gemeldet. */
+var tokenNachlaufGetan = false, loginAb = 0, nachlaufFertig = false, nachlaufGehalten = [];
+function nachlaufFenster(){ return !nachlaufFertig && performance.now() - loginAb < 120000 && !!auth.currentUser; }
+function nachlaufHalten(quelle, err, zusatz){
+  if(!nachlaufFenster()) return false;
+  if(nachlaufGehalten.length < 30) nachlaufGehalten.push([quelle, err, zusatz]);
+  tokenNachlauf();
+  return true;
+}
+function nachlaufAbschliessen(ok){
+  nachlaufFertig = true;
+  var liste = nachlaufGehalten;
+  nachlaufGehalten = [];
+  var arten = {};
+  liste.forEach(function(x){ arten[(x[2] || '') + fehlerText(x[1])] = 1; });
+  if(ok && Object.keys(arten).length >= 2){ console.warn('Anmeldung kurz nicht bereit:', liste.length, 'Zugriffe abgelehnt, nach Token-Erneuerung neu geladen'); return; }
+  liste.forEach(function(x){ fehlerMelden(x[0], x[1], x[2]); });
+}
+function nachlaufNeuLaden(){
+  // Was beim Anmelden einmal geladen und danach zwischengespeichert wird, nochmals holen.
+  try{
+    if(!state.user || !state.profile) return;
+    linksLoad(true);
+    i18nKontoLaden();
+    stpVorladen();
+    if(state.profile.role === 'teacher') refreshSettingsBadge(true);
+  }catch(e){}
+}
 function tokenNachlauf(){
-  if(tokenNachlaufGetan || performance.now() > 120000 || !auth.currentUser) return;
+  if(tokenNachlaufGetan || performance.now() - loginAb > 120000 || !auth.currentUser) return;
   tokenNachlaufGetan = true;
+  var fuerLogin = loginAb;
   setTimeout(function(){
     var u = auth.currentUser;
-    if(!u) return;
+    if(!u || fuerLogin !== loginAb) return;
     u.getIdToken(true).then(function(){
       // Probe: das eigene Einstellungs-Dokument darf jede angemeldete Person lesen.
       // Wird auch das abgelehnt, nimmt Firestore die Anmeldung dieses Tabs gar nicht
@@ -397,12 +435,15 @@ function tokenNachlauf(){
         return false;
       });
     }).then(function(ok){
+      if(fuerLogin !== loginAb) return;
+      nachlaufAbschliessen(ok !== false);
       try{
         var ruhig = state.route && (state.route.name === 'home' || state.route.name === 'subject') && !modalEl.classList.contains('show');
         if(ok === false){ if(ruhig) location.reload(); return; }
+        nachlaufNeuLaden();
         if(ruhig) render();
       }catch(e){}
-    }, function(){});
+    }, function(){ if(fuerLogin === loginAb) nachlaufAbschliessen(false); });
   }, 1500);
 }
 /* Firestore-Tageslimit (Gratis-Tarif «Spark») erreicht: Schreiben/Lesen schlägt
@@ -1126,7 +1167,10 @@ function calendarEntryLineHtml(e, isTeacher, roster){
     (isTeacher && e.verborgen ? ' <span class="cal-verborgen-tag" title="Schüler:innen sehen diesen Eintrag noch nicht">🙈 VERBORGEN – Schüler:innen sehen das noch nicht</span>' : '')+
     (isTeacher && e.nurOffen && hasSubmissionChecklist(e.type) ? ' <span class="cal-gruppe-tag" title="Verlängert: nur noch sichtbar für die, die in der Abgabe-Checkliste noch nicht abgehakt sind">⏰ nur noch Offene</span>' : '')+'</div>';
   html += '<div class="cal-entry-text">'+esc(e.title)+'</div>';
-  if(e.type === 'pruefung' && e.schreibenIn){ html += '<div class="cal-entry-desc">📍 Geschrieben '+(e.schreibenIn === 'frei' ? 'in einer freien Lektion (z. B. ISF)' : 'in der Lektion «'+esc(subjectName(e.schreibenIn))+'»')+'</div>'; }
+  if(e.type === 'pruefung' && (e.schreibenIn || e.lektion != null)){
+    var lkNr = e.lektion != null && /^\d+$/.test(String(e.lektion)) ? ', '+(+e.lektion + 1)+'. Lektion' : '';
+    html += '<div class="cal-entry-desc">📍 Geschrieben '+(e.schreibenIn === 'frei' ? 'in einer freien Lektion (z. B. ISF)' : 'in der Lektion «'+esc(subjectName(e.schreibenIn || e.subject))+'»'+lkNr)+'</div>';
+  }
   if(e.description){ html += '<div class="cal-entry-desc">'+esc(e.description)+'</div>'; }
   var links = calendarEntryResources(e);
   if(links.length){
@@ -1364,36 +1408,51 @@ function uiCalendarEntryForm(existing, onSaved){
 
   // 📝 Prüfung in einem anderen Fach oder einer freien Lektion schreiben (z. B. Geschichte-Prüfung in der Geografie-Lektion).
   var woWrap = document.getElementById('calWoWrap'), woEl = document.getElementById('calWo'), woHint = document.getElementById('calWoHint');
-  var woWunsch = existing && existing.schreibenIn ? existing.schreibenIn : '';
+  // Wert: «fach@slot» – Fach leer = das Prüfungsfach; @slot nur, wenn das Fach an dem Tag mehrmals vorkommt.
+  var woWunsch = existing ? (existing.schreibenIn || '') + (existing.lektion != null ? '@'+existing.lektion : '') : '';
+  var woNeu = !existing;
   function woFuellen(){
     var istPr = document.getElementById('calType').value === 'pruefung';
     woWrap.hidden = !istPr;
     if(!istPr) return;
     var datum = document.getElementById('calDate').value, fach = subjectEl.value;
-    var lektionen = [];   // [{f, name, nr}]
+    var lektionen = [];   // [{f, name, nr, s, von}] – zusammenhängende Lektionen desselben Fachs = ein Block
     if(stp.geladen && stp.klasseName === seiteId && datum && rbuTag(datum) < 5){
-      var plan = stpPlanRoh('klasse'), tag = rbuTag(datum);
+      var plan = stpPlanRoh('klasse'), tag = rbuTag(datum), vorher = null;
       stpZeilen(plan).forEach(function(r){
-        var info = stpInfo(plan.zelle(stpKey(tag, r.s)));
-        var c = plan.zelle(stpKey(tag, r.s));
-        if(info && info.fachId && c && c.f) lektionen.push({f:c.f, name:info.name, nr:r.nr});
+        var c = plan.zelle(stpKey(tag, r.s)), info = stpInfo(c);
+        if(info && info.fachId && c && c.f){
+          if(vorher && vorher.f === c.f) { vorher = {f:c.f}; return; }   // Doppellektion: zählt als ein Block
+          lektionen.push({f:c.f, name:info.name, nr:r.nr, s:String(r.s), von:r.von});
+          vorher = {f:c.f};
+        } else vorher = null;
       });
     }
-    var h = '<option value="">'+(fach ? 'Normal, in der Lektion «'+esc(subjectName(fach))+'»' : 'Normal (kein Fach gewählt)')+'</option>', gesehen = {};
+    var anzahl = {}; lektionen.forEach(function(l){ anzahl[l.f] = (anzahl[l.f] || 0) + 1; });
+    var wann = function(l){ return (/^\d+$/.test(l.nr) ? l.nr+'. Lektion' : 'Zusatzlektion')+', '+l.von; };
+    var h = '', gesehen = {};
+    if(fach && anzahl[fach] > 1){
+      lektionen.forEach(function(l){ if(l.f === fach) h += '<option value="@'+esc(l.s)+'">Normal, in der Lektion «'+esc(l.name)+'» – '+esc(wann(l))+'</option>'; });
+      h += '<option value="">In beiden Lektionen «'+esc(subjectName(fach))+'» anzeigen</option>';
+    } else h += '<option value="">'+(fach ? 'Normal, in der Lektion «'+esc(subjectName(fach))+'»' : 'Normal (kein Fach gewählt)')+'</option>';
     lektionen.forEach(function(l){
-      if(l.f === fach || gesehen[l.f]) return;
-      gesehen[l.f] = true;
-      h += '<option value="'+esc(l.f)+'">In der Lektion «'+esc(l.name)+'» (Lektion '+esc(l.nr)+')</option>';
+      if(l.f === fach) return;
+      var v = anzahl[l.f] > 1 ? l.f+'@'+l.s : l.f;
+      gesehen[v] = true;
+      h += '<option value="'+esc(v)+'">In der Lektion «'+esc(l.name)+'» ('+esc(wann(l))+')</option>';
     });
     h += '<option value="frei">In einer freien Lektion (z. B. ISF)</option>';
-    if(woWunsch && woWunsch !== 'frei' && !gesehen[woWunsch]) h += '<option value="'+esc(woWunsch)+'">In der Lektion «'+esc(subjectName(woWunsch))+'» (bisher)</option>';
+    var wf = woWunsch.split('@')[0];
+    if(wf && wf !== 'frei' && !gesehen[woWunsch]) h += '<option value="'+esc(woWunsch)+'">In der Lektion «'+esc(subjectName(wf))+'» (bisher)</option>';
     woEl.innerHTML = h;
-    woEl.value = woWunsch && woEl.querySelector('option[value="'+woWunsch+'"]') ? woWunsch : '';
+    var hat = function(v){ return Array.prototype.some.call(woEl.options, function(o){ return o.value === v; }); };
+    // Neue Prüfung in einem Fach, das am Tag mehrmals vorkommt: erste Lektion vorschlagen.
+    woEl.value = hat(woWunsch) ? woWunsch : (woNeu && !woWunsch && woEl.options[0] ? woEl.options[0].value : '');
     var hatFach = !fach || lektionen.some(function(l){ return l.f === fach; });
     woHint.textContent = stp.geladen && stp.klasseName === seiteId && datum && rbuTag(datum) < 5 && !hatFach
       ? '⚠️ «'+subjectName(fach)+'» hat die Klasse an diesem Tag nicht – wähle eine Lektion oder eine freie Lektion.' : '';
   }
-  woEl.addEventListener('change', function(){ woWunsch = woEl.value; });
+  woEl.addEventListener('change', function(){ woWunsch = woEl.value; woNeu = false; });
   document.getElementById('calType').addEventListener('change', woFuellen);
   document.getElementById('calDate').addEventListener('change', woFuellen);
   subjectEl.addEventListener('change', woFuellen);
@@ -1417,8 +1476,9 @@ function uiCalendarEntryForm(existing, onSaved){
     if(!title){ errEl.textContent='Bitte einen Titel eingeben.'; errEl.classList.add('show'); titleEl.focus(); return; }
     if(!dueDate){ errEl.textContent='Bitte ein Datum wählen.'; errEl.classList.add('show'); return; }
     var data = { type:type, subject:subject, title:title.slice(0,120), description:description.slice(0,500), dueDate:dueDate, resourceId:resourceId, resourceTitle:resourceTitle, resources:resources };
-    var woWert = type === 'pruefung' ? woEl.value : '';
-    if(woWert) data.schreibenIn = woWert; else if(existing) data.schreibenIn = deleteField();
+    var woWert = type === 'pruefung' ? woEl.value : '', woFach = woWert.split('@')[0], woSlot = woWert.indexOf('@') >= 0 ? woWert.split('@')[1] : '';
+    if(woFach) data.schreibenIn = woFach; else if(existing) data.schreibenIn = deleteField();
+    if(woSlot) data.lektion = woSlot; else if(existing) data.lektion = deleteField();
     var verbEl = document.getElementById('calVerborgen');
     if(verbEl){ if(verbEl.checked) data.verborgen = true; else if(existing) data.verborgen = deleteField(); }
     if(nurOffenEl) data.nurOffen = nurOffenEl.checked && hasSubmissionChecklist(type) ? true : deleteField();
@@ -6092,6 +6152,7 @@ async function authGeaendert(user){
   // "Start" zurückgesetzt und so unbemerkt den bereits getippten Text riskiert.
   if(user && lastAuthedUid && user.uid === lastAuthedUid){ if(!alsSchueler()) state.user = user; return; }
   state.user = user;
+  if(user){ loginAb = performance.now(); tokenNachlaufGetan = false; nachlaufFertig = false; nachlaufGehalten = []; }
   if(!user){
     lastAuthedUid = null;
     state.profile = null;
@@ -47611,9 +47672,15 @@ function stpLaden(){
   });
 }
 // Prüfung (Kalender-Eintrag) dieses Fachs an diesem Datum, sonst null.
-function stpPruefung(datum, c){
+// slots: Lektionen dieses Feldes (Doppellektion); hat die Prüfung eine Lektion (e.lektion), nur dort.
+function stpPruefung(datum, c, slots){
   if(!c || !c.f || !stp.pruefungen) return null;
-  for(var i = 0; i < stp.pruefungen.length; i++){ var e = stp.pruefungen[i]; if(e.dueDate === datum && (e.schreibenIn ? e.schreibenIn === c.f : e.subject === c.f)) return e; }
+  for(var i = 0; i < stp.pruefungen.length; i++){
+    var e = stp.pruefungen[i];
+    if(e.dueDate !== datum || (e.schreibenIn ? e.schreibenIn !== c.f : e.subject !== c.f)) continue;
+    if(e.lektion != null && slots && slots.indexOf(String(e.lektion)) < 0) continue;
+    return e;
+  }
   return null;
 }
 // Prüfungen dieses Datums, die in einer freien Lektion geschrieben werden.
@@ -48133,7 +48200,8 @@ function stpZeichnen(){
       var kl = c.kl; if(kl && kl === state.klasse && !lehrer) kl = '';   // Schüler:innen: die eigene Klasse muss nicht in jeder Zelle stehen
       var sub = [tmHier && stpTerminZeit(c) ? '🕒 '+stpTerminZeit(c) : '', kl || '', c.zi || '', c.lp || ''].filter(Boolean).join(' · ');
       if(sub) inner += '<span class="stp-sub">'+esc(sub)+'</span>';
-      var prf = !vorlage && !a.ferien && !(a.termin && !a.par) ? stpPruefung(stpDatum(tag), c) : null;
+      var prfSlots = []; for(var pr = zeilen.indexOf(z), pr2 = z2 ? zeilen.indexOf(z2) : pr; pr >= 0 && pr <= pr2; pr++) prfSlots.push(String(zeilen[pr].s));
+      var prf = !vorlage && !a.ferien && !(a.termin && !a.par) ? stpPruefung(stpDatum(tag), c, prfSlots) : null;
       if(prf) inner += stpPruefPille(prf, c);
       inner += '</span>';
     } else if(c && c.frei){

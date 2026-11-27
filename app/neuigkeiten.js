@@ -3,6 +3,7 @@
 // Klassisches Skript vor dem Modul-Skript. Nach jeder Änderung: node admin/versionen.js
 
 const NEUIGKEITEN = [
+  {id:'2026-11-27-pruefung-lektion', datum:'2026-11-27', fuer:'lehrer', text:'📝 Prüfung im Kalender: Kommt das Fach an dem Tag zweimal vor (z. B. Mathe am Morgen und am Nachmittag), wählst du unter «Wo wird die Prüfung geschrieben?» die Lektion. Die Prüfung erscheint dann nur dort im Stundenplan.'},
   {id:'2026-11-27-import-ohne-uebung', datum:'2026-11-27', fuer:'lehrer', text:'📥 Prüfung importieren geht jetzt auch ohne Übung: Prüfungsdatei (.json) laden, «Prüfung anlegen» – fertig. Eine Übung wählst du nur noch, wenn du im 🧩 Baukasten Fragen daraus dazunehmen willst.'},
   {id:'2026-11-27-import-knopf-hinweis', datum:'2026-11-27', fuer:'lehrer', text:'📥 Prüfung importieren: Fehlt noch die Übung (oder die Datei), sagt «Prüfung anlegen» jetzt, was fehlt, statt stumm zu bleiben.'},
   {id:'2026-11-27-parallel-bearbeiten', datum:'2026-11-27', fuer:'lehrer', text:'🗓️ Stundenplan › Klasse: Freifächer und Halbklassen (die Spalten in leeren Feldern) kannst du jetzt selbst anpassen – Fach antippen › ✏️ Bearbeiten: Schüler:innen an- oder abhaken, Lehrperson/Zimmer ändern, Fach entfernen, oder ➕ ein weiteres Fach daneben. Gilt jede Woche, auch im Stundenplan der Schüler:innen.'},
