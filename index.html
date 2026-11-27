@@ -44,7 +44,7 @@ function winterAn(){ var aus = false; try{ aus = localStorage.getItem('hl_winter
 <link rel="modulepreload" href="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js" crossorigin>
 <!-- Schriften und Bibliotheken liegen seit 08.10.2026 im eigenen Ordner assets/vendor/ (keine Abrufe mehr bei Google Fonts und jsdelivr). -->
 <link rel="stylesheet" href="assets/vendor/fonts/schriften.css">
-<link rel="stylesheet" href="app/stil.css?v=9ddcd423e4">
+<link rel="stylesheet" href="app/stil.css?v=e6ff0ade24">
 <script>if(/-test\//.test(location.pathname))document.documentElement.classList.add('test-site');</script>
 </head>
 <body>
@@ -57,7 +57,7 @@ function winterAn(){ var aus = false; try{ aus = localStorage.getItem('hl_winter
 <!-- Seit 25.11.2026 ausgelagert (Etappe 5a). Der ?v=-Stempel kommt von node admin/versionen.js.
      defer = läuft in dieser Reihenfolge vor dem Modul-Skript, die Namen (NEUIGKEITEN, ENERGIZER …) sind dort direkt sichtbar. -->
 <script src="app/daten.js?v=92f79ea94b" defer></script>
-<script src="app/neuigkeiten.js?v=346045ab5b" defer></script>
+<script src="app/neuigkeiten.js?v=3d4ba6195f" defer></script>
 <script type="module">
 import {
   initializeApp
@@ -34242,14 +34242,16 @@ function lphPaint(){
     lph.tab.type = 'button';
     lph.tab.className = 'lph-tab';
     lph.tab.title = 'Lernphase anzeigen';
-    lph.tab.addEventListener('click', function(){ lph.offen = true; lphPaint(); });
+    lph.tab.addEventListener('click', function(){ if(lph.pipWin){ lphPipZu(); return; } lph.offen = true; lphPaint(); });
     document.body.appendChild(lph.tab);
   }
   var haende = lphHaende();
-  lph.tab.hidden = lph.offen;
+  lph.tab.hidden = lph.offen && !lph.pipWin;
+  lph.tab.title = lph.pipWin ? 'Lernphase zurück ins Library-Fenster holen' : 'Lernphase anzeigen';
   lph.tab.classList.toggle('rot', rot > 0);
   lph.tab.innerHTML = '📚' + (rot ? '<b>'+rot+'</b>' : '') + (haende.length ? '<b class="hand">✋'+haende.length+'</b>' : '');
 
+  if(lph.pipWin) lph.offen = true;
   if(!lph.offen){
     if(lph.panel){ lph.panel.remove(); lph.panel = null; }
     document.body.classList.remove('lph-offen');
@@ -34264,13 +34266,14 @@ function lphPaint(){
     lph.panel.addEventListener('change', function(e){
       if(e.target.id === 'lphSort'){ lphSortSet(e.target.value); lphPaint(); }
     });
-    document.body.appendChild(lph.panel);
+    (lph.pipWin ? lph.pipWin.document.body : document.body).appendChild(lph.panel);
     if(!lph.gruppen){
       lph.gruppen = [];
       loadMeineGruppen().then(function(list){ lph.gruppen = list; lphPaint(); }).catch(function(err){ console.error(err); });
     }
   }
-  document.body.classList.add('lph-offen');
+  // Im Bild-in-Bild braucht das Library-Fenster rechts keinen Platz für das Panel.
+  document.body.classList.toggle('lph-offen', !lph.pipWin);
 
   // Sortieren: A–Z oder nach den 👥 Gruppen eines Fachs.
   var faecher = [];
@@ -34279,8 +34282,10 @@ function lphPaint(){
   if(sort && faecher.indexOf(sort) < 0) sort = '';
 
   var h = '<div class="lph-head"><div><b>📚 Lernphase</b><small>'+esc(p.titel || '')+(p.nurFach && p.nurFach.id ? '<br>nur: '+esc(p.nurFach.titel || '') : p.nurUebung && p.nurUebung.id ? '<br>nur: '+esc(p.nurUebung.titel || '') : '')+'</small></div>'+
-    '<span><button class="lph-mini" data-lph="pip" type="button" title="Immer im Vordergrund — auch wenn du in einem anderen Programm arbeitest">📌</button>'+
-    '<button class="lph-mini" data-lph="zu" type="button" title="Einklappen">⟩</button></span></div>';
+    '<span>'+(lph.pipWin
+      ? '<button class="lph-mini" data-lph="pip" type="button" title="Zurück ins Library-Fenster">↩️</button>'
+      : '<button class="lph-mini" data-lph="pip" type="button" title="Bild-in-Bild: schwebt immer im Vordergrund, auch über anderen Programmen und im Vollbild">📌</button>'+
+        '<button class="lph-mini" data-lph="zu" type="button" title="Einklappen">⟩</button>')+'</span></div>';
   h += '<div class="lph-sum"><span class="lph-ok">🟢 '+(sichtbar.length - rot)+' drin</span><span class="lph-bad">🔴 '+rot+' raus</span></div>';
   if(haende.length){
     h += '<div class="lph-fragen"><b>✋ Fragen ('+haende.length+')</b>';
@@ -34318,7 +34323,7 @@ function lphPaint(){
     aus.slice().sort(abc).forEach(function(u){ h += lphZeile(u, nameVon(u), true); });
   }
   h += '</div>';
-  h += '<div class="lph-foot"><button class="btn btn-ghost btn-sm" data-lph="ende" type="button">⏹ Lernphase beenden</button></div>';
+  h += '<div class="lph-foot"><button class="btn btn-ghost btn-sm" data-lph="ende" type="button">'+(lph.pipWin && lph.endeBis > Date.now() ? '⚠️ Nochmals klicken = beenden' : '⏹ Lernphase beenden')+'</button></div>';
   // Nur neu zeichnen, wenn sich etwas geändert hat: jede Meldung einer Schüler:in löst einen Paint
   // aus, und ein mitten im Klick ersetzter Knopf (📌, Sortieren …) schluckt den Klick.
   if(lph.panelHtml !== h || !lph.panel.firstChild){
@@ -34350,6 +34355,12 @@ function lphTickStart(){
 }
 function lphPanelZu(){
   if(pipv.art === 'lph') pipStoppen();
+  if(lph.pipWin){
+    var pw = lph.pipWin;
+    lph.pipWin = null; lph.endeBis = 0;
+    pipTaktStopp(lph.pipTakt); lph.pipTakt = null;
+    try{ pw.close(); }catch(e){}
+  }
   if(lph.panel){ lph.panel.remove(); lph.panel = null; }
   if(lph.tab){ lph.tab.remove(); lph.tab = null; }
   if(lph.tick){ clearInterval(lph.tick); lph.tick = null; }
@@ -34367,12 +34378,88 @@ function lphPanelKlick(e){
   } else if(b.hasAttribute('data-lph-ein')){
     updateDoc(ref, {aus: arrayRemove(b.getAttribute('data-lph-ein'))}).catch(function(err){ console.error(err); toast('Konnte nicht einblenden.'); });
   } else if(b.getAttribute('data-lph') === 'pip'){
-    try{ pipStarten('lph'); }catch(err){ console.error('Bild-in-Bild', err); toast('📌 Das Fenster liess sich nicht öffnen.'); }
+    lphPipUmschalten();
   } else if(b.getAttribute('data-lph') === 'zu'){
     lph.offen = false; lphPaint();
+  } else if(b.getAttribute('data-lph') === 'ende' && lph.pipWin){
+    // Im Bild-in-Bild wäre der Dialog im verdeckten Library-Fenster: darum zweimal klicken.
+    if(lph.endeBis > Date.now()){ lph.endeBis = 0; lphBeenden(); }
+    else {
+      lph.endeBis = Date.now() + 4000; lphPaint();
+      setTimeout(function(){ if(lph.endeBis && lph.endeBis <= Date.now()){ lph.endeBis = 0; lphPaint(); } }, 4100);
+    }
   } else if(b.getAttribute('data-lph') === 'ende'){
     uiConfirm('Lernphase beenden?', 'Die Übersicht wird geschlossen und die Anzeige bei allen gelöscht.', 'Beenden', lphBeenden, true);
   }
+}
+
+/* 📌 Lernphase im Bild-in-Bild (27.11.2026): Das echte Panel wandert in ein Document-Picture-in-Picture-
+   Fenster (Chrome/Edge). Es schwebt über allen Programmen, auch im Vollbild, bleibt live und bedienbar
+   (Sortieren, ✋, 🙈/👁, Beenden). Schliesst man es, kommt das Panel ins Library-Fenster zurück.
+   requestWindow braucht die Klick-Geste: darum direkt im Klick aufrufen, ohne Umweg über den Video-Weg.
+   Safari (keine API): wie bisher nur das gezeichnete Video-Bild-in-Bild. */
+function lphPipUmschalten(){
+  if(lph.pipWin){ lphPipZu(); return; }
+  if(window.documentPictureInPicture && typeof documentPictureInPicture.requestWindow === 'function'){
+    var pr;
+    try{ pr = documentPictureInPicture.requestWindow({width:340, height:640}); }
+    catch(err){ pr = Promise.reject(err); }
+    pr.then(lphPipAuf).catch(function(err){
+      console.error('Bild-in-Bild', err);
+      toast('📌 Das Bild-in-Bild-Fenster liess sich nicht öffnen. Bitte nochmals direkt auf 📌 klicken.');
+    });
+    return;
+  }
+  if(pipMoeglich()){
+    try{ pipStarten('lph'); toast('📌 Dieser Browser zeigt die Lernphase nur als Bild. Für ein bedienbares Fenster die Library in Chrome oder Edge öffnen.'); }
+    catch(err){ console.error('Bild-in-Bild', err); toast('📌 Das Fenster liess sich nicht öffnen.'); }
+    return;
+  }
+  uiInfo('📌 Bild-in-Bild nicht möglich', 'Dieser Browser kann kein schwebendes Fenster öffnen. Öffne die Library dafür in Chrome oder Edge.');
+}
+function lphPipAuf(w){
+  if(!lph.phase || !lph.panel){ try{ w.close(); }catch(e){} return; }
+  if(pipv.art === 'lph') pipStoppen();
+  var d = w.document;
+  // Alle Stile der Library mitnehmen (Dateien als Link, eingebettete als Kopie).
+  Array.prototype.forEach.call(document.styleSheets, function(sh){
+    try{
+      if(sh.href){
+        var l = d.createElement('link');
+        l.rel = 'stylesheet'; l.href = sh.href;
+        if(sh.media && sh.media.mediaText) l.media = sh.media.mediaText;
+        d.head.appendChild(l);
+      } else {
+        var st = d.createElement('style');
+        st.textContent = Array.prototype.map.call(sh.cssRules, function(r){ return r.cssText; }).join('\n');
+        d.head.appendChild(st);
+      }
+    }catch(e){}
+  });
+  var thema = document.documentElement.getAttribute('data-theme');
+  if(thema) d.documentElement.setAttribute('data-theme', thema);
+  d.documentElement.lang = document.documentElement.lang || 'de';
+  d.body.className = 'lph-pip-body';
+  d.title = '📚 Lernphase';
+  lph.pipWin = w; lph.offen = true; lph.endeBis = 0;
+  d.body.appendChild(lph.panel);   // Klick-/Change-Listener hängen am Panel und kommen mit
+  lph.panelHtml = null;
+  w.addEventListener('pagehide', function(){ if(lph.pipWin === w) lphPipWeg(); });
+  // Chrome bremst Timer im Hintergrund-Tab: ein Worker hält «seit 3:02» trotzdem aktuell.
+  lph.pipTakt = pipTakt(function(){ if(lph.phase && lph.pipWin) lphPaint(); }, 2000);
+  lphPaint();
+}
+function lphPipWeg(){
+  lph.pipWin = null; lph.endeBis = 0;
+  pipTaktStopp(lph.pipTakt); lph.pipTakt = null;
+  if(lph.panel){ document.body.appendChild(lph.panel); lph.panelHtml = null; }
+  if(lph.phase) lphPaint();
+}
+function lphPipZu(){
+  var w = lph.pipWin;
+  if(!w) return;
+  lphPipWeg();
+  try{ w.close(); }catch(e){}
 }
 
 function lphPraesenzLoeschen(){

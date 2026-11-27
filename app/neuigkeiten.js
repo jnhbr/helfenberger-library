@@ -3,6 +3,7 @@
 // Klassisches Skript vor dem Modul-Skript. Nach jeder Änderung: node admin/versionen.js
 
 const NEUIGKEITEN = [
+  {id:'2026-11-27-lernphase-bild-in-bild', datum:'2026-11-27', fuer:'lehrer', text:'📌 Lernphase im Bild-in-Bild: Der 📌 oben im Lernphase-Panel öffnet jetzt ein echtes schwebendes Fenster (Chrome/Edge). Es bleibt über allen Programmen und im Vollbild sichtbar, aktualisiert sich live, und du kannst darin sortieren, ausblenden und beenden. Mit ↩️ oder durch Schliessen kommt das Panel zurück.'},
   {id:'2026-11-27-werkstatt-reset-anfrage', datum:'2026-11-27', fuer:'alle', text:'✍️ Rechtschreib-Werkstatt: «↺ Zurücksetzen anfragen» löscht deinen Stand nicht mehr sofort. Deine Lehrperson bekommt eine Anfrage und muss zuerst bestätigen. Erst dann wird beim nächsten Öffnen gelöscht.'},
   {id:'2026-11-27-werkstatt-reset-lp', datum:'2026-11-27', fuer:'lehrer', text:'🔁 Werkstatt zurücksetzen: Fragt eine Schüler:in an, erscheint bei dir ein Fenster mit «✓ Zurücksetzen» / «✕ Ablehnen» (auch unter ⚙️ Einstellungen › 🔁 Werkstatt zurücksetzen). Gelöscht wird erst nach deiner Bestätigung.'},
   {id:'2026-11-26-parallele-faecher', datum:'2026-11-26', fuer:'lehrer', text:'🔀 Klassen-Stundenplan: Wo die Klasse auf Wahlfächer oder Halbklassen verteilt ist, stehen jetzt alle Fächer nebeneinander mit Symbol und Anzahl Schüler:innen (aus Untis/Gruppen). Antippen zeigt, wer dabei ist. Von Hand eingetragene Lektionen bleiben, wie sie sind.'},
