@@ -57,7 +57,7 @@ function winterAn(){ var aus = false; try{ aus = localStorage.getItem('hl_winter
 <!-- Seit 25.11.2026 ausgelagert (Etappe 5a). Der ?v=-Stempel kommt von node admin/versionen.js.
      defer = läuft in dieser Reihenfolge vor dem Modul-Skript, die Namen (NEUIGKEITEN, ENERGIZER …) sind dort direkt sichtbar. -->
 <script src="app/daten.js?v=92f79ea94b" defer></script>
-<script src="app/neuigkeiten.js?v=3e615c79ee" defer></script>
+<script src="app/neuigkeiten.js?v=7037e526fb" defer></script>
 <script type="module">
 import {
   initializeApp
@@ -34963,6 +34963,7 @@ function pruefUmwandeln(f){
   if(f.bild) basis.bild = f.bild;
   if(f.bloom) basis.bloom = f.bloom;
   if(f.typ === 'mc'){
+    if(Array.isArray(f.loesung)) return out;   // Mehrfachauswahl: nicht als Eintippfrage
     var r = (f.optionen || [])[f.loesung];
     if(!pruefKurzeAntwort(r) || !f.frage) return out;
     if(/(aussage|satz|behauptung|stimmt|trifft|richtig|falsch|nicht|kein|folgend|genannt|oben|unten|antwort|möglichkeit|moeglichkeit|option|welche.{0,20}(passt|gehört|gehoert)\s*$)/i.test(f.frage)) return out;
@@ -35029,6 +35030,19 @@ function pruefOffenBewerten(antwort, L, max){
   return {pkt:pkt, hinweis:kw.length ? 'Stichwörter gefunden: ' + (hit.join(', ') || '–') + (miss.length ? ' · fehlen: ' + miss.join(', ') : '') : 'Keine Stichwörter — bitte selbst bewerten.'};
 }
 function pruefHalb(x){ return Math.floor(x * 2 + 1e-9) / 2; }
+/* ☑️ Mehrfachauswahl (27.11.2026, Bommeli G1b): Eine MC-Frage mit mehreren richtigen
+   Antworten hat als loesung eine Liste von Indizes; q.mehrfach = true zeigt Kästchen
+   statt einer Auswahl. Bewertung mit Teilpunkten: (richtige − falsche Kreuze) / Anzahl
+   richtige × Punkte, nie unter 0, auf halbe Punkte abgerundet. */
+function pruefMcLsg(x){
+  if(!Array.isArray(x)) return +x || 0;
+  var l = x.map(function(v){ return +v; }).filter(function(v, i, a){ return !isNaN(v) && v >= 0 && a.indexOf(v) === i; }).sort(function(a, b){ return a - b; });
+  return l.length > 1 ? l : (l[0] || 0);
+}
+function pruefMcText(optionen, loesung){
+  return [].concat(loesung).map(function(i){ return (optionen || [])[i]; }).filter(function(x){ return x != null; }).join(' · ');
+}
+function pruefMcRichtig(loesung, j){ return Array.isArray(loesung) ? loesung.indexOf(j) >= 0 : j === loesung; }
 function pruefKorr(korrektur, id, max){
   if(!korrektur || !korrektur.hasOwnProperty(id)) return null;
   var k = korrektur[id];
@@ -35395,6 +35409,7 @@ async function pruefStarten(p, weiter, vorschau){
     });
   }, 30000);
   var vorher = pruef.mine[p.id], docOk = false;
+  if(!vorschau) pruefTabMerken(p.id);
   try{
     if(!vorschau){
       var startMs = weiter && pruef.mine[p.id] && pruef.mine[p.id].startMs ? pruef.mine[p.id].startMs : Date.now();
@@ -35673,6 +35688,14 @@ function pruefStudentUpdate(){
     if(pruef.lockSig && pruef.lockSig !== 'seb:' + p.id) pruefLockHide();
     return;
   }
+  // Läuft die Prüfung in einem ANDEREN Tab/Fenster/Gerät (dieser Tab hat sie nie geöffnet)
+  // und meldet sich dieses Fenster noch: hier nicht sperren, nur darauf hinweisen. Sonst
+  // sperrte ein vergessener zweiter Tab die Person bei jedem Weiterschreiben sofort wieder
+  // (Bommeli G1b, 27.11.2026: Noa und Silas je 8× in 3 Minuten).
+  if(t.status === 'laeuft' && t.aktiv && !pruefTabWarHier(p.id) && pruefLebtNoch(t)){
+    pruefZeigeAnderswo(p);
+    return;
+  }
   if(t.status === 'laeuft' && t.aktiv && t.geladen === false){
     // Die Prüfung war noch gar nicht fertig geladen (langsame Verbindung) —
     // dafür wird niemand gesperrt: einfach nochmals versuchen lassen.
@@ -35696,6 +35719,30 @@ function pruefStudentUpdate(){
     return;
   }
   pruefZeigeEntsperrt(p);
+}
+// Dieser Tab hat die Prüfung geöffnet (bleibt beim Neuladen erhalten, neue Tabs/Geräte haben es nicht).
+var PRUEF_TAB_KEY = 'libPruefTab';
+function pruefTabMerken(pid){ try{ sessionStorage.setItem(PRUEF_TAB_KEY, pid); }catch(e){} }
+function pruefTabWarHier(pid){
+  try{ var v = sessionStorage.getItem(PRUEF_TAB_KEY); return v == null ? null : v === pid; }catch(e){ return null; }
+}
+// Lebenszeichen des Prüfungsfensters (alle 30 s «lebt»): noch frisch?
+function pruefLebtNoch(t){
+  var l = t && t.lebt, ms = l && typeof l.toMillis === 'function' ? l.toMillis() : +l || 0;
+  if(!ms) return true;   // Zeitstempel noch unterwegs
+  return Date.now() - ms < (t.geladen === false ? 180000 : 90000);
+}
+function pruefZeigeAnderswo(p){
+  clearTimeout(pruef.anderswoT);
+  pruef.anderswoT = setTimeout(function(){ if(pruef.lockSig === 'anderswo:' + p.id) pruefStudentUpdate(); }, 30000);
+  var sig = 'anderswo:' + p.id;
+  if(pruef.lockSig === sig) return;
+  pruef.lockSig = sig;
+  closeModal();
+  var ov = pruefOverlay();
+  ov.innerHTML = '<div class="pr-lock-msg"><div class="pr-lock-icon">🪟</div><h2>'+esc(p.titel || 'Prüfung')+'</h2>'+
+    '<p>Deine Prüfung ist in einem <b>anderen Fenster</b> oder auf einem <b>anderen Gerät</b> offen. Schreib dort weiter.</p>'+
+    '<p>Dieses Fenster brauchst du während der Prüfung nicht. Du kannst es schliessen.</p></div>';
 }
 function pruefZeigeGesperrt(p, grund){
   var sig = 'gesperrt:' + (p ? p.id : '') + ':' + grund;
@@ -36122,7 +36169,7 @@ function pruefVItem(zeigt, ant, ent){
 // Aus einer Frage der Übung (Bank-Format)
 function pruefVAusF(f){
   var zeigt = [f.frage, f.kontext].concat(f.links || [], f.rechts || [], f.items || []), ant = [];
-  if(f.typ === 'mc' && f.optionen) ant = [f.optionen[f.loesung]];
+  if(f.typ === 'mc' && f.optionen) ant = [].concat(f.loesung).map(function(i){ return f.optionen[i]; });
   else if(f.typ === 'text') ant = [].concat(f.loesung || []);
   else if(f.typ === 'offen' && f.begriff) ant = [].concat(f.begriff);
   return pruefVItem(zeigt, ant);
@@ -36188,7 +36235,7 @@ function pruefFrageBauen(f, lv, id, katName, bild, rnd){
   if(f.qid) q.qid = f.qid;                                   // 🎯 Frage-ID in der Übung
   if(Array.isArray(f.lz) && f.lz.length) q.lz = f.lz;        // 🎯 Lernziele direkt (Prüfungsdatei)
   var L = {punkte:pruefPunkteVorschlag(f)};
-  if(f.typ === 'mc'){ q.optionen = f.optionen; L.loesung = f.loesung; L.anzeige = f.optionen[f.loesung] || ''; }
+  if(f.typ === 'mc'){ q.optionen = f.optionen; L.loesung = f.loesung; L.anzeige = pruefMcText(f.optionen, f.loesung); if(Array.isArray(f.loesung)) q.mehrfach = true; }
   else if(f.typ === 'tf'){ L.loesung = f.loesung; L.anzeige = f.loesung ? 'Wahr' : 'Falsch'; }
   else if(f.typ === 'text'){ L.loesung = f.loesung; L.anzeige = f.loesung[0] || ''; if(f.locker) L.locker = true; }
   else if(f.typ === 'offen'){ L.loesung = f.loesung; L.stichworte = pruefStichworte(f.loesung, f.begriff); L.anzeige = f.loesung; }
@@ -36353,7 +36400,13 @@ function pruefBankBewerten(p, loes, antworten, korrektur, uid){
     if(q.typ === 'diktat'){ details = details.concat(pruefDiktatDetails(q, p.diktatAlt && p.diktatAlt.length ? Object.assign({}, L, {alt:(L.alt || []).concat(p.diktatAlt)}) : L, antworten[q.id], korrektur, !!(uid && p.diktatKurz && p.diktatKurz[uid]), [p.titel, p.resourceTitel].concat(pruefAutoTitel(p, q, L)))); return; }
     if(q.typ === 'luecke' || q.typ === 'hoeren'){ details.push(rswBewerten(q, L, antworten[q.id], korrektur)); return; }
     var v = antworten[q.id], max = +q.punkte > 0 ? +q.punkte : (L.punkte || 1), pkt = 0, a = '–', hinweis = '';
-    if(q.typ === 'mc'){ if(v != null && q.optionen[v] != null) a = q.optionen[v]; pkt = v === L.loesung ? max : 0; }
+    if(q.typ === 'mc' && Array.isArray(L.loesung)){
+      var gew = (Array.isArray(v) ? v : v != null ? [v] : []).filter(function(x){ return q.optionen[x] != null; });
+      if(gew.length) a = pruefMcText(q.optionen, gew.slice().sort(function(x, y){ return x - y; }));
+      var mr = gew.filter(function(x){ return L.loesung.indexOf(x) >= 0; }).length, mf = gew.length - mr;
+      pkt = mr === L.loesung.length && !mf ? max : pruefHalb(max * Math.max(0, mr - mf) / L.loesung.length);
+    }
+    else if(q.typ === 'mc'){ if(v != null && q.optionen[v] != null) a = q.optionen[v]; pkt = v === L.loesung ? max : 0; }
     else if(q.typ === 'tf'){ a = v === true ? 'Wahr' : v === false ? 'Falsch' : '–'; pkt = v === L.loesung ? max : 0; }
     else if(q.typ === 'text'){
       if(v) a = v;
@@ -36641,6 +36694,10 @@ function pruefBankZeichnen(){
   h += '<p class="pr-q-frage">'+esc(q.frage)+'</p>';
   if(q.typ === 'luecke' || q.typ === 'hoeren'){
     h += rswFrageHtml(q, v);
+  } else if(q.typ === 'mc' && q.mehrfach){
+    var gw = Array.isArray(v) ? v : [];
+    h += '<p class="pr-hinweis">☑️ Mehrere Antworten sind richtig — kreuze alle richtigen an.</p>';
+    h += '<div class="pr-q-opts">' + q.optionen.map(function(o, i){ var an = gw.indexOf(i) >= 0; return '<button class="pr-q-opt'+(an ? ' sel' : '')+'" data-v="'+i+'" type="button" aria-pressed="'+an+'">'+(an ? '☑ ' : '☐ ')+esc(o)+'</button>'; }).join('') + '</div>';
   } else if(q.typ === 'mc'){
     h += '<div class="pr-q-opts">' + q.optionen.map(function(o, i){ return '<button class="pr-q-opt'+(v === i ? ' sel' : '')+'" data-v="'+i+'" type="button">'+esc(o)+'</button>'; }).join('') + '</div>';
   } else if(q.typ === 'tf'){
@@ -36699,6 +36756,13 @@ function pruefBankKlick(e){
   if(t.hasAttribute('data-akz')){ var ai = document.getElementById('prBankIn'); if(ai) kkAkzentEinfuegen(ai, t.getAttribute('data-akz')); return; }
   if(t.hasAttribute('data-v')){
     var raw = t.getAttribute('data-v');
+    if(q.typ === 'mc' && q.mehrfach){
+      var gw = Array.isArray(b.ans[q.id]) ? b.ans[q.id].slice() : [], wi = gw.indexOf(+raw);
+      if(wi >= 0) gw.splice(wi, 1); else gw.push(+raw);
+      gw.sort(function(x, y){ return x - y; });
+      pruefBankSetze(gw.length ? gw : null);
+      pruefBankZeichnen(); return;
+    }
     pruefBankSetze(q.typ === 'tf' ? raw === 'true' : +raw);
     pruefBankZeichnen(); return;
   }
@@ -37764,7 +37828,7 @@ function pruefKurzAntworten(info, kat){
   return out;
 }
 function pruefAntwortText(f){
-  if(f.typ === 'mc') return (f.optionen || [])[f.loesung] || '';
+  if(f.typ === 'mc') return pruefMcText(f.optionen, f.loesung);
   if(f.typ === 'text') return (f.loesung || [])[0] || '';
   if(f.typ === 'offen') return String(f.loesung || '');
   if(f.typ === 'zahl') return f.loesung ? String(f.loesung.wert).replace('.', ',') + (f.einheit ? ' ' + f.einheit : '') : '';
@@ -37825,7 +37889,7 @@ async function pruefBkNochFrei(p){
 // Lösung einer (gezogenen oder umgewandelten) Übungsfrage als kurzer Text fürs Anschauen.
 function pruefLoesungHtml(f){
   if(!f) return '';
-  if(f.typ === 'mc') return (f.optionen || []).map(function(o, j){ return j === f.loesung ? '<b>'+esc(o)+' ✓</b>' : esc(o); }).join(' · ');
+  if(f.typ === 'mc') return (f.optionen || []).map(function(o, j){ return pruefMcRichtig(f.loesung, j) ? '<b>'+esc(o)+' ✓</b>' : esc(o); }).join(' · ');
   if(f.typ === 'text') return '✓ <b>'+esc((f.loesung || []).join(' / '))+'</b>';
   if(f.typ === 'zuordnen') return (f.links || []).map(function(l, j){ return esc(l)+' → <b>'+esc((f.rechts || [])[j])+'</b>'; }).join(' · ');
   if(f.typ === 'reihenfolge') return '✓ '+(f.items || []).map(esc).join(' → ');
@@ -37858,7 +37922,7 @@ function pruefAusConfig(cfg){
     if(Array.isArray(on.fragen) && on.fragen.length){
       on.fragen.forEach(function(o){
         var q = String(o.q || o.statement || o.title || stellung), f = null;
-        if(o.typ === 'mc') f = {typ:'mc', frage:q, optionen:o.options || [], loesung:+o.correct || 0};
+        if(o.typ === 'mc') f = {typ:'mc', frage:q, optionen:o.options || [], loesung:pruefMcLsg(o.correct)};
         else if(o.typ === 'tf') f = {typ:'tf', frage:q, loesung:!!o.correct};
         else if(o.typ === 'fill') f = {typ:'text', frage:q, loesung:(o.accept || []).map(String), locker:true};
         else if(o.typ === 'match') f = {typ:'zuordnen', frage:q, links:(o.pairs || []).map(function(x){ return x[0]; }), rechts:(o.pairs || []).map(function(x){ return x[1]; })};
@@ -37872,8 +37936,7 @@ function pruefAusConfig(cfg){
         fr.push(f);
       });
     } else if(Array.isArray(a.optionen) && a.optionen.length){
-      var k = Array.isArray(a.korrekt) ? a.korrekt[0] : a.korrekt;
-      fr.push({typ:'mc', frage:stellung + bildHinweis, optionen:a.optionen, loesung:+k || 0});
+      fr.push({typ:'mc', frage:stellung + bildHinweis, optionen:a.optionen, loesung:pruefMcLsg(a.korrekt)});
     } else if(a.lueckentext){
       var satz = String(a.lueckentext).match(/[^.!?]+(?:[.!?]+|$)/g) || [];   // ohne Lookbehind (ältere iPads)
       satz.forEach(function(s){

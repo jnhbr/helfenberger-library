@@ -3,6 +3,7 @@
 // Klassisches Skript vor dem Modul-Skript. Nach jeder Änderung: node admin/versionen.js
 
 const NEUIGKEITEN = [
+  {id:'2026-11-27-pruefung-mehrfach', datum:'2026-11-27', fuer:'lehrer', text:'☑️ Online-Prüfungen: Fragen mit mehreren richtigen Antworten gehen jetzt. Beim Importieren werden alle richtigen Lösungen übernommen (korrekt: [0, 2, 4]), die Schüler:innen kreuzen Kästchen an, bewertet wird mit Teilpunkten (richtige minus falsche Kreuze). Und: Ist die Library zusätzlich in einem anderen Tab oder auf einem zweiten Gerät offen, sperrt dieses Fenster die Prüfung nicht mehr, es zeigt nur «läuft in einem anderen Fenster».'},
   {id:'2026-11-27-pruefung-lektion', datum:'2026-11-27', fuer:'lehrer', text:'📝 Prüfung im Kalender: Kommt das Fach an dem Tag zweimal vor (z. B. Mathe am Morgen und am Nachmittag), wählst du unter «Wo wird die Prüfung geschrieben?» die Lektion. Die Prüfung erscheint dann nur dort im Stundenplan.'},
   {id:'2026-11-27-import-ohne-uebung', datum:'2026-11-27', fuer:'lehrer', text:'📥 Prüfung importieren geht jetzt auch ohne Übung: Prüfungsdatei (.json) laden, «Prüfung anlegen» – fertig. Eine Übung wählst du nur noch, wenn du im 🧩 Baukasten Fragen daraus dazunehmen willst.'},
   {id:'2026-11-27-import-knopf-hinweis', datum:'2026-11-27', fuer:'lehrer', text:'📥 Prüfung importieren: Fehlt noch die Übung (oder die Datei), sagt «Prüfung anlegen» jetzt, was fehlt, statt stumm zu bleiben.'},
