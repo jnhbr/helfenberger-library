@@ -44,7 +44,7 @@ function winterAn(){ var aus = false; try{ aus = localStorage.getItem('hl_winter
 <link rel="modulepreload" href="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js" crossorigin>
 <!-- Schriften und Bibliotheken liegen seit 08.10.2026 im eigenen Ordner assets/vendor/ (keine Abrufe mehr bei Google Fonts und jsdelivr). -->
 <link rel="stylesheet" href="assets/vendor/fonts/schriften.css">
-<link rel="stylesheet" href="app/stil.css?v=e6ff0ade24">
+<link rel="stylesheet" href="app/stil.css?v=ff23ecca15">
 <script>if(/-test\//.test(location.pathname))document.documentElement.classList.add('test-site');</script>
 </head>
 <body>
@@ -57,7 +57,7 @@ function winterAn(){ var aus = false; try{ aus = localStorage.getItem('hl_winter
 <!-- Seit 25.11.2026 ausgelagert (Etappe 5a). Der ?v=-Stempel kommt von node admin/versionen.js.
      defer = läuft in dieser Reihenfolge vor dem Modul-Skript, die Namen (NEUIGKEITEN, ENERGIZER …) sind dort direkt sichtbar. -->
 <script src="app/daten.js?v=92f79ea94b" defer></script>
-<script src="app/neuigkeiten.js?v=3d4ba6195f" defer></script>
+<script src="app/neuigkeiten.js?v=2f6c05a2dd" defer></script>
 <script type="module">
 import {
   initializeApp
@@ -33814,6 +33814,19 @@ var lph = { entprellt:null, unsub:null, aktiv:null, hb:null, drin:null, erste:fa
             phase:null, phaseUnsub:null, praes:{}, empfangen:{}, rausLokal:{}, praesUnsub:null, praesPoll:null,
             panel:null, tab:null, offen:true, tick:null, gruppen:null };
 
+/* 🪟 ?lph=fenster (27.11.2026): Die Library zeigt nach der Anmeldung nur das Lernphase-Panel, ganzflächig.
+   Für Jans Hammerspoon-Schwebefenster (~/.hammerspoon/lernphase.lua), das über Mac-Vollbild-Spaces liegt. */
+const LPH_FENSTER = /[?&]lph=fenster(&|$)/.test(location.search);
+if(LPH_FENSTER){
+  document.documentElement.classList.add('lph-fenster');
+  var lphLeer = document.createElement('div');
+  lphLeer.className = 'lph-fenster-leer';
+  lphLeer.innerHTML = '<b>📚 Keine Lernphase aktiv</b><small>Starte sie in der Library, dann erscheint sie hier.</small>';
+  document.body.appendChild(lphLeer);
+}
+// Panel ohne Platz für Dialoge (Bild-in-Bild, Schwebefenster): kein 📌/⟩, Beenden mit zwei Klicks.
+function lphKompakt(){ return !!lph.pipWin || LPH_FENSTER; }
+
 function lphMs(ts){ return ts && ts.toMillis ? ts.toMillis() : (typeof ts === 'number' ? ts : 0); }
 function lphRef(lpUid){ return doc(db, 'lernphasen', lpUid); }
 function lphPraesCol(lpUid){ return collection(db, 'lernphasen', lpUid, 'praesenz'); }
@@ -33877,6 +33890,7 @@ function lphVerarbeiten(docs, ausCache){
   updateLernphaseBanner();
 }
 function stopLernphaseWatcher(){
+  document.documentElement.classList.remove('lph-angemeldet');
   if(lph.unsub){ lph.unsub(); lph.unsub = null; }
   clearInterval(lph.poll); lph.poll = null;
   clearTimeout(lph.retry); lph.retry = null;
@@ -34089,6 +34103,7 @@ function lphHandKlick(){
 /* ---------- Lehrperson ---------- */
 
 function lphLehrerWatch(){
+  if(LPH_FENSTER) document.documentElement.classList.add('lph-angemeldet');
   lph.phaseUnsub = onSnapshot(lphRef(state.user.uid), function(snap){
     var x = snap.exists() ? snap.data() : null;
     if(!x || !x.aktiv){
@@ -34251,7 +34266,7 @@ function lphPaint(){
   lph.tab.classList.toggle('rot', rot > 0);
   lph.tab.innerHTML = '📚' + (rot ? '<b>'+rot+'</b>' : '') + (haende.length ? '<b class="hand">✋'+haende.length+'</b>' : '');
 
-  if(lph.pipWin) lph.offen = true;
+  if(lph.pipWin || LPH_FENSTER) lph.offen = true;
   if(!lph.offen){
     if(lph.panel){ lph.panel.remove(); lph.panel = null; }
     document.body.classList.remove('lph-offen');
@@ -34282,7 +34297,7 @@ function lphPaint(){
   if(sort && faecher.indexOf(sort) < 0) sort = '';
 
   var h = '<div class="lph-head"><div><b>📚 Lernphase</b><small>'+esc(p.titel || '')+(p.nurFach && p.nurFach.id ? '<br>nur: '+esc(p.nurFach.titel || '') : p.nurUebung && p.nurUebung.id ? '<br>nur: '+esc(p.nurUebung.titel || '') : '')+'</small></div>'+
-    '<span>'+(lph.pipWin
+    '<span>'+(LPH_FENSTER ? '' : lph.pipWin
       ? '<button class="lph-mini" data-lph="pip" type="button" title="Zurück ins Library-Fenster">↩️</button>'
       : '<button class="lph-mini" data-lph="pip" type="button" title="Bild-in-Bild: schwebt immer im Vordergrund, auch über anderen Programmen und im Vollbild">📌</button>'+
         '<button class="lph-mini" data-lph="zu" type="button" title="Einklappen">⟩</button>')+'</span></div>';
@@ -34323,7 +34338,7 @@ function lphPaint(){
     aus.slice().sort(abc).forEach(function(u){ h += lphZeile(u, nameVon(u), true); });
   }
   h += '</div>';
-  h += '<div class="lph-foot"><button class="btn btn-ghost btn-sm" data-lph="ende" type="button">'+(lph.pipWin && lph.endeBis > Date.now() ? '⚠️ Nochmals klicken = beenden' : '⏹ Lernphase beenden')+'</button></div>';
+  h += '<div class="lph-foot"><button class="btn btn-ghost btn-sm" data-lph="ende" type="button">'+(lphKompakt() && lph.endeBis > Date.now() ? '⚠️ Nochmals klicken = beenden' : '⏹ Lernphase beenden')+'</button></div>';
   // Nur neu zeichnen, wenn sich etwas geändert hat: jede Meldung einer Schüler:in löst einen Paint
   // aus, und ein mitten im Klick ersetzter Knopf (📌, Sortieren …) schluckt den Klick.
   if(lph.panelHtml !== h || !lph.panel.firstChild){
@@ -34381,7 +34396,7 @@ function lphPanelKlick(e){
     lphPipUmschalten();
   } else if(b.getAttribute('data-lph') === 'zu'){
     lph.offen = false; lphPaint();
-  } else if(b.getAttribute('data-lph') === 'ende' && lph.pipWin){
+  } else if(b.getAttribute('data-lph') === 'ende' && lphKompakt()){
     // Im Bild-in-Bild wäre der Dialog im verdeckten Library-Fenster: darum zweimal klicken.
     if(lph.endeBis > Date.now()){ lph.endeBis = 0; lphBeenden(); }
     else {
@@ -34436,9 +34451,23 @@ function lphPipAuf(w){
       }
     }catch(e){}
   });
-  var thema = document.documentElement.getAttribute('data-theme');
-  if(thema) d.documentElement.setAttribute('data-theme', thema);
-  d.documentElement.lang = document.documentElement.lang || 'de';
+  // Wurzel-Attribute (data-design, data-theme, Klassen) wie im Library-Fenster, sonst greifen andere Regeln.
+  Array.prototype.forEach.call(document.documentElement.attributes, function(a){
+    if(a.name !== 'style') d.documentElement.setAttribute(a.name, a.value);
+  });
+  if(!d.documentElement.lang) d.documentElement.lang = 'de';
+  // Chrome zeichnet das Bild-in-Bild mit eigenem Pixelmassstab (devicePixelRatio), die Library läuft mit
+  // CSS-Zoom (90 %). Darum Zoom so setzen, dass Schrift und Abstände gleich gross sind wie im Panel.
+  var massstab = function(){
+    try{
+      var z = (window.devicePixelRatio || 1) * libZoom() / (w.devicePixelRatio || 1);
+      z = Math.max(0.3, Math.min(2, Math.round(z * 100) / 100));
+      d.documentElement.style.zoom = z === 1 ? '' : String(z);
+      d.documentElement.style.setProperty('--lz', String(z));
+    }catch(e){}
+  };
+  massstab();
+  w.addEventListener('resize', massstab);
   d.body.className = 'lph-pip-body';
   d.title = '📚 Lernphase';
   lph.pipWin = w; lph.offen = true; lph.endeBis = 0;
