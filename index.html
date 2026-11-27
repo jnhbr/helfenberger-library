@@ -57,7 +57,7 @@ function winterAn(){ var aus = false; try{ aus = localStorage.getItem('hl_winter
 <!-- Seit 25.11.2026 ausgelagert (Etappe 5a). Der ?v=-Stempel kommt von node admin/versionen.js.
      defer = läuft in dieser Reihenfolge vor dem Modul-Skript, die Namen (NEUIGKEITEN, ENERGIZER …) sind dort direkt sichtbar. -->
 <script src="app/daten.js?v=92f79ea94b" defer></script>
-<script src="app/neuigkeiten.js?v=d2b3393736" defer></script>
+<script src="app/neuigkeiten.js?v=2ed17c1339" defer></script>
 <script type="module">
 import {
   initializeApp
@@ -37583,7 +37583,7 @@ async function pruefImportEditor(){
   h += '<label class="modal-label">Prüfungsdatei</label><input type="file" id="prImpDatei" class="modal-input" accept=".json,application/json">';
   h += '<div id="prImpInfo"></div>';
   h += '<label class="modal-label">Titel</label><input type="text" id="prTitel" class="modal-input" maxlength="80" placeholder="wird aus der Datei übernommen">';
-  h += '<label class="modal-label">Übung, mit der die Klasse lernt</label><select id="prUebung" class="modal-input"><option value="">– Übung wählen –</option>';
+  h += '<label class="modal-label">Übung, mit der die Klasse lernt (freiwillig)</label><select id="prUebung" class="modal-input"><option value="">– keine Übung (nur die Prüfungsdatei) –</option>';
   var fach = null;
   uebungen.forEach(function(r){
     var fn = fachName(r);
@@ -37591,7 +37591,7 @@ async function pruefImportEditor(){
     h += '<option value="'+esc(r.id)+'">'+esc(r.title || r.fileName || r.id)+'</option>';
   });
   h += (fach !== null ? '</optgroup>' : '') + '</select>';
-  h += '<p class="pr-hinweis">Damit kannst du nachher im 🧩 Baukasten Fragen aus dieser Übung dazunehmen oder austauschen.</p><div id="prImpFehlt"></div>';
+  h += '<p class="pr-hinweis">Freiwillig: Mit einer Übung kannst du nachher im 🧩 Baukasten Fragen daraus dazunehmen oder austauschen. Ohne Übung wird die Prüfung genau so angelegt, wie sie in der Datei steht.</p><div id="prImpFehlt"></div>';
   h += pruefFuerHtml(null, false);
   var faecherListe = notenFaecher();
   h += '<div class="pr-grid2"><div><label class="modal-label">Fach im Notenrechner</label><select id="prFach" class="modal-input">' + faecherListe.map(function(f){
@@ -37607,7 +37607,7 @@ async function pruefImportEditor(){
   var okBtn = document.getElementById('modalOk'), cfg = null, dateiName = '', seed = Math.floor(Math.random() * 2147483646) + 1;
   uebungOrdnerMenu(document.getElementById('prUebung'), uebungen, ordner);
   // Knopf bleibt klickbar: ein gesperrter Knopf sah aktiv aus und reagierte stumm (27.11.2026, Bommeli) — beim Klick sagen, was fehlt.
-  function bereit(){ if(cfg && document.getElementById('prUebung').value) document.getElementById('prImpFehlt').innerHTML = ''; }
+  function bereit(){ if(cfg) document.getElementById('prImpFehlt').innerHTML = ''; }
   document.getElementById('prUebung').addEventListener('change', function(){
     var r = uebungen.find(function(u){ return u.id === this.value; }, this), fEl = document.getElementById('prFach');
     if(r && faecherListe.some(function(f){ return f.id === r.subject; })) fEl.value = r.subject;
@@ -37633,9 +37633,10 @@ async function pruefImportEditor(){
     var titel = document.getElementById('prTitel').value.trim();
     if(!titel){ document.getElementById('prTitel').focus(); return; }
     var resource = uebungen.find(function(u){ return u.id === document.getElementById('prUebung').value; });
-    if(!cfg || !resource){
-      var fehlt = !cfg ? 'Zuerst die Prüfungsdatei (.json) laden.' : 'Bitte noch die Übung wählen, mit der die Klasse lernt – erst dann lässt sich die Prüfung anlegen.';
-      var fEl = document.getElementById(!cfg ? 'prImpInfo' : 'prImpFehlt');
+    // Übung freiwillig (27.11.2026): ein fertiges Prüfungsdokument reicht.
+    if(!cfg){
+      var fehlt = 'Zuerst die Prüfungsdatei (.json) laden.';
+      var fEl = document.getElementById('prImpInfo');
       fEl.innerHTML = '<p class="pr-hinweis pr-warn">⚠️ '+esc(fehlt)+'</p>';
       fEl.scrollIntoView({block:'center', behavior:'smooth'});
       toast(fehlt);
@@ -37655,8 +37656,8 @@ async function pruefImportEditor(){
     var data = {titel:titel, skala:{typ:'dbk'}, punkteFuer6:null, fehlerAbzug:null, rundung:0.1,
       fach:document.getElementById('prFach').value, gewicht:gewicht,
       zeitMin:Math.min(300, Math.max(0, Math.round(+document.getElementById('prZeit').value || 0))) || null,
-      art:'bank', diktat:false, resourceId:resource.id, subject:resource.subject || '', resourceTitel:resource.title || resource.fileName || '',
-      contentId:resourceContentId(resource), akzente:null, seed:seed, fragen:fragen, bilder:bild.liste, maxPunkte:maxP,
+      art:'bank', diktat:false, resourceId:resource ? resource.id : '', subject:resource ? resource.subject || '' : '', resourceTitel:resource ? resource.title || resource.fileName || '' : '',
+      contentId:resource ? resourceContentId(resource) : '', akzente:null, seed:seed, fragen:fragen, bilder:bild.liste, maxPunkte:maxP,
       cfg:{optionen:{}, optNamen:{}, anzahl:fragen.length, mischen:false, baukasten:true, importiert:{datei:dateiName, titel:String(cfg.titel || '')}},
       status:'entwurf', resultateFrei:false, createdAt:serverTimestamp(), createdBy:state.user.uid};
     Object.assign(data, pruefFuerDaten(null));
@@ -37886,12 +37887,13 @@ async function pruefBaukasten(p){
   var LEER = {art:'bank', fragen:[], kategorien:[]}, infos = {}, titel = {};
   async function infoLaden(cid){
     if(infos[cid]) return infos[cid];
+    if(!cid) return (infos[cid] = LEER);   // importierte Prüfung ohne Übung
     var r = null;
     try{ r = await pruefProbe(cid); }catch(err){ console.error(err); }
     infos[cid] = r && r.art === 'bank' && !r.diktat ? r : LEER;
     return infos[cid];
   }
-  titel[p.contentId] = p.resourceTitel || 'Übung';
+  titel[p.contentId] = p.resourceTitel || (p.contentId ? 'Übung' : 'keine Übung – unten eine wählen');
   await infoLaden(p.contentId);
   var weitere = [];
   (p.fragen || []).forEach(function(q){ if(q.srcC && weitere.indexOf(q.srcC) < 0) weitere.push(q.srcC); });

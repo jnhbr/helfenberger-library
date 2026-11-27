@@ -3,6 +3,7 @@
 // Klassisches Skript vor dem Modul-Skript. Nach jeder Änderung: node admin/versionen.js
 
 const NEUIGKEITEN = [
+  {id:'2026-11-27-import-ohne-uebung', datum:'2026-11-27', fuer:'lehrer', text:'📥 Prüfung importieren geht jetzt auch ohne Übung: Prüfungsdatei (.json) laden, «Prüfung anlegen» – fertig. Eine Übung wählst du nur noch, wenn du im 🧩 Baukasten Fragen daraus dazunehmen willst.'},
   {id:'2026-11-27-import-knopf-hinweis', datum:'2026-11-27', fuer:'lehrer', text:'📥 Prüfung importieren: Fehlt noch die Übung (oder die Datei), sagt «Prüfung anlegen» jetzt, was fehlt, statt stumm zu bleiben.'},
   {id:'2026-11-27-parallel-bearbeiten', datum:'2026-11-27', fuer:'lehrer', text:'🗓️ Stundenplan › Klasse: Freifächer und Halbklassen (die Spalten in leeren Feldern) kannst du jetzt selbst anpassen – Fach antippen › ✏️ Bearbeiten: Schüler:innen an- oder abhaken, Lehrperson/Zimmer ändern, Fach entfernen, oder ➕ ein weiteres Fach daneben. Gilt jede Woche, auch im Stundenplan der Schüler:innen.'},
   {id:'2026-11-27-lernphase-pip-kompakt', datum:'2026-11-27', fuer:'lehrer', text:'📌 Lernphase im Bild-in-Bild: Schrift und Abstände sind jetzt gleich kompakt wie im Panel rechts, lange Hinweise brechen nicht mehr um.'},
