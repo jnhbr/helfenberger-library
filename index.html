@@ -44,7 +44,7 @@ function winterAn(){ var aus = false; try{ aus = localStorage.getItem('hl_winter
 <link rel="modulepreload" href="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js" crossorigin>
 <!-- Schriften und Bibliotheken liegen seit 08.10.2026 im eigenen Ordner assets/vendor/ (keine Abrufe mehr bei Google Fonts und jsdelivr). -->
 <link rel="stylesheet" href="assets/vendor/fonts/schriften.css">
-<link rel="stylesheet" href="app/stil.css?v=dfc18d90b7">
+<link rel="stylesheet" href="app/stil.css?v=28cf24b69d">
 <script>if(/-test\//.test(location.pathname))document.documentElement.classList.add('test-site');</script>
 </head>
 <body>
@@ -57,7 +57,7 @@ function winterAn(){ var aus = false; try{ aus = localStorage.getItem('hl_winter
 <!-- Seit 25.11.2026 ausgelagert (Etappe 5a). Der ?v=-Stempel kommt von node admin/versionen.js.
      defer = läuft in dieser Reihenfolge vor dem Modul-Skript, die Namen (NEUIGKEITEN, ENERGIZER …) sind dort direkt sichtbar. -->
 <script src="app/daten.js?v=92f79ea94b" defer></script>
-<script src="app/neuigkeiten.js?v=7037e526fb" defer></script>
+<script src="app/neuigkeiten.js?v=f7eec8b360" defer></script>
 <script type="module">
 import {
   initializeApp
@@ -34835,7 +34835,7 @@ function pruefIstLehrer(){ return !!(state.profile && state.profile.role === 'te
    beim Diktat die gezählten Fehler), tabelle (stufen [{note, ab}], ohne
    Rundung). Ältere Prüfungen ohne skala: punkteFuer6 / fehlerAbzug. */
 var PRUEF_SKALEN = [
-  ['dbk', 'DBK linear (Standard)'], ['dbk6', 'DBK mit reduzierter 6'], ['knick', 'Bestehensgrenze (Knick)'],
+  ['dbk', 'DBK linear (Standard)'], ['dbk6', 'DBK mit reduzierter 6 (z. B. 6 ab 57 von 60)'], ['knick', 'Bestehensgrenze (Knick)'],
   ['fehler', 'Fehlerabzug'], ['tabelle', 'Eigene Punktetabelle']
 ];
 var PRUEF_TAB_NOTEN = [6, 5.5, 5, 4.5, 4, 3.5, 3, 2.5, 2, 1.5];
@@ -38850,6 +38850,97 @@ function pruefErgebnis(p, t){
   }
   return typeof t.punkte === 'number' ? {punkte:t.punkte, max:t.max, details:t.details || []} : null;
 }
+/* ---------- 📏 Notenmassstab nach der Korrektur (27.11.2026, Wunsch Stephan) ----------
+   Direkt im Monitor: Massstab und Rundung ändern, mit Vorschau «bisher → neu»
+   pro Person und Schnitt. Typisch: DBK mit reduzierter 6 (z. B. 6 ab 57 von 60).
+   Von Hand gesetzte Noten (✍️) bleiben. Sind die Resultate frei, werden die
+   Noten im Notenrechner nachgeführt. Eigene Punktetabelle nur über ✏️. */
+async function pruefMassstabDialog(p){
+  p = await pruefFrisch(p);
+  if(pruefArt(p) === 'bank'){ try{ await pruefLoesungLaden(p.id); }catch(err){ console.error(err); } }
+  var teil = pruef.teil[p.id] || {}, roster = pruefRosterFuer(p) || [];
+  var rows = pruefMonitorZeilen(p, teil, roster).map(function(r){ r.erg = pruefErgebnis(p, r.t); return r; })
+    .filter(function(r){ return r.erg && r.erg.max; })
+    .sort(function(a, b){ return a.name.localeCompare(b.name, 'de'); });
+  var max = rows.length ? rows[0].erg.max : (+p.maxPunkte || null);
+  var alt = pruefSkala(p), skw = JSON.parse(JSON.stringify(alt)), rund = +p.rundung || 0.1;
+  var skalen = PRUEF_SKALEN.filter(function(o){ return o[0] !== 'tabelle' || alt.typ === 'tabelle'; });
+  var h = '<h3>📏 Notenmassstab</h3>';
+  h += '<p class="pr-hinweis">Massstab nach der Korrektur anpassen'+(max ? ' — die Prüfung hat <b>'+pruefZahlText(max)+'</b> '+(p.diktat ? 'Wörter/Satzzeichen' : 'Punkte') : '')+'. Die Vorschau zeigt sofort, was sich ändert.'+(p.resultateFrei ? ' Die Resultate sind frei: die Noten im 🎶 Notenrechner werden beim Speichern nachgeführt.' : '')+'</p>';
+  h += '<div class="pr-grid2"><div><label class="modal-label">Massstab</label><select id="prmSkala" class="modal-input">' + skalen.map(function(o){
+    return '<option value="'+o[0]+'"'+(o[0] === skw.typ ? ' selected' : '')+'>'+esc(o[1])+'</option>'; }).join('') + '</select></div>';
+  h += '<div id="prmRundBox"><label class="modal-label">Noten runden auf</label><select id="prmRund" class="modal-input">' + [['0.1','Zehntel'],['0.25','Viertel'],['0.5','Halbe']].map(function(o){
+    return '<option value="'+o[0]+'"'+(String(rund) === o[0] ? ' selected' : '')+'>'+o[1]+'</option>'; }).join('') + '</select></div></div>';
+  h += '<div id="prmFelder"></div><p class="pr-hinweis" id="prmGrenzen"></p><div id="prmVorschau"></div>';
+  h += '<div class="modal-actions"><button class="btn btn-ghost btn-sm" id="modalCancel" type="button">Abbrechen</button><button class="btn btn-primary btn-sm" id="modalOk" type="button">Speichern</button></div>';
+  openModal(h, 'pr-modal');
+  document.getElementById('modalCancel').addEventListener('click', closeModal);
+  var num = function(id){ var e = document.getElementById(id); return e ? parseFloat(String(e.value).replace(',', '.')) : NaN; };
+  function felder(){
+    var t = skw.typ, f = '';
+    document.getElementById('prmRundBox').style.visibility = t === 'tabelle' ? 'hidden' : '';
+    if(t === 'dbk') f = '<p class="pr-hinweis">Note = 5 × Punkte ÷ Maximalpunkte + 1 (DBK Thurgau).</p>';
+    else if(t === 'dbk6') f = '<div class="pr-grid2"><div><label class="modal-label">Punkte für eine 6</label><input type="number" id="prmP6" class="modal-input" min="0.5" step="0.5" value="'+esc(skw.p6 != null ? String(skw.p6) : (max ? String(max) : ''))+'"></div><div></div></div>'+
+      '<p class="pr-hinweis">Ab diesen Punkten gibt es die 6, darunter DBK: Note = 5 × Punkte ÷ «Punkte für eine 6» + 1.</p>';
+    else if(t === 'knick') f = '<div class="pr-grid2"><div><label class="modal-label">Note 4 bei … % der Punkte</label><input type="number" id="prmKnick" class="modal-input" min="1" max="99" step="1" value="'+esc(String(skw.prozent || 60))+'"></div><div></div></div>'+
+      '<p class="pr-hinweis">Unter der Grenze linear von 1 bis 4, darüber linear von 4 bis 6.</p>';
+    else if(t === 'fehler') f = '<div class="pr-grid2"><div><label class="modal-label">Abzug pro Fehler (Note)</label><input type="number" id="prmAbzug" class="modal-input" min="0.05" max="2" step="0.05" value="'+esc(String(skw.abzug || 0.25))+'"></div>'+
+      '<div><label class="modal-label">Fehler für eine 6</label><input type="number" id="prmFrei" class="modal-input" min="0" step="0.5" value="'+esc(String(skw.frei || 0))+'"></div></div>'+
+      '<p class="pr-hinweis">Note = 6 − (Fehler − «Fehler für eine 6») × Abzug, mindestens 1.</p>';
+    else if(t === 'tabelle') f = '<p class="pr-hinweis">Eigene Punktetabelle — ändern über «✏️ Bearbeiten».</p>';
+    document.getElementById('prmFelder').innerHTML = f;
+  }
+  function lesen(still){
+    var t = skw.typ, s = {typ:t};
+    if(t === 'dbk6'){ s.p6 = num('prmP6'); if(!(s.p6 > 0)){ if(!still) toast('«Punkte für eine 6» angeben.'); return null; } }
+    if(t === 'knick'){ s.prozent = num('prmKnick'); if(!(s.prozent > 0 && s.prozent < 100)){ if(!still) toast('Grenze für die 4 muss zwischen 1 und 99 % liegen.'); return null; } }
+    if(t === 'fehler'){
+      s.abzug = num('prmAbzug'); s.frei = Math.max(0, num('prmFrei') || 0);
+      if(!(s.abzug > 0 && s.abzug <= 2)){ if(!still) toast('Abzug pro Fehler muss zwischen 0.05 und 2 liegen.'); return null; }
+    }
+    if(t === 'tabelle') s = alt;
+    return s;
+  }
+  function vorschau(){
+    var s = lesen(true), r = +document.getElementById('prmRund').value || 0.1;
+    var box = document.getElementById('prmVorschau'), gr = document.getElementById('prmGrenzen');
+    if(!s){ box.innerHTML = ''; gr.textContent = ''; return; }
+    var pn = Object.assign({}, p, {skala:s, rundung:r});
+    if(max){
+      // Ab wie vielen Punkten (halbe Schritte) gibt es die 6, 5, 4?
+      var ab = function(note){ for(var x = 0; x <= max + 1e-9; x += 0.5){ if(pruefNote(pn, x, max) >= note - 1e-9) return x; } return null; };
+      gr.textContent = [6, 5, 4].map(function(n){ var x = ab(n); return 'Note ' + n + (x == null ? ': –' : ' ab ' + pruefZahlText(x) + ' P.'); }).join(' · ');
+    } else gr.textContent = '';
+    if(!rows.length){ box.innerHTML = '<p class="pr-hinweis">Noch keine korrigierten Abgaben.</p>'; return; }
+    var sa = 0, sn = 0;
+    var t = '<table class="pr-mst"><thead><tr><th>Name</th><th>'+(p.diktat ? 'Fehler' : 'Punkte')+'</th><th>bisher</th><th>neu</th></tr></thead><tbody>';
+    rows.forEach(function(x){
+      var bisher = pruefNoteVon(p, x.t, x.erg.punkte, x.erg.max), neu = pruefNoteVon(pn, x.t, x.erg.punkte, x.erg.max);
+      sa += bisher || 0; sn += neu || 0;
+      var hand = x.t && typeof x.t.noteHand === 'number';
+      t += '<tr'+(neu !== bisher ? ' class="anders"' : '')+'><td>'+esc(x.name)+(hand ? ' <span title="Note von Hand gesetzt — bleibt">✍️</span>' : '')+'</td><td>'+
+        (p.diktat ? pruefZahlText(x.erg.max - x.erg.punkte) : pruefZahlText(x.erg.punkte)+' / '+pruefZahlText(x.erg.max))+'</td><td>'+pruefNoteText(bisher)+'</td><td><b>'+pruefNoteText(neu)+'</b></td></tr>';
+    });
+    t += '</tbody><tfoot><tr><td>Schnitt</td><td></td><td>'+(sa / rows.length).toFixed(2)+'</td><td><b>'+(sn / rows.length).toFixed(2)+'</b></td></tr></tfoot></table>';
+    box.innerHTML = t;
+  }
+  var sel = document.getElementById('prmSkala');
+  sel.addEventListener('change', function(){ skw = sel.value === alt.typ ? JSON.parse(JSON.stringify(alt)) : {typ:sel.value}; felder(); vorschau(); });
+  document.getElementById('prmRund').addEventListener('change', vorschau);
+  document.getElementById('prmFelder').addEventListener('input', vorschau);
+  felder(); vorschau();
+  document.getElementById('modalOk').addEventListener('click', async function(){
+    var s = lesen(false); if(!s) return;
+    var data = {skala:s, punkteFuer6:null, fehlerAbzug:null, rundung:+document.getElementById('prmRund').value || 0.1};
+    this.disabled = true;
+    try{
+      await updateDoc(pruefRef(p.id), data);
+      closeModal();
+      toast('📏 Notenmassstab gespeichert.');
+      if(p.resultateFrei) pruefNotenEintragen(Object.assign({}, p, data)).catch(pruefFehler);
+    }catch(err){ this.disabled = false; pruefFehler(err); }
+  });
+}
 function pruefMonitorKnoepfe(p, skPapier){
   var h = '';
   h += '<div class="back-row" style="flex-wrap:wrap;">';
@@ -38868,6 +38959,7 @@ function pruefMonitorKnoepfe(p, skPapier){
   if(!skPapier && pruefArt(p) === 'nativ' && !p.diktat && p.cfg && (p.cfg.optionen || {}).diff != null) h += '<button class="btn btn-sm '+(p.differenz && Object.keys(p.differenz).length ? 'btn-primary' : 'btn-ghost')+'" data-a="differenz" type="button" title="Einzelne Personen schreiben dieselbe Prüfung in einer leichteren (oder anderen) Antwortart — auch Bildtrainer">🎯 Differenzieren</button>';
   if(pruefArt(p) === 'sikore') h += '<button class="btn btn-ghost btn-sm" data-a="sikoreDruck" type="button">🖨️ Blätter drucken</button>';
   h += '<button class="btn btn-ghost btn-sm" data-a="bearbeiten" type="button">✏️ Bearbeiten</button>';
+  if(p.status !== 'entwurf' && ['sikore','tippen'].indexOf(pruefArt(p)) < 0) h += '<button class="btn btn-ghost btn-sm" data-a="massstab" type="button" title="Notenmassstab nach der Korrektur anpassen, z. B. 6 schon ab 57 von 60 Punkten — mit Vorschau">📏 Notenmassstab</button>';
   if(!skPapier && ['sikore','tippen','mt'].indexOf(pruefArt(p)) < 0 && !p.rsw && !p.diktat) h += '<button class="btn btn-ghost btn-sm" data-a="variante" type="button" title="Eigene Bereiche, Umfang, Antwortart, Anzahl und Note für einzelne Personen (Lernzielanpassung)">➕ Angepasste Variante</button>';
   h += '<button class="btn btn-ghost btn-sm" data-a="ablegen" type="button" title="In einem Ordner des Fachs ablegen – die Klasse sieht sie dort erst nach dem Freigeben">📁 Ablegen</button>';
   if(pruefArt(p) === 'bank' && !p.diktat) h += '<button class="btn btn-ghost btn-sm" data-a="punkte" type="button">🧮 Aufgaben & Punkte</button>';
@@ -39234,6 +39326,7 @@ function pruefMonitorVerdrahten(p0){
     else if(a === 'diktatalt') pruefDiktatAltDialog(p);
     else if(a === 'variante') pruefEditor(null, null, p);
     else if(a === 'bearbeiten'){ if(pruefArt(p) === 'sikore') sikoreEditor(p); else if(pruefArt(p) === 'tippen') tippPrEditor(p); else if(pruefArt(p) === 'mt') mtPrEditor(p); else if(p.rsw) rswPrEditor(p); else pruefEditor(p); }
+    else if(a === 'massstab') pruefMassstabDialog(p);
     else if(a === 'sikoreDruck') sikoreDruckDialog(p);
     else if(a === 'punkte') pruefAufgabenPunkte(p);
     else if(a === 'baukasten'){ if(pruefArt(p) === 'mt') mtPrBaukasten(p); else if(pruefArt(p) === 'nativ') nativBaukasten(p); else if(p.rsw) rswBaukasten(p); else pruefBaukasten(p); }
