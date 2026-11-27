@@ -57,7 +57,7 @@ function winterAn(){ var aus = false; try{ aus = localStorage.getItem('hl_winter
 <!-- Seit 25.11.2026 ausgelagert (Etappe 5a). Der ?v=-Stempel kommt von node admin/versionen.js.
      defer = läuft in dieser Reihenfolge vor dem Modul-Skript, die Namen (NEUIGKEITEN, ENERGIZER …) sind dort direkt sichtbar. -->
 <script src="app/daten.js?v=92f79ea94b" defer></script>
-<script src="app/neuigkeiten.js?v=f7eec8b360" defer></script>
+<script src="app/neuigkeiten.js?v=d5db2b8d7b" defer></script>
 <script type="module">
 import {
   initializeApp
@@ -38941,6 +38941,41 @@ async function pruefMassstabDialog(p){
     }catch(err){ this.disabled = false; pruefFehler(err); }
   });
 }
+/* ---------- 📋 Noten für LehrerOffice kopieren (27.11.2026, Wunsch Stephan) ----------
+   Kopiert nur die Notenspalte (eine Note pro Zeile) in der Reihenfolge von
+   LehrerOffice: Nachname, dann Vorname. Wer keine Note hat (nicht geschrieben,
+   🚪 nicht dabei), bekommt eine leere Zeile, damit nichts verrutscht. In
+   LehrerOffice die erste Notenzelle anklicken und Ctrl+V. Danach zeigt ein
+   Fenster die Reihenfolge zum Vergleichen. */
+function pruefNotenKopieren(p){
+  var teil = pruef.teil[p.id] || {}, roster = pruefRosterFuer(p);
+  if(!roster){ toast('Klassenliste wird noch geladen …'); return; }
+  if(pruefArt(p) === 'bank' && !pruef.loes[p.id]){ toast('Lösungen werden noch geladen – gleich nochmals versuchen.'); return; }
+  var da = {}, rows = [];
+  roster.forEach(function(s){ if(da[s.uid]) return; da[s.uid] = 1; rows.push({uid:s.uid, vn:String(s.vorname || s.displayName || s.username || ''), nn:String(s.nachname || ''), t:teil[s.uid] || null}); });
+  Object.keys(teil).forEach(function(u){ if(!da[u]){ da[u] = 1; rows.push({uid:u, vn:String(teil[u].name || u), nn:'', t:teil[u], extra:true}); } });
+  var ausg = Array.isArray(p.ausgeschlossen) ? p.ausgeschlossen : [];
+  rows.forEach(function(r){
+    r.erg = ausg.indexOf(r.uid) < 0 ? pruefErgebnis(p, r.t) : null;
+    r.note = r.erg ? pruefNoteVon(p, r.t, r.erg.punkte, r.erg.max) : null;
+  });
+  rows.sort(function(a, b){ return (a.nn || a.vn).localeCompare(b.nn || b.vn, 'de') || a.vn.localeCompare(b.vn, 'de'); });
+  var mitNote = rows.filter(function(r){ return r.note != null; }).length;
+  if(!mitNote){ toast('Noch keine Noten zum Kopieren.'); return; }
+  var text = rows.map(function(r){ return r.note == null ? '' : String(Math.round(r.note * 100) / 100); }).join('\r\n');
+  textKopieren(text, function(){
+    var h = '<h3>📋 Noten kopiert</h3>';
+    h += '<p class="pr-hinweis">'+mitNote+' Noten in der Zwischenablage, eine pro Zeile, sortiert nach Nachname. In LehrerOffice die Notenzelle der ersten Person anklicken und <b>Ctrl+V</b> drücken.</p>';
+    h += '<p class="pr-hinweis pr-warn">Kurz vergleichen: Die Reihenfolge muss genau wie in LehrerOffice sein. Leere Zeilen (keine Note) bleiben leer.</p>';
+    h += '<table class="pr-mst"><thead><tr><th>Nr.</th><th>Name</th><th>Note</th></tr></thead><tbody>' + rows.map(function(r, i){
+      return '<tr><td>'+(i+1)+'</td><td>'+esc((r.nn ? r.nn + ' ' : '') + r.vn)+(r.extra ? ' <small>(nicht in der Klassenliste)</small>' : '')+'</td><td><b>'+(r.note == null ? '–' : esc(pruefNoteText(r.note)))+'</b></td></tr>';
+    }).join('') + '</tbody></table>';
+    h += '<div class="modal-actions"><button class="btn btn-ghost btn-sm" id="prNkNochmal" type="button">📋 Nochmals kopieren</button><button class="btn btn-primary btn-sm" id="modalCancel" type="button">Fertig</button></div>';
+    openModal(h, 'pr-modal');
+    document.getElementById('modalCancel').addEventListener('click', closeModal);
+    document.getElementById('prNkNochmal').addEventListener('click', function(){ textKopieren(text, function(){ toast('📋 Nochmals kopiert.'); }); });
+  });
+}
 function pruefMonitorKnoepfe(p, skPapier){
   var h = '';
   h += '<div class="back-row" style="flex-wrap:wrap;">';
@@ -38960,6 +38995,7 @@ function pruefMonitorKnoepfe(p, skPapier){
   if(pruefArt(p) === 'sikore') h += '<button class="btn btn-ghost btn-sm" data-a="sikoreDruck" type="button">🖨️ Blätter drucken</button>';
   h += '<button class="btn btn-ghost btn-sm" data-a="bearbeiten" type="button">✏️ Bearbeiten</button>';
   if(p.status !== 'entwurf' && ['sikore','tippen'].indexOf(pruefArt(p)) < 0) h += '<button class="btn btn-ghost btn-sm" data-a="massstab" type="button" title="Notenmassstab nach der Korrektur anpassen, z. B. 6 schon ab 57 von 60 Punkten — mit Vorschau">📏 Notenmassstab</button>';
+  if(p.status !== 'entwurf') h += '<button class="btn btn-ghost btn-sm" data-a="notenkopieren" type="button" title="Noten nach Nachname sortiert kopieren — in LehrerOffice mit Ctrl+V einfügen">📋 Noten kopieren</button>';
   if(!skPapier && ['sikore','tippen','mt'].indexOf(pruefArt(p)) < 0 && !p.rsw && !p.diktat) h += '<button class="btn btn-ghost btn-sm" data-a="variante" type="button" title="Eigene Bereiche, Umfang, Antwortart, Anzahl und Note für einzelne Personen (Lernzielanpassung)">➕ Angepasste Variante</button>';
   h += '<button class="btn btn-ghost btn-sm" data-a="ablegen" type="button" title="In einem Ordner des Fachs ablegen – die Klasse sieht sie dort erst nach dem Freigeben">📁 Ablegen</button>';
   if(pruefArt(p) === 'bank' && !p.diktat) h += '<button class="btn btn-ghost btn-sm" data-a="punkte" type="button">🧮 Aufgaben & Punkte</button>';
@@ -39327,6 +39363,7 @@ function pruefMonitorVerdrahten(p0){
     else if(a === 'variante') pruefEditor(null, null, p);
     else if(a === 'bearbeiten'){ if(pruefArt(p) === 'sikore') sikoreEditor(p); else if(pruefArt(p) === 'tippen') tippPrEditor(p); else if(pruefArt(p) === 'mt') mtPrEditor(p); else if(p.rsw) rswPrEditor(p); else pruefEditor(p); }
     else if(a === 'massstab') pruefMassstabDialog(p);
+    else if(a === 'notenkopieren') pruefNotenKopieren(p);
     else if(a === 'sikoreDruck') sikoreDruckDialog(p);
     else if(a === 'punkte') pruefAufgabenPunkte(p);
     else if(a === 'baukasten'){ if(pruefArt(p) === 'mt') mtPrBaukasten(p); else if(pruefArt(p) === 'nativ') nativBaukasten(p); else if(p.rsw) rswBaukasten(p); else pruefBaukasten(p); }
