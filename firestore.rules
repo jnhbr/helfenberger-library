@@ -546,6 +546,25 @@ service cloud.firestore {
       allow delete: if lehrerVoll() && (resource.data.vonUid == request.auth.uid || isJan());
     }
 
+    // 🔁 Werkstatt zurücksetzen (27.11.2026): Schüler:innen fragen an, eine Lehrperson
+    // bestätigt (status 'ok') oder lehnt ab ('nein'). Ausgeführt wird im Browser der
+    // Schüler:in, danach löscht sie die Anfrage. resetAnfragen/{uid_rid_teil} =
+    // {uid, name, klasse, rid, titel, part, status, am}.
+    match /resetAnfragen/{id} {
+      allow read: if isOwner(resource.data.uid) || darfAuswerten();
+      allow create: if isSignedIn()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.status == 'offen';
+      allow update: if (isOwner(resource.data.uid)
+          && request.resource.data.uid == request.auth.uid
+          && request.resource.data.status == 'offen')
+        || (darfAuswerten()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'entschiedenVon', 'entschiedenAm'])
+          && request.resource.data.status in ['ok', 'nein']);
+      // Separat: bei einem delete ist request.resource null.
+      allow delete: if isOwner(resource.data.uid) || darfAuswerten();
+    }
+
     // Login mit Vorname oder Schul-Kürzel: loginAliases/{slug} = {konten:[...]}.
     // Vor der Anmeldung einzeln lesbar (get), aber nicht auflistbar; schreibt
     // nur das Admin-Skript.

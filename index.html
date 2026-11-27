@@ -57,7 +57,7 @@ function winterAn(){ var aus = false; try{ aus = localStorage.getItem('hl_winter
 <!-- Seit 25.11.2026 ausgelagert (Etappe 5a). Der ?v=-Stempel kommt von node admin/versionen.js.
      defer = läuft in dieser Reihenfolge vor dem Modul-Skript, die Namen (NEUIGKEITEN, ENERGIZER …) sind dort direkt sichtbar. -->
 <script src="app/daten.js?v=92f79ea94b" defer></script>
-<script src="app/neuigkeiten.js?v=f30951281e" defer></script>
+<script src="app/neuigkeiten.js?v=346045ab5b" defer></script>
 <script type="module">
 import {
   initializeApp
@@ -687,7 +687,7 @@ function writeBatch(){
    Live-Spiele usw. (UNDO_OHNE) werden nicht gemerkt. Nur im Speicher – nach einem Neuladen ist der Verlauf leer.
    In Textfeldern bleibt Cmd+Z das normale Rückgängig des Browsers; Übungsseiten im iframe sehen die Taste gar nicht. */
 var UNDO_MAX = 15;
-var UNDO_OHNE = /(^|\/)(progress|streaks|pushSubscriptions|fehlerLog|rueckmeldungen|passwortAnfragen|quizSessions)(\/|$)/;
+var UNDO_OHNE = /(^|\/)(progress|streaks|pushSubscriptions|fehlerLog|rueckmeldungen|passwortAnfragen|resetAnfragen|quizSessions)(\/|$)/;
 var undoStapel = [];   // [{key, eintraege:[{ref, vorher}], kaputt}] – vorher: Daten, null = gab es noch nicht, undefined = unbekannt
 function undoErlaubt(){ return !!(state.profile && state.profile.role === 'teacher') && !alsSchueler() && !isLeitung(); }
 function undoMerken(refs){
@@ -6206,6 +6206,7 @@ async function authGeaendert(user){
     } else {
       setTimeout(einfuehrungPruefen, 1500);
       setTimeout(pwHinweis, 4000);
+      setTimeout(rsrLehrerStart, 5000);
       setTimeout(rmHinweis, 6500);
     }
     // Ämtliplan gleich nach dem Anmelden im Hintergrund holen. Er ist winzig,
@@ -8780,6 +8781,7 @@ function openSettings(){
   }
   if(isTeacher && !isLeitung() && !istPraktikum()){
     h += '<div class="settings-section"><h4>🔑 Passwort vergessen?</h4><div class="settings-actions"><button class="btn btn-ghost btn-sm" id="setPwAnfBtn" type="button">'+(istJan() ? 'Passwort-Anfragen (alle)' : 'Passwort einer Schüler:in zurücksetzen')+'</button></div></div>';
+    h += '<div class="settings-section"><h4>🔁 Werkstatt zurücksetzen</h4><div class="settings-actions"><button class="btn btn-ghost btn-sm" id="setRsrBtn" type="button">Anfragen der Schüler:innen'+(rsr.offen.length ? ' ('+rsr.offen.length+' offen)' : '')+'</button></div></div>';
   }
   if(isTeacher && !isLeitung()){
     h += '<div class="settings-section"><h4>💬 Rückmeldung an Jan</h4>'+
@@ -8816,6 +8818,8 @@ function openSettings(){
   document.getElementById('setEinfBtn').addEventListener('click', function(){ closeModal(); openEinfuehrung(); });
   var pwAnfBtn = document.getElementById('setPwAnfBtn');
   if(pwAnfBtn) pwAnfBtn.addEventListener('click', openPasswortAnfragen);
+  var rsrBtn = document.getElementById('setRsrBtn');
+  if(rsrBtn) rsrBtn.addEventListener('click', openResetAnfragen);
   var rmBtn = document.getElementById('setRmBtn');
   if(rmBtn) rmBtn.addEventListener('click', function(){ openRueckmeldungen(); });
   var statBtn = document.getElementById('setStatBtn');
@@ -45517,6 +45521,7 @@ window.addEventListener('message', function(e){
   if(!eigen) return;
   rswPassFenster = e.source;
   rswPassSenden();
+  rsrPruefen(e.source, rsrRid(e.source));
 });
 function rswPassStand(){
   if(pruefIstLehrer()) return {lehrer:true, teile:{}};
@@ -45541,6 +45546,114 @@ function rswPassSenden(){
   if(!w) return;
   if(w.closed){ rswPassFenster = null; return; }
   try{ w.postMessage(Object.assign({__rswPruefStand:true}, rswPassStand()), '*'); }catch(e){ rswPassFenster = null; }
+}
+
+/* ---------- 🔁 Werkstatt zurücksetzen: Schüler:in fragt an, Lehrperson bestätigt (27.11.2026) ----------
+   Vorher löschte «↺ Fortschritt zurücksetzen» den Stand sofort (Matteo G3a, 27.11.: aus Versehen ~1,5 h weg).
+   Die Seite schickt __rswResetAnfrage {part} → resetAnfragen/{uid}_{rid}_{part} = {uid, name, klasse, rid, titel, part,
+   status:'offen', am}. Lehrpersonen bekommen eine Meldung (live und beim Anmelden, sonst ⚙️ Einstellungen) und setzen
+   'ok' oder 'nein'. Gelöscht wird erst, wenn die Werkstatt wieder offen ist: __rswPruefFrage → __rswResetOk → die Seite
+   leert sich selbst, gespeichert wird wie immer über writeProgressWithHistory, __rswResetFertig → Anfrage weg.
+   Lehrpersonen setzen ihren eigenen Stand ohne Anfrage zurück. */
+function rsrCol(){ return collection(db, 'resetAnfragen'); }
+function rsrRid(src){
+  var f = libFensterVonQuelle(src);
+  if(f) return f.rid;
+  var eigen = Array.prototype.some.call(document.querySelectorAll('iframe'), function(x){ return x.contentWindow === src; });
+  return eigen ? currentViewerResourceId : null;
+}
+function rsrId(rid, part){ return state.user.uid + '_' + rid + '_' + part; }
+function rsrSenden(w, o){ try{ w.postMessage(o, '*'); }catch(e){} }
+function rsrListe(snap){
+  var out = [];
+  snap.forEach(function(d){ out.push(Object.assign({id:d.id}, d.data())); });
+  out.sort(function(a, b){ return (pruefMs(a.am) || 0) - (pruefMs(b.am) || 0); });
+  return out;
+}
+// Werkstatt wurde geöffnet: Stand der eigenen Anfragen für diese Übung melden (bestätigt → jetzt zurücksetzen).
+function rsrPruefen(w, rid){
+  if(!rid || pruefIstLehrer()) return;
+  getDocs(query(rsrCol(), where('uid', '==', state.user.uid))).then(function(snap){
+    rsrListe(snap).filter(function(a){ return a.rid === rid; }).forEach(function(a){
+      if(a.status === 'ok') rsrSenden(w, {__rswResetOk:true, part:a.part});
+      else if(a.status === 'nein'){
+        rsrSenden(w, {__rswResetStatus:true, part:a.part, status:'nein'});
+        deleteDoc(doc(rsrCol(), a.id)).catch(function(err){ console.error('Reset-Anfrage löschen', err); });
+      } else rsrSenden(w, {__rswResetStatus:true, part:a.part, status:'offen'});
+    });
+  }).catch(function(err){ console.error('Reset-Anfragen', err); });
+}
+window.addEventListener('message', function(e){
+  var d = e.data;
+  if(!d || !state.user || !(d.__rswResetAnfrage || d.__rswResetFertig)) return;
+  var rid = rsrRid(e.source), part = +d.part;
+  if(!rid || !(part >= 1 && part <= 9)) return;
+  if(d.__rswResetFertig){
+    if(!pruefIstLehrer()) deleteDoc(doc(rsrCol(), rsrId(rid, part))).catch(function(err){ console.error('Reset-Anfrage löschen', err); });
+    return;
+  }
+  if(pruefIstLehrer()){ rsrSenden(e.source, {__rswResetOk:true, part:part}); return; }
+  var res = (state.resources || []).filter(function(r){ return r.id === rid; })[0], p = state.profile || {};
+  setDoc(doc(rsrCol(), rsrId(rid, part)), {
+    uid:state.user.uid, name:(p.displayName || p.username || '?') + (p.nachname ? ' ' + p.nachname : ''), klasse:p.klasse || state.klasse,
+    rid:rid, titel:res ? (res.title || res.fileName || '') : '', part:part, status:'offen', am:serverTimestamp()
+  }).then(function(){ rsrSenden(e.source, {__rswResetStatus:true, part:part, status:'gesendet'}); },
+    function(err){ console.error('Reset-Anfrage', err); rsrSenden(e.source, {__rswResetStatus:true, part:part, status:'fehler'}); });
+});
+
+// Lehrpersonen: offene Anfragen live beobachten. Jan sieht alle, die anderen die ihrer Klasse.
+var rsr = {unsub:null, gemeldet:{}, offen:[]};
+function rsrDarf(){ return !!(state.profile && state.profile.role === 'teacher' && !isLeitung() && !istPraktikum() && !alsSchueler()); }
+function rsrLehrerStart(){
+  if(!rsrDarf() || AKT_FENSTER) return;
+  if(rsr.unsub) rsr.unsub();
+  rsr.unsub = onSnapshot(istJan() ? rsrCol() : query(rsrCol(), where('klasse', '==', state.klasse)), function(snap){
+    rsr.offen = rsrListe(snap).filter(function(a){ return a.status === 'offen'; });
+    var neu = rsr.offen.filter(function(a){ return !rsr.gemeldet[a.id]; });
+    rsr.offen.forEach(function(a){ rsr.gemeldet[a.id] = 1; });
+    if(!neu.length) return;
+    var frei = !modalEl.classList.contains('show') && !pruef.sess && !document.body.classList.contains('pr-lock-open');
+    if(frei) openResetAnfragen();
+    else toast('🔁 ' + neu.map(function(a){ return a.name; }).join(', ') + ' möchte' + (neu.length > 1 ? 'n' : '') + ' die Werkstatt zurücksetzen – ⚙️ Einstellungen');
+  }, function(err){ if(!(err && err.code === 'permission-denied')) console.error('Reset-Anfragen', err); });
+}
+function rsrTeil(a){ return (a.titel || 'Rechtschreib-Werkstatt') + (/teil\s*\d/i.test(a.titel || '') ? '' : ' · Teil ' + a.part); }
+function openResetAnfragen(){
+  openModal('<h3>🔁 Werkstatt zurücksetzen</h3>'+
+    '<p class="pr-hinweis">Diese Schüler:innen möchten ihren Stand löschen. Erst nach deiner Bestätigung wird zurückgesetzt, beim nächsten Öffnen der Werkstatt. Löschen kann man nicht rückgängig machen.</p>'+
+    '<div id="rsrListe" class="settings-list"><div class="empty-state">Wird geladen …</div></div>'+
+    '<div class="modal-actions"><button class="btn btn-ghost btn-sm" id="modalCancel" type="button">Schliessen</button></div>', 'modal-wide');
+  document.getElementById('modalCancel').addEventListener('click', closeModal);
+  function liste(){
+    getDocs(istJan() ? rsrCol() : query(rsrCol(), where('klasse', '==', state.klasse))).then(function(snap){
+      var el = document.getElementById('rsrListe');
+      if(!el) return;
+      var list = rsrListe(snap);
+      el.innerHTML = list.length ? list.map(function(a){
+        var st = a.status === 'ok' ? '✓ bestätigt – wird beim nächsten Öffnen gelöscht' : a.status === 'nein' ? '✕ abgelehnt' : '⏳ wartet auf dich';
+        var knoepfe = a.status === 'offen'
+          ? '<button class="btn btn-primary btn-sm" type="button" data-rsr="ok" data-id="'+esc(a.id)+'">✓ Zurücksetzen</button>'+
+            '<button class="btn btn-ghost btn-sm" type="button" data-rsr="nein" data-id="'+esc(a.id)+'">✕ Ablehnen</button>'
+          : '<button class="btn btn-ghost btn-sm" type="button" data-rsr="weg" data-id="'+esc(a.id)+'">Entfernen</button>';
+        return '<div class="settings-row"><div class="grow"><b>'+esc(a.name || '?')+'</b> <small>'+esc(klasseLabel(a.klasse || ''))+(a.am ? ' · '+esc(rmZeit(a.am)) : '')+'</small>'+
+          '<small>'+esc(rsrTeil(a))+' · '+st+'</small></div>'+knoepfe+'</div>';
+      }).join('') : '<div class="empty-state" style="padding:10px;">Keine Anfragen.</div>';
+      el.querySelectorAll('[data-rsr]').forEach(function(b){
+        b.addEventListener('click', function(){
+          var art = b.getAttribute('data-rsr'), ref_ = doc(rsrCol(), b.getAttribute('data-id'));
+          b.disabled = true;
+          (art === 'weg' ? deleteDoc(ref_) : updateDoc(ref_, {status:art, entschiedenVon:state.user.uid, entschiedenAm:serverTimestamp()}))
+            .then(function(){ if(art === 'ok') toast('Bestätigt – wird beim nächsten Öffnen zurückgesetzt.'); liste(); },
+              function(err){ console.error(err); b.disabled = false; toast('Hat nicht geklappt.'); });
+        });
+      });
+    }).catch(function(err){
+      console.error(err);
+      var el = document.getElementById('rsrListe');
+      if(el) el.innerHTML = '<div class="empty-state" style="padding:10px;">Konnte nicht geladen werden.</div>';
+    });
+  }
+  liste();
 }
 
 /* ---------- Beschreibung, Drucken ---------- */

@@ -602,3 +602,19 @@ test('Live-Spiel: eigene Antwort schreiben und lesen, fremde nicht; die Lehrpers
   await assertSucceeds(getDocs(collection(db.jan(), 'klassen/G3b/quizSessions/spiel/antworten')));
   await assertSucceeds(deleteDoc(doc(db.jan(), 'klassen/G3b/quizSessions/spiel/antworten/sus')));
 });
+
+test('Werkstatt-Reset: Schüler:in fragt für sich an, Lehrperson bestätigt, Fremde nicht', async () => {
+  const sus = db.sus(), susA = db.susA(), lp = db.lp();
+  await assertSucceeds(setDoc(doc(sus, 'resetAnfragen/sus_r1_1'), { uid: 'sus', klasse: 'G3b', rid: 'r1', part: 1, status: 'offen' }));
+  await assertFails(setDoc(doc(sus, 'resetAnfragen/susA_r1_1'), { uid: 'susA', klasse: 'G3a', rid: 'r1', part: 1, status: 'offen' }));
+  await assertFails(setDoc(doc(sus, 'resetAnfragen/sus_r1_2'), { uid: 'sus', klasse: 'G3b', rid: 'r1', part: 2, status: 'ok' }));
+  // selbst bestätigen geht nicht
+  await assertFails(updateDoc(doc(sus, 'resetAnfragen/sus_r1_1'), { status: 'ok' }));
+  await assertFails(getDoc(doc(susA, 'resetAnfragen/sus_r1_1')));
+  await assertSucceeds(getDoc(doc(lp, 'resetAnfragen/sus_r1_1')));
+  await assertFails(updateDoc(doc(lp, 'resetAnfragen/sus_r1_1'), { status: 'ok', uid: 'andere' }));
+  await assertSucceeds(updateDoc(doc(lp, 'resetAnfragen/sus_r1_1'), { status: 'ok', entschiedenVon: 'lp' }));
+  await assertSucceeds(getDoc(doc(sus, 'resetAnfragen/sus_r1_1')));
+  await assertFails(deleteDoc(doc(susA, 'resetAnfragen/sus_r1_1')));
+  await assertSucceeds(deleteDoc(doc(sus, 'resetAnfragen/sus_r1_1')));
+});

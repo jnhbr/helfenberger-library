@@ -3,6 +3,8 @@
 // Klassisches Skript vor dem Modul-Skript. Nach jeder Änderung: node admin/versionen.js
 
 const NEUIGKEITEN = [
+  {id:'2026-11-27-werkstatt-reset-anfrage', datum:'2026-11-27', fuer:'alle', text:'✍️ Rechtschreib-Werkstatt: «↺ Zurücksetzen anfragen» löscht deinen Stand nicht mehr sofort. Deine Lehrperson bekommt eine Anfrage und muss zuerst bestätigen. Erst dann wird beim nächsten Öffnen gelöscht.'},
+  {id:'2026-11-27-werkstatt-reset-lp', datum:'2026-11-27', fuer:'lehrer', text:'🔁 Werkstatt zurücksetzen: Fragt eine Schüler:in an, erscheint bei dir ein Fenster mit «✓ Zurücksetzen» / «✕ Ablehnen» (auch unter ⚙️ Einstellungen › 🔁 Werkstatt zurücksetzen). Gelöscht wird erst nach deiner Bestätigung.'},
   {id:'2026-11-26-parallele-faecher', datum:'2026-11-26', fuer:'lehrer', text:'🔀 Klassen-Stundenplan: Wo die Klasse auf Wahlfächer oder Halbklassen verteilt ist, stehen jetzt alle Fächer nebeneinander mit Symbol und Anzahl Schüler:innen (aus Untis/Gruppen). Antippen zeigt, wer dabei ist. Von Hand eingetragene Lektionen bleiben, wie sie sind.'},
   {id:'2026-11-26-termin-uhrzeit', datum:'2026-11-26', fuer:'alle', text:'🕒 Termine im Stundenplan zeigen ihre genaue Uhrzeit (z. B. 18:00–23:00), auch wenn sie nicht genau auf eine Lektion fallen. Beim Eintragen eines 📌 Termins kannst du die Zeit neu selbst angeben.'},
   {id:'2026-11-25-lernziele-editor', datum:'2026-11-25', fuer:'lehrer', text:'🎯 Lernziele selbst festlegen: Im Ordner auf «🎯 Lernziele» trägst du die Lernziele ein (eine Zeile pro Lernziel) und tippst bei jeder Frage der Übung an, zu welchen Lernzielen sie gehört. Bestehende Lernziele änderst du auf der Karte mit «✏️ Bearbeiten». Das Raster «Schüler:in × Lernziel» findest du jetzt auch im 📈 Lernstand beim Ordner.'},
